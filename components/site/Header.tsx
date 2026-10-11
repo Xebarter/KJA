@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { Article, Social } from "@/lib/types";
 
 const learning = [
@@ -56,9 +56,19 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
 }) {
   const [open, setOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const updateScrolled = () => {
+      setScrolled((current) => window.scrollY > (current ? 24 : 64));
+    };
+    updateScrolled();
+    window.addEventListener("scroll", updateScrolled, { passive: true });
+    return () => window.removeEventListener("scroll", updateScrolled);
+  }, []);
 
   return (
-    <header id="masthead" className="site-header header">
+    <header id="masthead" className={`site-header header${scrolled ? " is-scrolled" : ""}`}>
       <div className="header-top">
         <div className="container">
           <div className="header-top-wrap">
@@ -86,7 +96,13 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
       <div className="main-navigation">
         <nav id="nav-main" className="navbar navbar-expand-lg">
           <div className="container">
-            <Link className="navbar-brand" href="/"><img src="/images/kja-logo.png" alt="Kampala Junior Academy" /></Link>
+            <Link className="navbar-brand" href="/" aria-label="Kampala Junior Academy">
+              <img className="navbar-brand-full" src="/images/kja-logo.png" alt="" />
+              <span className="navbar-brand-compact">
+                <img src="/images/icon.png" alt="" />
+                <span>Kampala Junior Academy</span>
+              </span>
+            </Link>
             <div className="mobile-menu-right">
               <div className="search-btn">
                 <button type="button" className="nav-right-link search-box-outer" aria-label="Search" onClick={() => setSearchOpen(true)}>
