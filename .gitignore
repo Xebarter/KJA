@@ -1,0 +1,25 @@
+# Dependencies
+/node_modules
+
+# Next.js
+/.next/
+/out/
+/build/
+.vercel
+
+# Local environment files (keep the template available)
+.env*
+!.env.example
+
+# Debug logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# TypeScript build output
+*.tsbuildinfo
+
+# Local certificates and OS files
+*.pem
+.DS_Store

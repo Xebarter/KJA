@@ -1,0 +1,97 @@
+@font-face {
+    font-family: 'Yantramanav';
+    font-style:normal;
+    font-weight: 100;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 300;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style:normal;
+    font-weight: 400;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 500;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 700;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 900;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Regular.ttf) format('woff2');
+}
+
+
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style:normal;
+    font-weight: bold;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Bold.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 100;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Thin.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: normal;
+    font-weight: 900;
+    font-display: swap;
+    src: url(../fonts/Yantramanav-Black.ttf) format('woff2');
+}
+
+/*@font-face {
+    font-family: 'Yantramanav';
+    font-style: italic;
+    font-weight: 500;
+    font-display: swap;
+    src: url(../Roboto/Roboto-Italic-VariableFont_wdth\,wght.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: italic;
+    font-weight: 700;
+    font-display: swap;
+    src: url(../Roboto/Roboto-Italic-VariableFont_wdth\,wght.ttf) format('woff2');
+}
+
+@font-face {
+    font-family: 'Yantramanav';
+    font-style: italic;
+    font-weight: 900;
+    font-display: swap;
+    src: url(../Roboto/Roboto-Italic-VariableFont_wdth\,wght.ttf) format('woff2');
+}*/

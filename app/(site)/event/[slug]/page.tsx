@@ -1,0 +1,17 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { Banner, Detail } from "@/components/site/Views";
+import { findBySlug, getContent } from "@/lib/content";
+
+type Params = { params: Promise<{ slug: string }> };
+
+export async function generateMetadata({ params }: Params): Promise<Metadata> {
+  const item = findBySlug((await getContent()).events, (await params).slug);
+  return { title: item?.title ?? "Event", description: item?.excerpt || undefined };
+}
+
+export default async function EventDetail({ params }: Params) {
+  const item = findBySlug((await getContent()).events, (await params).slug);
+  if (!item) notFound();
+  return <main><Banner title={item.title} crumbs="Events" /><Detail item={item} /></main>;
+}
