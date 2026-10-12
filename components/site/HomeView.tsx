@@ -206,6 +206,7 @@ export function HomeView({ content }: { content: SiteContent }) {
             {campuses.map((campus) => (
               <div className="col-md-6 col-lg-4 mb-4" key={campus.slug}>
                 <div className="course-item wow fadeInUp h-100" data-wow-delay=".25s">
+                  <Link href={`/branch/${campus.slug}`} className="kja-card-link" aria-hidden="true" tabIndex={-1} />
                   <div className="course-img">
                     {campus.image_url ? <img src={campus.image_url} alt={campus.title} /> : null}
                     <Link href={`/branch/${campus.slug}`} className="btn">

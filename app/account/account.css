@@ -54,19 +54,56 @@ body:has(.kja-account) {
   border: 0; border-radius: 999px; padding: .65rem 1.15rem; background: var(--red); color: #fff; font: inherit; cursor: pointer;
 }
 .account-btn-ghost { background: #fff; color: var(--navy); border: 1px solid var(--line); }
-.account-google { width: 100%; background: #fff; color: var(--navy); border: 1px solid var(--line); }
+.account-google { width: 100%; background: #fff; color: var(--navy); border: 1px solid #e4ddd0; padding: .8rem 1.15rem; }
+.account-google svg { flex-shrink: 0; }
 .account-empty { text-align: center; color: var(--muted); padding: 1.5rem .5rem; }
 .account-auth {
-  min-height: 100vh; display: grid; place-items: center; padding: 2rem 1rem;
-  background: linear-gradient(160deg, rgba(25,35,43,.92), rgba(228,36,53,.5)), #19232b;
+  --navy: #19232b;
+  --red: #e42435;
+  --gold: #fda31b;
+  --muted: #5d6670;
+  --line: rgba(25, 35, 43, .1);
+  position: fixed; inset: 0; z-index: 12000;
+  display: grid; place-items: center; padding: 1.4rem 1.1rem;
+  background: rgba(25, 35, 43, .58);
+  backdrop-filter: blur(8px);
+  overflow: auto;
+  cursor: pointer;
 }
-.account-auth-card { width: min(440px, 100%); background: var(--paper); border-radius: 20px; padding: 2rem 1.7rem; box-shadow: 0 30px 60px rgba(0,0,0,.25); }
-.account-auth-card img { width: 72px; height: 72px; object-fit: contain; display: block; margin: 0 auto 1rem; }
-.account-auth-card h1 { text-align: center; margin: 0 0 .3rem; }
-.account-auth-card .lede { text-align: center; color: var(--muted); margin-bottom: 1.2rem; }
-.account-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem; margin-bottom: 1rem; }
-.account-tabs button { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: .45rem; font: inherit; cursor: pointer; }
-.account-tabs button.active { background: var(--navy); color: #fff; border-color: var(--navy); }
+.account-auth-card {
+  width: min(400px, 100%);
+  background: #fff;
+  border-radius: 24px;
+  padding: 2.1rem 1.7rem 1.85rem;
+  box-shadow: 0 24px 60px rgba(25, 35, 43, .1);
+  border: 1px solid rgba(25, 35, 43, .06);
+  cursor: default;
+}
+.account-auth-mark {
+  width: 168px; height: 168px; margin: 0 auto 1.5rem;
+  overflow: hidden; border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 0 0 4px #fff, 0 0 0 5px rgba(253, 163, 27, .85), 0 16px 32px rgba(25, 35, 43, .12);
+}
+.account-auth-mark img {
+  display: block; height: 100%; width: auto; max-width: none;
+}
+@media (max-height: 820px) {
+  .account-auth-mark { width: 112px; height: 112px; margin-bottom: 1rem; }
+  .account-auth-card { padding: 1.35rem 1.4rem 1.25rem; }
+}
+.account-auth-or {
+  display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: .7rem;
+  margin: .85rem 0; color: var(--muted); font-size: .82rem; letter-spacing: .12em; text-transform: uppercase;
+}
+.account-auth-or::before, .account-auth-or::after { content: ""; height: 1px; background: var(--line); }
+.account-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); }
+.account-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: .35rem; margin-bottom: 1.05rem; padding: .25rem; background: #f4eee3; border-radius: 999px; }
+.account-tabs button { border: 0; background: transparent; border-radius: 999px; padding: .55rem; font: inherit; cursor: pointer; color: var(--navy); }
+.account-tabs button.active { background: var(--navy); color: #fff; }
+.account-auth .account-form { gap: .7rem; }
+.account-auth .account-form input { border-radius: 12px; padding: .8rem .9rem; border-color: #e4ddd0; }
+.account-auth .account-btn { width: 100%; padding: .85rem 1.15rem; margin-top: .15rem; }
 .account-error { color: var(--red); }
 .account-badge { display: inline-block; border-radius: 999px; padding: .15rem .55rem; font-size: .78rem; background: #f3e4c6; color: var(--navy); }
 .account-list { display: grid; gap: .85rem; }

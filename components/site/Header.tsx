@@ -1,7 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useState, type MouseEvent } from "react";
+import { useAuthDialog } from "@/components/account/AuthDialog";
+import { createBrowserSupabase } from "@/lib/supabase/browser";
 import type { Article, Social } from "@/lib/types";
 
 const about = [
@@ -71,6 +74,8 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
   const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const router = useRouter();
+  const { openAuth } = useAuthDialog();
   const phoneHref = `tel:${phone.replace(/\s/g, "")}`;
 
   const sections = [
@@ -86,6 +91,18 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
   const closeMenu = () => {
     setOpen(false);
     setExpanded(null);
+  };
+
+  const onAccount = async (event: MouseEvent<HTMLAnchorElement>) => {
+    event.preventDefault();
+    closeMenu();
+    const supabase = createBrowserSupabase();
+    const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+    if (session) {
+      router.push("/account");
+      return;
+    }
+    openAuth("/account");
   };
 
   useEffect(() => {
@@ -178,6 +195,9 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
                   <i className="fas fa-magnifying-glass" />
                 </button>
               </div>
+              <Link className="nav-account" href="/account" aria-label="Parent portal" title="Parent portal" onClick={onAccount}>
+                <i className="fas fa-user" aria-hidden="true" />
+              </Link>
               <button
                 className={`navbar-toggler${open ? " is-open" : ""}`}
                 type="button"
@@ -199,8 +219,8 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
                   <Menu key={section.id} label={section.label} items={section.items} />
                 ))}
               </ul>
-              <Link className="nav-account" href="/account">
-                <i className="fa-solid fa-circle-user" /> My account
+              <Link className="nav-account" href="/account" aria-label="Parent portal" title="Parent portal" onClick={onAccount}>
+                <i className="fas fa-user" aria-hidden="true" />
               </Link>
             </div>
           </div>
@@ -247,7 +267,7 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
             })}
           </nav>
           <div className="mobile-drawer-foot">
-            <Link className="mobile-drawer-cta" href="/account" onClick={closeMenu}>Parent portal</Link>
+            <Link className="mobile-drawer-cta" href="/account" onClick={onAccount}>Parent portal</Link>
             <Link className="mobile-drawer-cta" href="/apply" onClick={closeMenu}>Apply Online</Link>
             <div className="mobile-drawer-social">
               {socials.map((social) => (

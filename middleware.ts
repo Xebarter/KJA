@@ -10,10 +10,16 @@ export async function middleware(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+  function parentLogin(nextPath?: string) {
+    const login = new URL("/", request.url);
+    login.searchParams.set("login", "1");
+    if (nextPath && nextPath !== "/") login.searchParams.set("next", nextPath);
+    return NextResponse.redirect(login);
+  }
+
   if (!url || !key) {
-    if ((isAdmin && !isAdminLogin) || (isAccount && !isAccountLogin)) {
-      return NextResponse.redirect(new URL(isAdmin ? "/admin/login" : "/account/login", request.url));
-    }
+    if (isAdmin && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
+    if (isAccount) return parentLogin(isAccountLogin ? undefined : path);
     return NextResponse.next();
   }
 
@@ -45,12 +51,8 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isAccount) {
-    if (!user && !isAccountLogin) {
-      const login = new URL("/account/login", request.url);
-      login.searchParams.set("next", path);
-      return NextResponse.redirect(login);
-    }
-    if (user && isAccountLogin) return NextResponse.redirect(new URL("/account", request.url));
+    if (!user) return parentLogin(isAccountLogin ? undefined : path);
+    if (isAccountLogin) return NextResponse.redirect(new URL("/account", request.url));
   }
 
   return response;

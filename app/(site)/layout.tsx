@@ -1,9 +1,12 @@
+import { Suspense } from "react";
 import Script from "next/script";
+import { AuthDialogProvider } from "@/components/account/AuthDialog";
 import { AdmissionsPopup } from "@/components/site/Popup";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
 import { ThemeEffects } from "@/components/site/HomeMotion";
 import { getContent } from "@/lib/content";
+import "@/app/account/account.css";
 
 export const dynamic = "force-dynamic";
 
@@ -28,31 +31,35 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
   const { settings } = content;
   const campuses = [...content.campuses].sort((a, b) => rank(a.slug) - rank(b.slug));
   return (
-    <div id="page" className="site">
-      <Header
-        campuses={campuses}
-        socials={settings.socials}
-        phone={settings.phone}
-        email={settings.email}
-        address={settings.address}
-        mapUrl={settings.map_url}
-      />
-      {children}
-      <Footer
-        phone={settings.phone}
-        email={settings.email}
-        address={settings.address}
-        mapUrl={settings.map_url}
-        footerText={settings.footer_text}
-        socials={settings.socials}
-      />
-      <a href="#page" id="scroll-top" aria-label="Back to top"><i className="fas fa-arrow-up" /></a>
-      {settings.popup_enabled ? (
-        <AdmissionsPopup title={settings.popup_title} body={settings.popup_body} label={settings.popup_cta_label} href={settings.popup_cta_href} />
-      ) : null}
-      <ThemeEffects />
-      <script id="wp-emoji-settings" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(EMOJI_SETTINGS) }} />
-      <Script src="/js/wp-emoji-loader.min.js" type="module" strategy="lazyOnload" />
-    </div>
+    <Suspense>
+      <AuthDialogProvider>
+        <div id="page" className="site">
+          <Header
+            campuses={campuses}
+            socials={settings.socials}
+            phone={settings.phone}
+            email={settings.email}
+            address={settings.address}
+            mapUrl={settings.map_url}
+          />
+          {children}
+          <Footer
+            phone={settings.phone}
+            email={settings.email}
+            address={settings.address}
+            mapUrl={settings.map_url}
+            footerText={settings.footer_text}
+            socials={settings.socials}
+          />
+          <a href="#page" id="scroll-top" aria-label="Back to top"><i className="fas fa-arrow-up" /></a>
+          {settings.popup_enabled ? (
+            <AdmissionsPopup title={settings.popup_title} body={settings.popup_body} label={settings.popup_cta_label} href={settings.popup_cta_href} />
+          ) : null}
+          <ThemeEffects />
+          <script id="wp-emoji-settings" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(EMOJI_SETTINGS) }} />
+          <Script src="/js/wp-emoji-loader.min.js" type="module" strategy="lazyOnload" />
+        </div>
+      </AuthDialogProvider>
+    </Suspense>
   );
 }

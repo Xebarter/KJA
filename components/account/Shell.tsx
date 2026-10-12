@@ -57,7 +57,7 @@ export function AccountShell({
             className="account-nav-link"
             onClick={async () => {
               await signOutAccount();
-              router.push("/account/login");
+              router.push("/");
               router.refresh();
             }}
           >
