@@ -1,9 +1,5 @@
-import { notFound } from "next/navigation";
-import { Banner, Detail } from "@/components/site/Views";
-import { findBySlug, getContent } from "@/lib/content";
+import { permanentRedirect } from "next/navigation";
 
-export default async function AlumniProfileDetail({ params }: { params: Promise<{ slug: string }> }) {
-  const item = findBySlug((await getContent()).alumni_profiles, (await params).slug);
-  if (!item) notFound();
-  return <main><Banner title={item.title} crumbs="Alumni Profiles" /><Detail item={item} /></main>;
+export default async function AlumniProfileRedirect({ params }: { params: Promise<{ slug: string }> }) {
+  permanentRedirect(`/alumni-profile/${(await params).slug}`);
 }

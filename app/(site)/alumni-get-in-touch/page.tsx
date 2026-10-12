@@ -1,20 +1,13 @@
-import { ContactForm } from "@/components/site/Forms";
-import { Banner, Prose } from "@/components/site/Views";
+import { notFound } from "next/navigation";
+import { AlumniTouchForm } from "@/components/site/Cf7Forms";
+import { WpPageView } from "@/components/site/WpPageView";
 import { findBySlug, getContent } from "@/lib/content";
 
-export const metadata = { title: "Alumni get in touch" };
+export const metadata = { title: "alumni get in touch" };
 
 export default async function AlumniContactPage() {
-  const intro = findBySlug((await getContent()).pages, "alumni-get-in-touch");
-  return (
-    <main>
-      <Banner title={intro?.title || "Get in touch"} crumbs="Alumni" />
-      <div className="container py-5">
-        <div className="row g-4">
-          <div className="col-lg-7"><Prose html={intro?.body} /></div>
-          <div className="col-lg-5"><ContactForm subject="Alumni" heading="Alumni message" /></div>
-        </div>
-      </div>
-    </main>
-  );
+  const content = await getContent();
+  const page = findBySlug(content.pages, "alumni-get-in-touch");
+  if (!page) notFound();
+  return <WpPageView page={page} news={content.news} events={content.events} form={<AlumniTouchForm />} />;
 }

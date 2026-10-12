@@ -2,22 +2,40 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 
 export function AdmissionsPopup({ title, body, label, href }: { title: string; body: string; label: string; href: string }) {
-  const [open, setOpen] = useState(false);
+  const pathname = usePathname();
+  const show = pathname === "/" || pathname.startsWith("/branch/");
+  const [active, setActive] = useState(false);
+
   useEffect(() => {
-    const timer = setTimeout(() => setOpen(true), 300);
-    return () => clearTimeout(timer);
-  }, []);
-  if (!open) return null;
+    if (!show) return;
+    const timer = setTimeout(() => {
+      setActive(true);
+      document.body.classList.add("no-scroll");
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      document.body.classList.remove("no-scroll");
+    };
+  }, [show]);
+
+  if (!show) return null;
+
+  function close() {
+    setActive(false);
+    document.body.classList.remove("no-scroll");
+  }
+
   return (
-    <div className="dialog-overlay">
-      <div className="dialog-box d-flex flex-column gap-3 align-items-center justify-content-center px-4" style={{ width: 450, minHeight: 280 }}>
+    <div id="welcomeDialog" className={`dialog-overlay${active ? " active" : ""}`}>
+      <div className="dialog-box d-flex flex-column gap-3 align-items-center justify-content-center px-4" style={{ width: 450, height: 300 }}>
         <h2>{title}</h2>
         <p>{body}</p>
         <div className="d-flex align-items-center justify-content-center gap-3">
-          <Link className="kja-btn" href={href} onClick={() => setOpen(false)}>{label}</Link>
-          <button className="kja-btn btn px-5" type="button" onClick={() => setOpen(false)}>Close</button>
+          <Link className="kja-btn" href={href} onClick={close}>{label}</Link>
+          <button className="kja-btn btn px-5" id="closeDialog" type="button" onClick={close}>Close</button>
         </div>
       </div>
     </div>

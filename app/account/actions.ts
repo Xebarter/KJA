@@ -1,0 +1,120 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getSessionUser } from "@/lib/portal";
+
+function clean(value: FormDataEntryValue | null) {
+  const text = String(value ?? "").trim();
+  return text === "" ? null : text;
+}
+
+async function parentClient() {
+  const { user, supabase } = await getSessionUser();
+  if (!user || !supabase) throw new Error("Please sign in to continue.");
+  return { user, supabase };
+}
+
+function refresh() {
+  revalidatePath("/account", "layout");
+}
+
+export async function updateParentProfile(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("profiles").upsert({
+    id: user.id,
+    role: "parent",
+    full_name: clean(formData.get("full_name")),
+    email: user.email,
+    phone: clean(formData.get("phone")),
+    address: clean(formData.get("address")),
+  });
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function saveChild(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const id = clean(formData.get("id"));
+  const payload = {
+    user_id: user.id,
+    full_name: clean(formData.get("full_name")),
+    campus: clean(formData.get("campus")),
+    grade: clean(formData.get("grade")),
+    date_of_birth: clean(formData.get("date_of_birth")),
+    student_code: clean(formData.get("student_code")),
+  };
+  const query = id
+    ? supabase.from("children").update(payload).eq("id", id).eq("user_id", user.id)
+    : supabase.from("children").insert(payload);
+  const { error } = await query;
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function removeChild(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("children").delete().eq("id", String(formData.get("id"))).eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function submitParentApplication(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
+  const { error } = await supabase.from("applications").insert({
+    user_id: user.id,
+    parent_name: profile?.full_name || user.email,
+    email: user.email,
+    phone: profile?.phone || clean(formData.get("phone")),
+    child_name: clean(formData.get("child_name")),
+    campus: clean(formData.get("campus")),
+    grade: clean(formData.get("grade")),
+    message: clean(formData.get("message")),
+    status: "received",
+  });
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function signupClub(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("club_signups").insert({
+    user_id: user.id,
+    child_id: clean(formData.get("child_id")),
+    club_id: clean(formData.get("club_id")),
+    status: "pending",
+  });
+  if (error) throw new Error(error.message.includes("duplicate") ? "That child is already signed up for this club." : error.message);
+  refresh();
+}
+
+export async function cancelClubSignup(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("club_signups").delete().eq("id", String(formData.get("id"))).eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function sendParentMessage(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("parent_messages").insert({
+    user_id: user.id,
+    subject: clean(formData.get("subject")),
+    body: clean(formData.get("body")),
+    direction: "out",
+  });
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function markNoticeRead(formData: FormData) {
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("notifications").update({ read: true }).eq("id", String(formData.get("id"))).eq("user_id", user.id);
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function signOutAccount() {
+  const { supabase } = await getSessionUser();
+  if (supabase) await supabase.auth.signOut();
+}

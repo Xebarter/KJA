@@ -5,33 +5,35 @@ import type { Article, GalleryItem, Settings, SiteContent } from "@/lib/types";
 
 const fallback = fallbackJson as SiteContent;
 
-function asList<T>(rows: T[] | null | undefined) {
-  return rows ?? [];
+function asList<T>(rows: T[] | null | undefined, fallbackRows: T[]) {
+  return Array.isArray(rows) ? rows : fallbackRows;
 }
 
-export const getContent = cache(async (): Promise<SiteContent> => {
+async function loadSite(publishedOnly: boolean): Promise<SiteContent> {
   if (!supabaseConfigured()) return fallback;
   const supabase = await createClient();
   if (!supabase) return fallback;
 
+  const published = <T>(query: T) => (publishedOnly ? (query as { eq: (column: string, value: boolean) => T }).eq("published", true) : query);
+
   const [settings, pages, campuses, teachers, events, news, posts, gallery, testimonials, alumniNews, alumniEvents, alumniStories, alumniProfiles, alumniPhotos, sections, vacancies] =
     await Promise.all([
       supabase.from("site_settings").select("*").eq("id", 1).maybeSingle(),
-      supabase.from("pages").select("*").eq("published", true).order("title"),
-      supabase.from("campuses").select("*").eq("published", true).order("title"),
-      supabase.from("teachers").select("*").eq("published", true).order("title"),
-      supabase.from("events").select("*").eq("published", true).order("starts_on", { ascending: false }),
-      supabase.from("news").select("*").eq("published", true).order("published_at", { ascending: false }),
-      supabase.from("posts").select("*").eq("published", true).order("published_at", { ascending: false }),
-      supabase.from("gallery_items").select("*").eq("published", true).order("sort_order"),
-      supabase.from("testimonials").select("*").eq("published", true).order("created_at"),
-      supabase.from("alumni_news").select("*").eq("published", true).order("published_at", { ascending: false }),
-      supabase.from("alumni_events").select("*").eq("published", true).order("starts_on", { ascending: false }),
-      supabase.from("alumni_stories").select("*").eq("published", true).order("published_at", { ascending: false }),
-      supabase.from("alumni_profiles").select("*").eq("published", true).order("title"),
-      supabase.from("alumni_photos").select("*").eq("published", true).order("sort_order"),
+      published(supabase.from("pages").select("*").order("title")),
+      published(supabase.from("campuses").select("*").order("title")),
+      published(supabase.from("teachers").select("*").order("title")),
+      published(supabase.from("events").select("*").order("starts_on", { ascending: false })),
+      published(supabase.from("news").select("*").order("published_at", { ascending: false })),
+      published(supabase.from("posts").select("*").order("published_at", { ascending: false })),
+      published(supabase.from("gallery_items").select("*").order("sort_order")),
+      published(supabase.from("testimonials").select("*").order("created_at")),
+      published(supabase.from("alumni_news").select("*").order("published_at", { ascending: false })),
+      published(supabase.from("alumni_events").select("*").order("starts_on", { ascending: false })),
+      published(supabase.from("alumni_stories").select("*").order("published_at", { ascending: false })),
+      published(supabase.from("alumni_profiles").select("*").order("title")),
+      published(supabase.from("alumni_photos").select("*").order("sort_order")),
       supabase.from("campus_sections").select("*").order("title"),
-      supabase.from("vacancies").select("*").eq("published", true).order("created_at", { ascending: false }),
+      published(supabase.from("vacancies").select("*").order("created_at", { ascending: false })),
     ]);
 
   const settingsRow = settings.data;
@@ -47,23 +49,26 @@ export const getContent = cache(async (): Promise<SiteContent> => {
           socials: settingsRow.socials ?? fallback.settings.socials,
         } as Settings)
       : fallback.settings,
-    pages: asList(pages.data) as Article[],
-    campuses: asList(campuses.data) as Article[],
-    teachers: asList(teachers.data) as Article[],
-    events: asList(events.data) as Article[],
-    news: asList(news.data) as Article[],
-    posts: asList(posts.data) as Article[],
-    gallery: asList(gallery.data) as GalleryItem[],
-    testimonials: asList(testimonials.data),
-    alumni_news: asList(alumniNews.data) as Article[],
-    alumni_events: asList(alumniEvents.data) as Article[],
-    alumni_stories: asList(alumniStories.data) as Article[],
-    alumni_profiles: asList(alumniProfiles.data) as Article[],
-    alumni_photos: asList(alumniPhotos.data) as GalleryItem[],
-    campus_sections: asList(sections.data),
-    vacancies: asList(vacancies.data),
+    pages: asList(pages.data, fallback.pages) as Article[],
+    campuses: asList(campuses.data, fallback.campuses) as Article[],
+    teachers: asList(teachers.data, fallback.teachers) as Article[],
+    events: asList(events.data, fallback.events) as Article[],
+    news: asList(news.data, fallback.news) as Article[],
+    posts: asList(posts.data, fallback.posts) as Article[],
+    gallery: asList(gallery.data, fallback.gallery) as GalleryItem[],
+    testimonials: asList(testimonials.data, fallback.testimonials),
+    alumni_news: asList(alumniNews.data, fallback.alumni_news) as Article[],
+    alumni_events: asList(alumniEvents.data, fallback.alumni_events) as Article[],
+    alumni_stories: asList(alumniStories.data, fallback.alumni_stories) as Article[],
+    alumni_profiles: asList(alumniProfiles.data, fallback.alumni_profiles) as Article[],
+    alumni_photos: asList(alumniPhotos.data, fallback.alumni_photos) as GalleryItem[],
+    campus_sections: asList(sections.data, fallback.campus_sections),
+    vacancies: asList(vacancies.data, fallback.vacancies),
   };
-});
+}
+
+export const getContent = cache(() => loadSite(true));
+export const getAdminContent = cache(() => loadSite(false));
 
 export function findBySlug(items: Article[], slug: string) {
   return items.find((item) => item.slug === slug);

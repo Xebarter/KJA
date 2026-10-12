@@ -24,7 +24,7 @@ export function ArticleGrid({ items, hrefBase, empty }: { items: Article[]; href
     <div className="kja-grid">
       {items.map((item) => (
         <article className="blog-item h-100" key={item.slug}>
-          {item.published_at ? <div className="blog-date"><i className="fal fa-calendar-alt" /> {formatDate(item.published_at)}</div> : null}
+          {item.published_at ? <div className="blog-date"><i className="fas fa-calendar-days" /> {formatDate(item.published_at)}</div> : null}
           {item.image_url ? <div className="blog-item-img"><img src={item.image_url} alt={item.title} /></div> : null}
           <div className="blog-item-info">
             <h4 className="blog-title"><Link href={`${hrefBase}/${item.slug}`}>{item.title}</Link></h4>
@@ -43,12 +43,12 @@ export function EventGrid({ items, hrefBase = "/event" }: { items: Article[]; hr
     <div className="kja-grid">
       {items.map((item) => (
         <article className="event-item h-100" key={item.slug}>
-          {item.location ? <div className="event-location"><span><i className="far fa-map-marker-alt" /> {item.location}</span></div> : null}
+          {item.location ? <div className="event-location"><span><i className="fas fa-location-dot" /> {item.location}</span></div> : null}
           {item.image_url ? <div className="event-img"><img src={item.image_url} alt={item.title} /></div> : null}
           <div className="event-info">
             <div className="event-meta">
-              {item.starts_on ? <span className="event-date"><i className="far fa-calendar-alt" /> {formatDate(item.starts_on)}</span> : null}
-              {formatTimeRange(item.start_time, item.end_time) ? <span className="event-time"><i className="far fa-clock" /> {formatTimeRange(item.start_time, item.end_time)}</span> : null}
+              {item.starts_on ? <span className="event-date"><i className="fas fa-calendar-days" /> {formatDate(item.starts_on)}</span> : null}
+              {formatTimeRange(item.start_time, item.end_time) ? <span className="event-time"><i className="fas fa-clock" /> {formatTimeRange(item.start_time, item.end_time)}</span> : null}
             </div>
             <h4 className="event-title"><Link href={`${hrefBase}/${item.slug}`}>{item.title}</Link></h4>
             {item.excerpt ? <p>{item.excerpt}</p> : null}
@@ -65,15 +65,22 @@ export function PeopleGrid({ items, hrefBase }: { items: Article[]; hrefBase: st
   return (
     <div className="row">
       {items.map((person) => (
-        <div className="col-md-6 col-lg-3 mb-4" key={person.slug}>
-          <div className="team-item h-100">
+        <div className="col-md-4 mb-4" key={person.slug}>
+          <div className="team-item wow fadeInUp h-100" data-wow-delay=".25s">
             <div className="team-img">{person.image_url ? <img src={person.image_url} alt={person.title} /> : null}</div>
+            <div className="team-social">
+              <a href="#" aria-label="Facebook"><i className="fab fa-facebook-f" /></a>
+              <a href="#" aria-label="WhatsApp"><i className="fab fa-whatsapp" /></a>
+              <a href="#" aria-label="LinkedIn"><i className="fab fa-linkedin-in" /></a>
+              <a href="#" aria-label="YouTube"><i className="fab fa-youtube" /></a>
+            </div>
             <div className="team-content">
               <div className="team-bio">
                 <h5><Link href={`${hrefBase}/${person.slug}`}>{person.title}</Link></h5>
                 {person.role ? <span>{person.role}</span> : null}
               </div>
             </div>
+            <span className="team-social-btn"><i className="fas fa-share-nodes" /></span>
           </div>
         </div>
       ))}
@@ -100,10 +107,10 @@ export function Detail({ item }: { item: Article }) {
     <article className="container py-5">
       {item.image_url ? <img src={item.image_url} alt="" className="mb-4" style={{ maxHeight: 460, width: "100%", objectFit: "cover" }} /> : null}
       <div className="text-muted mb-3">
-        {item.starts_on ? <span className="me-3"><i className="far fa-calendar-alt" /> {formatDate(item.starts_on)}</span> : null}
-        {item.published_at ? <span className="me-3"><i className="far fa-calendar-alt" /> {formatDate(item.published_at)}</span> : null}
-        {item.location ? <span className="me-3"><i className="far fa-map-marker-alt" /> {item.location}</span> : null}
-        {item.author ? <span><i className="far fa-user-circle" /> {item.author}</span> : null}
+        {item.starts_on ? <span className="me-3"><i className="fas fa-calendar-days" /> {formatDate(item.starts_on)}</span> : null}
+        {item.published_at ? <span className="me-3"><i className="fas fa-calendar-days" /> {formatDate(item.published_at)}</span> : null}
+        {item.location ? <span className="me-3"><i className="fas fa-location-dot" /> {item.location}</span> : null}
+        {item.author ? <span><i className="fas fa-user" /> {item.author}</span> : null}
         {item.role ? <span>{item.role}</span> : null}
       </div>
       {item.excerpt ? <p className="lead">{item.excerpt}</p> : null}

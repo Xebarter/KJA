@@ -1,0 +1,96 @@
+export const accountNav = [
+  { href: "/account", label: "Overview", icon: "fa-house", group: "Home" },
+  { href: "/account/children", label: "Children", icon: "fa-children", group: "Family" },
+  { href: "/account/reports", label: "Reports", icon: "fa-file-lines", group: "Family" },
+  { href: "/account/fees", label: "School fees", icon: "fa-receipt", group: "Family" },
+  { href: "/account/applications", label: "Applications", icon: "fa-clipboard-list", group: "School" },
+  { href: "/account/clubs", label: "Clubs", icon: "fa-puzzle-piece", group: "School" },
+  { href: "/account/calendar", label: "Calendar", icon: "fa-calendar-days", group: "School" },
+  { href: "/account/messages", label: "Messages", icon: "fa-comments", group: "Inbox" },
+  { href: "/account/notifications", label: "Notifications", icon: "fa-bell", group: "Inbox" },
+  { href: "/account/profile", label: "My details", icon: "fa-user", group: "Account" },
+];
+
+export type ProfileRow = {
+  id: string;
+  role: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+};
+
+export type ChildRow = {
+  id: string;
+  user_id: string;
+  full_name: string;
+  campus: string | null;
+  grade: string | null;
+  date_of_birth: string | null;
+  student_code: string | null;
+};
+
+export type ReportRow = {
+  id: string;
+  child_id: string;
+  title: string;
+  term: string | null;
+  summary: string | null;
+  file_url: string | null;
+  issued_on: string | null;
+};
+
+export type FeeRow = {
+  id: string;
+  child_id: string;
+  term: string;
+  description: string | null;
+  amount_due: number;
+  amount_paid: number;
+  due_on: string | null;
+};
+
+export type ClubRow = {
+  id: string;
+  title: string;
+  campus: string | null;
+  meeting: string | null;
+  description: string | null;
+};
+
+export type SignupRow = {
+  id: string;
+  child_id: string;
+  club_id: string;
+  status: string;
+};
+
+export type MessageRow = {
+  id: string;
+  subject: string;
+  body: string;
+  direction: "out" | "in";
+  read: boolean;
+  created_at: string;
+};
+
+export type NoticeRow = {
+  id: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  read: boolean;
+  created_at: string;
+};
+
+export type ApplicationRow = {
+  id: string;
+  parent_name: string;
+  email: string;
+  child_name: string;
+  campus: string | null;
+  grade: string | null;
+  status: string | null;
+  message: string | null;
+  created_at: string;
+};

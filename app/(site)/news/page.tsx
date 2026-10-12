@@ -1,14 +1,9 @@
-import { Banner, ArticleGrid } from "@/components/site/Views";
+import { NewsArchive } from "@/components/site/ArchiveViews";
 import { getContent } from "@/lib/content";
 
-export const metadata = { title: "News" };
+export const metadata = { title: "News Archive" };
 
 export default async function NewsPage() {
   const content = await getContent();
-  return (
-    <main>
-      <Banner title="News" />
-      <div className="container py-5"><ArticleGrid items={content.news} hrefBase="/news" empty="No news yet." /></div>
-    </main>
-  );
+  return <NewsArchive items={content.news} sidebar={{ news: content.news, events: content.events }} />;
 }

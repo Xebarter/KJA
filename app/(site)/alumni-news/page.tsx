@@ -1,9 +1,18 @@
-import { Banner, ArticleGrid } from "@/components/site/Views";
+import { AlumniArchive } from "@/components/site/AlumniViews";
 import { getContent } from "@/lib/content";
 
-export const metadata = { title: "Alumni News" };
+export const metadata = { title: "Alumni news Archive" };
 
 export default async function AlumniNewsPage() {
   const content = await getContent();
-  return <main><Banner title="Alumni News" crumbs="Alumni" /><div className="container py-5"><ArticleGrid items={content.alumni_news} hrefBase="/alumni-news" empty="No alumni news yet." /></div></main>;
+  return (
+    <AlumniArchive
+      title="Alumni News"
+      items={content.alumni_news}
+      hrefBase="/alumni-news"
+      sidebar={{ news: content.news, events: content.events }}
+      showDate
+      featured
+    />
+  );
 }

@@ -34,9 +34,14 @@ export type Article = {
   excerpt?: string | null;
   body?: string | null;
   image_url?: string | null;
+  thumbnail_url?: string | null;
   author?: string | null;
   published_at?: string | null;
+  updated_at?: string | null;
+  seo_title?: string | null;
   seo_description?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
   published?: boolean;
   role?: string | null;
   starts_on?: string | null;

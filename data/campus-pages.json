@@ -1,0 +1,752 @@
+{
+  "campuses": {
+    "kitante": {
+      "hero_images": [
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250814-WA0158.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250814-WA0153-2.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250822-WA0065.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250814-WA0171-2.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250814-WA0139.jpg",
+        "https://kja.ug/wp-content/uploads/2025/10/IMG-20251020-WA0182.jpg"
+      ],
+      "sections": [
+        {
+          "kind": "welcome",
+          "title_html": "Welcome to KJA <br /><span>Kitante</span> Campus.",
+          "body_html": "<p>The Kampala Junior Academy – Kitante campus is our original home and the heart of the KJA story. Located along Yusuf Lule Road, just opposite the Golf Course, KJA Kitante continues to offer high-quality NURSERY and PRIMARY School Education.</p>\n<p>With its warm, family-like atmosphere and vibrant learning spaces, Kitante is where generations of young learners have discovered their potential. From its central location, it welcomes pupils from diverse backgrounds, fostering friendships, confidence, and a lifelong love for learning.</p>",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/IMG-20250814-WA0149-2.jpg"
+        },
+        {
+          "kind": "clubs",
+          "title_html": "Clubs & Co-Curricular Activities – <span>Discover, Explore, Shine.</span>",
+          "intro_html": "<p>At Kampala Junior Academy, learning extends far beyond the classroom. Our wide variety of clubs and co-curricular activities helps learners explore their talents, build new skills, and enjoy every part of school life. Whether your child enjoys sports, creativity, leadership, or academics — there’s something for everyone!</p>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0151.jpg",
+              "href": "/campus-co-curricular/creative-performing-arts",
+              "title": "Creative & Performing Arts"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0058-1.jpg",
+              "href": "/campus-co-curricular/sports-physical-activities",
+              "title": "Sports & Physical Activities"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607795184-PXL_20240719_081458243.MP_.jpg",
+              "href": "/campus-co-curricular/faith-based-clubs",
+              "title": "Faith-Based Clubs"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1729770384619-7778.jpg",
+              "href": "/campus-co-curricular/academic-enrichment-clubs",
+              "title": "Academic & Enrichment Clubs"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0163.jpg",
+              "href": "/campus-co-curricular/leadership-character-life-skills",
+              "title": "Leadership, Character & Life Skills"
+            }
+          ]
+        },
+        {
+          "kind": "facilities",
+          "title_html": "Learning Environment and <span>Facilities</span>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748603419425-1741764450239-1719396566378-3f887179-0fa2-478d-8784-44c725fd6962.png",
+              "href": "/campus-facility/two-libraries-nursery-and-primary",
+              "title": "Two Libraries (Nursery and Primary)"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607650608-DSC_0564-2.jpg",
+              "href": "/campus-facility/ict-classroom",
+              "title": "ICT Classroom"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0691.jpg",
+              "href": "/campus-facility/art-language-and-music-rooms",
+              "title": "Art, Language and Music Rooms"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250822-WA0108.jpg",
+              "href": "/campus-facility/playground-and-sports-field",
+              "title": "Playground and Sports field"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251001-WA0045.jpg",
+              "href": "/campus-facility/classrooms-on-all-levels-of-the-buildings",
+              "title": "Classtrooms on all levels of the buildings"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/09/1719399720843-72945312_117965202952248_1063534516393476096_n.jpg",
+              "href": "/campus-facility/safe-drop-off-and-pick-up-areas",
+              "title": "Safe drop-off and pick-up areas"
+            }
+          ]
+        },
+        {
+          "kind": "culture",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/IMG-20250822-WA0152.jpg",
+          "title_html": "Campus Culture at <br /> KJA <span>Kitante</span>",
+          "body_html": "<p>At our KJA Kitante, every day is an adventure! We believe learning should be full of smiles, laughter, and moments that make each child feel special. With small class sizes, caring teachers, and friends all around, our campus is a place where everyone belongs. We love celebrating big and small moments—whether it’s a birthday, a silly dress-up day, or earning a spot in our 4s Club! Here, children get to explore, lead, and shine while surrounded by a mix of languages, stories, and cultures that make our school feel like one big happy family.</p>",
+          "ratio_label": "Teacher to Student Ratio :",
+          "ratio_value": "1 Teacher : 12 Pupils"
+        },
+        {
+          "kind": "details",
+          "padding": "pb-10",
+          "title_html": null,
+          "title_class": null,
+          "intro": null,
+          "image_url": null,
+          "items": [
+            {
+              "title": "Celebrations and Special Days",
+              "body_html": "<p>We love to make school fun and memorable! At our Nursery and Primary levels, we celebrate children’s birthdays with joy. We also host exciting Cultural Days and Spirit Days like Pajama Day, Hat Day, and even “Wear Mommy or Daddy’s Clothes” Day! These fun events bring smiles, laughter, and a sense of belonging to our school family.</p>"
+            },
+            {
+              "title": "Weekly Morning Assemblies",
+              "body_html": "<p>Every week begins with a school-wide morning assembly full of music, prayer, and positive energy. We share important announcements, go over the weekly agenda, and give children a chance to build confidence by leading songs, prayers, or short presentations.</p>"
+            },
+            {
+              "title": "The 4s Club – Celebrating Achievement",
+              "body_html": "<p>Our reward system, the 4s Club, recognizes students who excel in academics, behavior, and participation. At the end of each term, members of the 4s Club are celebrated with a special party. It’s our way of saying, “Well done – keep shining!”</p>"
+            },
+            {
+              "title": "Student Leadership and Prefects",
+              "body_html": "<p>We believe in nurturing leadership from a young age. Our primary section has a prefect body with posts such as Head Monitor, Head Girl, Head Boy, and class prefects. These student leaders help set a good example, assist in school duties, and represent their classmates with pride and responsibility.</p>"
+            },
+            {
+              "title": "Languages spoken (English + Swahili or other).",
+              "body_html": "<p>At our school, we are proud to celebrate the diversity of languages spoken by both our staff and students. While English is the primary language used for teaching and communication, many of our teachers and children also speak a variety of local languages such as Luganda, Runyankore, Rukiga, Lusoga, Langi, and Acholi. Additionally, some staff members are fluent in French and Swahili, further enriching our school community.</p>"
+            }
+          ]
+        },
+        {
+          "kind": "details",
+          "padding": "pt-120 pb-10",
+          "title_html": "From Classroom to<span>Community</span>",
+          "title_class": "site-title pb-40",
+          "intro": null,
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/IMG-20250822-WA0165.jpg",
+          "items": [
+            {
+              "title": "Parent support groups or forums.",
+              "body_html": "<p>Our school is known for its warm and welcoming culture, especially in our Nursery and Primary sections. We value strong parent engagement and believe that a child’s learning journey is most successful when schools and families work together. To keep communication clear and consistent, we have active WhatsApp groups for each class, where we share important information, reminders, and updates. This helps us stay connected with parents and create a supportive environment for every child to thrive.</p>"
+            },
+            {
+              "title": "Campus Achievements.",
+              "body_html": "<p>At our school, we encourage our students to challenge themselves and showcase their talents through various competitions, both locally and internationally. Our students actively participate in prestigious events such as the Annual National Mathematics Contest, NCBA Uganda Open, US Kids Golf, the National Junior Chess Championship, and the Africa Youth Chess Championship. Some of our young chess enthusiasts even compete at the FIDE World Youth Chess Championship, representing our school on a global stage.</p>"
+            },
+            {
+              "title": "Scenic and Safe School Environment.",
+              "body_html": "<p>Kitante is a prime location, tucked away from the hustle and bustle. As you slope down from Yusuf Lule Road, right across from the Golf Course, you’ll find our campus in a calm and scenic setting, offering a peaceful escape from the noise of the main road. The lush greenery and open space create a relaxed environment where children can learn, play, and grow. It’s easily accessible for parents, while still providing the quiet and safety ideal for a school community.</p>\n<div style=\"height:35px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p>Our school prioritizes the safety and well-being of every child. We have a secure sign-in and sign-out system to ensure that only authorized individuals can pick up students, providing peace of mind for parents. Our campus is also monitored by security services, ensuring a safe and protected environment throughout the day. Additionally, the school is conveniently located near major hospitals and clinics, making it easy to access medical care in case of an emergency.</p>"
+            },
+            {
+              "title": "Teaching Kindness Through Action.",
+              "body_html": "<p>Giving back is an important part of our school culture. We teach our students the value of kindness and community by encouraging them to share what they have with others. Throughout the year, our school collects gently loved clothes, shoes, toys, and books, which we donate to organizations in need, including the Good Samaritan Foundation Orphanage.</p>"
+            }
+          ]
+        }
+      ],
+      "closing_html": "<p class=\"wp-block-paragraph\">At Kampala Junior Academy – Kitante, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus — everything at KJA is designed with your child’s growth in mind. If you&#8217;re looking for a school that combines quality <strong>NURSERY</strong>, and <strong>PRIMARY</strong> School Education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here—with care and purpose.</p>\n<div style=\"height:46px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"has-link-color wp-elements-1 wp-block-paragraph\">To begin your child’s enrollment, simply&nbsp;<a href=\"/apply\"><strong>click here to apply online</strong></a>.</p>\n<p class=\"wp-block-paragraph\">We can’t wait to welcome you to the KJA Kitante family!</p>"
+    },
+    "najjanankumbi": {
+      "hero_images": [
+        "https://kja.ug/wp-content/uploads/2025/07/DSC_0038-3.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/DSC_0069-2.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/DSC_0098-3.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/DSC_0719.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251003-WA0069.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/DSC_0277-4.jpg"
+      ],
+      "sections": [
+        {
+          "kind": "welcome",
+          "title_html": "Welcome to KJA <br /><span>Najjanankumbi</span> Campus.",
+          "body_html": "<p>The Kampala Junior Academy – Najjanankumbi campus is our other blended nursery and primary school, located on serene Kaggwa Road off Kampala-Entebbe Road, just after Masanyalaze. It offers a warm and nurturing environment where young learners grow and thrive.</p>\n<p>The Kampala Junior Academy – Najjanankumbi campus is our other blended nursery and primary school, located on serene Kaggwa Road off Kampala-Entebbe Road, just after Masanyalaze. It offers a warm and nurturing environment where young learners grow and thrive.</p>",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/DSC_0383-2.jpg"
+        },
+        {
+          "kind": "clubs",
+          "title_html": "Clubs & Co-Curricular Activities – <span>Discover, Explore, Shine.</span>",
+          "intro_html": "<p>At Kampala Junior Academy, learning extends far beyond the classroom. Our wide variety of clubs and co-curricular activities helps learners explore their talents, build new skills, and enjoy every part of school life. Whether your child enjoys sports, creativity, leadership, or academics — there’s something for everyone!</p>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0151.jpg",
+              "href": "/campus-co-curricular/creative-performing-arts",
+              "title": "Creative & Performing Arts"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1729770384619-7778.jpg",
+              "href": "/campus-co-curricular/academic-enrichment-clubs",
+              "title": "Academic & Enrichment Clubs"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0058-1.jpg",
+              "href": "/campus-co-curricular/sports-physical-activities",
+              "title": "Sports & Physical Activities"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0163.jpg",
+              "href": "/campus-co-curricular/leadership-character-life-skills",
+              "title": "Leadership, Character & Life Skills"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607795184-PXL_20240719_081458243.MP_.jpg",
+              "href": "/campus-co-curricular/faith-based-clubs",
+              "title": "Faith-Based Clubs"
+            }
+          ]
+        },
+        {
+          "kind": "facilities",
+          "title_html": "Learning Environment and <span>Facilities</span>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748603419425-1741764450239-1719396566378-3f887179-0fa2-478d-8784-44c725fd6962.png",
+              "href": "/campus-facility/library",
+              "title": "Library"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0671.jpg",
+              "href": "/campus-facility/art-language-and-music-rooms-2",
+              "title": "Art, Language and Music Rooms"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251003-WA0064.jpg",
+              "href": "/campus-facility/playground-and-sports-field-2",
+              "title": "Playground and Sports field"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607650608-DSC_0564-2-1.jpg",
+              "href": "/campus-facility/ict-classroom-2",
+              "title": "ICT Classroom"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727089774430-DSC_0926-2-1.jpg",
+              "href": "/campus-facility/safe-drop-off-and-pick-up-areas-2",
+              "title": "Safe drop-off and pick-up areas"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251001-WA0045.jpg",
+              "href": "/campus-facility/classrooms-on-all-levels-of-the-buildings",
+              "title": "Classtrooms on all levels of the buildings"
+            }
+          ]
+        },
+        {
+          "kind": "culture",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/DSC_0524.jpg",
+          "title_html": "Campus Culture at <br /> KJA <span>Najjanankumbi</span>",
+          "body_html": "<p>At our KJA Najjanankumbi, every day is an adventure! We believe learning should be full of smiles, laughter, and moments that make each child feel special. With small class sizes, caring teachers, and friends all around, our campus is a place where everyone belongs. We love celebrating big and small moments—whether it’s a birthday, a silly dress-up day, or earning a spot in our 4s Club! Here, children get to explore, lead, and shine while surrounded by a mix of languages, stories, and cultures that make our school feel like one big happy family.</p>",
+          "ratio_label": "Teacher to Student Ratio :",
+          "ratio_value": "1 Teacher : 12 Pupils."
+        },
+        {
+          "kind": "details",
+          "padding": "pb-10",
+          "title_html": null,
+          "title_class": null,
+          "intro": null,
+          "image_url": null,
+          "items": [
+            {
+              "title": "Celebrations and Special Days",
+              "body_html": "<p>We love to make school fun and memorable! At our Nursery and Primary levels, we celebrate children’s birthdays with joy. We also host exciting Cultural Days and Spirit Days like Jajjas Day, Academic Fair, and even “Wear Mommy or Daddy’s Clothes” Day! These fun events bring smiles, laughter, and a sense of belonging to our school family.</p>"
+            },
+            {
+              "title": "Weekly Morning Assemblies.",
+              "body_html": "<p>Every week begins with a school-wide morning assembly full of music, prayer, and positive energy. We share important announcements, go over the weekly agenda, and give children a chance to build confidence by leading songs, prayers, or short presentations.</p>"
+            },
+            {
+              "title": "The 4s Club – Celebrating Achievement.",
+              "body_html": "<p>Our reward system, the 4s Club, recognizes students who excel in academics, behavior, and participation. At the end of each term, members of the 4s Club are celebrated with a special party. It’s our way of saying, “Well done – keep shining!”.</p>"
+            },
+            {
+              "title": "Languages spoken (English + Chinese + Swahili or other).",
+              "body_html": "<p>At our school, we are proud to celebrate the diversity of languages spoken by both our staff and students. While English is the primary language used for teaching and communication, many of our teachers and children also speak a variety of local languages such as Luganda, Runyankore, Rukiga, Lusoga, Langi, and Acholi. Additionally, some staff members are fluent in French, Chinese and Swahili, further enriching our school community.</p>"
+            },
+            {
+              "title": "Student Leadership and Prefects.",
+              "body_html": "<p>We believe in nurturing leadership from a young age. Our primary section has a prefect body with posts such as Head Monitor, Head Girl, Head Boy, and class prefects. These student leaders help set a good example, assist in school duties, and represent their classmates with pride and responsibility.</p>"
+            }
+          ]
+        },
+        {
+          "kind": "details",
+          "padding": "pt-120 pb-10",
+          "title_html": "From Classroom to<span>Community</span>",
+          "title_class": "site-title pb-40",
+          "intro": null,
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/IMG_0351-scaled.jpg",
+          "items": [
+            {
+              "title": "Parent support groups or forums.",
+              "body_html": "<p>Our school is known for its warm and welcoming culture, especially in our Nursery and Primary sections. We value strong parent engagement and believe that a child’s learning journey is most successful when schools and families work together. To keep communication clear and consistent, we have active WhatsApp groups for each class, where we share important information, reminders, and updates. This helps us stay connected with parents and create a supportive environment for every child to thrive.</p>"
+            },
+            {
+              "title": "Scenic and Safe School Environment.",
+              "body_html": "<p>Najjanankumbi is a prime location, tucked away from the hustle and bustle. As you travel along serene Kaggwa Road off Kampala-Entebbe Road, just past Masanyalaze, you’ll find our Najjanankumbi campus nestled in a peaceful and quiet neighborhood. The calm surroundings and spacious grounds offer a safe, quiet place where children can explore, learn, and enjoy their school days. Easily reachable for families, this campus provides the perfect balance of accessibility and a serene environment for a thriving school community.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p>Our school prioritizes the safety and well-being of every child. We have a secure sign-in and sign-out system to ensure that only authorized individuals can pick up students, providing peace of mind for parents. Our campus is also monitored by security services, ensuring a safe and protected environment throughout the day. Additionally, the school is conveniently located near major hospitals and clinics, making it easy to access medical care in case of an emergency.</p>"
+            },
+            {
+              "title": "Campus Achievements.",
+              "body_html": "<p>At our school, we inspire students to challenge themselves and shine by taking part in competitions both at home and abroad. We proudly host chess grandmasters, who works closely with our young players to develop their skills. Our students actively compete in top events like the Annual National Mathematics Contest, NCBA Uganda Open, US Kids Golf, the National Junior Chess Championship, and the Africa Youth Chess Championship. Some of our talented chess enthusiasts even represent us at the FIDE World Youth Chess Championship, proudly showcasing their skills on the global stage. We are also honored to celebrate achievements beyond academics and sports, including our students’ participation in prestigious events such as Little Miss Universe, where they shine with confidence and grace.</p>"
+            }
+          ]
+        }
+      ],
+      "closing_html": "<div style=\"height:40px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">At Kampala Junior Academy – Najjanankumbi, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus — everything at KJA is designed with your child’s growth in mind. If you&#8217;re looking for a school that combines quality nursery, daycare, and primary education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here—with care and purpose.</p>\n<div style=\"height:62px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"has-link-color wp-elements-1 wp-block-paragraph\">To begin your child’s enrollment, simply&nbsp;<a href=\"/apply\"><strong>click here to apply online</strong></a>.</p>\n<p class=\"wp-block-paragraph\">We can’t wait to welcome you to the KJA Najjanankumbi family!</p>"
+    },
+    "makindye": {
+      "hero_images": [
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0144.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0146.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0152.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0140.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0130.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0150.jpg"
+      ],
+      "sections": [
+        {
+          "kind": "welcome",
+          "title_html": "Welcome to KJA <br /><span>Makindye</span> Campus.",
+          "body_html": "<p>Hello! I’m Olive Wandera, the Head Teacher at Kampala Junior Academy Makindye Nursery School — a vibrant, child-centered nursery school conveniently located along Mobutu Road, just behind the Ethic building in Makindye.</p>\n<p>At KJA Makindye, we create a safe, welcoming, and stimulating environment where young children can explore, learn, and grow with confidence. Our dedicated teachers and nurturing atmosphere ensure that every day is filled with joy, discovery, and meaningful learning.</p>",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727087017100-DSC_1255.jpg"
+        },
+        {
+          "kind": "details",
+          "padding": "pt-120 pb-10",
+          "title_html": "Grade Levels – Supporting Early Childhood Development.",
+          "title_class": "pb-40",
+          "intro": "Our structured curriculum is thoughtfully designed across four key nursery stages, ensuring your child receives the right guidance at every developmental milestone. Each level is designed to foster a love of learning, build self-confidence, and prepare children for the next stage in their academic journey.",
+          "image_url": null,
+          "items": [
+            {
+              "title": "Play Group (3 Years)",
+              "body_html": "<p>A playful, hands-on class where children begin building creativity and social skills through fun and exploration.</p>"
+            },
+            {
+              "title": "Starters Class (4 Years)",
+              "body_html": "<p>Introduces foundational concepts in literacy and numeracy through engaging activities, songs, and games.</p>"
+            },
+            {
+              "title": "Pre-Kindergarten Class (5 Years)",
+              "body_html": "<p>Encourages independence, curiosity, and early problem-solving with child-led, experiential learning.</p>"
+            },
+            {
+              "title": "Kindergarten Class (6 Years)",
+              "body_html": "<p>Prepares learners for Primary One by focusing on academic readiness, communication, and essential life skills.</p>"
+            }
+          ]
+        },
+        {
+          "kind": "clubs",
+          "title_html": "Clubs & Co-Curricular Activities – <span>Discover, Explore, Shine.</span>",
+          "intro_html": "<p>At Kampala Junior Academy Makindye, learning goes beyond the classroom walls. We offer enriching co-curricular activities that support your child’s development in fun and engaging ways.</p>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748608285694-DSC_0862.jpg",
+              "href": "/campus-co-curricular/swimming",
+              "title": "Swimming"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748605583367-1718272521452-DSC_0976-1.jpg",
+              "href": "/campus-co-curricular/ballet",
+              "title": "Ballet"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1729770384619-7778.jpg",
+              "href": "/campus-co-curricular/chess",
+              "title": "Chess"
+            }
+          ]
+        },
+        {
+          "kind": "facilities",
+          "title_html": "Learning Environment and <span>Facilities</span>",
+          "items": [
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1719399846850-362242655_772352634681795_7981184479619849904_n.jpg",
+              "href": "/campus-facility/tv-art-music-room",
+              "title": "Tv/Art/Music room"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1719398885506-89358609_190186615730106_9140861239742693376_n-1.jpg",
+              "href": "/campus-facility/playground",
+              "title": "Playground"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0671.jpg",
+              "href": "/campus-facility/individualized-age-group-classrooms",
+              "title": "Individualized age group classrooms"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251001-WA0045.jpg",
+              "href": "/campus-facility/niceclassrooms-on-all-sections-of-the-nursery-school",
+              "title": "Nice Classrooms on all sections of the Nursery Primary School"
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/08/1718188380673-8e610873-4fe6-4890-b314-f717e3e0d0d3-2.jpg",
+              "href": "/campus-facility/safe-drop-off-and-pick-up-areas-3",
+              "title": "Safe drop-off and pick-up areas."
+            },
+            {
+              "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727089774430-DSC_0926-2-1.jpg",
+              "href": "/campus-facility/ample-parking",
+              "title": "Ample Parking."
+            }
+          ]
+        },
+        {
+          "kind": "culture",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727087017647-IMG_7200-1.jpg",
+          "title_html": "Campus Culture at <br /> KJA <span>Makindye</span>",
+          "body_html": "<p>At KJA Makindye, we create a safe, welcoming, and stimulating environment where young children can explore, learn, and grow with confidence. Our dedicated teachers and nurturing atmosphere ensure that every day is filled with joy, discovery, and meaningful learning.</p>",
+          "ratio_label": "Teacher to Student Ratio :",
+          "ratio_value": "We maintain a 1:7 teacher-to-child ratio, ensuring each child receives personalized attention and care. This small class size allows for meaningful interactions, close supervision, and tailored learning experiences"
+        },
+        {
+          "kind": "details",
+          "padding": "pb-10",
+          "title_html": null,
+          "title_class": null,
+          "intro": null,
+          "image_url": null,
+          "items": [
+            {
+              "title": "Celebrations & Special Theme Days.",
+              "body_html": "<p>At KJA Makindye, we believe school should be joyful and memorable. Throughout the year, we celebrate special moments that build community and create lasting memories:</p>\n<ul class=\"wp-block-list\">\n<li>➢ Birthday Celebrations make every child feel special and celebrated.</li>\n<li>➢ Sports Days encourage teamwork, healthy competition, and physical fitness.</li>\n<li>➢ Fun Days Out offer exciting off-campus adventures that expand learning beyond the classroom.</li>\n</ul>\n<ul class=\"wp-block-list\">\n<li></li>\n</ul>"
+            },
+            {
+              "title": "Weekly Morning Assemblies.",
+              "body_html": "<p>Every Friday morning, we come together for a lively assembly filled with music, prayer, and positive energy. These gatherings:</p>\n<ul class=\"wp-block-list\">\n<li>➢ Highlight weekly announcements.</li>\n<li>➢ Encourage children to lead songs, prayers, or brief presentations.</li>\n<li>➢ Build confidence and public speaking skills in a warm, supportive environment.</li>\n</ul>"
+            },
+            {
+              "title": "Safe School Environment",
+              "body_html": "<p>Your child’s safety is our top priority. KJA Makindye operates a secure sign-in and sign-out system, ensuring only authorized individuals can collect students. The campus is also monitored by professional security personnel, providing a protected and peaceful space for learning and play!</p>"
+            }
+          ]
+        }
+      ],
+      "closing_html": "<h3 class=\"wp-block-heading\">School Fees – Makindye Nursery Campus</h3>\n<div style=\"height:34px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We believe in transparent, inclusive, and value-driven nursery education in Makindye:</p>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">✹ Admission Fee: <strong>UGX 30,000</strong>.</p>\n<p class=\"wp-block-paragraph\">✹ Nursery Tuition: <strong>UGX 1000,000</strong></p>\n<div style=\"height:18px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">(<em>Tuition includes all scholastic materials, break tea, and lunch.</em>)</p>\n<div style=\"height:20px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h2 class=\"wp-block-heading\">Admissions – Join Our KJA Family</h2>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We’re excited that you’re considering Kampala Junior Academy Makindye for your child’s early education. Here’s how to join our nurturing school community:</p>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹<strong> Inquiry</strong>.</h5>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Call us with any questions at <strong><em>+256 392 700 370</em></strong> or <em><strong>+256 752 887 045</strong></em>.</p>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Application Form</strong>.</h5>\n<div style=\"height:23px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Pick up and complete an admission form from our Makindye office.</p>\n<div style=\"height:22px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Required Documents:</strong></h5>\n<div style=\"height:26px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">▫︎ Completed admission form.</p>\n<p class=\"wp-block-paragraph\">▫︎ Copy of parent/guardian’s ID.</p>\n<p class=\"wp-block-paragraph\">▫︎ Copy of child’s immunization card.</p>\n<p class=\"wp-block-paragraph\">▫︎ Two passport-size photos.</p>\n<div style=\"height:32px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Submission</strong>.</h5>\n<div style=\"height:23px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Submit your documents at our Makindye Nursery or Kitante Main Campus.</p>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Interview/Orientation</strong>.</h5>\n<div style=\"height:22px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Depending on your child’s age, a short interview or orientation may be scheduled.</p>\n<div style=\"height:26px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Confirmation &amp; Enrollment</strong>.</h5>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Once accepted, you&#8217;ll receive confirmation and complete the enrollment process.</p>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We look forward to welcoming your child to Kampala Junior Academy Makindye Nursery School, where every day is filled with joy, discovery, and meaningful learning.</p>\n<div style=\"height:27px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\"><strong>Our Customer Service Contacts:</strong></h5>\n<div style=\"height:29px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">+256 392 700 370</p>\n<p class=\"wp-block-paragraph\">+256 752 887 045</p>\n<div style=\"height:50px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"has-link-color wp-elements-1 wp-block-paragraph\">To begin your child’s enrollment, simply&nbsp;<a href=\"/apply\"><strong>click here to apply online</strong></a>.</p>\n<p class=\"wp-block-paragraph\">We can’t wait to welcome you to the KJA Makindye family!</p>"
+    },
+    "bunga": {
+      "hero_images": [
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250926-WA0031.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250926-WA0028.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20250926-WA0089.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0109.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0117.jpg",
+        "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0111-1.jpg"
+      ],
+      "sections": [
+        {
+          "kind": "welcome",
+          "title_html": "Welcome to KJA <br /><span>Bunga</span> Campus.",
+          "body_html": "<p>Hello! I’m Brenda Momanyi, the Head Teacher at Kampala Junior Academy Bunga Nursery School, a warm and welcoming Nursery School in Bunga located conveniently along Nadduli Road, between Stabex and ORYX Petrol Stations on Ggaba Road.</p>\n<p>Our Bunga campus offers a safe, engaging, and nurturing environment where young learners can explore, learn, and grow. As a leading early childhood education center in Kampala, we provide a balanced and structured curriculum tailored for the early years, ensuring that every child receives the attention and support they need to thrive.</p>",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727087620512-IMG_6571_2.jpg"
+        },
+        {
+          "kind": "culture",
+          "image_url": "https://kja.ug/wp-content/uploads/2025/07/IMG-20251015-WA0111.jpg",
+          "title_html": "Campus Culture at <br /> KJA <span>Bunga</span>",
+          "body_html": "",
+          "ratio_label": "Teacher to Student Ratio :",
+          "ratio_value": ""
+        }
+      ],
+      "closing_html": "<div style=\"height:34px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Hello! I’m Brenda Momanyi, the Head Teacher at Kampala Junior Academy Bunga Nursery School, a warm and welcoming Nursery School in Bunga located conveniently along <strong>Nadduli Road, between Stabex and ORYX Petrol Stations on Ggaba Road.</strong></p>\n<div style=\"height:36px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Our Bunga campus offers a safe, engaging, and nurturing environment where young learners can explore, learn, and grow. As a leading early childhood education center in Kampala, we provide a balanced and structured curriculum tailored for the early years, ensuring that every child receives the attention and support they need to thrive.</p>\n<div style=\"height:39px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\">Clubs &amp; Co-Curricular Activities – Discover, Explore, Shine</h3>\n<div style=\"height:38px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">At Kampala Junior Academy, we believe that education goes beyond the classroom. As we thoughtfully introduce new clubs, we are excited to currently offer <strong>swimming lessons </strong>that promote physical development, confidence, and water safety.</p>\n<div style=\"height:44px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">This is just the beginning; We’re in the process of carefully vetting and introducing more enriching activities to help our students discover their talents, build new skills, and shine in every aspect of school life.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\">Age Groups &amp; Classes – Bunga Nursery Campus</h3>\n<div style=\"height:36px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We offer a range of grade levels designed to meet your child’s developmental needs:</p>\n<div style=\"height:39px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢<strong>Daycare (Under 3 Years):</strong></h5>\n<div style=\"height:32px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">A playful and safe environment where toddlers engage in fun activities that promote creativity and social interaction. Perfect for families seeking quality daycare in Bunga.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢<strong>Reception Class (3–4 Years):</strong></h5>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Introduces early literacy and numeracy through songs, stories, and hands-on play.</p>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢<strong>Intermediate Class (4-5 Years):</strong></h5>\n<div style=\"height:30px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Encourages independence and problem-solving with engaging, child-centered learning activities.</p>\n<div style=\"height:23px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢<strong>Pre-Primary Class (5-6 Years):</strong></h5>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Prepares children for Primary One, focusing on foundational academics and essential life skills.</p>\n<div style=\"height:31px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Each level at KJA Bunga Nursery is designed to build confidence, curiosity, and a love for learning in every child.</p>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<div class=\"wp-block-columns is-layout-flex wp-container-core-columns-is-layout-7387b849 wp-block-columns-is-layout-flex\">\n<div class=\"wp-block-column is-layout-flow wp-block-column-is-layout-flow\">\n<figure class=\"wp-block-image size-full\"><img fetchpriority=\"high\" decoding=\"async\" width=\"1080\" height=\"810\" src=\"https://kja.ug/wp-content/uploads/2025/07/1727087620512-IMG_6571_2.jpg\" alt=\"\" class=\"wp-image-233\"/></figure>\n</div>\n<div class=\"wp-block-column is-layout-flow wp-block-column-is-layout-flow\">\n<figure class=\"wp-block-image size-full\"><img decoding=\"async\" width=\"1080\" height=\"810\" src=\"https://kja.ug/wp-content/uploads/2025/07/1727087623527-IMG_6559_2.jpg\" alt=\"\" class=\"wp-image-234\"/></figure>\n</div>\n</div>\n<div style=\"height:45px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\">School Fees – Bunga Nursery.</h3>\n<div style=\"height:34px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">At Kampala Junior Academy Bunga, we offer transparent and inclusive tuition:</p>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">✹ Admission Fee: <strong>UGX 30,000</strong>.</p>\n<p class=\"wp-block-paragraph\">✹ Nursery Tuition: <strong>UGX 1000,000</strong>.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">(<em>Tuition includes all scholastic materials, break tea, and lunch.</em>)</p>\n<div style=\"height:56px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\"><strong>Learning Environment &amp; Facilities</strong></h3>\n<div style=\"height:30px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">✹ Playground.</p>\n<p class=\"wp-block-paragraph\">✹ Play/Toy room.</p>\n<p class=\"wp-block-paragraph\">✹ Individualized age group classrooms.</p>\n<p class=\"wp-block-paragraph\">✹ Restrooms.</p>\n<p class=\"wp-block-paragraph\">✹ Safe drop-off and pick-up areas.</p>\n<p class=\"wp-block-paragraph\">✹ Parking space.</p>\n<div style=\"height:45px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\"><strong>Campus Culture</strong></h3>\n<div style=\"height:39px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢<strong> Teacher-to-student ratio</strong>.</h5>\n<div style=\"height:27px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We maintain a&nbsp;<strong>1:7 teacher-to-child ratio</strong>, ensuring each child receives personalized attention and care. This small class size allows for meaningful interactions, close supervision, and tailored learning experiences.</p>\n<div style=\"height:34px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢ <strong>Celebrations &amp; Special Theme Days</strong>.</h5>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We make school fun and memorable by celebrating special moments throughout the year!</p>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">▫︎ Birthday Celebrations bring joy to each child’s special day.</p>\n<p class=\"wp-block-paragraph\">▫︎ Cultural Days allow children to showcase their heritage and learn about others.</p>\n<p class=\"wp-block-paragraph\">▫︎ Spirit Days like Pajama Day, Color Day, and Casual Wear Day bring smiles and excitement to the school week.</p>\n<div style=\"height:30px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢ <strong>Weekly Morning Assemblies</strong>.</h5>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Every Friday morning, the school gathers for a lively assembly filled with music, prayer, and positive energy. These sessions:</p>\n<div style=\"height:30px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">▫︎ Highlight important weekly announcements.</p>\n<p class=\"wp-block-paragraph\">▫︎ Encourage children to lead songs, prayers, or short presentations.</p>\n<p class=\"wp-block-paragraph\">▫︎ Build confidence and public speaking skills in a nurturing setting.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">At KJA Bunga Nursery School, our vibrant campus culture helps children feel seen, supported, and celebrated every step of the way.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">➢ <strong>Safe School Environment</strong>.</h5>\n<div style=\"height:29px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Our school prioritizes the safety and well-being of every child. We have a secure sign-in and sign-out system to ensure that only authorized individuals can pick up students, providing peace of mind for parents. Our campus is also monitored by security services, ensuring a safe and protected environment throughout the day.</p>\n<div style=\"height:34px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h3 class=\"wp-block-heading\">Admissions – Join the KJA Family</h3>\n<div style=\"height:38px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We’re excited that you’re considering Kampala Junior Academy Bunga for your child’s early education. Here’s how to join our nurturing school community:</p>\n<div style=\"height:30px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Inquiry</strong>.</h5>\n<div style=\"height:23px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Call us with any questions at <strong><em>+256 392 700 370</em></strong> or <strong><em>+256 752 887 045</em></strong>.</p>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Application Form</strong>.</h5>\n<div style=\"height:29px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Pick up and complete an admission form from our Bunga office.</p>\n<div style=\"height:27px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Required Documents:</strong></h5>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">▫︎ Completed admission form.</p>\n<p class=\"wp-block-paragraph\">▫︎ Copy of parent/guardian’s ID.</p>\n<p class=\"wp-block-paragraph\">▫︎ Copy of child’s immunization card.</p>\n<p class=\"wp-block-paragraph\">▫︎ Two passport-size photos.</p>\n<div style=\"height:31px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Submission</strong>.</h5>\n<div style=\"height:28px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Submit your documents at our Bunga Nursery or Kitante Main Campus.</p>\n<div style=\"height:22px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Interview/Orientation</strong>.</h5>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Depending on your child’s age, a short interview or orientation may be scheduled.</p>\n<div style=\"height:24px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\">✹ <strong>Confirmation &amp; Enrollment</strong>.</h5>\n<div style=\"height:25px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">Once accepted, you&#8217;ll receive confirmation and complete the enrollment process.</p>\n<div style=\"height:27px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">We look forward to welcoming your child to Kampala Junior Academy Bunga Nursery School, where every day is filled with joy, discovery, and meaningful learning.</p>\n<div style=\"height:33px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<h5 class=\"wp-block-heading\"><strong>Our Customer Service contacts:</strong></h5>\n<div style=\"height:23px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"wp-block-paragraph\">+256 39 270 0370</p>\n<p class=\"wp-block-paragraph\">+256 78 265 6358</p>\n<div style=\"height:35px\" aria-hidden=\"true\" class=\"wp-block-spacer\"></div>\n<p class=\"has-link-color wp-elements-1 wp-block-paragraph\">To begin your child’s enrollment, simply <a href=\"/apply\"><strong>click here to apply online</strong></a>.</p>\n<p class=\"wp-block-paragraph\">We can’t wait to welcome you to the KJA Bunga family!</p>"
+    }
+  },
+  "campus-co-curricular": {
+    "creative-performing-arts": {
+      "slug": "creative-performing-arts",
+      "title": "Creative & Performing Arts",
+      "published_at": "2025-08-14T15:05:14+03:00",
+      "updated_at": "2025-09-22T09:55:30+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0151.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">Ballet, Piano Lessons, Guitar Lessons, Music, Dance &amp; Drama (MDD), Arts &amp; Crafts.</p>",
+      "prev": null,
+      "next": "/campus-co-curricular/sports-physical-activities"
+    },
+    "sports-physical-activities": {
+      "slug": "sports-physical-activities",
+      "title": "Sports & Physical Activities",
+      "published_at": "2025-08-14T15:07:36+03:00",
+      "updated_at": "2025-09-22T09:56:55+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0058-1.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">Swimming, Talent Xtra Soccer Club, Badminton</p>",
+      "prev": "/campus-co-curricular/creative-performing-arts",
+      "next": "/campus-co-curricular/academic-enrichment-clubs"
+    },
+    "faith-based-clubs": {
+      "slug": "faith-based-clubs",
+      "title": "Faith-Based Clubs",
+      "published_at": "2025-08-14T15:36:01+03:00",
+      "updated_at": "2025-08-14T17:29:31+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607795184-PXL_20240719_081458243.MP_.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">Catechism, Islamic Studies</p>",
+      "prev": "/campus-co-curricular/leadership-character-life-skills",
+      "next": "/campus-co-curricular/swimming"
+    },
+    "academic-enrichment-clubs": {
+      "slug": "academic-enrichment-clubs",
+      "title": "Academic & Enrichment Clubs",
+      "published_at": "2025-08-14T15:31:47+03:00",
+      "updated_at": "2025-08-14T15:31:48+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1729770384619-7778.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">Chess Club, Spelling Bee Club, Readers Dozen (Reading) Club, Traveller Club, Computer Club, French Club</p>",
+      "prev": "/campus-co-curricular/sports-physical-activities",
+      "next": "/campus-co-curricular/leadership-character-life-skills"
+    },
+    "leadership-character-life-skills": {
+      "slug": "leadership-character-life-skills",
+      "title": "Leadership, Character & Life Skills",
+      "published_at": "2025-08-14T15:34:00+03:00",
+      "updated_at": "2025-09-22T10:01:52+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250814-WA0163.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">Scouts, Brownies / Girl Guides, Home Management Club</p>",
+      "prev": "/campus-co-curricular/academic-enrichment-clubs",
+      "next": "/campus-co-curricular/faith-based-clubs"
+    },
+    "swimming": {
+      "slug": "swimming",
+      "title": "Swimming",
+      "published_at": "2025-08-14T22:49:40+03:00",
+      "updated_at": "2025-08-14T22:49:42+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748608285694-DSC_0862.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">To build confidence, coordination, and water safety skills</p>",
+      "prev": "/campus-co-curricular/faith-based-clubs",
+      "next": "/campus-co-curricular/ballet"
+    },
+    "ballet": {
+      "slug": "ballet",
+      "title": "Ballet",
+      "published_at": "2025-08-14T22:55:00+03:00",
+      "updated_at": "2025-08-14T22:55:01+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748605583367-1718272521452-DSC_0976-1.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">To promote discipline, creativity, and graceful movement.</p>",
+      "prev": "/campus-co-curricular/swimming",
+      "next": "/campus-co-curricular/chess"
+    },
+    "chess": {
+      "slug": "chess",
+      "title": "Chess",
+      "published_at": "2025-08-14T22:56:37+03:00",
+      "updated_at": "2025-08-14T22:56:38+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1729770384619-7778.jpg",
+      "body_html": "<p class=\"wp-block-paragraph\">To strengthen critical thinking, concentration, and strategic planning</p>",
+      "prev": "/campus-co-curricular/ballet",
+      "next": null
+    }
+  },
+  "campus-facility": {
+    "two-libraries-nursery-and-primary": {
+      "slug": "two-libraries-nursery-and-primary",
+      "title": "Two Libraries (Nursery and Primary)",
+      "published_at": "2025-08-14T16:32:23+03:00",
+      "updated_at": "2025-08-14T16:58:17+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748603419425-1741764450239-1719396566378-3f887179-0fa2-478d-8784-44c725fd6962.png",
+      "body_html": "",
+      "prev": null,
+      "next": "/campus-facility/playground-and-sports-field"
+    },
+    "ict-classroom": {
+      "slug": "ict-classroom",
+      "title": "ICT Classroom",
+      "published_at": "2025-08-14T16:38:04+03:00",
+      "updated_at": "2025-08-14T16:58:54+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607650608-DSC_0564-2.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/art-language-and-music-rooms",
+      "next": "/campus-facility/classrooms-on-all-levels-of-the-buildings"
+    },
+    "art-language-and-music-rooms": {
+      "slug": "art-language-and-music-rooms",
+      "title": "Art, Language and Music Rooms",
+      "published_at": null,
+      "updated_at": null,
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0691.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/playground-and-sports-field",
+      "next": "/campus-facility/ict-classroom"
+    },
+    "playground-and-sports-field": {
+      "slug": "playground-and-sports-field",
+      "title": "Playground and Sports field",
+      "published_at": "2025-08-14T16:34:25+03:00",
+      "updated_at": "2025-09-22T11:08:17+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20250822-WA0108.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/two-libraries-nursery-and-primary",
+      "next": "/campus-facility/art-language-and-music-rooms"
+    },
+    "classrooms-on-all-levels-of-the-buildings": {
+      "slug": "classrooms-on-all-levels-of-the-buildings",
+      "title": "Classtrooms on all levels of the buildings",
+      "published_at": "2025-08-14T16:39:39+03:00",
+      "updated_at": "2025-10-04T08:21:13+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251001-WA0045.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/ict-classroom",
+      "next": "/campus-facility/safe-drop-off-and-pick-up-areas"
+    },
+    "safe-drop-off-and-pick-up-areas": {
+      "slug": "safe-drop-off-and-pick-up-areas",
+      "title": "Safe drop-off and pick-up areas",
+      "published_at": "2025-08-14T16:42:27+03:00",
+      "updated_at": "2025-10-04T07:33:24+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/09/1719399720843-72945312_117965202952248_1063534516393476096_n.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/classrooms-on-all-levels-of-the-buildings",
+      "next": "/campus-facility/library"
+    },
+    "library": {
+      "slug": "library",
+      "title": "Library",
+      "published_at": "2025-08-14T20:25:46+03:00",
+      "updated_at": "2025-10-03T10:45:22+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748603419425-1741764450239-1719396566378-3f887179-0fa2-478d-8784-44c725fd6962.png",
+      "body_html": "",
+      "prev": "/campus-facility/safe-drop-off-and-pick-up-areas",
+      "next": "/campus-facility/playground-and-sports-field-2"
+    },
+    "art-language-and-music-rooms-2": {
+      "slug": "art-language-and-music-rooms-2",
+      "title": "Art, Language and Music Rooms",
+      "published_at": "2025-08-14T20:28:15+03:00",
+      "updated_at": "2025-08-14T22:12:18+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0671.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/playground-and-sports-field-2",
+      "next": "/campus-facility/ict-classroom-2"
+    },
+    "playground-and-sports-field-2": {
+      "slug": "playground-and-sports-field-2",
+      "title": "Playground and Sports field",
+      "published_at": "2025-08-14T20:26:32+03:00",
+      "updated_at": "2025-10-03T10:39:42+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251003-WA0064.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/library",
+      "next": "/campus-facility/art-language-and-music-rooms-2"
+    },
+    "ict-classroom-2": {
+      "slug": "ict-classroom-2",
+      "title": "ICT Classroom",
+      "published_at": "2025-08-14T22:16:48+03:00",
+      "updated_at": "2025-08-14T22:16:50+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1748607650608-DSC_0564-2-1.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/art-language-and-music-rooms-2",
+      "next": "/campus-facility/classrooms-on-all-levels-of-the-buildings-2"
+    },
+    "safe-drop-off-and-pick-up-areas-2": {
+      "slug": "safe-drop-off-and-pick-up-areas-2",
+      "title": "Safe drop-off and pick-up areas",
+      "published_at": "2025-08-14T22:18:48+03:00",
+      "updated_at": "2025-10-04T08:40:36+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727089774430-DSC_0926-2-1.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/classrooms-on-all-levels-of-the-buildings-2",
+      "next": "/campus-facility/tv-art-music-room"
+    },
+    "tv-art-music-room": {
+      "slug": "tv-art-music-room",
+      "title": "Tv/Art/Music room",
+      "published_at": "2025-08-14T23:39:11+03:00",
+      "updated_at": "2025-08-14T23:39:13+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1719399846850-362242655_772352634681795_7981184479619849904_n.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/safe-drop-off-and-pick-up-areas-2",
+      "next": "/campus-facility/playground"
+    },
+    "playground": {
+      "slug": "playground",
+      "title": "Playground",
+      "published_at": "2025-08-14T23:40:28+03:00",
+      "updated_at": "2025-08-14T23:40:29+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1719398885506-89358609_190186615730106_9140861239742693376_n-1.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/tv-art-music-room",
+      "next": "/campus-facility/individualized-age-group-classrooms"
+    },
+    "individualized-age-group-classrooms": {
+      "slug": "individualized-age-group-classrooms",
+      "title": "Individualized age group classrooms",
+      "published_at": "2025-08-14T23:41:14+03:00",
+      "updated_at": "2025-08-14T23:41:15+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0671.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/playground",
+      "next": "/campus-facility/niceclassrooms-on-all-sections-of-the-nursery-school"
+    },
+    "niceclassrooms-on-all-sections-of-the-nursery-school": {
+      "slug": "niceclassrooms-on-all-sections-of-the-nursery-school",
+      "title": "Nice Classrooms on all sections of the Nursery Primary School",
+      "published_at": "2025-08-14T23:43:05+03:00",
+      "updated_at": "2025-10-04T08:26:02+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/IMG-20251001-WA0045.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/individualized-age-group-classrooms",
+      "next": "/campus-facility/safe-drop-off-and-pick-up-areas-3"
+    },
+    "safe-drop-off-and-pick-up-areas-3": {
+      "slug": "safe-drop-off-and-pick-up-areas-3",
+      "title": "Safe drop-off and pick-up areas.",
+      "published_at": "2025-08-14T23:45:15+03:00",
+      "updated_at": "2025-09-14T07:29:19+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/1718188380673-8e610873-4fe6-4890-b314-f717e3e0d0d3-2.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/niceclassrooms-on-all-sections-of-the-nursery-school",
+      "next": "/campus-facility/ample-parking"
+    },
+    "ample-parking": {
+      "slug": "ample-parking",
+      "title": "Ample Parking.",
+      "published_at": "2025-08-14T23:46:50+03:00",
+      "updated_at": "2025-08-14T23:46:51+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/07/1727089774430-DSC_0926-2-1.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/safe-drop-off-and-pick-up-areas-3",
+      "next": null
+    },
+    "classrooms-on-all-levels-of-the-buildings-2": {
+      "slug": "classrooms-on-all-levels-of-the-buildings-2",
+      "title": "Classrooms on all levels of the buildings",
+      "published_at": "2025-08-14T22:17:34+03:00",
+      "updated_at": "2025-10-04T08:29:36+03:00",
+      "author": "Mukisa-KJA",
+      "image_url": "https://kja.ug/wp-content/uploads/2025/08/DSC_0697.jpg",
+      "body_html": "",
+      "prev": "/campus-facility/ict-classroom-2",
+      "next": "/campus-facility/safe-drop-off-and-pick-up-areas-2"
+    }
+  }
+}

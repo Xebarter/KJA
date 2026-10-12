@@ -17,7 +17,11 @@ $$;
 
 create table if not exists public.profiles (
   id uuid primary key references auth.users (id) on delete cascade,
-  role text not null default 'staff' check (role in ('admin', 'staff')),
+  role text not null default 'parent' check (role in ('admin', 'staff', 'parent')),
+  full_name text,
+  email text,
+  phone text,
+  address text,
   created_at timestamptz not null default now()
 );
 

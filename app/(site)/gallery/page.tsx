@@ -1,9 +1,9 @@
-import { Banner, GalleryGrid } from "@/components/site/Views";
+import { GalleryArchive } from "@/components/site/ArchiveViews";
 import { getContent } from "@/lib/content";
 
-export const metadata = { title: "Gallery" };
+export const metadata = { title: "Gallery Items Archive" };
 
 export default async function GalleryPage() {
   const content = await getContent();
-  return <main><Banner title="Gallery" /><div className="container py-5"><GalleryGrid items={content.gallery} /></div></main>;
+  return <GalleryArchive items={content.gallery} sidebar={{ news: content.news, events: content.events }} />;
 }

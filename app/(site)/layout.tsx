@@ -1,17 +1,36 @@
+import Script from "next/script";
 import { AdmissionsPopup } from "@/components/site/Popup";
 import { Footer } from "@/components/site/Footer";
 import { Header } from "@/components/site/Header";
+import { ThemeEffects } from "@/components/site/HomeMotion";
 import { getContent } from "@/lib/content";
 
 export const dynamic = "force-dynamic";
 
+const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
+
+/* WordPress's emoji loader: browsers that fail its canvas tests get Twemoji images instead of native emoji. */
+const EMOJI_SETTINGS = {
+  baseUrl: "https://s.w.org/images/core/emoji/17.0.2/72x72/",
+  ext: ".png",
+  svgUrl: "https://s.w.org/images/core/emoji/17.0.2/svg/",
+  svgExt: ".svg",
+  source: { concatemoji: "/js/wp-emoji-release.min.js" },
+};
+
+function rank(slug: string) {
+  const index = CAMPUS_ORDER.indexOf(slug);
+  return index === -1 ? CAMPUS_ORDER.length : index;
+}
+
 export default async function SiteLayout({ children }: { children: React.ReactNode }) {
   const content = await getContent();
   const { settings } = content;
+  const campuses = [...content.campuses].sort((a, b) => rank(a.slug) - rank(b.slug));
   return (
     <div id="page" className="site">
       <Header
-        campuses={content.campuses}
+        campuses={campuses}
         socials={settings.socials}
         phone={settings.phone}
         email={settings.email}
@@ -27,10 +46,13 @@ export default async function SiteLayout({ children }: { children: React.ReactNo
         footerText={settings.footer_text}
         socials={settings.socials}
       />
-      <a href="#page" id="scroll-top"><i className="far fa-arrow-up-from-arc" /></a>
+      <a href="#page" id="scroll-top" aria-label="Back to top"><i className="fas fa-arrow-up" /></a>
       {settings.popup_enabled ? (
         <AdmissionsPopup title={settings.popup_title} body={settings.popup_body} label={settings.popup_cta_label} href={settings.popup_cta_href} />
       ) : null}
+      <ThemeEffects />
+      <script id="wp-emoji-settings" type="application/json" dangerouslySetInnerHTML={{ __html: JSON.stringify(EMOJI_SETTINGS) }} />
+      <Script src="/js/wp-emoji-loader.min.js" type="module" strategy="lazyOnload" />
     </div>
   );
 }

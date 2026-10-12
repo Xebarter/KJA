@@ -1,9 +1,17 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Banner, Prose } from "@/components/site/Views";
+import { WpPageView } from "@/components/site/WpPageView";
 import { findBySlug, getContent } from "@/lib/content";
 
 type Params = { params: Promise<{ slug: string }> };
+
+const SIDEBAR_PAGES = new Set([
+  "about-us", "from-the-director", "admissions", "fees",
+  "academics", "arts", "sport", "leadership",
+  "sports", "music", "language", "adventure", "religion", "talent",
+  "visit-us",
+]);
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const { slug } = await params;
@@ -16,16 +24,11 @@ export default async function CmsPage({ params }: Params) {
   const content = await getContent();
   const page = findBySlug(content.pages, slug);
   if (!page) notFound();
+  if (SIDEBAR_PAGES.has(slug)) return <WpPageView page={page} news={content.news} events={content.events} />;
   return (
     <main>
       <Banner title={page.title} />
       <div className="container py-5">
-        {slug === "visit-us" ? (
-          <p className="mb-4">
-            <a href={content.settings.map_url} target="_blank" rel="noreferrer">{content.settings.address}</a>
-            {" · "}{content.settings.phone}
-          </p>
-        ) : null}
         <Prose html={page.body} />
       </div>
     </main>

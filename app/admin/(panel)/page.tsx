@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { getContent } from "@/lib/content";
+import { catalogImages } from "@/lib/admin-images";
+import { loadCampusData } from "@/lib/campus-pages";
+import { getAdminContent } from "@/lib/content";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
-  const content = await getContent();
+  const content = await getAdminContent();
+  const images = catalogImages(content, loadCampusData());
   let applications = 0;
   let messages = 0;
   let subscribers = 0;
@@ -21,23 +24,33 @@ export default async function DashboardPage() {
     }
   }
   const stats = [
-    ["Campuses", content.campuses.length, "/admin/content/campuses"],
-    ["Teachers", content.teachers.length, "/admin/content/teachers"],
-    ["Events", content.events.length, "/admin/content/events"],
-    ["News", content.news.length, "/admin/content/news"],
-    ["Unread applications", applications, "/admin/inbox/applications"],
-    ["Unread messages", messages, "/admin/inbox/messages"],
-    ["Newsletter", subscribers, "/admin/inbox/newsletter"],
+    { label: "Images", value: images.length, href: "/admin/images", icon: "fa-images" },
+    { label: "Campuses", value: content.campuses.length, href: "/admin/content/campuses", icon: "fa-school" },
+    { label: "Teachers", value: content.teachers.length, href: "/admin/content/teachers", icon: "fa-chalkboard-user" },
+    { label: "Events", value: content.events.length, href: "/admin/content/events", icon: "fa-calendar-days" },
+    { label: "News", value: content.news.length, href: "/admin/content/news", icon: "fa-newspaper" },
+    { label: "Unread applications", value: applications, href: "/admin/inbox/applications", icon: "fa-file-lines" },
+    { label: "Unread messages", value: messages, href: "/admin/inbox/messages", icon: "fa-envelope" },
+    { label: "Newsletter", value: subscribers, href: "/admin/inbox/newsletter", icon: "fa-paper-plane" },
   ];
   return (
     <div>
-      <h1>Dashboard</h1>
-      {!supabaseConfigured() ? <p className="admin-card">Supabase is not configured, so the site is showing the imported content file. Add keys in .env.local and run the SQL files to turn on saving.</p> : null}
+      <div className="admin-page-title">
+        <div>
+          <h1>Overview</h1>
+          <p>Manage the Kampala Junior Academy website from one place.</p>
+        </div>
+        <Link className="admin-btn" href="/admin/images">Update images</Link>
+      </div>
+      {!supabaseConfigured() ? (
+        <p className="admin-card">Supabase is not connected yet, so the public site is using the imported content file. Add your keys in `.env.local` to save changes.</p>
+      ) : null}
       <div className="admin-stats">
-        {stats.map(([label, value, href]) => (
-          <Link key={String(label)} href={String(href)} className="admin-card text-decoration-none">
-            <div>{label}</div>
-            <strong style={{ fontSize: 28 }}>{value}</strong>
+        {stats.map((stat) => (
+          <Link key={stat.label} href={stat.href} className="admin-card admin-stat">
+            <i className={`fa-solid ${stat.icon}`} />
+            <span>{stat.label}</span>
+            <strong>{stat.value}</strong>
           </Link>
         ))}
       </div>

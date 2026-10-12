@@ -9,6 +9,7 @@ export function RecordForm({ table, fields, record }: { table: string; fields: F
   const router = useRouter();
   const [error, setError] = useState("");
   const [imageUrl, setImageUrl] = useState(String(record?.image_url || ""));
+  const [busy, setBusy] = useState(false);
 
   return (
     <form className="admin-form" action={async (formData) => {
@@ -27,13 +28,34 @@ export function RecordForm({ table, fields, record }: { table: string; fields: F
           return (
             <label key={field.name}>
               {field.label}
-              <input name="image_url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} />
+              {imageUrl ? <img className="admin-preview" src={imageUrl} alt="" /> : null}
+              <input name="image_url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="Image URL" />
+              <input
+                type="file"
+                accept="image/*"
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  if (!file) return;
+                  const data = new FormData();
+                  data.set("file", file);
+                  setBusy(true);
+                  try {
+                    setImageUrl(await uploadMedia(data));
+                    setError("");
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Upload failed.");
+                  } finally {
+                    setBusy(false);
+                  }
+                }}
+              />
+              {busy ? <span>Uploading…</span> : null}
             </label>
           );
         }
         if (field.type === "checkbox") {
           return (
-            <label key={field.name}>
+            <label key={field.name} className="admin-check">
               <input type="hidden" name={field.name} value="off" />
               <input type="checkbox" name={field.name} value="on" defaultChecked={record ? record[field.name] !== false : true} /> {field.label}
             </label>
@@ -56,27 +78,11 @@ export function RecordForm({ table, fields, record }: { table: string; fields: F
           </label>
         );
       })}
-      {fields.some((field) => field.name === "image_url") ? (
-        <label>
-          Upload image
-          <input type="file" accept="image/*" onChange={async (event) => {
-            const file = event.target.files?.[0];
-            if (!file) return;
-            const data = new FormData();
-            data.set("file", file);
-            try {
-              setImageUrl(await uploadMedia(data));
-            } catch (err) {
-              setError(err instanceof Error ? err.message : "Upload failed.");
-            }
-          }} />
-        </label>
-      ) : null}
-      {error ? <p>{error}</p> : null}
+      {error ? <p className="admin-error">{error}</p> : null}
       <div className="d-flex gap-2">
-        <button className="kja-btn" type="submit">Save</button>
+        <button className="admin-btn" type="submit">Save</button>
         {record?.id ? (
-          <button className="kja-btn" type="button" onClick={async () => {
+          <button className="admin-btn admin-btn-ghost" type="button" onClick={async () => {
             if (!confirm("Delete this item?")) return;
             await deleteRecord(table, String(record.id));
             router.push(`/admin/content/${table}`);

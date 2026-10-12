@@ -2,12 +2,17 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  const path = request.nextUrl.pathname;
+  const isAdmin = path.startsWith("/admin");
+  const isAccount = path.startsWith("/account");
+  const isAdminLogin = path === "/admin/login";
+  const isAccountLogin = path === "/account/login";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const isLogin = request.nextUrl.pathname === "/admin/login";
+
   if (!url || !key) {
-    if (!isLogin && request.nextUrl.pathname.startsWith("/admin")) {
-      return NextResponse.redirect(new URL("/admin/login", request.url));
+    if ((isAdmin && !isAdminLogin) || (isAccount && !isAccountLogin)) {
+      return NextResponse.redirect(new URL(isAdmin ? "/admin/login" : "/account/login", request.url));
     }
     return NextResponse.next();
   }
@@ -27,21 +32,30 @@ export async function middleware(request: NextRequest) {
   });
 
   const { data: { user } } = await supabase.auth.getUser();
-  if (!user && !isLogin) {
-    return NextResponse.redirect(new URL("/admin/login", request.url));
-  }
-  if (user && isLogin) {
-    return NextResponse.redirect(new URL("/admin", request.url));
-  }
-  if (user && !isLogin) {
-    const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-    if (data?.role !== "admin") {
-      return NextResponse.redirect(new URL("/admin/login?error=forbidden", request.url));
+
+  if (isAdmin) {
+    if (!user && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
+    if (user && isAdminLogin) return NextResponse.redirect(new URL("/admin", request.url));
+    if (user && !isAdminLogin) {
+      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+      if (data?.role !== "admin") {
+        return NextResponse.redirect(new URL("/admin/login?error=forbidden", request.url));
+      }
     }
   }
+
+  if (isAccount) {
+    if (!user && !isAccountLogin) {
+      const login = new URL("/account/login", request.url);
+      login.searchParams.set("next", path);
+      return NextResponse.redirect(login);
+    }
+    if (user && isAccountLogin) return NextResponse.redirect(new URL("/account", request.url));
+  }
+
   return response;
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/account/:path*"],
 };

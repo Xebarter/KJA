@@ -36,6 +36,7 @@ export function Footer({ phone, email, address, mapUrl, footerText, socials }: {
                   <li><Link href="/gallery"><i className="fas fa-caret-right" /> Gallery</Link></li>
                   <li><Link href="/privacy-policy"><i className="fas fa-caret-right" /> Privacy policy</Link></li>
                   <li><Link href="/news"><i className="fas fa-caret-right" /> News</Link></li>
+                  <li><Link href="/account"><i className="fas fa-caret-right" /> Parent portal</Link></li>
                   <li><Link href="/admin"><i className="fas fa-caret-right" /> Admin Login</Link></li>
                 </ul>
               </div>

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { Banner, Detail } from "@/components/site/Views";
+import { PostSingle } from "@/components/site/PostSingle";
 import { findBySlug, getContent } from "@/lib/content";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -11,7 +11,8 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 }
 
 export default async function TeacherPage({ params }: Params) {
-  const item = findBySlug((await getContent()).teachers, (await params).slug);
+  const [{ slug }, content] = await Promise.all([params, getContent()]);
+  const item = findBySlug(content.teachers, slug);
   if (!item) notFound();
-  return <main><Banner title={item.title} crumbs="Teachers" /><Detail item={item} /></main>;
+  return <PostSingle item={item} hrefBase="/teacher" siblings={content.teachers} sidebar={{ news: content.news, events: content.events }} />;
 }
