@@ -65,7 +65,7 @@ function recordSlots(
 
 function walkCampusSection(campus: string, section: CampusSectionBlock, index: number, slots: ImageSlot[]) {
   const group = `${titleCase(campus)} campus`;
-  if ("image_url" in section && section.kind !== "clubs" && section.kind !== "facilities") {
+  if ("image_url" in section) {
     slots.push({
       key: `campus:${campus}:section:${index}`,
       group,

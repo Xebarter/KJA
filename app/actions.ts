@@ -192,6 +192,8 @@ export async function submitApplication(formData: FormData) {
     email: clean(formData.get("parent_email")),
     phone: clean(formData.get("parent_phone")),
     child_name: clean(formData.get("child_name")),
+    campus: clean(formData.get("campus")),
+    grade: clean(formData.get("grade")),
     message: message || null,
     status: "received",
   });

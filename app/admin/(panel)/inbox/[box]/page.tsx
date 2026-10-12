@@ -41,6 +41,7 @@ export default async function InboxPage({ params }: { params: Promise<{ box: str
                   {row.email && row.parent_name ? <div>{row.email}</div> : null}
                   {row.child_name ? <div>Child: {row.child_name}</div> : null}
                   {row.campus ? <div>Campus: {row.campus}</div> : null}
+                  {row.grade ? <div>Class: {row.grade}</div> : null}
                   {row.subject ? <div>{row.subject}</div> : null}
                   {row.message ? <p>{row.message}</p> : null}
                   {row.read === false ? <em>Unread</em> : null}

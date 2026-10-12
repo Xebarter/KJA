@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { submitAlumniStory, submitApplication, submitContact } from "@/app/actions";
+import { submitAlumniStory, submitContact } from "@/app/actions";
 import { ALUMNI_QUESTIONS } from "@/lib/forms";
 
 type Status = "init" | "submitting" | "invalid" | "sent" | "failed";
@@ -226,86 +226,6 @@ export function AlumniTouchForm() {
             <div className="col-12 mt-lg-4 mt-4">
               <div className="w-100 h-100 d-flex align-items-center">
                 <button type="submit" className="kja-btn wpcf7-submit form-button" disabled={cf7.submitDisabled}><Loader />Send</button>
-              </div>
-            </div>
-          </div>
-          {cf7.output}
-        </form>
-      </div>
-    </div>
-  );
-}
-
-export function ApplyForm() {
-  const cf7 = useCf7(submitApplication);
-  return (
-    <div className={SELECTOR}>
-      <div className="wpcf7 js" lang="en-US" dir="ltr">
-        <form {...cf7.form} aria-label="Contact form">
-          {/* Empty but load-bearing: CF7's hidden-fields fieldset stops the mt-5 margin collapsing out of the form. */}
-          <fieldset className="hidden-fields-container" />
-          <div className="d-flex flex-column gap-0  event-registration-form mt-5">
-            <h4 style={{ paddingBottom: 0, marginBottom: 0 }}>Parent&apos;s Details</h4>
-            <div className="row mb-0">
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="parent_names">Names<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="parent_names">
-                    <input size={40} maxLength={400} {...cf7.field("parent_names", TEXT)} id="parent_names" type="text" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-6 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="parent_email">Email<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="parent_email">
-                    <input size={40} maxLength={400} {...cf7.field("parent_email", EMAIL)} id="parent_email" type="email" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-6 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="parent_phone">Phone Number<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="parent_phone">
-                    <input size={40} maxLength={400} {...cf7.field("parent_phone", TEL)} id="parent_phone" type="tel" />
-                  </span>
-                </div>
-              </div>
-            </div>
-            <h4 className="mt-5">Child Details</h4>
-            <div className="row mt-3">
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="child_name">Child&apos;s names</label>
-                  <span className="wpcf7-form-control-wrap" data-name="child_name">
-                    <input size={40} maxLength={400} {...cf7.field("child_name", TEXT)} id="child_name" type="text" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="child_birtDate">Child&apos;s birthdate</label>
-                  <span className="wpcf7-form-control-wrap" data-name="child_birtDate">
-                    <input {...cf7.field("child_birtDate", "wpcf7-form-control wpcf7-date wpcf7-validates-as-required wpcf7-validates-as-date form-control not-rounded")} id="child_birtDate" type="date" />
-                  </span>
-                </div>
-              </div>
-            </div>
-            <h4 className="mt-4">Additional Details</h4>
-            <div className="row mt-3">
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="message">Message</label>
-                  <span className="wpcf7-form-control-wrap" data-name="message">
-                    <textarea cols={40} rows={7} maxLength={2000} {...cf7.field("message", "wpcf7-form-control wpcf7-textarea wpcf7-validates-as-required form-control not-rounded")} id="message" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-12 mt-lg-4 mt-0">
-                <div className="w-100 h-100 d-flex align-items-center gap-4">
-                  <button type="submit" className="kja-btn px-5 wpcf7-submit form-button" disabled={cf7.submitDisabled}><Loader />send</button>
-                  <button type="button" className="kja-btn px-4">cancel</button>
-                </div>
               </div>
             </div>
           </div>
