@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { notifyJobApplication } from "@/lib/admin-alerts";
 import { loadPeople, requireAdmin } from "@/lib/admin-applications";
 import { formatDateTime, fromKampalaInput } from "@/lib/applications";
 import { kampalaClock } from "@/lib/events-calendar";
@@ -147,6 +148,9 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
     documents.push({ path, name: entry.file.name.slice(0, 120), size: entry.file.size, type: entry.type, kind: entry.kind });
   }
 
+  const location = text(formData.get("location"), 120) || null;
+  const currentPosition = text(formData.get("current_position"), 160) || null;
+  const campus = text(formData.get("campus"), 80) || null;
   const { error } = await supabase.from("job_applications").insert({
     id,
     vacancy_id: vacancyId,
@@ -154,11 +158,11 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
     full_name: fullName,
     email,
     phone,
-    location: text(formData.get("location"), 120) || null,
-    current_position: text(formData.get("current_position"), 160) || null,
+    location,
+    current_position: currentPosition,
     qualification,
     experience,
-    campus: text(formData.get("campus"), 80) || null,
+    campus,
     available_from: availableFrom || null,
     cover_letter: coverLetter,
     documents,
@@ -170,6 +174,23 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
     if (error.code === "42501") return { error: "This role is no longer taking applications. You can still send a general application." };
     return { error: "We couldn't send your application right now. Please try again in a moment." };
   }
+  notifyJobApplication({
+    id,
+    vacancyId,
+    role: vacancyTitle,
+    fullName,
+    email,
+    phone,
+    location,
+    currentPosition,
+    qualification,
+    experience,
+    campus,
+    availableFrom: availableFrom || null,
+    coverLetter,
+    documents,
+    files: files.map((entry) => entry.file),
+  });
   refresh();
   return { ok: "Application received.", reference: reference(id) };
 }

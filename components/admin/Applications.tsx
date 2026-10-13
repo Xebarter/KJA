@@ -1,11 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import {
   addApplicationNote,
-  bulkUpdateApplications,
   deleteApplicationNote,
   deleteApplications,
   markPaymentFollowedUp,
@@ -17,6 +16,9 @@ import {
   APPLICATION_STATUSES,
   CLASS_OPTIONS,
   PAYMENT_FILTERS,
+  RECEIVED_FILTERS,
+  SORT_OPTIONS,
+  applicationsBase,
   filterHref,
   initials,
   statusInfo,
@@ -50,9 +52,12 @@ export function ApplicationFiltersBar({
   team: TeamMember[];
 }) {
   const router = useRouter();
+  const base = applicationsBase(usePathname());
   const [q, setQ] = useState(filters.q);
-  const go = (changes: Partial<ApplicationFilters>) => router.push(filterHref(filters, changes));
-  const filtered = Boolean(filters.q || filters.campus || filters.grade || filters.owner || filters.payment || filters.sort !== "newest");
+  const go = (changes: Partial<ApplicationFilters>) => router.push(filterHref(filters, changes, base));
+  const filtered = Boolean(
+    filters.q || filters.campus || filters.grade || filters.owner || filters.payment || filters.received || filters.sort !== "newest",
+  );
 
   return (
     <form
@@ -66,7 +71,20 @@ export function ApplicationFiltersBar({
       <label className="app-search">
         <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
         <span className="visually-hidden">Search applications</span>
-        <input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search child, parent, email or phone" />
+        <input
+          id="apl-search"
+          type="search"
+          value={q}
+          onChange={(event) => setQ(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && q) {
+              setQ("");
+              if (filters.q) go({ q: "" });
+            }
+          }}
+          placeholder="Search child, parent, email or phone"
+        />
+        <kbd aria-hidden="true">/</kbd>
       </label>
       <select aria-label="Campus" value={filters.campus} onChange={(event) => go({ campus: event.target.value })}>
         <option value="">All campuses</option>
@@ -85,36 +103,20 @@ export function ApplicationFiltersBar({
       <select aria-label="Admission fee" value={filters.payment} onChange={(event) => go({ payment: event.target.value as ApplicationFilters["payment"] })}>
         {PAYMENT_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
+      <select aria-label="Received" value={filters.received} onChange={(event) => go({ received: event.target.value as ApplicationFilters["received"] })}>
+        {RECEIVED_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
       <select aria-label="Sort" value={filters.sort} onChange={(event) => go({ sort: event.target.value as ApplicationFilters["sort"] })}>
-        <option value="newest">Newest first</option>
-        <option value="oldest">Oldest first</option>
+        {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
       {filtered ? (
-        <Link className="app-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", payment: "", sort: "newest" })}>
+        <Link className="app-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", payment: "", received: "", sort: "newest" }, base)}>
           Clear
         </Link>
       ) : null}
     </form>
   );
 }
-
-export type ApplicationRow = {
-  id: string;
-  child: string;
-  childMeta: string;
-  parent: string;
-  contact: string;
-  campus: string;
-  status: string | null;
-  ownerName: string | null;
-  submitted: string;
-  submittedDate: string;
-  submittedFull: string;
-  visit: string | null;
-  unread: boolean;
-  paid: boolean;
-  fee: string | null;
-};
 
 export type PendingPayment = {
   id: string;
@@ -154,7 +156,7 @@ export function PendingPayments({ items, tracked }: { items: PendingPayment[]; t
   };
 
   return (
-    <section className="apl-card apl-payq" aria-labelledby="apl-payq-title">
+    <section className="apl-card apl-payq" id="unpaid-applications" aria-labelledby="apl-payq-title">
       <header className="apl-payq-head">
         <span className="apl-payq-icon" aria-hidden="true"><i className="fa-solid fa-hand-holding-dollar" /></span>
         <div>
@@ -222,172 +224,6 @@ export function PaymentBadge({ paid, fee }: { paid: boolean; fee?: string | null
     <span className="apl-pay is-unpaid" title="No admission fee payment recorded">
       <i className="fa-regular fa-circle" aria-hidden="true" /> Not paid
     </span>
-  );
-}
-
-export function ApplicationsTable({
-  rows,
-  team,
-  currentUserId,
-}: {
-  rows: ApplicationRow[];
-  team: TeamMember[];
-  currentUserId: string;
-}) {
-  const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [result, setResult] = useState<ActionResult | null>(null);
-  const [pending, startTransition] = useTransition();
-  const all = rows.length > 0 && rows.every((row) => selected.has(row.id));
-
-  useEffect(() => {
-    setSelected((current) => new Set([...current].filter((id) => rows.some((row) => row.id === id))));
-  }, [rows]);
-
-  const toggle = (id: string) => setSelected((current) => {
-    const next = new Set(current);
-    if (next.has(id)) next.delete(id);
-    else next.add(id);
-    return next;
-  });
-
-  const run = (task: () => Promise<ActionResult>, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return;
-    startTransition(async () => {
-      const outcome = await task();
-      setResult(outcome);
-      if (!outcome.error) {
-        setSelected(new Set());
-        router.refresh();
-      }
-    });
-  };
-  const list = [...selected];
-
-  return (
-    <div className="app-table-wrap">
-      {selected.size ? (
-        <div className="app-bulk" aria-live="polite">
-          <strong>{selected.size} selected</strong>
-          <select
-            aria-label="Set status"
-            value=""
-            disabled={pending}
-            onChange={(event) => run(() => bulkUpdateApplications(list, { status: event.target.value }))}
-          >
-            <option value="" disabled>Set status…</option>
-            {APPLICATION_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
-          </select>
-          <select
-            aria-label="Assign"
-            value=""
-            disabled={pending}
-            onChange={(event) => {
-              const value = event.target.value;
-              run(() => bulkUpdateApplications(list, { assigned_to: value === "none" ? null : value }));
-            }}
-          >
-            <option value="" disabled>Assign to…</option>
-            <option value={currentUserId}>Me</option>
-            {team.filter((member) => member.id !== currentUserId).map((member) => (
-              <option key={member.id} value={member.id}>{member.name}</option>
-            ))}
-            <option value="none">Nobody</option>
-          </select>
-          <button type="button" className="app-link-btn" disabled={pending} onClick={() => run(() => bulkUpdateApplications(list, { read: true }))}>Mark read</button>
-          <button type="button" className="app-link-btn" disabled={pending} onClick={() => run(() => bulkUpdateApplications(list, { read: false }))}>Mark unread</button>
-          <button
-            type="button"
-            className="app-link-btn is-danger"
-            disabled={pending}
-            onClick={() => run(() => deleteApplications(list), `Delete ${selected.size} application${selected.size === 1 ? "" : "s"}? This cannot be undone.`)}
-          >
-            Delete
-          </button>
-          <button type="button" className="app-link-btn app-bulk-close" onClick={() => setSelected(new Set())} aria-label="Clear selection">
-            <i className="fa-solid fa-xmark" />
-          </button>
-        </div>
-      ) : null}
-      <Feedback result={result} />
-
-      <table className={`app-table${pending ? " is-busy" : ""}`}>
-        <thead>
-          <tr>
-            <th className="app-col-check">
-              <input
-                type="checkbox"
-                aria-label="Select all on this page"
-                checked={all}
-                onChange={() => setSelected(all ? new Set() : new Set(rows.map((row) => row.id)))}
-              />
-            </th>
-            <th>Child</th>
-            <th>Parent</th>
-            <th>Campus</th>
-            <th>Admission fee</th>
-            <th>Status</th>
-            <th>Owner</th>
-            <th>Received</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => {
-            const href = `/admin/applications/${row.id}`;
-            return (
-              <tr
-                key={row.id}
-                className={`${row.unread ? "is-unread" : ""}${selected.has(row.id) ? " is-selected" : ""}`}
-                onClick={(event) => {
-                  if ((event.target as HTMLElement).closest("input, a, button")) return;
-                  router.push(href);
-                }}
-              >
-                <td className="app-col-check">
-                  <input type="checkbox" aria-label={`Select ${row.child}`} checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
-                </td>
-                <td className="app-col-child">
-                  <Link href={href} className="apl-child">
-                    <span className={`apl-avatar${row.unread ? " is-unread" : ""}`} aria-hidden="true">{initials(row.child)}</span>
-                    <span className="apl-child-text">
-                      <strong>{row.child}</strong>
-                      {row.childMeta ? <small>{row.childMeta}</small> : null}
-                    </span>
-                    {row.unread ? <span className="visually-hidden">(not opened yet)</span> : null}
-                  </Link>
-                </td>
-                <td data-label="Parent">
-                  <span className="app-cell-main">{row.parent}</span>
-                  <small>{row.contact}</small>
-                </td>
-                <td data-label="Campus">
-                  {row.campus ? (
-                    <span className="apl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" />{row.campus}</span>
-                  ) : <span className="app-muted">Any campus</span>}
-                </td>
-                <td data-label="Admission fee">
-                  <PaymentBadge paid={row.paid} fee={row.fee} />
-                  {row.fee ? <small>{row.fee}</small> : null}
-                </td>
-                <td data-label="Status">
-                  <StatusBadge status={row.status} />
-                  {row.visit ? <small className="apl-visit"><i className="fa-regular fa-calendar" aria-hidden="true" /> {row.visit}</small> : null}
-                </td>
-                <td data-label="Owner">
-                  {row.ownerName ? (
-                    <span className="app-owner"><Avatar name={row.ownerName} />{row.ownerName}</span>
-                  ) : <span className="apl-unassigned">Unassigned</span>}
-                </td>
-                <td data-label="Received" title={row.submittedFull}>
-                  <span className="app-cell-main">{row.submitted}</span>
-                  {row.submitted !== row.submittedDate ? <small>{row.submittedDate}</small> : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
   );
 }
 
@@ -529,6 +365,7 @@ export function DeleteNoteButton({ noteId, applicationId }: { noteId: string; ap
 
 export function DeleteApplicationButton({ id, child }: { id: string; child: string }) {
   const router = useRouter();
+  const base = applicationsBase(usePathname());
   const [pending, startTransition] = useTransition();
   return (
     <button
@@ -541,7 +378,7 @@ export function DeleteApplicationButton({ id, child }: { id: string; child: stri
           const outcome = await deleteApplications([id]);
           if (outcome.error) window.alert(outcome.error);
           else {
-            router.push("/admin/applications");
+            router.push(base);
             router.refresh();
           }
         });

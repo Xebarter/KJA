@@ -1,6 +1,7 @@
 import { readFile } from "fs/promises";
 import path from "path";
 import { getContent } from "@/lib/content";
+import { isOfficeRole } from "@/lib/office";
 import { loadPayment, refreshPayment, tokenMatches } from "@/lib/payments/admission";
 import { buildReceiptPdf } from "@/lib/payments/receipt";
 import { getSessionUser } from "@/lib/portal";
@@ -12,7 +13,7 @@ async function isAdmin() {
   const { user, supabase } = await getSessionUser();
   if (!user || !supabase) return false;
   const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  return data?.role === "admin";
+  return isOfficeRole(data?.role);
 }
 
 async function crest(request: Request) {

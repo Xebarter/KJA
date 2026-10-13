@@ -1,5 +1,6 @@
 import { randomBytes, timingSafeEqual } from "crypto";
 import { revalidatePath } from "next/cache";
+import { notifyAdmissionApplication } from "@/lib/admin-alerts";
 import { getContent } from "@/lib/content";
 import { composeFees } from "@/lib/info-pages";
 import { SITE_URL } from "@/lib/newsroom";
@@ -142,6 +143,7 @@ export async function startAdmissionPayment(draft: ApplicationDraft, payerPhone:
     return { error: UNAVAILABLE };
   }
   const row = created as PaymentRow;
+  notifyAdmissionApplication(row);
 
   try {
     const collection = await createCollection({

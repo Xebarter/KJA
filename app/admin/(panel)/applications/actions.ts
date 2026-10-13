@@ -1,18 +1,123 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { requireAdmin, loadPeople } from "@/lib/admin-applications";
+import { loadPeople } from "@/lib/admin-applications";
+import { requireOffice } from "@/lib/office";
+import { buildParentEmail } from "@/lib/admission-emails";
 import { formatDateTime, fromKampalaInput, isStatus, statusInfo } from "@/lib/applications";
+import { getContent } from "@/lib/content";
+import { emailSetupProblem, sendEmail } from "@/lib/email/send";
 import { loadPayment, refreshPayment } from "@/lib/payments/admission";
 import { serviceClient } from "@/lib/supabase/service";
 
-export type ActionResult = { error?: string; ok?: string };
+export type ActionResult = { error?: string; ok?: string; warning?: string };
+
+export type MoveInput = {
+  id: string;
+  status: string;
+  /** Kampala local time from a datetime-local input. Required when booking a visit. */
+  visitAt?: string;
+  /** Internal note for the team, added to the timeline. */
+  note?: string;
+  /** Personal message included in the parent's email. */
+  message?: string;
+  notify?: boolean;
+};
+
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+export async function moveApplication(input: MoveInput): Promise<ActionResult> {
+  const auth = await requireOffice();
+  if ("error" in auth) return { error: auth.error };
+  const { supabase, user } = auth;
+  const id = String(input.id);
+  const status = String(input.status);
+  if (!isStatus(status)) return { error: "Choose a valid stage." };
+
+  const { data: current, error: loadError } = await supabase
+    .from("applications")
+    .select("status, assigned_to, visit_at, child_name, parent_name, email, grade, campus, created_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadError) return { error: loadError.message };
+  if (!current) return { error: "This application no longer exists." };
+
+  const visitAt = input.visitAt ? fromKampalaInput(input.visitAt) : null;
+  if (input.visitAt && !visitAt) return { error: "Enter a valid visit date and time." };
+  if (status === "visit_scheduled" && !visitAt && !current.visit_at) return { error: "Choose a date and time for the visit." };
+
+  const patch: Record<string, unknown> = {};
+  const activity: { kind: string; body: string }[] = [];
+  if (status !== current.status) {
+    patch.status = status;
+    activity.push({ kind: "status", body: `Moved from ${statusInfo(current.status).label} to ${statusInfo(status).label}` });
+  }
+  const currentVisit = current.visit_at ? new Date(current.visit_at).toISOString() : null;
+  if (visitAt && visitAt !== currentVisit) {
+    patch.visit_at = visitAt;
+    activity.push({ kind: "visit", body: `${currentVisit ? "Rescheduled" : "Booked"} the school visit for ${formatDateTime(visitAt)}` });
+  }
+  if (!current.assigned_to && status !== "received") {
+    patch.assigned_to = user.id;
+    activity.push({ kind: "assign", body: "Took ownership" });
+  }
+  const note = input.note?.trim().slice(0, 4000) ?? "";
+  if (!activity.length && !note) return { ok: "Nothing changed." };
+
+  if (Object.keys(patch).length) {
+    const { error } = await supabase.from("applications").update(patch).eq("id", id);
+    if (error) return { error: error.message };
+  }
+  if (note) activity.push({ kind: "note", body: note });
+
+  const label = statusInfo(status).label;
+  let warning: string | undefined;
+  if (input.notify) {
+    const to = String(current.email ?? "").trim();
+    const problem = emailSetupProblem();
+    if (!EMAIL.test(to)) warning = "The parent wasn't emailed because there's no valid email address on the application.";
+    else if (problem) warning = `The parent wasn't emailed. ${problem}`;
+    else {
+      const { settings } = await getContent();
+      const email = buildParentEmail(
+        {
+          child: current.child_name || "your child",
+          parent: current.parent_name || "",
+          grade: current.grade,
+          campus: current.campus,
+          createdAt: current.created_at,
+          status,
+          visitAt: visitAt ?? currentVisit,
+          message: input.message?.slice(0, 2000) ?? "",
+        },
+        settings,
+      );
+      if (email) {
+        try {
+          await sendEmail({ to, subject: email.subject, html: email.html, text: email.text, replyTo: settings.email });
+          activity.push({ kind: "status", body: `Emailed ${current.parent_name || "the parent"} about: ${label}` });
+        } catch (error) {
+          console.error("[applications] parent email failed", error);
+          warning = "The stage was updated, but the email to the parent could not be sent. Try contacting them directly.";
+        }
+      }
+    }
+  }
+
+  await supabase.from("application_activity").insert(activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id })));
+  refresh(id);
+  return { ok: status === current.status ? "Saved." : `Moved to ${label}.`, warning };
+}
 
 const MAX_BULK = 200;
 
 function refresh(id?: string) {
   revalidatePath("/admin", "layout");
-  if (id) revalidatePath(`/admin/applications/${id}`);
+  revalidatePath("/admissions_office", "layout");
+  if (id) {
+    revalidatePath(`/admin/applications/${id}`);
+    revalidatePath(`/admissions_office/applications/${id}`);
+  }
 }
 
 function ids(list: string[]) {
@@ -20,7 +125,7 @@ function ids(list: string[]) {
 }
 
 export async function updateApplication(formData: FormData): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
 
@@ -67,7 +172,7 @@ export async function updateApplication(formData: FormData): Promise<ActionResul
 }
 
 export async function addApplicationNote(formData: FormData): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   const body = String(formData.get("body") || "").trim().slice(0, 4000);
@@ -81,7 +186,7 @@ export async function addApplicationNote(formData: FormData): Promise<ActionResu
 }
 
 export async function deleteApplicationNote(noteId: string, applicationId: string): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase
     .from("application_activity").delete().eq("id", noteId).eq("actor_id", auth.user.id).eq("kind", "note");
@@ -94,7 +199,7 @@ export async function bulkUpdateApplications(
   list: string[],
   change: { status?: string; assigned_to?: string | null; read?: boolean },
 ): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const targets = ids(list);
@@ -133,7 +238,7 @@ export async function bulkUpdateApplications(
 }
 
 export async function deleteApplications(list: string[]): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one application." };
@@ -144,7 +249,7 @@ export async function deleteApplications(list: string[]): Promise<ActionResult> 
 }
 
 export async function recheckPayment(id: string): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   const row = await loadPayment(String(id));
   if (!row) return { error: "This payment could not be found. Check that SUPABASE_SERVICE_ROLE_KEY is set." };
@@ -156,7 +261,7 @@ export async function recheckPayment(id: string): Promise<ActionResult> {
 }
 
 export async function markPaymentFollowedUp(id: string): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };
   if (!/^[0-9a-f-]{36}$/i.test(String(id))) return { error: "This payment could not be found." };
   const db = serviceClient();

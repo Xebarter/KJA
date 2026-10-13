@@ -1,4 +1,5 @@
-import { applicationsQuery, loadPeople, requireAdmin } from "@/lib/admin-applications";
+import { applicationsQuery, loadPeople } from "@/lib/admin-applications";
+import { requireOffice } from "@/lib/office";
 import { formatDate, formatDateTime, parseFilters, statusInfo, type Application } from "@/lib/applications";
 
 export const dynamic = "force-dynamic";
@@ -10,11 +11,16 @@ function cell(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireAdmin();
+  const auth = await requireOffice();
   if ("error" in auth) return new Response(auth.error, { status: 403 });
   const { supabase, user } = auth;
-  const filters = parseFilters(Object.fromEntries(new URL(request.url).searchParams));
-  const { data, error } = await applicationsQuery(supabase, filters, user.id, "*").limit(5000);
+  const params = new URL(request.url).searchParams;
+  const filters = parseFilters(Object.fromEntries(params));
+  const ids = (params.get("ids") || "").split(",").filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
+  const query = ids.length
+    ? applicationsQuery(supabase, { ...filters, status: "all", attention: false }, user.id, "*").in("id", ids)
+    : applicationsQuery(supabase, filters, user.id, "*");
+  const { data, error } = await query.limit(5000);
   if (error) return new Response(error.message, { status: 500 });
   const rows = (data || []) as unknown as Application[];
   const people = await loadPeople(supabase, rows.map((row) => row.assigned_to));

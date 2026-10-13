@@ -20,6 +20,11 @@ pnpm-debug.log*
 # TypeScript build output
 *.tsbuildinfo
 
+# Student records: children's personal and medical details, never commit
+students.csv
+supabase/0010_student_register.sql
+supabase/0010_student_register/
+
 # Local certificates and OS files
 *.pem
 .DS_Store

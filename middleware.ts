@@ -1,10 +1,12 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { isOfficeRole } from "@/lib/office-nav";
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
   const isAdmin = path.startsWith("/admin");
   const isAccount = path.startsWith("/account");
+  const isOffice = path === "/admissions_office" || path.startsWith("/admissions_office/");
   const isAdminLogin = path === "/admin/login";
   const isAccountLogin = path === "/account/login";
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -20,6 +22,7 @@ export async function middleware(request: NextRequest) {
   if (!url || !key) {
     if (isAdmin && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
     if (isAccount) return parentLogin(isAccountLogin ? undefined : path);
+    if (isOffice) return parentLogin(path);
     return NextResponse.next();
   }
 
@@ -42,8 +45,15 @@ export async function middleware(request: NextRequest) {
   if (isAdmin) {
     if (!user) return parentLogin(isAdminLogin ? "/admin" : path + request.nextUrl.search);
     const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (data?.role === "admissions") return NextResponse.redirect(new URL("/admissions_office", request.url));
     if (data?.role !== "admin") return NextResponse.redirect(new URL("/account", request.url));
     if (isAdminLogin) return NextResponse.redirect(new URL("/admin", request.url));
+  }
+
+  if (isOffice) {
+    if (!user) return parentLogin(path + request.nextUrl.search);
+    const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (!isOfficeRole(data?.role)) return NextResponse.redirect(new URL("/account", request.url));
   }
 
   if (isAccount) {
@@ -55,5 +65,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/account/:path*"],
+  matcher: ["/admin/:path*", "/account/:path*", "/admissions_office", "/admissions_office/:path*"],
 };

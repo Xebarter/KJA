@@ -121,6 +121,10 @@ export function AdminShell({
 
           <span className="admin-nav-label">Admissions</span>
           <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
+          <a href="/admissions_office">
+            <i className="fa-solid fa-building-user" aria-hidden="true" />
+            <span>Admissions office</span>
+          </a>
           <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
 
           <span className="admin-nav-label">Inbox</span>

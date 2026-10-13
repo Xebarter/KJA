@@ -17,6 +17,7 @@ update public.profiles set role = 'admin' where email = 'you@example.com';
 After that, admins add each other from **Admin → Team**.
 
 6. Copy `.env.example` to `.env.local` and fill in the project URL, anon key, and service role key.
+7. For email alerts, add either `RESEND_API_KEY` or the `SMTP_*` settings, plus `EMAIL_FROM`. Every admin on **Admin → Team** is then emailed when a parent sends in an admission application and when someone applies for a job (CV attached). Use **Send me a test email** on the Team page to check delivery.
 
 ```bash
 npm install
@@ -24,6 +25,16 @@ npm run dev
 ```
 
 Open `/` for the site, `/admin` for staff, and `/account` for the parent portal.
+
+## Student register
+
+The register (students, families, parents and every emergency contact) is imported from the school system's export. Put the export in the project root as `students.csv`, then run:
+
+```bash
+node scripts/import-students.mjs
+```
+
+This writes numbered scripts to `supabase/0010_student_register/`, each small enough for the Supabase SQL editor. Run them in order (`01_schema.sql` first). Each part is its own transaction, so if one fails, fix the problem and re-run that part. It's safe to run them again with a newer export: students are matched by student number and updated in place. The CSV and the generated scripts hold children's personal and medical details, so they're kept out of git.
 
 ## Refresh content from the current WordPress site
 

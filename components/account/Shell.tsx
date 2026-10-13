@@ -23,10 +23,12 @@ export function AccountShell({
   children,
   name,
   unread,
+  staffLink = null,
 }: {
   children: React.ReactNode;
   name: string;
   unread: number;
+  staffLink?: { href: string; label: string } | null;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -79,6 +81,13 @@ export function AccountShell({
         ))}
       </nav>
       <div className="account-side-foot">
+        {staffLink ? (
+          <a href={staffLink.href} className="account-side-link">
+            <i className="fa-solid fa-building-user" />
+            <span>{staffLink.label}</span>
+            <i className="fa-solid fa-arrow-right account-side-link-out" />
+          </a>
+        ) : null}
         <Link href="/" className="account-side-link" onClick={() => setOpen(false)}>
           <i className="fa-solid fa-globe" />
           <span>School website</span>
