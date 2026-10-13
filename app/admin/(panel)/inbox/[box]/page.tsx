@@ -1,15 +1,15 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { markInquiry, removeInquiry } from "@/app/actions";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 const boxes = {
-  applications: { table: "applications" as const, title: "Applications", intro: "Admission enquiries submitted from the public site." },
   messages: { table: "contact_messages" as const, title: "Messages", intro: "Contact form and alumni story submissions." },
   newsletter: { table: "newsletter_subscribers" as const, title: "Newsletter", intro: "People who asked to receive school updates." },
 };
 
 export default async function InboxPage({ params }: { params: Promise<{ box: string }> }) {
   const { box } = await params;
+  if (box === "applications") redirect("/admin/applications");
   const config = boxes[box as keyof typeof boxes];
   if (!config) notFound();
   if (!supabaseConfigured()) {

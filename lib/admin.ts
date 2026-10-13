@@ -22,13 +22,12 @@ export const tableKey: Record<string, keyof SiteContent> = {
 export const contentGroups = [
   { title: "Website", keys: ["pages", "campuses", "campus_sections"] },
   { title: "People", keys: ["teachers"] },
-  { title: "Newsroom", keys: ["events", "news", "posts", "gallery_items"] },
-  { title: "Alumni", keys: ["alumni_news", "alumni_events", "alumni_stories", "alumni_profiles", "alumni_photos"] },
+  { title: "Events & gallery", keys: ["events", "gallery_items"] },
+  { title: "Alumni", keys: ["alumni_events", "alumni_profiles", "alumni_photos"] },
   { title: "Careers", keys: ["vacancies"] },
 ] as const;
 
 export const inboxLinks = [
-  { href: "/admin/inbox/applications", label: "Applications" },
   { href: "/admin/inbox/messages", label: "Messages" },
   { href: "/admin/inbox/newsletter", label: "Newsletter" },
 ];

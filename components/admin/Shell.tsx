@@ -6,18 +6,19 @@ import { useState } from "react";
 import { signOut } from "@/app/actions";
 import { contentGroups, inboxLinks, resourceLabel } from "@/lib/admin";
 
-function NavLink({ href, icon, children }: { href: string; icon: string; children: React.ReactNode }) {
+function NavLink({ href, icon, badge, children }: { href: string; icon: string; badge?: number; children: React.ReactNode }) {
   const pathname = usePathname();
   const active = href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
   return (
     <Link href={href} className={active ? "active" : ""}>
       <i className={`fa-solid ${icon}`} />
       {children}
+      {badge ? <span className="admin-nav-badge" aria-label={`${badge} new`}>{badge > 99 ? "99+" : badge}</span> : null}
     </Link>
   );
 }
 
-export function AdminShell({ children }: { children: React.ReactNode }) {
+export function AdminShell({ children, newApplications = 0 }: { children: React.ReactNode; newApplications?: number }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
@@ -38,6 +39,12 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </span>
         </Link>
         <NavLink href="/admin" icon="fa-house">Overview</NavLink>
+        <span className="admin-nav-label">Newsroom</span>
+        <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink>
+        <span className="admin-nav-label">Admissions</span>
+        <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
+        <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
+        <span className="admin-nav-label">Site</span>
         <NavLink href="/admin/images" icon="fa-images">Images</NavLink>
         <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink>
         {contentGroups.map((group) => {

@@ -440,19 +440,6 @@ export function TecContainer({ kind, children }: { kind: "list" | "month" | "day
   );
 }
 
-export function TecSubscribeScope({ children }: { children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const container = ref.current;
-    return container ? setupSubscribe(container) : undefined;
-  }, []);
-  return (
-    <div ref={ref} className="tribe-events tribe-common">
-      {children}
-    </div>
-  );
-}
-
 /* ---------- Datepicker (bootstrap-datepicker markup) ---------- */
 
 export type DatepickerLabels = {

@@ -6,11 +6,7 @@ export const metadata = { title: "Apply to Enroll" };
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
 
-const STEPS = [
-  { title: "Apply online", text: "Share your details using this form. It only takes a couple of minutes." },
-  { title: "Visit the school", text: "Meet our teachers and tour the classrooms. A visit completes the admission process." },
-  { title: "Placement", text: "Age, previous schooling and readiness guide the right class. Primary pupils may sit a short placement test." },
-];
+const STEPS = ["Apply online", "Visit the school", "Placement"];
 
 export default async function ApplyPage() {
   const { campuses, settings } = await getContent();
@@ -35,11 +31,6 @@ export default async function ApplyPage() {
             Begin your child&apos;s journey at Kampala Junior Academy. Share a few details below and our admissions
             team will be in touch to welcome you.
           </p>
-          <ul className="apply-facts apply-rise">
-            <li><i className="fas fa-children" aria-hidden="true" />Ages 3 to 13</li>
-            <li><i className="fas fa-door-open" aria-hidden="true" />Open admissions all year</li>
-            <li><i className="far fa-calendar" aria-hidden="true" />Main intake October to January</li>
-          </ul>
         </div>
       </section>
 
@@ -51,33 +42,29 @@ export default async function ApplyPage() {
 
           <aside className="apply-aside apply-rise">
             <div className="apply-panel">
-              <h2>How admission works</h2>
+              <h2>Next steps</h2>
               <ol className="apply-steps">
                 {STEPS.map((step, index) => (
-                  <li key={step.title}>
+                  <li key={step}>
                     <span className="apply-steps-num" aria-hidden="true">{index + 1}</span>
-                    <div>
-                      <h3>{step.title}</h3>
-                      <p>{step.text}</p>
-                    </div>
+                    <h3>{step}</h3>
                   </li>
                 ))}
               </ol>
               <Link className="apply-panel-link" href="/admissions">
-                Read the full admission process <i className="fas fa-arrow-right" aria-hidden="true" />
+                Admission process <i className="fas fa-arrow-right" aria-hidden="true" />
               </Link>
             </div>
 
             <div className="apply-panel apply-panel-dark">
               <h2>Need help?</h2>
-              <p>Our admissions team is happy to answer your questions.</p>
               <a className="apply-contact" href={`tel:${settings.phone.replace(/\s/g, "")}`}>
                 <span className="apply-contact-icon"><i className="fas fa-phone" aria-hidden="true" /></span>
-                <span><small>Call us</small>{settings.phone}</span>
+                <span><small>Call</small>{settings.phone}</span>
               </a>
               <a className="apply-contact" href={`mailto:${settings.email}`}>
                 <span className="apply-contact-icon"><i className="far fa-envelope" aria-hidden="true" /></span>
-                <span><small>Email us</small>{settings.email}</span>
+                <span><small>Email</small>{settings.email}</span>
               </a>
             </div>
           </aside>

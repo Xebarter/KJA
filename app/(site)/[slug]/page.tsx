@@ -7,7 +7,7 @@ import { findBySlug, getContent } from "@/lib/content";
 type Params = { params: Promise<{ slug: string }> };
 
 const SIDEBAR_PAGES = new Set([
-  "about-us", "from-the-director", "admissions", "fees",
+  "from-the-director", "admissions", "fees",
   "academics", "arts", "sport", "leadership",
   "sports", "music", "language", "adventure", "religion", "talent",
   "visit-us",

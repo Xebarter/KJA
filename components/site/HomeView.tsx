@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Hero } from "@/components/site/Hero";
 import { CounterValue, EventSlider, HomeGallery, VideoPlay } from "@/components/site/HomeMotion";
-import { formatBlogDate } from "@/lib/format";
+import { StoryCard } from "@/components/site/StoryCard";
+import { toStory } from "@/lib/newsroom";
 import type { SiteContent } from "@/lib/types";
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
@@ -202,25 +203,27 @@ export function HomeView({ content }: { content: SiteContent }) {
               </div>
             </div>
           </div>
-          <div className="row">
+          <div className="kja-campus-grid">
             {campuses.map((campus) => (
-              <div className="col-md-6 col-lg-4 mb-4" key={campus.slug}>
-                <div className="course-item wow fadeInUp h-100" data-wow-delay=".25s">
-                  <Link href={`/branch/${campus.slug}`} className="kja-card-link" aria-hidden="true" tabIndex={-1} />
-                  <div className="course-img">
-                    {campus.image_url ? <img src={campus.image_url} alt={campus.title} /> : null}
-                    <Link href={`/branch/${campus.slug}`} className="btn">
-                      <i className="fas fa-arrow-up-right-from-square" />
-                    </Link>
-                  </div>
-                  <div className="course-content">
-                    <h4 className="course-title mt-3">
-                      <Link href={`/branch/${campus.slug}`}>{campus.title}</Link>
-                    </h4>
-                    <p className="course-text">{campus.excerpt}</p>
-                  </div>
+              <article className="kja-campus-card wow fadeInUp" data-wow-delay=".25s" key={campus.slug}>
+                <div className="kja-campus-card-media">
+                  {campus.image_url ? (
+                    <img src={campus.image_url} alt="" />
+                  ) : (
+                    <span className="kja-campus-card-fallback" aria-hidden="true">
+                      <i className="fas fa-location-dot" />
+                    </span>
+                  )}
                 </div>
-              </div>
+                <div className="kja-campus-card-body">
+                  <h3 className="kja-campus-card-title">{campus.title}</h3>
+                  <p className="kja-campus-card-text">{campus.excerpt}</p>
+                  <Link href={`/branch/${campus.slug}`} className="kja-campus-card-cta">
+                    View campus
+                    <i className="fas fa-arrow-right" aria-hidden="true" />
+                  </Link>
+                </div>
+              </article>
             ))}
           </div>
         </div>
@@ -259,7 +262,7 @@ export function HomeView({ content }: { content: SiteContent }) {
         </div>
       </div>
 
-      <div className="team-area py-120">
+      <div className="team-area kja-teachers py-120">
         <div className="container">
           <div className="row">
             <div className="col-lg-6 mx-auto">
@@ -279,20 +282,6 @@ export function HomeView({ content }: { content: SiteContent }) {
               <div className="col-md-6 col-lg-3" key={teacher.slug}>
                 <div className="team-item wow fadeInUp h-100" data-wow-delay=".25s">
                   <div className="team-img">{teacher.image_url ? <img src={teacher.image_url} alt={teacher.title} /> : null}</div>
-                  <div className="team-social">
-                    <a href="#" aria-label="Facebook">
-                      <i className="fab fa-facebook-f" />
-                    </a>
-                    <a href="#" aria-label="WhatsApp">
-                      <i className="fab fa-whatsapp" />
-                    </a>
-                    <a href="#" aria-label="LinkedIn">
-                      <i className="fab fa-linkedin-in" />
-                    </a>
-                    <a href="#" aria-label="YouTube">
-                      <i className="fab fa-youtube" />
-                    </a>
-                  </div>
                   <div className="team-content">
                     <div className="team-bio">
                       <h5>
@@ -301,8 +290,8 @@ export function HomeView({ content }: { content: SiteContent }) {
                       <span>{teacher.role}</span>
                     </div>
                   </div>
-                  <span className="team-social-btn">
-                    <i className="fas fa-share-nodes" />
+                  <span className="kja-teacher-go" aria-hidden="true">
+                    <i className="fas fa-arrow-right" />
                   </span>
                 </div>
               </div>
@@ -412,40 +401,8 @@ export function HomeView({ content }: { content: SiteContent }) {
               </div>
             </div>
           </div>
-          <div className="row">
-            {stories.map((item) => (
-              <div className="col-md-6 col-lg-4" key={item.slug}>
-                <div className="blog-item wow fadeInUp h-100" data-wow-delay=".25s">
-                  <div className="blog-date">
-                    <i className="fas fa-calendar-days" /> {formatBlogDate(item.published_at)}
-                  </div>
-                  {item.image_url ? (
-                    <div className="blog-item-img">
-                      <img src={item.image_url} alt={item.title} />
-                    </div>
-                  ) : null}
-                  <div className="blog-item-info">
-                    <div className="blog-item-meta">
-                      <ul>
-                        <li>
-                          <a href="#">
-                            <i className="fas fa-user" />
-                            {item.author || "Mukisa-KJA"}
-                          </a>
-                        </li>
-                      </ul>
-                    </div>
-                    <h4 className="blog-title">
-                      <Link href={`/news/${item.slug}`}>{item.title}</Link>
-                    </h4>
-                    <Link className="kja-btn" href={`/news/${item.slug}`}>
-                      Read More
-                      <i className="fas fa-arrow-right-long" />
-                    </Link>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="kja-story-grid">
+            {stories.map((item) => <StoryCard story={toStory(item, "news")} className="wow fadeInUp" key={item.slug} />)}
           </div>
         </div>
       </div>

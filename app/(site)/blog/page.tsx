@@ -1,9 +1,5 @@
-import { BlogIndex } from "@/components/site/ArchiveViews";
-import { getContent } from "@/lib/content";
+import { redirect } from "next/navigation";
 
-export const metadata = { title: "Blog" };
-
-export default async function BlogPage() {
-  const content = await getContent();
-  return <BlogIndex posts={content.posts} sidebar={{ news: content.news, events: content.events }} />;
+export default function BlogPage() {
+  redirect("/news?type=blog");
 }

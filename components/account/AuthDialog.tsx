@@ -9,11 +9,13 @@ import { createBrowserSupabase } from "@/lib/supabase/browser";
 type AuthDialogContextValue = {
   openAuth: (next?: string) => void;
   signedIn: boolean;
+  ready: boolean;
 };
 
 const AuthDialogContext = createContext<AuthDialogContextValue>({
   openAuth: () => undefined,
   signedIn: false,
+  ready: false,
 });
 
 export function useAuthDialog() {
@@ -27,6 +29,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   const [open, setOpen] = useState(false);
   const [next, setNext] = useState("/account");
   const [signedIn, setSignedIn] = useState(false);
+  const [ready, setReady] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const closeAuth = useCallback(() => {
@@ -58,8 +61,13 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     const supabase = createBrowserSupabase();
-    if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSignedIn(Boolean(data.session)));
+    if (!supabase) {
+      setReady(true);
+      return;
+    }
+    supabase.auth.getSession()
+      .then(({ data }) => setSignedIn(Boolean(data.session)))
+      .finally(() => setReady(true));
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSignedIn(Boolean(session));
     });
@@ -80,7 +88,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
     };
   }, [open, closeAuth]);
 
-  const value = useMemo(() => ({ openAuth, signedIn }), [openAuth, signedIn]);
+  const value = useMemo(() => ({ openAuth, signedIn, ready }), [openAuth, signedIn, ready]);
 
   return (
     <AuthDialogContext.Provider value={value}>

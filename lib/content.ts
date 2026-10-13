@@ -1,5 +1,6 @@
 import { cache } from "react";
 import fallbackJson from "@/data/content.json";
+import { isFutureDate } from "@/lib/newsroom";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import type { Article, GalleryItem, Settings, SiteContent } from "@/lib/types";
 
@@ -7,6 +8,13 @@ const fallback = fallbackJson as SiteContent;
 
 function asList<T>(rows: T[] | null | undefined, fallbackRows: T[]) {
   return Array.isArray(rows) ? rows : fallbackRows;
+}
+
+function storyList(rows: Article[] | null | undefined, fallbackRows: Article[], publishedOnly: boolean) {
+  const list = asList(rows, fallbackRows);
+  if (!publishedOnly) return list;
+  const now = Date.now();
+  return list.filter((item) => !isFutureDate(item.published_at, now));
 }
 
 async function loadSite(publishedOnly: boolean): Promise<SiteContent> {
@@ -53,13 +61,13 @@ async function loadSite(publishedOnly: boolean): Promise<SiteContent> {
     campuses: asList(campuses.data, fallback.campuses) as Article[],
     teachers: asList(teachers.data, fallback.teachers) as Article[],
     events: asList(events.data, fallback.events) as Article[],
-    news: asList(news.data, fallback.news) as Article[],
-    posts: asList(posts.data, fallback.posts) as Article[],
+    news: storyList(news.data as Article[] | null, fallback.news, publishedOnly),
+    posts: storyList(posts.data as Article[] | null, fallback.posts, publishedOnly),
     gallery: asList(gallery.data, fallback.gallery) as GalleryItem[],
     testimonials: asList(testimonials.data, fallback.testimonials),
-    alumni_news: asList(alumniNews.data, fallback.alumni_news) as Article[],
+    alumni_news: storyList(alumniNews.data as Article[] | null, fallback.alumni_news, publishedOnly),
     alumni_events: asList(alumniEvents.data, fallback.alumni_events) as Article[],
-    alumni_stories: asList(alumniStories.data, fallback.alumni_stories) as Article[],
+    alumni_stories: storyList(alumniStories.data as Article[] | null, fallback.alumni_stories, publishedOnly),
     alumni_profiles: asList(alumniProfiles.data, fallback.alumni_profiles) as Article[],
     alumni_photos: asList(alumniPhotos.data, fallback.alumni_photos) as GalleryItem[],
     campus_sections: asList(sections.data, fallback.campus_sections),

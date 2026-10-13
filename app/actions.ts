@@ -184,7 +184,6 @@ async function publicClient() {
 export async function submitApplication(formData: FormData) {
   const supabase = await publicClient();
   const birthdate = clean(formData.get("child_birtDate"));
-  const message = [birthdate && `Child's birthdate: ${birthdate}`, clean(formData.get("message"))].filter(Boolean).join("\n\n");
   const { data: { user } } = await supabase.auth.getUser();
   const { error } = await supabase.from("applications").insert({
     user_id: user?.id ?? null,
@@ -194,7 +193,8 @@ export async function submitApplication(formData: FormData) {
     child_name: clean(formData.get("child_name")),
     campus: clean(formData.get("campus")),
     grade: clean(formData.get("grade")),
-    message: message || null,
+    child_dob: birthdate && /^\d{4}-\d{2}-\d{2}$/.test(birthdate) ? birthdate : null,
+    message: clean(formData.get("message")),
     status: "received",
   });
   if (error) throw new Error(error.message);

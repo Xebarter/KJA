@@ -1,19 +1,19 @@
 "use client";
 
-import Link from "next/link";
 import { useRef, useState } from "react";
 import { submitApplication } from "@/app/actions";
+import { APPLIED_KEY } from "@/components/site/Popup";
 
 type FieldName = "parent_names" | "parent_email" | "parent_phone" | "child_name" | "child_birtDate";
 type Errors = Partial<Record<FieldName, string>>;
 type Status = "idle" | "submitting" | "sent" | "failed";
 
 const REQUIRED: Record<FieldName, string> = {
-  parent_names: "Please enter your full name.",
-  parent_email: "Please enter your email address.",
-  parent_phone: "Please enter a phone number we can reach you on.",
-  child_name: "Please enter your child's full name.",
-  child_birtDate: "Please enter your child's date of birth.",
+  parent_names: "Enter your name.",
+  parent_email: "Enter your email.",
+  parent_phone: "Enter your phone number.",
+  child_name: "Enter your child's name.",
+  child_birtDate: "Enter a date of birth.",
 };
 const FIELDS = Object.keys(REQUIRED) as FieldName[];
 
@@ -25,9 +25,9 @@ const GRADES = [
 function problem(name: FieldName, raw: string) {
   const value = raw.trim();
   if (!value) return REQUIRED[name];
-  if (name === "parent_email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email address, e.g. name@example.com.";
-  if (name === "parent_phone" && !/^[+]?[0-9() -]{7,}$/.test(value)) return "Enter a valid phone number, e.g. +256 700 000 000.";
-  if (name === "child_birtDate" && new Date(value) > new Date()) return "The date of birth can't be in the future.";
+  if (name === "parent_email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return "Enter a valid email.";
+  if (name === "parent_phone" && !/^[+]?[0-9() -]{7,}$/.test(value)) return "Enter a valid phone number.";
+  if (name === "child_birtDate" && new Date(value) > new Date()) return "Date can't be in the future.";
   return "";
 }
 
@@ -56,18 +56,16 @@ function Field({ id, label, optional, error, wide, children }: {
   );
 }
 
-function Section({ step, title, intro, children }: { step: string; title: string; intro: string; children: React.ReactNode }) {
+function Section({ step, title, children }: { step: string; title: string; children: React.ReactNode }) {
+  const id = `apply-section-${step}`;
   return (
-    <fieldset className="apply-section">
-      <legend className="apply-section-head">
+    <div className="apply-section" role="group" aria-labelledby={id}>
+      <div className="apply-section-head">
         <span className="apply-step" aria-hidden="true">{step}</span>
-        <span>
-          <span className="apply-section-title">{title}</span>
-          <span className="apply-section-intro">{intro}</span>
-        </span>
-      </legend>
+        <h3 className="apply-section-title" id={id}>{title}</h3>
+      </div>
       <div className="apply-fields">{children}</div>
-    </fieldset>
+    </div>
   );
 }
 
@@ -116,6 +114,9 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
       await submitApplication(data);
       setFirstName(String(data.get("parent_names") || "").trim().split(/\s+/)[0] || "");
       setStatus("sent");
+      try {
+        localStorage.setItem(APPLIED_KEY, "1");
+      } catch {}
       requestAnimationFrame(() => {
         successRef.current?.focus({ preventScroll: true });
         successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -136,13 +137,9 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
       <div className="apply-card apply-success" ref={successRef} tabIndex={-1} role="status">
         <div className="apply-success-icon" aria-hidden="true"><i className="fas fa-check" /></div>
         <h2>Application received</h2>
-        <p>
-          Thank you{firstName ? `, ${firstName}` : ""}. Our admissions team will be in touch shortly to arrange your visit
-          to the school, the final step in completing your child&apos;s admission.
-        </p>
+        <p>Thank you{firstName ? `, ${firstName}` : ""}. We&apos;ll be in touch soon.</p>
         <div className="apply-success-actions">
-          <Link className="apply-btn apply-btn-ghost" href="/admissions">Admission process</Link>
-          <button type="button" className="apply-btn apply-btn-primary" onClick={reset}>Apply for another child</button>
+          <button type="button" className="apply-btn apply-btn-primary" onClick={reset}>Add another child</button>
         </div>
       </div>
     );
@@ -153,10 +150,9 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
     <form ref={formRef} className="apply-card apply-form" onSubmit={onSubmit} noValidate aria-label="Application form">
       <div className="apply-card-head">
         <h2>Application form</h2>
-        <p>It takes about two minutes. Fields marked <span className="apply-req">*</span> are required.</p>
       </div>
 
-      <Section step="01" title="Parent or guardian" intro="So our admissions team can reach you.">
+      <Section step="01" title="Parent or guardian">
         <Field id="parent_names" label="Full name" error={errors.parent_names} wide>
           <input className="apply-input" type="text" autoComplete="name" maxLength={400} {...control("parent_names")} />
         </Field>
@@ -168,14 +164,14 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
         </Field>
       </Section>
 
-      <Section step="02" title="Your child" intro="Helps us find the right class and campus.">
-        <Field id="child_name" label="Child's full name" error={errors.child_name}>
+      <Section step="02" title="Your child">
+        <Field id="child_name" label="Child's name" error={errors.child_name}>
           <input className="apply-input" type="text" maxLength={400} {...control("child_name")} />
         </Field>
         <Field id="child_birtDate" label="Date of birth" error={errors.child_birtDate}>
           <input className="apply-input" type="date" {...control("child_birtDate")} />
         </Field>
-        <Field id="grade" label="Class applying for" optional>
+        <Field id="grade" label="Class" optional>
           <select className="apply-input apply-select" id="grade" name="grade" defaultValue="">
             <option value="">Not sure yet</option>
             {GRADES.map(({ group, options }) => (
@@ -185,7 +181,7 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
             ))}
           </select>
         </Field>
-        <Field id="campus" label="Preferred campus" optional>
+        <Field id="campus" label="Campus" optional>
           <select className="apply-input apply-select" id="campus" name="campus" defaultValue="">
             <option value="">No preference</option>
             {campuses.map((campus) => <option key={campus}>{campus}</option>)}
@@ -193,7 +189,7 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
         </Field>
       </Section>
 
-      <Section step="03" title="Anything else" intro="Previous school, special needs or questions for us.">
+      <Section step="03" title="Anything else">
         <Field id="message" label="Message" optional wide>
           <textarea className="apply-input apply-textarea" id="message" name="message" rows={5} maxLength={2000} />
         </Field>
@@ -203,20 +199,16 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
         <div className="apply-alert" role="alert">
           <i className="fas fa-triangle-exclamation" aria-hidden="true" />
           <p>
-            We couldn&apos;t send your application just now. Please try again, or contact admissions on{" "}
-            <a href={`tel:${phone.replace(/\s/g, "")}`}>{phone}</a> or <a href={`mailto:${email}`}>{email}</a>.
+            Couldn&apos;t send. Try again or contact <a href={`tel:${phone.replace(/\s/g, "")}`}>{phone}</a> or{" "}
+            <a href={`mailto:${email}`}>{email}</a>.
           </p>
         </div>
       ) : null}
 
       <div className="apply-submit-row">
-        <p className="apply-privacy">
-          <i className="fas fa-lock" aria-hidden="true" />
-          Your details are only used to process this application.
-        </p>
         <button type="submit" className="apply-btn apply-btn-primary apply-submit" disabled={submitting} aria-busy={submitting}>
           {submitting ? <span className="apply-spinner" aria-hidden="true" /> : null}
-          {submitting ? "Sending…" : "Submit application"}
+          {submitting ? "Sending…" : "Submit"}
           {submitting ? null : <i className="fas fa-arrow-right" aria-hidden="true" />}
         </button>
       </div>

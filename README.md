@@ -5,14 +5,16 @@ Next.js site for Kampala Junior Academy. Public pages read Supabase when it is c
 ## Setup
 
 1. Create a Supabase project.
-2. In the SQL editor, run `supabase/schema.sql`, then `supabase/seed.sql`, then `supabase/parent-portal.sql`.
+2. In the SQL editor, run `supabase/schema.sql`, then `supabase/seed.sql`, then `supabase/parent-portal.sql`, then `supabase/admissions.sql`.
 3. In Storage, confirm the public `media` bucket exists (the schema creates it).
 4. In Authentication, enable Email and Google providers. For Google, add the redirect URL `https://YOUR-DOMAIN/auth/callback`.
-5. Create a staff Auth user and run:
+5. Create the first admin: sign up through "Parent portal" on the site (or add an Auth user), then run:
 
 ```sql
-insert into public.profiles (id, role) values ('USER_UUID', 'admin');
+update public.profiles set role = 'admin' where email = 'you@example.com';
 ```
+
+After that, admins add each other from **Admin → Team**.
 
 6. Copy `.env.example` to `.env.local` and fill in the project URL, anon key, and service role key.
 

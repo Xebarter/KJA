@@ -1,18 +1,15 @@
-import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PostSingle } from "@/components/site/PostSingle";
-import { findBySlug, getContent } from "@/lib/content";
+import { StoryArticle } from "@/components/site/StoryArticle";
+import { getStoryPage, storyMetadata } from "@/lib/story-page";
 
 type Params = { params: Promise<{ slug: string }> };
 
-export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const item = findBySlug((await getContent()).alumni_stories, (await params).slug);
-  return { title: item?.title ?? "Alumni Story", description: item?.seo_description || item?.excerpt || undefined };
+export async function generateMetadata({ params }: Params) {
+  return storyMetadata("alumni_story", (await params).slug);
 }
 
 export default async function AlumniStoryDetail({ params }: Params) {
-  const content = await getContent();
-  const item = findBySlug(content.alumni_stories, (await params).slug);
-  if (!item) notFound();
-  return <PostSingle item={item} hrefBase="/alumni-story" siblings={content.alumni_stories} sidebar={{ news: content.news, events: content.events }} />;
+  const page = await getStoryPage("alumni_story", (await params).slug);
+  if (!page) notFound();
+  return <StoryArticle {...page} />;
 }

@@ -31,6 +31,36 @@ export function ContactForm({ subject = "General enquiry", heading = "Send a mes
   );
 }
 
+export function NewsroomNewsletter() {
+  const [state, setState] = useState<"idle" | "sending" | "done" | "error">("idle");
+  const [message, setMessage] = useState("");
+  return (
+    <form
+      className="kja-nr-subscribe"
+      action={async (formData) => {
+        setState("sending");
+        try {
+          await subscribeNewsletter(formData);
+          setState("done");
+          setMessage("You're on the list. Look out for our next update.");
+        } catch (error) {
+          setState("error");
+          setMessage(error instanceof Error ? error.message : "Could not subscribe. Please try again.");
+        }
+      }}
+    >
+      <label className="visually-hidden" htmlFor="newsroom-email">Email address</label>
+      <div>
+        <input id="newsroom-email" type="email" name="email" placeholder="Your email address" autoComplete="email" required disabled={state === "done"} />
+        <button type="submit" disabled={state === "sending" || state === "done"}>
+          {state === "done" ? <>Subscribed <i className="fas fa-check" aria-hidden="true" /></> : <>Subscribe <i className="far fa-paper-plane" aria-hidden="true" /></>}
+        </button>
+      </div>
+      <p className={state === "error" ? "is-error" : undefined} role="status">{message || "One email when there's news. No spam."}</p>
+    </form>
+  );
+}
+
 export function NewsletterForm() {
   const { status, setStatus } = useStatus();
   return (

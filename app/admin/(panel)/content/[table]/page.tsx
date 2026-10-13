@@ -1,12 +1,15 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { CollectionTable } from "@/components/admin/CollectionTable";
 import { tableKey } from "@/lib/admin";
 import { getAdminContent } from "@/lib/content";
+import { sourceForTable } from "@/lib/newsroom";
 import { resources } from "@/lib/resources";
 
 export default async function CollectionPage({ params }: { params: Promise<{ table: string }> }) {
   const { table } = await params;
+  const story = sourceForTable(table);
+  if (story) redirect(`/admin/stories?type=${story}`);
   const resource = resources[table];
   const key = tableKey[table];
   if (!resource || !key) notFound();

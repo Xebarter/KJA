@@ -19,10 +19,8 @@ import {
   type MonthDay,
   type MonthView,
 } from "@/lib/events-calendar";
-import type { EventSingle } from "@/lib/events-single";
-import { TecContainer, TecDatepicker, TecSubscribeScope, type DatepickerLabels } from "./TecClient";
+import { TecContainer, TecDatepicker, type DatepickerLabels } from "./TecClient";
 import {
-  CalExportIcon,
   CaretDownIcon,
   CaretLeftIcon,
   CaretRightIcon,
@@ -870,108 +868,5 @@ export function TecDayView({ view, today }: { view: DayView; today: string }) {
       />
       <SubscribeDropdown view={view} />
     </ViewShell>
-  );
-}
-
-/* ---------- Single event (single-event.php) ---------- */
-
-const LOADING_GIF = "https://kja.ug/wp-content/plugins/the-events-calendar/src/resources/images/tribe-loading.gif";
-
-function SingleEventNav({ single }: { single: EventSingle }) {
-  return (
-    <nav className="tribe-events-nav-pagination" aria-label="Event Navigation">
-      <ul className="tribe-events-sub-nav">
-        <li className="tribe-events-nav-previous">
-          {single.prev ? <a href={single.prev.href}><span>&laquo;</span> {single.prev.title}</a> : null}
-        </li>
-        <li className="tribe-events-nav-next">
-          {single.next ? <a href={single.next.href}>{single.next.title} <span>&raquo;</span></a> : null}
-        </li>
-      </ul>
-    </nav>
-  );
-}
-
-export function TecSingleEvent({ single, body, documentTitle, today }: { single: EventSingle; body: string; documentTitle: string; today: string }) {
-  const { event } = single;
-  return (
-    <section id="tribe-events-pg-template" className="tribe-events-pg-template" role="main">
-      <div className="tribe-events-before-html" />
-      <span className="tribe-events-ajax-loading">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img className="tribe-events-spinner-medium" src={LOADING_GIF} alt="Loading Events" />
-      </span>
-      <div id="tribe-events-content" className="tribe-events-single">
-        <p className="tribe-events-back">
-          <a href="/events"> &laquo; All Events</a>
-        </p>
-        {single.passed ? (
-          <div className="tribe-events-notices"><ul><li>This event has passed.</li></ul></div>
-        ) : null}
-        <h1 className="tribe-events-single-event-title">{event.title}</h1>
-        <div className="tribe-events-schedule tribe-clearfix">
-          <div><Schedule event={event} today={today} /></div>
-        </div>
-        <div id="tribe-events-header" data-title={documentTitle} data-viewtitle={event.title}>
-          <SingleEventNav single={single} />
-        </div>
-        <div id={`post-${event.id}`} className={postClasses(event)}>
-          {event.image ? (
-            <div className="tribe-events-event-image">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={event.image} className="attachment-full size-full wp-post-image" alt="" decoding="async" fetchPriority="high" />
-            </div>
-          ) : null}
-          <div className="tribe-events-single-event-description tribe-events-content" dangerouslySetInnerHTML={{ __html: body }} />
-          <TecSubscribeScope>
-            <div className="tribe-events-c-subscribe-dropdown__container">
-              <div className="tribe-events-c-subscribe-dropdown">
-                <div className="tribe-common-c-btn-border tribe-events-c-subscribe-dropdown__button">
-                  <CalExportIcon className="tribe-events-c-subscribe-dropdown__export-icon" />
-                  <button className="tribe-events-c-subscribe-dropdown__button-text" aria-expanded="false" aria-controls="tribe-events-subscribe-dropdown-content" aria-label="View links to add events to your calendar">
-                    Add to calendar
-                  </button>
-                  <CaretDownIcon className="tribe-events-c-subscribe-dropdown__button-icon" />
-                </div>
-                <div id="tribe-events-subscribe-dropdown-content" className="tribe-events-c-subscribe-dropdown__content">
-                  <ul className="tribe-events-c-subscribe-dropdown__list">
-                    {single.links.map((link) => (
-                      <li key={link.key} className={`tribe-events-c-subscribe-dropdown__list-item tribe-events-c-subscribe-dropdown__list-item--${link.key}`}>
-                        <a href={link.href} className="tribe-events-c-subscribe-dropdown__list-item-link" target="_blank" rel="noopener noreferrer nofollow noindex">
-                          {link.label}
-                        </a>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </TecSubscribeScope>
-          <div className="tribe-events-single-section tribe-events-event-meta primary tribe-clearfix">
-            <div className="tribe-events-meta-group tribe-events-meta-group-details">
-              <h2 className="tribe-events-single-section-title"> Details </h2>
-              <ul className="tribe-events-meta-list">
-                {single.meta.map((item) => (
-                  <li className="tribe-events-meta-item" key={item.label}>
-                    <span className={`${item.labelClass} tribe-events-meta-label`}>{item.label}</span>
-                    <span className="tribe-events-meta-value">
-                      {item.time ? (
-                        <div className={`tribe-events-abbr ${item.abbrClass}`} title={item.title}>{item.value}</div>
-                      ) : (
-                        <abbr className={`tribe-events-abbr ${item.abbrClass}`} title={item.title}> {item.value} </abbr>
-                      )}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-        <div id="tribe-events-footer">
-          <SingleEventNav single={single} />
-        </div>
-      </div>
-      <div className="tribe-events-after-html" dangerouslySetInnerHTML={{ __html: AFTER_HTML }} />
-    </section>
   );
 }

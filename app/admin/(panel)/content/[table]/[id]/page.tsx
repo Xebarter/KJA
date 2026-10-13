@@ -1,11 +1,13 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { RecordForm } from "@/components/admin/RecordForm";
 import { tableKey } from "@/lib/admin";
+import { isStoryTable } from "@/lib/newsroom";
 import { resources } from "@/lib/resources";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export default async function EditPage({ params }: { params: Promise<{ table: string; id: string }> }) {
   const { table, id } = await params;
+  if (isStoryTable(table)) redirect(`/admin/stories/${table}/${id}`);
   const resource = resources[table];
   if (!resource || !tableKey[table]) notFound();
   if (!supabaseConfigured()) {

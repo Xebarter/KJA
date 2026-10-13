@@ -67,6 +67,7 @@ export async function submitParentApplication(formData: FormData) {
     email: user.email,
     phone: profile?.phone || clean(formData.get("phone")),
     child_name: clean(formData.get("child_name")),
+    child_dob: clean(formData.get("child_dob")),
     campus: clean(formData.get("campus")),
     grade: clean(formData.get("grade")),
     message: clean(formData.get("message")),

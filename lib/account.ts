@@ -88,9 +88,11 @@ export type ApplicationRow = {
   parent_name: string;
   email: string;
   child_name: string;
+  child_dob: string | null;
   campus: string | null;
   grade: string | null;
   status: string | null;
   message: string | null;
+  visit_at: string | null;
   created_at: string;
 };

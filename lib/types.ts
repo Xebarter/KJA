@@ -43,6 +43,7 @@ export type Article = {
   category?: string | null;
   tags?: string[] | null;
   published?: boolean;
+  featured?: boolean | null;
   role?: string | null;
   starts_on?: string | null;
   ends_on?: string | null;

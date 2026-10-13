@@ -1,20 +1,25 @@
-import { formatDateAuto, formatTime, scheduleDetails, type CalEvent, type Clock, type ScheduleParts } from "./events-calendar";
+import { dayStart, formatTime, MONTHS, parseYmd, WEEKDAYS, type CalEvent, type Clock } from "./events-calendar";
 import { decodeEntities } from "./html";
 
 const SITE_URL = "https://kja.ug";
 const TIMEZONE = "Africa/Nairobi";
 const GCAL_DETAILS_LIMIT = 996;
+const MORE_LIMIT = 3;
 
-export type MetaItem = { labelClass: string; label: string; abbrClass: string; title: string; value: string; time?: boolean };
+export type EventStatus = "upcoming" | "today" | "live" | "past";
 
 export type EventSingle = {
   event: CalEvent;
   prev: CalEvent | null;
   next: CalEvent | null;
-  passed: boolean;
-  schedule: ScheduleParts;
-  meta: MetaItem[];
-  links: { key: string; label: string; href: string }[];
+  status: EventStatus;
+  statusLabel: string;
+  countdown: string;
+  dateLabel: string;
+  timeLabel: string;
+  body: string;
+  more: CalEvent[];
+  links: { key: string; label: string; href: string; icon: string }[];
 };
 
 function pad(value: number) {
@@ -83,41 +88,57 @@ function outlookLink(base: string, event: CalEvent, details: string) {
   );
 }
 
-/* modules/meta/details.php: Date (+ Time) for single-day events, Start/End for multi-day ones. */
-function detailsMeta(event: CalEvent, today: string): MetaItem[] {
-  const startDate = formatDateAuto(event.startDate, today);
-  const endDate = formatDateAuto(event.endDate, today);
-  const multiday = event.startDate !== event.endDate;
-  const date = (label: string, value: string, title: string, end = false): MetaItem => ({
-    labelClass: `tribe-events-${end ? "end" : "start"}-date-label`,
-    label,
-    abbrClass: end ? "tribe-events-end-date dtend" : "tribe-events-start-date published dtstart",
-    title,
-    value,
-  });
-  if (event.allDay) {
-    if (!multiday) return [date("Date:", startDate, event.startDate)];
-    return [date("Start:", startDate, event.startDate), date("End:", endDate, event.endDate, true)];
-  }
-  if (multiday) {
-    return [
-      date("Start:", `${startDate} @ ${formatTime(event.startMinutes)}`, event.startDate),
-      date("End:", `${endDate} @ ${formatTime(event.endMinutes)}`, event.endDate, true),
-    ];
-  }
+const STATUS_LABELS: Record<EventStatus, string> = { upcoming: "Upcoming", today: "Today", live: "Happening now", past: "Past event" };
+
+function longDate(ymd: string) {
+  const { y, m, d } = parseYmd(ymd);
+  return `${WEEKDAYS[new Date(dayStart(ymd)).getUTCDay()]}, ${MONTHS[m - 1]} ${d}, ${y}`;
+}
+
+export function dateRangeLabel(start: string, end: string) {
+  if (start === end) return longDate(start);
+  const a = parseYmd(start);
+  const b = parseYmd(end);
+  if (a.y !== b.y) return `${MONTHS[a.m - 1]} ${a.d}, ${a.y} – ${MONTHS[b.m - 1]} ${b.d}, ${b.y}`;
+  if (a.m !== b.m) return `${MONTHS[a.m - 1]} ${a.d} – ${MONTHS[b.m - 1]} ${b.d}, ${a.y}`;
+  return `${MONTHS[a.m - 1]} ${a.d} – ${b.d}, ${a.y}`;
+}
+
+export function timeRangeLabel(event: CalEvent) {
+  if (event.allDay) return "All day";
   const start = formatTime(event.startMinutes);
   const end = formatTime(event.endMinutes);
-  return [
-    date("Date:", startDate, event.startDate),
-    {
-      labelClass: "tribe-events-start-time-label",
-      label: "Time:",
-      abbrClass: "tribe-events-start-time published dtstart",
-      title: event.endDate,
-      value: start === end ? start : `${start} - ${end}`,
-      time: true,
-    },
-  ];
+  return start === end ? start : `${start} – ${end}`;
+}
+
+function statusOf(event: CalEvent, clock: Clock): EventStatus {
+  if (event.end < clock.now) return "past";
+  if (event.start <= clock.now) return "live";
+  return event.startDate === clock.today ? "today" : "upcoming";
+}
+
+function countdownOf(event: CalEvent, status: EventStatus, clock: Clock) {
+  if (status !== "upcoming") return "";
+  const days = Math.round((dayStart(event.startDate) - dayStart(clock.today)) / 86_400_000);
+  return days === 1 ? "Tomorrow" : `In ${days} days`;
+}
+
+/* Imported event bodies often carry nothing but block-editor leftovers: a post-date block, spacers and empty paragraphs. */
+function cleanBody(html: string) {
+  const cleaned = html
+    .replace(/<div class="wp-block-post-date">[\s\S]*?<\/div>/g, "")
+    .replace(/<div[^>]*class="wp-block-spacer"[^>]*><\/div>/g, "")
+    .replace(/<p[^>]*>\s*(?:&nbsp;)?\s*<\/p>/g, "")
+    .trim();
+  return plainContent(cleaned) ? cleaned : "";
+}
+
+/* Soonest upcoming events first, topped up with the most recent past ones. */
+function moreEvents(all: CalEvent[], event: CalEvent, clock: Clock) {
+  const others = all.filter((each) => each.slug !== event.slug);
+  const upcoming = others.filter((each) => each.end >= clock.now);
+  const past = others.filter((each) => each.end < clock.now).reverse();
+  return [...upcoming, ...past].slice(0, MORE_LIMIT);
 }
 
 export function buildEventSingle(all: CalEvent[], slug: string, body: string, clock: Clock): EventSingle | null {
@@ -125,18 +146,24 @@ export function buildEventSingle(all: CalEvent[], slug: string, body: string, cl
   if (index < 0) return null;
   const event = all[index];
   const details = plainContent(body);
+  const status = statusOf(event, clock);
   return {
     event,
     prev: all[index - 1] ?? null,
     next: all[index + 1] ?? null,
-    passed: event.end < clock.now,
-    schedule: scheduleDetails(event, clock.today),
-    meta: detailsMeta(event, clock.today),
+    status,
+    statusLabel: STATUS_LABELS[status],
+    countdown: countdownOf(event, status, clock),
+    dateLabel: dateRangeLabel(event.startDate, event.endDate),
+    timeLabel: timeRangeLabel(event),
+    body: cleanBody(body),
+    more: moreEvents(all, event, clock),
     links: [
-      { key: "gcal", label: "Google Calendar", href: googleLink(event, details) },
-      { key: "ical", label: "iCalendar", href: `webcal://kja.ug/event/${event.slug}/?ical=1` },
-      { key: "outlook-365", label: "Outlook 365", href: outlookLink("https://outlook.office.com/owa/", event, details) },
-      { key: "outlook-live", label: "Outlook Live", href: outlookLink("https://outlook.live.com/owa/", event, details) },
+      { key: "gcal", label: "Google Calendar", href: googleLink(event, details), icon: "fab fa-google" },
+      { key: "ical", label: "Apple Calendar", href: `webcal://kja.ug/event/${event.slug}/?ical=1`, icon: "fab fa-apple" },
+      { key: "outlook-365", label: "Outlook 365", href: outlookLink("https://outlook.office.com/owa/", event, details), icon: "fab fa-microsoft" },
+      { key: "outlook-live", label: "Outlook.com", href: outlookLink("https://outlook.live.com/owa/", event, details), icon: "far fa-envelope" },
+      { key: "ics", label: "Download .ics", href: `/event/${event.slug}?ical=1`, icon: "fas fa-download" },
     ],
   };
 }
