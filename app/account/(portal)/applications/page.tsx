@@ -3,6 +3,7 @@ import { NewApplication } from "@/components/account/NewApplication";
 import type { ApplicationRow } from "@/lib/account";
 import { formatDate, formatDateTime, initials, OPEN_STATUSES, statusInfo, type ApplicationStatus } from "@/lib/applications";
 import { getContent } from "@/lib/content";
+import { admissionFees } from "@/lib/payments/admission";
 import { getPortal } from "@/lib/portal";
 
 const STEPS: { value: ApplicationStatus; label: string }[] = [
@@ -14,7 +15,7 @@ const STEPS: { value: ApplicationStatus; label: string }[] = [
 ];
 
 const HOW_IT_WORKS = [
-  { icon: "fa-pen-to-square", title: "Apply online", text: "Share your child's details using the form. It takes about two minutes." },
+  { icon: "fa-pen-to-square", title: "Apply online", text: "Share your child's details and pay the admission fee by mobile money. It takes about two minutes." },
   { icon: "fa-school", title: "Visit the school", text: "We'll invite you and your child to tour the campus and meet the team." },
   { icon: "fa-award", title: "Placement", text: "Receive an offer, accept your place and get ready for the first day." },
 ];
@@ -65,7 +66,7 @@ function Tracker({ status }: { status: string }) {
 }
 
 export default async function ApplicationsPage() {
-  const [{ applications, profile }, { settings }] = await Promise.all([getPortal(), getContent()]);
+  const [{ applications, profile }, { settings }, fees] = await Promise.all([getPortal(), getContent(), admissionFees()]);
   const open = applications.filter((row) => OPEN_STATUSES.includes((row.status || "received") as ApplicationStatus));
   const enrolled = applications.filter((row) => row.status === "enrolled").length;
 
@@ -122,6 +123,9 @@ export default async function ApplicationsPage() {
 
                   <footer className="ap-card-foot">
                     <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Submitted {formatDate(row.created_at)}</span>
+                    {row.payment_status === "paid" ? (
+                      <span><i className="fa-solid fa-circle-check" aria-hidden="true" /> Admission fee paid{row.admission_fee ? ` · UGX ${row.admission_fee.toLocaleString("en-US")}` : ""}</span>
+                    ) : null}
                     <span className="ap-ref">Ref. {row.id.slice(0, 8).toUpperCase()}</span>
                   </footer>
 
@@ -157,7 +161,7 @@ export default async function ApplicationsPage() {
         </div>
 
         <aside className="ap-side">
-          <NewApplication phone={profile?.phone || ""} />
+          <NewApplication phone={profile?.phone || ""} fees={fees} />
           <div className="rp-help ap-contact">
             <span className="rp-help-icon"><i className="fa-solid fa-headset" aria-hidden="true" /></span>
             <div>

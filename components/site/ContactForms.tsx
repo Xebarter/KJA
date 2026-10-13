@@ -225,7 +225,8 @@ export function EnquiryForm({ campuses, phoneNumber, emailAddress }: { campuses:
 
       <div className="kja-ct-actions">
         <p className="kja-ct-privacy">
-          <i className="fas fa-lock" aria-hidden="true" /> We only use your details to respond to your message.
+          <i className="fas fa-lock" aria-hidden="true" />
+          <span>We only use your details to respond to your message. <Link href="/privacy-policy">Privacy policy</Link></span>
         </p>
         <SubmitButton sending={form.status === "sending"} label="Send message" busy="Sending…" />
       </div>
@@ -344,7 +345,8 @@ export function VisitForm({ campuses, phoneNumber, emailAddress }: { campuses: V
 
       <div className="kja-ct-actions">
         <p className="kja-ct-privacy">
-          <i className="fas fa-lock" aria-hidden="true" /> We only use your details to arrange your visit.
+          <i className="fas fa-lock" aria-hidden="true" />
+          <span>We only use your details to arrange your visit. <Link href="/privacy-policy">Privacy policy</Link></span>
         </p>
         <SubmitButton sending={form.status === "sending"} label="Request my visit" busy="Sending…" />
       </div>

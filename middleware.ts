@@ -40,14 +40,10 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
 
   if (isAdmin) {
-    if (!user && !isAdminLogin) return NextResponse.redirect(new URL("/admin/login", request.url));
-    if (user && isAdminLogin) return NextResponse.redirect(new URL("/admin", request.url));
-    if (user && !isAdminLogin) {
-      const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-      if (data?.role !== "admin") {
-        return NextResponse.redirect(new URL("/admin/login?error=forbidden", request.url));
-      }
-    }
+    if (!user) return parentLogin(isAdminLogin ? "/admin" : path + request.nextUrl.search);
+    const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
+    if (data?.role !== "admin") return NextResponse.redirect(new URL("/account", request.url));
+    if (isAdminLogin) return NextResponse.redirect(new URL("/admin", request.url));
   }
 
   if (isAccount) {

@@ -1,6 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Job applications upload a CV plus up to three 5 MB supporting documents.
+    serverActions: { bodySizeLimit: "21mb" },
+  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "kja.ug" },

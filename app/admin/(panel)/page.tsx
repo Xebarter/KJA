@@ -1,100 +1,69 @@
-import Link from "next/link";
-import { NewStoryMenu, StoryStatusBadge } from "@/components/admin/Stories";
+import { DAY, Dashboard, type DashboardApplication, type DashboardMessage } from "@/components/admin/Dashboard";
 import { catalogImages } from "@/lib/admin-images";
-import { timeAgo } from "@/lib/applications";
 import { loadCampusData } from "@/lib/campus-pages";
 import { getAdminContent } from "@/lib/content";
-import { kampalaIso, STORY_SOURCES } from "@/lib/newsroom";
 import { loadAdminStories } from "@/lib/story-admin-server";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export default async function DashboardPage() {
+  const now = new Date();
   const [content, stories] = await Promise.all([getAdminContent(), loadAdminStories()]);
   const images = catalogImages(content, loadCampusData());
-  let applications = 0;
-  let messages = 0;
+  const configured = supabaseConfigured();
+
+  let firstName = "";
+  let applications: DashboardApplication[] = [];
+  let messages: DashboardMessage[] = [];
+  let unreadMessages = 0;
   let subscribers = 0;
-  if (supabaseConfigured()) {
+  let newSubscribers = 0;
+  if (configured) {
     const supabase = await createClient();
     if (supabase) {
-      const [apps, notes, list] = await Promise.all([
-        supabase.from("applications").select("*", { count: "exact", head: true }).eq("status", "received"),
-        supabase.from("contact_messages").select("*", { count: "exact", head: true }).eq("read", false),
-        supabase.from("newsletter_subscribers").select("*", { count: "exact", head: true }),
+      const monthAgo = new Date(now.getTime() - 30 * DAY).toISOString();
+      const [{ data: auth }, apps, notes, unread, list, recentList] = await Promise.all([
+        supabase.auth.getUser(),
+        supabase.from("applications").select("id, child_name, parent_name, grade, campus, status, visit_at, created_at").order("created_at", { ascending: false }),
+        supabase.from("contact_messages").select("id, name, email, subject, message, read, created_at").order("created_at", { ascending: false }).limit(4),
+        supabase.from("contact_messages").select("id", { count: "exact", head: true }).eq("read", false),
+        supabase.from("newsletter_subscribers").select("id", { count: "exact", head: true }),
+        supabase.from("newsletter_subscribers").select("id", { count: "exact", head: true }).gte("created_at", monthAgo),
       ]);
-      applications = apps.count || 0;
-      messages = notes.count || 0;
-      subscribers = list.count || 0;
+      applications = (apps.data ?? []) as DashboardApplication[];
+      messages = (notes.data ?? []) as DashboardMessage[];
+      unreadMessages = unread.count ?? 0;
+      subscribers = list.count ?? 0;
+      newSubscribers = recentList.count ?? 0;
+      if (auth.user) {
+        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", auth.user.id).maybeSingle();
+        const name = profile?.full_name?.trim() || auth.user.user_metadata?.full_name || "";
+        firstName = String(name).split(/\s+/)[0] || "";
+      }
     }
   }
-  const pendingStories = stories.items.filter((item) => item.status !== "live").length;
-  const stats = [
-    { label: "Stories", value: stories.items.length, href: "/admin/stories", icon: "fa-newspaper" },
-    { label: "Drafts & scheduled", value: pendingStories, href: "/admin/stories?status=draft", icon: "fa-pen-to-square" },
-    { label: "Images", value: images.length, href: "/admin/images", icon: "fa-images" },
-    { label: "Campuses", value: content.campuses.length, href: "/admin/content/campuses", icon: "fa-school" },
-    { label: "Teachers", value: content.teachers.length, href: "/admin/content/teachers", icon: "fa-chalkboard-user" },
-    { label: "Events", value: content.events.length, href: "/admin/content/events", icon: "fa-calendar-days" },
-    { label: "New applications", value: applications, href: "/admin/applications?status=received", icon: "fa-file-signature" },
-    { label: "Unread messages", value: messages, href: "/admin/inbox/messages", icon: "fa-envelope" },
-    { label: "Newsletter", value: subscribers, href: "/admin/inbox/newsletter", icon: "fa-paper-plane" },
-  ];
-  const recent = [...stories.items]
-    .sort((a, b) => new Date(kampalaIso(b.updatedAt || b.publishedAt || b.createdAt) || 0).getTime() - new Date(kampalaIso(a.updatedAt || a.publishedAt || a.createdAt) || 0).getTime())
-    .slice(0, 5);
+
   return (
-    <div>
-      <div className="admin-page-title">
-        <div>
-          <h1>Overview</h1>
-          <p>Manage the Kampala Junior Academy website from one place.</p>
-        </div>
-        <div className="d-flex gap-2 flex-wrap">
-          <Link className="admin-btn admin-btn-ghost" href="/admin/images">Update images</Link>
-          <NewStoryMenu disabled={stories.mode === "setup"} />
-        </div>
-      </div>
-      {!supabaseConfigured() ? (
-        <p className="admin-card">Supabase is not connected yet, so the public site is using the imported content file. Add your keys in `.env.local` to save changes.</p>
-      ) : null}
-      <div className="admin-stats">
-        {stats.map((stat) => (
-          <Link key={stat.label} href={stat.href} className="admin-card admin-stat">
-            <i className={`fa-solid ${stat.icon}`} />
-            <span>{stat.label}</span>
-            <strong>{stat.value}</strong>
-          </Link>
-        ))}
-      </div>
-      {recent.length ? (
-        <section className="admin-card story-recent">
-          <div className="story-recent-head">
-            <h2 className="app-card-title"><i className="fa-solid fa-clock-rotate-left" /> Recent stories</h2>
-            <Link className="app-link-btn" href="/admin/stories">All stories</Link>
-          </div>
-          <ul>
-            {recent.map((item) => {
-              const href = item.id ? `/admin/stories/${item.table}/${item.id}` : item.href;
-              const when = item.updatedAt || item.publishedAt;
-              return (
-                <li key={item.key}>
-                  <span className="story-thumb">
-                    {item.image ? <img src={item.image} alt="" loading="lazy" /> : <i className="fa-solid fa-newspaper" aria-hidden="true" />}
-                  </span>
-                  <span className="story-title">
-                    <Link href={href}>{item.title}</Link>
-                    <small>
-                      {STORY_SOURCES[item.source].label}
-                      {when ? ` · ${item.updatedAt ? "edited" : "published"} ${timeAgo(kampalaIso(when)!)}` : ""}
-                    </small>
-                  </span>
-                  <StoryStatusBadge status={item.status} at={item.publishedAt} />
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      ) : null}
-    </div>
+    <Dashboard
+      now={now}
+      firstName={firstName}
+      configured={configured}
+      applications={applications}
+      messages={messages}
+      unreadMessages={unreadMessages}
+      subscribers={subscribers}
+      newSubscribers={newSubscribers}
+      stories={stories}
+      events={content.events}
+      counts={{
+        pages: content.pages.length,
+        campuses: content.campuses.length,
+        teachers: content.teachers.length,
+        events: content.events.length,
+        gallery: content.gallery.length,
+        images: images.length,
+        alumni: content.alumni_profiles.length,
+        vacancies: content.vacancies.length,
+      }}
+    />
   );
 }

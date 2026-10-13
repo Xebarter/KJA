@@ -1,0 +1,2759 @@
+# Introduction
+
+## Welcome
+
+As a merchant you are required to submit all required KYC and business registration information in order for your account to be approved and be able to query our API with the provided **brand id** and **secret key**.
+
+Under the Profile section in your account, please provide all the KYC needed.
+
+{% hint style="success" %}
+<https://gate.paytota.com/login>
+{% endhint %}
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2FGcZ5HuJEaFkB8hVbOi1o%2Fpaytota_doc_profile.png?alt=media&#x26;token=f3848ae4-1dc5-46f9-944c-5fafff73526b" alt=""><figcaption></figcaption></figure>
+
+# Authorization
+
+{% hint style="info" %}
+Your API requests are authenticated using API keys. Any request that doesn't include an API key will return an error.
+{% endhint %}
+
+## Get your API keys
+
+Retrieve the API Keys from the Developers section within your account. Utilize this key as a bearer token in the Authorization header included with each request: **`Authorization: Bearer {{secretkey}}`**
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2Fp05bJnlSbJfAjO0fwWMz%2Fpaytota_doc_developer.png?alt=media&#x26;token=2b3b38c6-0ab4-4493-b0fb-e62b3f66cd92" alt=""><figcaption></figcaption></figure>
+
+## Base Url
+
+{% hint style="success" %}
+[https://gate.paytota.com/](https://gate.paytota.com/login)
+{% endhint %}
+
+# Webhooks
+
+Define webhook rules to your server. The callback URL will receive a POST request with the related object's (e.g. Purchase for purchase.\* webhooks) data in body when any of the events is configured to listen for are triggered. The payload object will additionally include an **"event\_type"** field to indicate which event type triggered the webhook and **"status"** to indicate failure or success of the transaction.
+
+The webhooks can be defined in the developer section of the client account.
+
+Note that, as well as with the rest of dataset, test and live Webhooks are separate; test webhooks will not handle events caused by live Purchases, and vice-versa.
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2FaaMfB0qU3OT8DCKTOhQz%2Fpaytota_doc_webhook.png?alt=media&#x26;token=671aa854-12de-40b1-84bf-ad0c9ef0a294" alt=""><figcaption></figcaption></figure>
+
+## Webhook Authorization
+
+Payloads are signed using asymmetric A.K.A. public-key cryptography to guarantee the authenticity of delivered callbacks. Each callback delivery request includes an **X-Signature** header field. This field contains a base64-encoded RSA PKCS#1 v1.5 signature of the SHA256 digest of the request body buffer.
+
+You can obtain the public key for Webhook authentication from Webhook.public\_key of the corresponding Webhook.
+
+You can obtain the public key for success callback authentication from **GET {base\_url}/api/v1/public\_key/**
+
+Please note the provider is not responsible for any financial losses incurred due to not implementing payload signature verification.
+
+See below sample
+
+{% tabs %}
+{% tab title="PHP" %}
+
+```php
+<?php
+$data = "Hello World";
+
+$signature = 'ktRxi//UUzVK8Pi5ICRSs5nCaK2g5Op+BM2mq4BK6zrb+A2392fiuFBoNj4yBWLfJxzzl1IwgVgQbjjrnbJ3i4kpYTZQ1nG82zpD7SAiF6qWq06YHR5Hrp0uvkiCKHt6pDYkXsCIph8VQqp61uplv3gifTtMRR1BGXwcxfWdrTheiFGWPnlijFaoMgLOG5CVfQAif9E7zx2ybDYtu2mMnxUWAld5bxNZXMKG87NGQ42tLaUE5OYv5yJz0kZZPZFZ5d0neGLAdm+Njf5zWlOw==';
+
+$publicKey = '-----BEGIN CERTIFICATE-----
+MIIFMDCCBBigAwIBAgISA8MYezqjKnHZa+83lO64HqQoMA0GCSqGSIb3DQEBCwUA
+MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
+EwJSMzAeFw0yMzA2MTYxNjE0MjdaFw0yMzA5MTQxNjE0MjZaMB4xHDAaBgNVBAMT
+E3BheW1lbnRzLmFmcml2ci5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQDCFjhZsB7yR669TQ7mxWo9w7ajiT8Z3VZUrWSm0SKmsoxgQ1oDb1yDWIDU
+fNCGQvaoRcxBfB+g9D3rhiGtX5oi8FhSFSEuNFXRN3kTVm8vRmfFdY45sjBdtF0j
+8RjGwskqSzCzciXfSLoeKoLubUMcCTmUC9FLkwDqkQHedswcYG5AalvBqT7eqtBe
+zip1+tVdZSVq79m5EJw98ccLF42cinkoqK76Mg2uss0mNuvpSxFN7gn/0XhaLl5U
+5F2kwQr3qsijWLHqOm2cHyGOeiVScbJexvhnVMlJMEblHU/x/K6gZTCj4+O7KDgg
+Gh3LHmZJ9sAtRudvM/16jGxIGoknAgMBAAGjggJSMIICTjAOBgNVHQ8BAf8EBAMC
+BaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1UdEwEB/wQCMAAw
+HQYDVR0OBBYEFMJallKq+V5W8oqJPkmioUIvRMKGMB8GA1UdIwQYMBaAFBQusxe3
+WFbLrlAJQOYfr52LFMLGMFUGCCsGAQUFBwEBBEkwRzAhBggrBgEFBQcwAYYVaHR0
+cDovL3IzLm8ubGVuY3Iub3JnMCIGCCsGAQUFBzAChhZodHRwOi8vcjMuaS5sZW5j
+ci5vcmcvMFsGA1UdEQRUMFKCE3BheW1lbnRzLmFmcml2ci5jb22CDnNydi5hZnJp
+dnIuY29tghd3d3cucGF5bWVudHMuYWZyaXZyLmNvbYISd3d3LnNydi5hZnJpdnIu
+Y29tMBMGA1UdIAQMMAowCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDw
+AHYAtz77JN+cTbp18jnFulj0bF38Qs96nzXEnh0JgSXttJkAAAGIxTOECAAABAMA
+RzBFAiBSb7ssu+4XK1NRsXnV4eeI7mHcnJm57p9enU/2N019QgIhAJLMIyZeb/Mf
+P9NKPCbpeHp5ld48TS91Jm1Z4cPDjuyFAHYA6D7Q2j71BjUy51covIlryQPTy9ER
+a+zraeF3fW0GvW4AAAGIxTOEBAAABAMARzBFAiAYr5lgHDg7JfQrMA4t9Z7GybWD
+DfhS7/SJyklAwWNULAIhAPMBI4FKxrN91iIKiQN3OfD0ibiQGlQgHz9s5w6YInTa
+MA0GCSqGSIb3DQEBCwUAA4IBAQCe1q3OaK9kakvORWXshHMw7aegML0YG7e/M8Ma
+2KBkOAl9X0+Jy0c7Hn26fN6ZudWeOHE4PngY1tTKGoUm2PKVesYt7sP8Ivo+/NTo
+B1+C/q1Mdwv/vcewmw2n6/flTnvvmw6s9zXpRVJJ2sD2jAwIByMNWN8naegz2f1g
+3HEPOtKVosX0zYXpFflPkGTRui0FgpiCQq0/3MaFXAu3/aSbh6Fczb1/JaAswarK
+LhlGP5mNHorLbFea+B7lmIeUf9gosUrZ3cjfBVKknWrBg//DzTpf+YS1nte+Kk6S
+FoLSAh7OePSmFM0okO6iyDLxmGFAja2D+CZCQbR5Y+TVi7T1
+-----END CERTIFICATE-----';
+
+$ok = openssl_verify(
+    $data,
+    base64_decode($signature),
+    $publicKey,
+    'sha256WithRSAEncryption'
+);
+
+if ($ok == 1) {
+    echo "good";
+} elseif ($ok == 0) {
+    echo "bad";
+} else {
+    echo "error checking signature";
+}
+?>
+```
+
+{% endtab %}
+
+{% tab title="JS" %}
+
+```javascript
+const crypto = require('crypto');
+
+const data = "Hello World";
+
+const signature = 'ktRxi//UUzVK8Pi5ICRSs5nCaK2g5Op+BM2mq4BK6zrb+A2392fiuFBoNj4yBWLfJxzzl1IwgVgQbjjrnbJ3i4kpYTZQ1nG82zpD7SAiF6qWq06YHR5Hrp0uvkiCKHt6pDYkXsCIph8VQqp61uplv3gifTtMRR1BGXwcxfWdrTheiFGWPnlijFaoMgLOG5CVfQAif9E7zx2ybDYtu2mMnxUWAld5bxNZXMKG87NGQ42tLaUE5OYv5yJz0kZZPZFZ5d0neGLAdm+Njf5zWlOw==';
+
+const publicKeyPem = `-----BEGIN CERTIFICATE-----
+MIIFMDCCBBigAwIBAgISA8MYezqjKnHZa+83lO64HqQoMA0GCSqGSIb3DQEBCwUA
+MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
+EwJSMzAeFw0yMzA2MTYxNjE0MjdaFw0yMzA5MTQxNjE0MjZaMB4xHDAaBgNVBAMT
+E3BheW1lbnRzLmFmcml2ci5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQDCFjhZsB7yR669TQ7mxWo9w7ajiT8Z3VZUrWSm0SKmsoxgQ1oDb1yDWIDU
+fNCGQvaoRcxBfB+g9D3rhiGtX5oi8FhSFSEuNFXRN3kTVm8vRmfFdY45sjBdtF0j
+8RjGwskqSzCzciXfSLoeKoLubUMcCTmUC9FLkwDqkQHedswcYG5AalvBqT7eqtBe
+zip1+tVdZSVq79m5EJw98ccLF42cinkoqK76Mg2uss0mNuvpSxFN7gn/0XhaLl5U
+5F2kwQr3qsijWLHqOm2cHyGOeiVScbJexvhnVMlJMEblHU/x/K6gZTCj4+O7KDgg
+Gh3LHmZJ9sAtRudvM/16jGxIGoknAgMBAAGjggJSMIICTjAOBgNVHQ8BAf8EBAMC
+BaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1UdEwEB/wQCMAAw
+HQYDVR0OBBYEFMJallKq+V5W8oqJPkmioUIvRMKGMB8GA1UdIwQYMBaAFBQusxe3
+WFbLrlAJQOYfr52LFMLGMFUGCCsGAQUFBwEBBEkwRzAhBggrBgEFBQcwAYYVaHR0
+cDovL3IzLm8ubGVuY3Iub3JnMCIGCCsGAQUFBzAChhZodHRwOi8vcjMuaS5sZW5j
+ci5vcmcvMFsGA1UdEQRUMFKCE3BheW1lbnRzLmFmcml2ci5jb22CDnNydi5hZnJp
+dnIuY29tghd3d3cucGF5bWVudHMuYWZyaXZyLmNvbYISd3d3LnNydi5hZnJpdnIu
+Y29tMBMGA1UdIAQMMAowCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDw
+AHYAtz77JN+cTbp18jnFulj0bF38Qs96nzXEnh0JgSXttJkAAAGIxTOECAAABAMA
+RzBFAiBSb7ssu+4XK1NRsXnV4eeI7mHcnJm57p9enU/2N019QgIhAJLMIyZeb/Mf
+P9NKPCbpeHp5ld48TS91Jm1Z4cPDjuyFAHYA6D7Q2j71BjUy51covIlryQPTy9ER
+a+zraeF3fW0GvW4AAAGIxTOEBAAABAMARzBFAiAYr5lgHDg7JfQrMA4t9Z7GybWD
+DfhS7/SJyklAwWNULAIhAPMBI4FKxrN91iIKiQN3OfD0ibiQGlQgHz9s5w6YInTa
+MA0GCSqGSIb3DQEBCwUAA4IBAQCe1q3OaK9kakvORWXshHMw7aegML0YG7e/M8Ma
+2KBkOAl9X0+Jy0c7Hn26fN6ZudWeOHE4PngY1tTKGoUm2PKVesYt7sP8Ivo+/NTo
+B1+C/q1Mdwv/vcewmw2n6/flTnvvmw6s9zXpRVJJ2sD2jAwIByMNWN8naegz2f1g
+3HEPOtKVosX0zYXpFflPkGTRui0FgpiCQq0/3MaFXAu3/aSbh6Fczb1/JaAswarK
+LhlGP5mNHorLbFea+B7lmIeUf9gosUrZ3cjfBVKknWrBg//DzTpf+YS1nte+Kk6S
+FoLSAh7OePSmFM0okO6iyDLxmGFAja2D+CZCQbR5Y+TVi7T1
+-----END CERTIFICATE-----`;
+
+function verifySignature(publicKeyPem, data, signature) {
+  const publicKey = crypto.createPublicKey(publicKeyPem);
+  const verifier = crypto.createVerify('SHA256');
+  verifier.update(data);
+  const isVerified = verifier.verify(publicKey, Buffer.from(signature, 'base64'));
+
+  return isVerified;
+}
+
+const result = verifySignature(publicKeyPem, data, signature);
+
+if (result) {
+  console.log("good");
+} else {
+  console.log("bad");
+}
+```
+
+{% endtab %}
+{% endtabs %}
+
+# Account Balance
+
+## This API method is used to retrieve Account balance
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/account/json/balance/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Response" %}
+
+```json5
+{
+  "UGX": {
+    "balance": 2710,
+    "fee_sell": 2590,
+    "reserved": 0,
+    "gross_balance": 5300,
+    "payout_balance": 1000,
+    "payout_fee_sell": 0,
+    "pending_payouts": 0,
+    "payout_overdraft": 0,
+    "pending_outgoing": 1500,
+    "available_balance": 1210,
+    "payout_gross_balance": 1000,
+    "available_payout_balance": 1000
+  }
+}
+```
+
+{% endtab %}
+
+{% tab title="Description" %}
+
+| description:       | Company Balance in a specific currency                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| gross\_balance     | <p></p><p>Raw Company balance without any fees or reserved amounts subtracted</p>                   |
+| balance            | <p></p><p>Company gross balance with transaction fees subtracted</p>                                |
+| available\_balance | <p></p><p>Company balance currently available for withdrawal</p>                                    |
+| reserved           | <p></p><p>Amount protected from withdrawal for an amount of time as per the brand configuration</p> |
+| pending\_outgoing  | <p></p><p>Amount currently pending withdrawal</p>                                                   |
+| fee\_sell          | <p>FeeSellinteger</p><p>Fees applied to transactions</p>                                            |
+| {% endtab %}       |                                                                                                     |
+| {% endtabs %}      |                                                                                                     |
+
+# Mobile Money V2
+
+Mobile Money Payment are available in the following countries.
+
+#### Uganda
+
+Airtel (Collections and Payouts)\
+MTN (Collections and Payouts)
+
+#### Kenya
+
+Mpesa (Collections and Payouts)
+
+Airtel (Collections and Payouts)
+
+#### Ethiopia
+
+Telebirr/Ethio Telecom (Collections and Payouts)
+
+Mpesa/Safaricom Ethiopia (Collections and Payouts)
+
+**Test phone numbers for success response. Any other phone number will return an error notification**\
+\
+phone = 256770123456\
+country = UG\
+currency = UGX\
+\
+phone = 254790123456\
+country = KE\
+currency = KES
+
+phone = 251910015422\
+country = ET\
+currency = ETB
+
+# Collection/Purchase
+
+### Step 1 - Initiate
+
+## This API method is utilized to trigger a collection/purchase request, resulting in a JSON response being returned to you.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/purchases/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "client": {
+        "email": "example@gmail.com",
+        "phone": "256770123456",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "purchase": {
+        "currency": "UGX",
+        "products": [
+            {
+                "name": "Example One",
+                "price": "500"
+            }
+        ]
+    },
+    "reference": "Your unique transaction reference",
+    "skip_capture": false,
+    "brand_id": "{{BrandId}}"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20",
+  "due": 1747390681,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "Kampala",
+    "email": "example@gmail.com",
+    "phone": "256770123456",
+    "state": "Nakawa",
+    "country": "UG",
+    "zip_code": "124538",
+    "bank_code": "",
+    "full_name": "Jane Rose",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "70002307552",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "10231",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "Ntinda",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2025-05-16",
+  "status": "created",
+  "is_test": false,
+  "payment": null,
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 1000,
+    "currency": "UGX",
+    "language": "en",
+    "products": [
+      {
+        "name": "Test Purchase",
+        "price": 1000,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00",
+        "total_price_override": null
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0452",
+  "reference": "e44fe395-ddf4-4c0f-8386-c53dd8252985",
+  "viewed_on": null,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747387081,
+  "event_type": "purchase.created",
+  "updated_on": 1747387081,
+  "invoice_url": null,
+  "can_retrieve": false,
+  "checkout_url": "https://payments.paytota.com/p/05b0b12b-1702-4719-8e53-e3a2ee2d5e20/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": false,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "TOTAL PAYMENTS",
+    "legal_city": "Kamplaa",
+    "legal_name": "PAYTOTA",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "EQBLUGKAXXX",
+        "bank_account": "1036200000000"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "23235",
+    "registration_number": "80000000000000",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1747387081
+    }
+  ],
+  "cancel_redirect": "",
+  "created_from_ip": "54.86.50.139",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "",
+  "success_callback": "",
+  "success_redirect": "",
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 0,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT1418",
+  "refund_availability": "none",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% endtab %}
+
+{% tab title="Response Status " %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+The transaction ID in JSON response is then used to execute request(Step 2) to initiate a STK Push prompt on the Subscriber's mobile handset to be debited.
+{% endhint %}
+
+### Step 2 - Execute
+
+### You have two methods to execute the transaction&#x20;
+
+* Redirect the customer to the **{{checkout\_url}}** provided in the response from **step 1** on the Paytota platform.\
+  \
+  Take note the following parameters should be added to your Initial JSON body on using this method  **`success_redirect`**, **`failure_redirect`**\
+  After the payment is processed, the system will redirect the customer back to your website.
+* Alternatively, you can initiate a STK Push prompt on the subscriber handset by sending a **form-data** request through your backend system. **Following a successful execution, you will receive asynchronous status update via webhook. The notification will have the status 'pending\_execute'.**
+
+## Using the transaction ID received in Step 1, this method is then queried by sending a form-data request to initiate a PIN prompt on the subscriber handset.&#x20;
+
+<mark style="color:green;">`POST`</mark> `{base url}/p/{id}/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+| Name                                  | Type   | Value          |
+| ------------------------------------- | ------ | -------------- |
+| s2s<mark style="color:red;">\*</mark> | String | true           |
+| pm<mark style="color:red;">\*</mark>  | String | paytota\_proxy |
+| {% endtab %}                          |        |                |
+
+{% tab title="Response" %}
+
+```json5
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD"
+        }
+    }
+}
+```
+
+{% endtab %}
+
+{% tab title="Request Headers" %}
+
+#### Headers
+
+| Name                                           | Type   | Description         |
+| ---------------------------------------------- | ------ | ------------------- |
+| Content-Type<mark style="color:red;">\*</mark> | String | multipart/form-data |
+
+#### Request Body
+
+{% endtab %}
+
+{% tab title="Response Status " %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = paid)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20",
+  "due": 1747390681,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "Kampala",
+    "email": "example@gmail.com",
+    "phone": "256770123456",
+    "state": "Nakawa",
+    "country": "UG",
+    "zip_code": "124538",
+    "bank_code": "",
+    "full_name": "Jane Rose",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "70002307552",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "10231",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "Ntinda",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2025-05-16",
+  "status": "paid",
+  "is_test": false,
+  "payment": {
+    "amount": 1000,
+    "paid_on": 1747387124,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 1000,
+    "description": "",
+    "is_outgoing": false,
+    "payment_type": "purchase",
+    "pending_amount": 0,
+    "remote_paid_on": 1747387124,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 1000,
+    "currency": "UGX",
+    "language": "en",
+    "products": [
+      {
+        "name": "Test Purchase",
+        "price": 1000,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00",
+        "total_price_override": null
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0452",
+  "reference": "e44fe395-ddf4-4c0f-8386-c53dd8252985",
+  "viewed_on": 1747387118,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747387081,
+  "event_type": "purchase.paid",
+  "updated_on": 1747387123,
+  "invoice_url": null,
+  "can_retrieve": false,
+  "checkout_url": "https://gate.paytota.com/p/05b0b12b-1702-4719-8e53-e3a2ee2d5e20/invoice/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": false,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "TOTAL PAYMENTS",
+    "legal_city": "Kamplaa",
+    "legal_name": "PAYTOTA",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "EQBLUGKAXXX",
+        "bank_account": "1036200000000"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "23235",
+    "registration_number": "80000000000000",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1747387081
+    },
+    {
+      "status": "viewed",
+      "timestamp": 1747387118
+    },
+    {
+      "status": "pending_execute",
+      "timestamp": 1747387118
+    },
+    {
+      "status": "paid",
+      "timestamp": 1747387124
+    }
+  ],
+  "cancel_redirect": "",
+  "created_from_ip": "54.86.50.139",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "",
+  "success_callback": "",
+  "success_redirect": "",
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {
+      "payload": {
+        "bank": {
+          "bank_code": "",
+          "bank_name": "",
+          "account_name": "",
+          "account_number": ""
+        },
+        "client": {
+          "city": "Kampala",
+          "email": "example@gmail.com",
+          "state": "Nakawa",
+          "country": "UG",
+          "zip_code": "124538",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": "Ntinda"
+        },
+        "message": "Transaction check successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 1000,
+          "mobile": "256770123456",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "mobile",
+          "transaction_type": "purchase",
+          "external_reference": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20:102479",
+          "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD",
+          "operator_reference": "ea8c7ece-768d-43ed-893a-921613121936"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "payform",
+        "type": "execute",
+        "error": null,
+        "extra": {
+          "payload": {
+            "bank": {
+              "bank_code": "",
+              "bank_name": "",
+              "account_name": "",
+              "account_number": ""
+            },
+            "client": {
+              "city": "Kampala",
+              "email": "example@gmail.com",
+              "state": "Nakawa",
+              "country": "UG",
+              "zip_code": "124538",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": "Ntinda"
+            },
+            "message": "Transaction check successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 1000,
+              "mobile": "256770123456",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "mobile",
+              "transaction_type": "purchase",
+              "external_reference": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20:102479",
+              "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD",
+              "operator_reference": "ea8c7ece-768d-43ed-893a-921613121936"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747387124
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 1000,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT1418",
+  "refund_availability": "none",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Collection/Purchase Status
+
+## This method is used to query the collections/purchases transaction status using the transaction ID. Please note that this API also requires authorization using the Secret Key.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/purchases/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Disbursement/Payout
+
+### Step 1 - Initiate
+
+## This API method is used to initiate an a disbursement/payout request for which you will receive a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/payouts/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+<pre class="language-json5"><code class="lang-json5"><strong>{
+</strong>    "client": {
+        "email": "example@gmail.com",
+        "phone": "256700123123",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "payment": {
+        "currency": "UGX",
+        "amount": "500",
+        "description": "Test Payout"
+    },
+    "reference": "Your unique transaction reference",
+    "brand_id": "{{BrandId}}"
+}
+</code></pre>
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "initialized",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": null,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": null,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.created",
+  "updated_on": 1747308302,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    }
+  ],
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": null,
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| {% endtab %}                                    |        |                             |
+
+{% tab title="Respose Status" %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+The transaction ID in JSON response is then used to execute request(Step 2).
+{% endhint %}
+
+### Step 2 - Execute
+
+## Utilize the {{execution\_url}} obtained in step 1 to submit a second request.
+
+<mark style="color:green;">`POST`</mark> `{{execution_url}}`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "payout_type": "mobile"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+// If excute is successful
+
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "35F1496D9E17485A800D4847F22BC720"
+        }
+    }
+}
+```
+
+```json5
+// If you have insufficient balance
+
+{
+  "status": "error",
+  "error": {
+    "code": "insufficient_funds",
+    "message": "Insufficient funds to proceed with operation."
+  }
+}
+
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                           | Type   | Description      |
+| ---------------------------------------------- | ------ | ---------------- |
+| Content-Type<mark style="color:red;">\*</mark> | String | application/json |
+
+{% endtab %}
+
+{% tab title="Response Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = success)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "success",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": 1747308344,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": 1747308344,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.success",
+  "updated_on": 1747308344,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    },
+    {
+      "status": "pending",
+      "timestamp": 1747308339
+    },
+    {
+      "status": "success",
+      "timestamp": 1747308344
+    }
+  ],
+  "transaction_data": {
+    "flow": "server_to_server",
+    "extra": {
+      "webhook_payload": {
+        "bank": {
+          "bank_code": "SBICUGKX",
+          "bank_name": "Stanbic Bank",
+          "account_name": "Jane Rose",
+          "account_number": "123456789012"
+        },
+        "client": {
+          "city": "",
+          "email": "example@gmail.com",
+          "state": "",
+          "zip_code": "",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": ""
+        },
+        "message": "Transaction successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 500,
+          "mobile": "256700123123",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "bank",
+          "transaction_type": "payout",
+          "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+          "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+          "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "server_to_server",
+        "error": null,
+        "extra": {
+          "webhook_payload": {
+            "bank": {
+              "bank_code": "SBICUGKX",
+              "bank_name": "Stanbic Bank",
+              "account_name": "Jane Rose",
+              "account_number": "123456789012"
+            },
+            "client": {
+              "city": "",
+              "email": "example@gmail.com",
+              "state": "",
+              "zip_code": "",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": ""
+            },
+            "message": "Transaction successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 500,
+              "mobile": "256700123123",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "bank",
+              "transaction_type": "payout",
+              "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+              "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+              "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747308344
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": "paytota_proxy",
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Disbursement/Payout Status
+
+## This API method is used to query the payouts/disbursement transaction status using the transaction ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/payouts/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="Respose Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+# CARDS
+
+Supported currency (USD, GBP, CAD, INR, ZAR, NGN, MAD, UGX, TZS, RWF, KES, XOF, XAF, EGP, GHS, )
+
+# Card Collection
+
+### Initiate
+
+## This API method initiates a collection/purchase request and returns a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/purchases/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}",
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "client": {
+    "client_type": null,
+    "email": "example@gmail.com",
+    "phone": "0793457034",
+    "full_name": "Example One",
+    "personal_code": "123245",
+    "legal_name": "",
+    "brand_name": "",
+    "registration_number": "",
+    "tax_number": "",
+    "bank_account": "",
+    "bank_code": "234235",
+    "street_address": "sixth street",
+    "city": "Lisbon",
+    "zip_code": "3425678",
+    "country": "AU",
+    "state": "PT",
+    "shipping_street_address": "",
+    "shipping_city": "",
+    "shipping_zip_code": "",
+    "shipping_country": "",
+    "shipping_state": "",
+    "cc": [],
+    "bcc": [],
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ]
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000,
+        "quantity": "1.0000",
+        "discount": 0,
+        "tax_percent": "0.00",
+        "category": ""
+      }
+    ],
+    "language": "en",
+    "notes": "",
+    "debt": 0,
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "total_discount_override": null,
+    "total_override": null,
+    "total": 1000,
+    "request_client_details": [],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "shipping_options": [],
+    "payment_method_details": {},
+    "has_upsell_products": false
+  },
+  "payment": null,
+  "issuer_details": {
+    "brand_name": "PAYTOTA",
+    "website": "https://paytota.com",
+    "legal_name": "PAYTOTA",
+    "registration_number": "80020002500244",
+    "tax_number": "",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi",
+    "legal_country": "UG",
+    "legal_city": "Kamplaa",
+    "legal_zip_code": "23235",
+    "bank_accounts": [
+      {
+        "bank_account": "1036201557307",
+        "bank_code": "EQBLUGKAXXX"
+      }
+    ]
+  },
+  "transaction_data": {
+    "payment_method": "",
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": []
+  },
+  "status": "created",
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1687258526
+    }
+  ],
+  "viewed_on": null,
+  "force_recurring": false,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "is_test": false,
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401d1",
+  "billing_template_id": null,
+  "order_id": null,
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0450",
+  "send_receipt": false,
+  "is_recurring_token": false,
+  "recurring_token": null,
+  "skip_capture": false,
+  "reference_generated": "PT213",
+  "reference": "",
+  "issued": "2023-06-20",
+  "due": 1687262125,
+  "refund_availability": "none",
+  "refundable_amount": 0,
+  "currency_conversion": null,
+  "payment_method_whitelist": null,
+  "success_redirect": "",
+  "failure_redirect": "",
+  "cancel_redirect": "",
+  "success_callback": "",
+  "marked_as_paid": false,
+  "upsell_campaigns": [],
+  "referral_campaign_id": null,
+  "referral_code": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "retain_level_details": null,
+  "can_retrieve": false,
+  "can_chargeback": false,
+  "creator_agent": "",
+  "platform": "api",
+  "product": "purchases",
+  "created_from_ip": "102.218.37.140",
+  "invoice_url": null,
+  "checkout_url": "https://payments.paytota.com/p/9fd05d5c-6639-42f4-8189-a6f9e401988f/",
+  "direct_post_url": null,
+  "created_on": 1687258526,
+  "updated_on": 1687258526,
+  "type": "purchase",
+  "id": "9fd05d5c-6639-42f4-8189-a6f9e401988f"
+}
+```
+
+{% endtab %}
+
+{% tab title="Curl" %}
+
+```
+curl --location --globoff '{{base_url}}/api/v1/purchases/' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{Secret Key}}' \
+--data-raw '{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}"
+}'
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+$curl = curl_init();
+
+curl_setopt_array($curl, array(
+  CURLOPT_URL => '{{base_url}}/api/v1/purchases/',
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_ENCODING => '',
+  CURLOPT_MAXREDIRS => 10,
+  CURLOPT_TIMEOUT => 0,
+  CURLOPT_FOLLOWLOCATION => true,
+  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+  CURLOPT_CUSTOMREQUEST => 'POST',
+  CURLOPT_POSTFIELDS =>'{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}"
+}',
+  CURLOPT_HTTPHEADER => array(
+    'Content-Type: application/json',
+    'Authorization: Bearer {{Secret Key}}'
+  ),
+));
+
+$response = curl_exec($curl);
+
+curl_close($curl);
+echo $response;
+
+```
+
+{% endtab %}
+
+{% tab title="NodeJs" %}
+
+```javascript
+const axios = require('axios');
+let data = JSON.stringify({
+  "client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000
+      }
+    ]
+  },
+  "skip_capture": false,
+  "brand_id": "{{Brand Id}}"
+});
+
+let config = {
+  method: 'post',
+  maxBodyLength: Infinity,
+  url: '{{base_url}}/api/v1/purchases/',
+  headers: { 
+    'Content-Type': 'application/json', 
+    'Authorization': 'Bearer {{Secret Key}}'
+  },
+  data : data
+};
+
+axios.request(config)
+.then((response) => {
+  console.log(JSON.stringify(response.data));
+})
+.catch((error) => {
+  console.log(error);
+});
+
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import http.client
+import json
+
+conn = http.client.HTTPSConnection("{{base_url}}")
+payload = json.dumps({
+  "client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000
+      }
+    ]
+  },
+  "skip_capture": False,
+  "brand_id": "{{Brand Id}}"
+})
+headers = {
+  'Content-Type': 'application/json',
+  'Authorization': 'Bearer {{Secret Key}}'
+}
+conn.request("POST", "/api/v1/purchases/", payload, headers)
+res = conn.getresponse()
+data = res.read()
+print(data.decode("utf-8"))
+```
+
+{% endtab %}
+{% endtabs %}
+
+### You have two methods to collect card details from the customer .
+
+1. Redirect the customer to the **{{checkout\_url}}** on the paytota platform.
+2. Direct Post.\
+   Here you submit the customer card details from your application to the **{{checkout\_url}}** . In this case the customer will be redirected to the bank authorization page immediately.\
+   \
+   Take note the following parameters should be added to your Initial JSON body on using Direct Post **`success_redirect`**, **`failure_redirect`**\
+   After the payment is processed, the system will redirect the customer back to your website.
+
+* ```
+   <!DOCTYPE html>
+  <html>
+     <head>
+        <meta HTTP-EQUIV="Content-Type" content="text/html; charset=UTF-8">
+     </head>
+     <body>
+        <form id="form" action="{{checkout_url}}" method="POST">
+           <input type="hidden" name="cardholder_name" value="Asiman Gasanov">
+              <input type="hidden" name="card_number" value="4444 3333 2222 1111">
+              <input type="hidden" name="expires" value="11/25">
+              <input type="hidden" name="cvc" value="123">
+              <input type="hidden" name="remember_card" value="true">
+              <noscript>
+              <input type="submit" name="continue" value="Continue">
+              </noscript>
+        </form>
+     </body>
+  </html>
+  ```
+
+### Testing Integration
+
+It’s possible to test-drive all checkouts using a test Purchase.\
+\
+\- 4444 3333 2222 1111 - non-3D Secure card\
+\- 5555 5555 5555 4444 - 3D Secure card\
+\
+For both cards, please use:\
+\
+\- any cardholder name\
+\- any expiry larger or equal to the current month/year\
+\- CVC = 123\
+\
+For a failed payment, please change the CVC or expiration date
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = paid)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "761196a9-6aa2-4afd-a59f-214ad6788e5e",
+  "due": 1694609579,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "London",
+    "email": "johndeo@outlook.com",
+    "phone": "+447702700000",
+    "state": "WA",
+    "country": "US",
+    "zip_code": "CT6 6HG",
+    "bank_code": "",
+    "full_name": "John Deo",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "39 coromant way",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2023-09-13",
+  "status": "paid",
+  "is_test": false,
+  "payment": {
+    "amount": 2300,
+    "paid_on": 1694606029,
+    "currency": "USD",
+    "fee_amount": 150,
+    "net_amount": 2150,
+    "description": "",
+    "is_outgoing": false,
+    "payment_type": "purchase",
+    "pending_amount": 0,
+    "remote_paid_on": 1694606028,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "869aca7c-6348-4c5f-9141-6f9e908da099",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 2300,
+    "currency": "USD",
+    "language": "en",
+    "products": [
+      {
+        "name": "deposit",
+        "price": 2300,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00"
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "70a626d4-b415-46b9-9dda-89e37ebdf1d4",
+  "reference": "325408517",
+  "viewed_on": null,
+  "company_id": "177bde08-d0a3-47b0-9601-7fec23b8d4fb",
+  "created_on": 1694605979,
+  "event_type": "purchase.paid",
+  "updated_on": 1694606029,
+  "invoice_url": null,
+  "can_retrieve": true,
+  "checkout_url": "https://gate.paytota.com/p/761196a9-6aa2-4afd-a59f-214ad6788e5e/invoice/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": true,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "PAYTOTA LIMITED",
+    "legal_city": "Kampala",
+    "legal_name": "PAYTOTA LIMITED",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "Will send",
+        "bank_account": "Will send"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "102145",
+    "registration_number": "80020002500244",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1694605979
+    },
+    {
+      "status": "pending_execute",
+      "timestamp": 1694605986
+    },
+    {
+      "status": "paid",
+      "timestamp": 1694606029
+    }
+  ],
+  "cancel_redirect": "https://example.com/1B7fCk992UZVAbWngU0j7-w",
+  "created_from_ip": "85.208.60.10",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "https://example.com/1jkfljS8Uxa-dNEGkPHLbsQ",
+  "success_callback": "https://example.com/0bCCbefX4Bi-4JXjpgB5Qpw",
+  "success_redirect": "https://example.com/1ulvVG6sAKQEUkDvKDRBX6w",
+  "transaction_data": {
+    "flow": "direct_post",
+    "extra": {
+      "card_type": "debit",
+      "card_brand": "mastercard",
+      "masked_pan": "537410******0294",
+      "card_issuer": "national westminster bank plc",
+      "expiry_year": 26,
+      "expiry_month": 12,
+      "cardholder_name": "Ryan lee",
+      "card_issuer_country": "GB"
+    },
+    "country": "GB",
+    "attempts": [
+      {
+        "flow": "direct_post",
+        "type": "execute",
+        "error": null,
+        "extra": {
+          "card_type": "debit",
+          "card_brand": "mastercard",
+          "masked_pan": "537410******0294",
+          "card_issuer": "national westminster bank plc",
+          "expiry_year": 26,
+          "expiry_month": 12,
+          "cardholder_name": "Jon Deo",
+          "card_issuer_country": "GB"
+        },
+        "country": "GB",
+        "client_ip": "84.70.164.234",
+        "fee_amount": 150,
+        "successful": true,
+        "payment_method": "mastercard",
+        "processing_time": 1694606028
+      }
+    ],
+    "payment_method": "mastercard"
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 2300,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT159",
+  "refund_availability": "all",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Collection/Purchase Status
+
+## This method is used to query the collections/purchases transaction status using the transaction ID. Please note that this API also requires authorization using the Secret Key.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/purchases/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Bank
+
+Supported currencies (NGN, KES)
+
+# Bank Payout
+
+## Step 1 - Initiate
+
+## This API method is used to initiate a disbursement/payout request for which you will receive a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/payouts/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "client": {
+        "email": "example@gmail.com",
+        "phone": "256700123123",
+        "bank_account": "123456789012",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "payment": {
+        "currency": "UGX",
+        "amount": "500",
+        "description": "Test Payout"
+    },
+    "reference": "Your unique transaction reference",
+    "brand_id": "{{BrandId}}"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "initialized",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": null,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": null,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.created",
+  "updated_on": 1747308302,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    }
+  ],
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": null,
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+
+{% endtab %}
+
+{% tab title="Response Status" %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+## Step 2 - Execute
+
+## Utilize the {{execution\_url}} obtained in step 1 to submit a second request.
+
+<mark style="color:green;">`POST`</mark> `{{execution_url}}`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "payout_type": "bank",
+    "bank_name": "Stanbic Bank",
+    "bank_code": "SBICUGKX",
+    "bank_account_name": "Jane Rose",
+    "bank_account_number": "123456789012"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+// If excute is successful
+
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "35F1496D9E17485A800D4847F22BC720"
+        }
+    }
+}
+```
+
+```json5
+{
+  "status": "error",
+  "error": {
+    "code": "insufficient_funds",
+    "message": "Insufficient funds to proceed with operation."
+  }
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+| {% endtab %}                                    |        |                      |
+
+{% tab title="Response Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = success)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "success",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": 1747308344,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": 1747308344,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.success",
+  "updated_on": 1747308344,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    },
+    {
+      "status": "pending",
+      "timestamp": 1747308339
+    },
+    {
+      "status": "success",
+      "timestamp": 1747308344
+    }
+  ],
+  "transaction_data": {
+    "flow": "server_to_server",
+    "extra": {
+      "webhook_payload": {
+        "bank": {
+          "bank_code": "SBICUGKX",
+          "bank_name": "Stanbic Bank",
+          "account_name": "Jane Rose",
+          "account_number": "123456789012"
+        },
+        "client": {
+          "city": "",
+          "email": "example@gmail.com",
+          "state": "",
+          "zip_code": "",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": ""
+        },
+        "message": "Transaction successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 500,
+          "mobile": "256700123123",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "bank",
+          "transaction_type": "payout",
+          "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+          "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+          "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "server_to_server",
+        "error": null,
+        "extra": {
+          "webhook_payload": {
+            "bank": {
+              "bank_code": "SBICUGKX",
+              "bank_name": "Stanbic Bank",
+              "account_name": "Jane Rose",
+              "account_number": "123456789012"
+            },
+            "client": {
+              "city": "",
+              "email": "example@gmail.com",
+              "state": "",
+              "zip_code": "",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": ""
+            },
+            "message": "Transaction successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 500,
+              "mobile": "256700123123",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "bank",
+              "transaction_type": "payout",
+              "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+              "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+              "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747308344
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": "paytota_proxy",
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+</details>
+
+## Check Disbursement/Payout Status
+
+## This API method is used to query the payouts/disbursement transaction status using the transaction ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/payouts/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Company Statements
+
+## Schedule a statement generation
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/company_statements/`
+
+This request allows you to schedule statement generation for a company. The response will include an object with fields such as `id`, `status`, and `download_url`. These are the key fields to focus on.
+
+#### Headers
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer               |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json
+{
+  "format": "csv",
+  "timezone": "UTC"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+{% code overflow="wrap" fullWidth="false" %}
+
+```json
+{
+  "format": "csv",
+  "timezone": "UTC",
+  "is_test": false,
+  "company_uid": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "query_string": "",
+  "status": "pending",
+  "download_url": null,
+  "began_on": null,
+  "finished_on": null,
+  "created_on": 1698322275,
+  "updated_on": 1698322275,
+  "type": "statement_request",
+  "id": "1dd24660-527d-422a-9bfa-937c5b752eb0"
+}
+```
+
+{% endcode %}
+{% endtab %}
+
+{% tab title="Optional Parameters" %}
+
+| Name                                | Description                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **from** integer(query)             | Filter result set to only include values older or equal to the provided Unix timestamp                                                       |
+| **to** integer(query)               | Filter result set to only include values younger than the provided Unix timestamp                                                            |
+| **paid\_from** integer(query)       | Filter paid result set to only include values older or equal to the provided Unix timestamp                                                  |
+| **paid\_to** integer(query)         | Filter paid result set to only include values younger than the provided Unix timestamp                                                       |
+| **updated\_from** integer(query)    | Filter result set to only include values older or equal to the provided last modification time Unix timestamp                                |
+| **updated\_to** integer(query)      | Filter result set to only include values younger than the provided last modification time Unix timestamp                                     |
+| **brand\_id** string($uuid)(query)  | Filter result set to only include the specified brand UUID(s)                                                                                |
+| **shop\_id** string($uuid)(query)   | Filter result set to only include the specified shop UUID(s)                                                                                 |
+| **q** string($string)(query)        | Filter result set to only include results including a specified text (search over a ton of text fields)                                      |
+| **products** string($string)(query) | Filter result set to only include results including a specified text in products                                                             |
+| **total** string($float)(query)     | Filter result set to only include results with a total between min and max value. Must include 2 values, if any - (min, max).                |
+| **currency** string(query)          | Filter result set to only include specified currency(ies)                                                                                    |
+| **payment\_method** string(query)   | <p>Filter result set to only include specified payment methods(s). </p><p><em>Available values</em> : maestro, mastercard, unknown, visa</p> |
+
+|                                                |                                                                                                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **three\_d\_secure** string($bool)(query)      | Filter result set to only include results with a 3-D verification.                                                                                                                                                        |
+| **country** string($ISO 3166-1 alpha-2)(query) | Filter result set to only include specified client country(ies) in ISO 3166-1 alpha-2 format                                                                                                                              |
+| **status** string($string)(query)              | Filter result set to only include results with a specific status.                                                                                                                                                         |
+| **product** string(query)                      | <p>Filter result set to only include specified products(s). </p><p><em>Available values</em> : bank\_payment, chargeback, custom\_payment, invoice, payout, payout\_balance\_transfer, purchase, refund, subscription</p> |
+| {% endtab %}                                   |                                                                                                                                                                                                                           |
+| {% endtabs %}                                  |                                                                                                                                                                                                                           |
+
+## &#x20;Retrieve a statement by ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/company_statements/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Response" %}
+{% code overflow="wrap" %}
+
+```json5
+{
+  "format": "csv",
+  "timezone": "UTC",
+  "is_test": false,
+  "company_uid": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "query_string": "",
+  "status": "success",
+  "download_url": "https://paytota-private.s3.af-south-1.amazonaws.com/706d0675-b131-468c-940d-bc0ea3599e7f/src/statement/022b9a1f-1411-4d60-b7e9-4e7daaf6903b?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA2DOUUV7G3EN%2F20231026%2Faf-south-1%2Fs3%2Faws4_request&X-Amz-Date=20231026T124044Z&X-Amz-pires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=e7fd9eda97b07abadb9caad3f555a9a06815db541a4bec11110a87ed699d",
+  "began_on": 1698322277,
+  "finished_on": 1698322277,
+  "created_on": 1698322275,
+  "updated_on": 1698322277,
+  "type": "statement_request",
+  "id": "1dd24660-527d-422a-9bfa-937c5b752eb0"
+}
+```
+
+{% endcode %}
+{% endtab %}
+{% endtabs %}
+
+
+
+
+# Status & Definitions
+
+<details>
+
+<summary>Balance</summary>
+
+`description`: Company Balance in a specific currency
+
+`gross_balance` : *(integer)* Raw Company balance without any fees or reserved amounts subtracted
+
+`balance` : *(integer)* Company gross balance with transaction fees subtracted
+
+`available_balance` : *(integer)* Company balance currently available for withdrawal
+
+`reserved` : *(integer)* Amount protected from withdrawal for an amount of time as per the brand configuration
+
+`pending_outgoing` : *(integer)* Amount currently pending withdrawal
+
+`fee_sell` : *(integer)* Fees applied to transactions
+
+</details>
+
+<details>
+
+<summary>Purchase Status</summary>
+
+**PurchaseStatus**: *(string*)\
+**default**: created\
+**readOnly**: true
+
+Purchase status. Can have the following values:
+
+`created`: Purchase was created using POST /purchases/ or Billing API capabilities.
+
+***
+
+`sent`: Invoice for this purchase was sent over email using Billing API capabilities.
+
+***
+
+`viewed`: The client has viewed the payform and/or invoice details for this purchase.
+
+***
+
+`error`: There was a failed payment attempt for this purchase because of a problem with customer's payment instrument (e.g. low account balance). You can analyze the `.transaction_data` to get information on reason of the failure.
+
+***
+
+`cancelled`: Purchase was cancelled using the `POST /purchases/{id}/cancel/` endpoint; payment for it is not possible anymore.
+
+***
+
+`overdue`: Purchase is past its' `.due`, but payment for it is still possible (unless e.g. POST /purchases/{id}/cancel/ is used).
+
+***
+
+`expired`: Purchase is past its' `.due` and payment for it isn't possible anymore (as a result of `purchase.due_strict` having been set to `true`). It’s still possible to have a `paid` status after `expired` if the transaction was initiated before `expired` and the acquirer returned the successful status with delay.
+
+***
+
+`hold`: Funds are on hold for this Purchase (`.skip_capture: true` was used). You can now run `POST /capture/` or `POST /release/` for this payment to capture the payment or return funds to the client, respectively.
+
+***
+
+`released`: This Purchase previously had `hold` status, but funds have since been released and returned to the customer's card.
+
+***
+
+`pending_release`: release of funds for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/release/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`pending_capture`: capture of funds for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/capture/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`preauthorized`: A preauthorization of a card (authorization of card data without a financial transaction) was executed successfully using this Purchase. See the description of the `.skip_capture` field for more details.
+
+***
+
+`paid`: Purchase was successfully paid for.
+
+***
+
+`pending_execute`: Payment (or `hold` in case of `skip_capture`) for this Purchase is in processing, but is not finalized on the acquirer side yet.
+
+***
+
+`pending_charge`: Recurring payment for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/charge/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`retrieved`: A retrieval request was registered for this, previously paid, Purchase.
+
+***
+
+`charged_back`: A chargeback was registered for this, previously paid, Purchase.
+
+***
+
+`pending_refund`: a refund (full or partial) for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/refund/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`refunded`: This Purchase had its payment refunded, fully or partially.
+
+Enum:\
+\[ created, sent, viewed, error, cancelled, overdue, expired, hold, released, pending\_release, pending\_capture, preauthorized, paid, pending\_execute, pending\_charge, chargeback, pending\_refund, refunded ]
+
+</details>
+
+<details>
+
+<summary>Payout Status</summary>
+
+**PayoutStatus**: *(string)* \
+**default**: initialized \
+**readOnly**: true&#x20;
+
+Payout status. Can have the following values:
+
+`initialized`: Payout was created, but not executed. Initial status to new Payouts.
+
+`pending`: Payout's execution is currently pending
+
+`error`: An error has occurred during the execution. Execution can be attempted again.
+
+`success`: Payout was executed successfully.
+
+Enum: \[ initialized, pending, error, success ]
+
+</details>
+
+<details>
+
+<summary>Event</summary>
+
+**Event**: string
+
+Available event types and when they are emitted:
+
+`purchase.created`: Emitted when a Purchase is created. This happens as a result of POST /purchases/ request executed successfully or of any of the Billing API methods, including scheduled billing run by a BillingTemplate with is\_subscription = true. Purchase.status will be == `created` in the received payload.
+
+***
+
+`purchase.paid`: Emitted when a Purchase is paid for. Purchase.status will be == `paid`. Happens when a payform is submitted (for a Purchase having `skip_capture == false`) and a successful payment is done by the payer or in case of /capture/ or /charge/ API requests executed successfully.
+
+***
+
+`purchase.payment_failure`: Emitted when payer submits a payment using the payform, but it doesn't complete successfully (e.g. because payer's account balance is insufficient). Purchase.status will be == `error`.
+
+***
+
+`purchase.pending_execute`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_execute` Purchase status. When transaction becomes finalized, a `purchase.paid`, `purchase.hold` or `purchase.payment_failed` callback will be emitted.
+
+***
+
+`purchase.pending_charge`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_charge` Purchase status. When transaction becomes finalized, a `purchase.paid` or `purchase.payment_failed` callback will be emitted.
+
+***
+
+`purchase.cancelled`: Emitted once POST /purchases/{id}/cancel/ request succeeds. It won't be possible to pay for the related Purchase after that. Purchase.status will be == `cancelled`.
+
+***
+
+`purchase.hold`: Emitted when a Purchase having `skip_capture == true` has its payform submitted and "payment" performed successfully. The specified amount of funds will be placed on hold. Purchase.status will be == `hold`.
+
+***
+
+`purchase.captured`: Emitted when the POST /purchases/{id}/capture/ request for a Purchase that previously had the status of `hold` succeeds. Purchase.status will be == `paid`.
+
+***
+
+`purchase.pending_capture`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_capture` Purchase status. When transaction becomes finalized, a `purchase.captured` callback will be emitted.
+
+***
+
+`purchase.released`: Emitted when the POST /purchases/{id}/release/ request for a Purchase that previously had the status of `hold` succeeds. Funds reserved will be released with no payment performed. Purchase.status will be == `released`.
+
+***
+
+`purchase.pending_release`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_release` Purchase status. When transaction becomes finalized, a `purchase.released` callback will be emitted.
+
+***
+
+`purchase.preauthorized`: Emitted when preauthorization scenario (see description for the Purchase.skip\_capture field) is executed successfully. Purchase will have a status of `preauthorized`.
+
+***
+
+`purchase.recurring_token_deleted`: Emitted when the POST /purchases/{id}/delete\_recurring\_token/ request is executed successfully, deleting the recurring token associated with a Purchase. Purchase status will be the same as it were prior to this event.
+
+***
+
+`purchase.pending_recurring_token_delete`: Emitted when token deletion takes longer than expected on the acquirer side. When operation is finalized, a `purchase.recurring_token_deleted` callback will be emitted.
+
+***
+
+`purchase.subscription_charge_failure`: Emitted when an attempt to charge some Client's subscription-generated Purchase, using the token (e.g. card) they saved for their subscription, fails. Can only be emitted for a Purchase spawned from a BillingTemplate having is\_subscription == true. Usually means the system can't charge the subscriber Client's card because e.g. their account balance is insufficient or card is expired, hence an invoice to be paid manually will be automatically mailed to them. Purchase.status in the returned payload will be == `sent`.
+
+***
+
+`purchase.pending_refund`: Emitted when refund transaction execution takes longer than expected on the acquirer side. See `pending_refund` Purchase status. When refund becomes finalized, a `payment.refunded` callback will ne emitted.
+
+***
+
+`payment.refunded`: Emitted when a Purchase is refunded (as a result of POST /purchases/{id}/capture/ request done successfully or action performed in company's frontoffice system). The returned data will be a Payment object generated as a result of this action. A link to the original Purchase (that will have a status of `refunded`) will be present in the `related_to` field of this Payment.
+
+***
+
+`billing_template_client.subscription_billing_cancelled`: Emitted when a subscriber represented by this event's related BillingTemplateClient cancels their subscription using an email link available in the receipts he receives. The respective BillingTemplateClient will have its `status` set to `subscription_paused` as a result.
+
+***
+
+`payout.pending`: Emitted when Payout execution has been initiated and is currently processing.
+
+***
+
+`payout.failed`: Emitted when a Payout processing was completed with an error. Payout.status will be == `error`. Note that payouts can spend up to 3-5 days (depending on the payout provider) in processing after being initiated.
+
+***
+
+`payout.success`: Emitted when a Payout is successfully processed. Payout.status will be == `success`. Note that payouts can spend up to 3-5 days (depending on the payout provider) in processing after being initiated.
+
+***
+
+`payment.charged_back`: Emitted when a Payment is charged\_back.
+
+***
+
+`purchase.viewed`: Emitted when a Purchase is viewed.
+
+***
+
+`purchase.settled`: Emitted when a Purchase is settled.
+
+***
+
+`payout.created`: Emitted when a Payout is created.
+
+Enum:\
+\[ purchase.created, purchase.paid, purchase.payment\_failure, purchase.pending\_execute, purchase.pending\_charge, purchase.cancelled, purchase.hold, purchase.captured, purchase.pending\_capture, purchase.released, purchase.pending\_release, purchase.preauthorized, purchase.pending\_recurring\_token\_delete, purchase.recurring\_token\_deleted, purchase.subscription\_charge\_failure, purchase.pending\_refund, payment.refunded, billing\_template\_client.subscription\_billing\_cancelled, payout.pending, payout.failed, payout.success, payment.charged\_back, purchase.viewed, purchase.settled, payout.created ]
+
+</details>
+
+# Get Started
+
+To effectively utilize the USSD API, follow these steps:
+
+1. Begin by registering a shortcode with us.
+2. Share your webhook with us. This webhook acts as a callback mechanism, triggered by an incoming user request with the registered shortcode. \
+   Whenever such a request is received on our platform, we will make an HTTP POST request to your provided webhook. \
+   The payload sent to your webhook will contain the request data in JSON format (Content-Type: application/json). \
+   \
+   **Here's an example of a sample payload:**
+
+```json5
+{
+  "shortcode": "165",
+  "msisdn": "256756070595",  
+  "mccmnc":"64101",
+  "sessionid": "50b1be9cb6a90",
+  "state": "START",
+  "message": "1"
+}
+```
+
+3. Your server should respond with the desired message to be displayed on the user's handset in JSON format (Content-Type: application/json). \
+   The response should include the same payload structure as the received request, with an updated state. \
+   \
+   **Here's an example of an expected response from your server:**
+
+```json5
+{
+  "msisdn": "256756070595",
+  "sessionid": "50b1be9cb6a90",
+  "state": "CONTINUE",
+  "message": "Hello world. Welcome to LTD"
+}
+```
+
+{% hint style="info" %}
+The USSD API operates with three different states:
+
+* **START**: This state is sent when a new session is initiated by the user.
+* **CONTINUE**: Your server should respond with this state if you wish to continue the session.
+* **END**: Your server should respond with this state if you want to terminate the session.
+  {% endhint %}
+
+4. It's important to note that every request we send you will include a **sessionid**, which should be maintained and used until the session is completed.
+5. Avoid including special characters in your USSD Menu to ensure seamless access to your USSD services. Telcos may encounter difficulties in rendering content with special characters, potentially causing disruptions in the user's ability to utilize your USSD services.
+6. Payloads are signed using public-key cryptography to guarantee the authenticity of delivered callbacks. Each callback delivery request includes a **Signature** header field. This field contains a base64-encoded RSA PKCS#1 v1.5 signature of the SHA256 digest of the request body buffer.
+
+

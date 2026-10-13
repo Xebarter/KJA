@@ -101,7 +101,7 @@ export function formatHm(minutes: number) {
   return `${pad(Math.floor(minutes / 60))}:${pad(minutes % 60)}`;
 }
 
-function parseTime(value?: string | null) {
+export function parseTime(value?: string | null) {
   const match = value?.trim().toLowerCase().match(/^(\d{1,2}):(\d{2})\s*(am|pm)?$/);
   if (!match) return null;
   let hours = Number(match[1]);

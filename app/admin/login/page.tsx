@@ -1,13 +1,12 @@
 "use client";
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { Suspense, useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 function LoginForm() {
   const router = useRouter();
-  const params = useSearchParams();
-  const [error, setError] = useState(params.get("error") === "forbidden" ? "This account is not an admin." : "");
+  const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 

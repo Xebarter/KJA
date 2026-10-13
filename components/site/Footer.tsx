@@ -13,7 +13,7 @@ export function Footer({ phone, email, address, mapUrl, footerText, socials }: {
   const year = new Date().getFullYear();
   return (
     <footer id="footer" className="footer-area bootscore-footer">
-      <div className="footer-shape"><img src="/images/03.png" alt="" /></div>
+      <div className="footer-shape footer-crest"><img src="/images/icon.png" alt="" /></div>
       <div className="footer-widget">
         <div className="container">
           <div className="row footer-widget-wrapper pt-100 pb-70">

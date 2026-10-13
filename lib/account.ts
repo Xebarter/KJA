@@ -94,5 +94,8 @@ export type ApplicationRow = {
   status: string | null;
   message: string | null;
   visit_at: string | null;
+  payment_status?: string | null;
+  payment_id?: string | null;
+  admission_fee?: number | null;
   created_at: string;
 };

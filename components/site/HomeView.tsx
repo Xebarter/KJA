@@ -6,12 +6,23 @@ import { CounterValue, HomeGallery, VideoPlay } from "@/components/site/HomeMoti
 import { StoryCard } from "@/components/site/StoryCard";
 import { kampalaClock, toCalEvents } from "@/lib/events-calendar";
 import { toStory } from "@/lib/newsroom";
+import { FEATURED_TEACHERS, orderTeachers } from "@/lib/teacher-admin";
 import type { SiteContent } from "@/lib/types";
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
-const TEACHER_ORDER = ["shafik-baingana", "alice-namusoke", "shamim-nalubidde", "pual-kakande"];
-
 const PILLAR_TONES = ["#4886ff", "#9cc24a", "#ff6f6f", "#fda31b"];
+const CAMPUS_FACTS: Record<string, { stage: string; place: string; flag?: string }> = {
+  kitante: { stage: "Nursery & Primary", place: "Yusuf Lule Road", flag: "Original campus" },
+  najjanankumbi: { stage: "Nursery & Primary", place: "Kaggwa Road" },
+  makindye: { stage: "Nursery", place: "Mobutu Road, Makindye" },
+  bunga: { stage: "Nursery & Daycare", place: "Nadduli Road, Bunga" },
+};
+const CHOOSE_COPY: Record<string, string> = {
+  "Expert Teachers": "Teachers who know the children in their class and stay close to each child's progress.",
+  "Subject Materials": "Scholastic materials are part of school life, so every child starts the term ready.",
+  "Online Information": "News, notices and school moments stay easy for families to find.",
+  "Affordable Fees": "Fees set out clearly, with a straightforward picture of what tuition covers.",
+};
 
 function ordered<T extends { slug: string }>(items: T[] | null | undefined, order: string[]) {
   return [...(items ?? [])].sort((a, b) => {
@@ -45,7 +56,7 @@ function splitAbout(text: string) {
 export function HomeView({ content }: { content: SiteContent }) {
   const { settings } = content;
   const campuses = ordered(content.campuses, CAMPUS_ORDER);
-  const teachers = ordered(content.teachers, TEACHER_ORDER).slice(0, 4);
+  const teachers = orderTeachers(content.teachers).slice(0, FEATURED_TEACHERS);
   const locations = new Map(content.events.map((item) => [item.slug, item.location || null]));
   const events = toCalEvents(content.events).map((event) => ({ ...event, location: locations.get(event.slug) ?? null }));
   const stories = [...content.news].sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))).slice(0, 2);
@@ -138,44 +149,65 @@ export function HomeView({ content }: { content: SiteContent }) {
         </div>
       </section>
 
-      <div className="course-area py-120">
+      <section className="kja-camp" aria-labelledby="kja-camp-title">
         <div className="container">
-          <div className="row">
-            <div className="col-lg-10 mx-auto">
-              <div className="site-heading text-center">
-                <h2 className="site-title">
-                  Our <span>Campuses</span>
-                </h2>
-                <p>{introLead}</p>
-                {introRest ? <p>{introRest}</p> : null}
-              </div>
+          <header className="kja-camp-head">
+            <div>
+              <span className="kja-nr-kicker"><i className="fas fa-location-dot" aria-hidden="true" /> Our campuses</span>
+              <h2 id="kja-camp-title">One school, <span>across Kampala</span></h2>
             </div>
-          </div>
-          <div className="kja-campus-grid">
-            {campuses.map((campus) => (
-              <article className="kja-campus-card wow fadeInUp" data-wow-delay=".25s" key={campus.slug}>
-                <div className="kja-campus-card-media">
-                  {campus.image_url ? (
-                    <img src={campus.image_url} alt="" />
-                  ) : (
-                    <span className="kja-campus-card-fallback" aria-hidden="true">
-                      <i className="fas fa-location-dot" />
+            <div className="kja-camp-intro">
+              {introRest ? <p className="kja-camp-lede">{introRest}</p> : null}
+              {introLead ? <p>{introLead}</p> : null}
+            </div>
+          </header>
+          {campuses[0] ? (
+            <Link href={`/branch/${campuses[0].slug}`} className="kja-camp-feature wow fadeInUp" data-wow-delay=".15s">
+              <span className="kja-camp-feature-media">
+                {campuses[0].image_url ? (
+                  <img src={campuses[0].image_url} alt="" />
+                ) : (
+                  <i className="fas fa-location-dot" aria-hidden="true" />
+                )}
+              </span>
+              <span className="kja-camp-feature-body">
+                <span className="kja-camp-kicker">
+                  <span className="kja-camp-stage">{CAMPUS_FACTS[campuses[0].slug]?.stage ?? "Campus"}</span>
+                  {CAMPUS_FACTS[campuses[0].slug]?.flag ? <span className="kja-camp-flag">{CAMPUS_FACTS[campuses[0].slug].flag}</span> : null}
+                </span>
+                <h3>KJA {campuses[0].title}</h3>
+                {CAMPUS_FACTS[campuses[0].slug]?.place ? (
+                  <span className="kja-camp-place"><i className="fas fa-location-dot" aria-hidden="true" /> {CAMPUS_FACTS[campuses[0].slug].place}</span>
+                ) : null}
+                {campuses[0].excerpt ? <p>{campuses[0].excerpt}</p> : null}
+                <span className="kja-camp-go">View campus <i className="fas fa-arrow-right" aria-hidden="true" /></span>
+              </span>
+            </Link>
+          ) : null}
+          {campuses.length > 1 ? (
+            <div className="kja-camp-grid">
+              {campuses.slice(1).map((campus, index) => {
+                const fact = CAMPUS_FACTS[campus.slug];
+                return (
+                  <Link href={`/branch/${campus.slug}`} className="kja-camp-card wow fadeInUp" data-wow-delay={`${0.2 + index * 0.1}s`} key={campus.slug}>
+                    <span className="kja-camp-card-media">
+                      {campus.image_url ? <img src={campus.image_url} alt="" /> : <i className="fas fa-location-dot" aria-hidden="true" />}
+                      <span className="kja-camp-stage">{fact?.stage ?? "Campus"}</span>
                     </span>
-                  )}
-                </div>
-                <div className="kja-campus-card-body">
-                  <h3 className="kja-campus-card-title">{campus.title}</h3>
-                  <p className="kja-campus-card-text">{campus.excerpt}</p>
-                  <Link href={`/branch/${campus.slug}`} className="kja-campus-card-cta">
-                    View campus
-                    <i className="fas fa-arrow-right" aria-hidden="true" />
+                    <span className="kja-camp-card-body">
+                      <span className="kja-camp-index" aria-hidden="true">{String(index + 2).padStart(2, "0")}</span>
+                      <strong>KJA {campus.title}</strong>
+                      {fact?.place ? <span className="kja-camp-place"><i className="fas fa-location-dot" aria-hidden="true" /> {fact.place}</span> : null}
+                      {campus.excerpt ? <span className="kja-camp-excerpt">{campus.excerpt}</span> : null}
+                      <span className="kja-camp-go">View campus <i className="fas fa-arrow-right" aria-hidden="true" /></span>
+                    </span>
                   </Link>
-                </div>
-              </article>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          ) : null}
         </div>
-      </div>
+      </section>
 
       <div className="video-area">
         <div className="container">
@@ -253,67 +285,61 @@ export function HomeView({ content }: { content: SiteContent }) {
         </div>
       </div>
 
-      <div className="choose-area pt-80 pb-80">
+      <section className="kja-why" aria-labelledby="kja-why-title">
         <div className="container">
-          <div className="row align-items-center">
-            <div className="col-lg-6">
-              <div className="choose-content wow fadeInUp" data-wow-delay=".25s">
-                <div className="choose-content-info">
-                  <div className="site-heading mb-0">
-                    <span className="site-title-tagline">
-                      <i className="fas fa-award" /> Why Choose Us
-                    </span>
-                    <h2 className="site-title text-white mb-10">
-                      We Are Expert & <span>Do Our Best</span> For Your Child&apos;s Education Success
-                    </h2>
-                    <p className="text-white" />
-                  </div>
-                  <div className="choose-content-wrap">
-                    <div className="row g-4">
-                      {settings.choose_items.map((item) => (
-                        <div className="col-md-6" key={item.title}>
-                          <div className="choose-item">
-                            <div className="choose-item-icon">
-                              <img src={item.icon} alt="" />
-                            </div>
-                            <div className="choose-item-info">
-                              <h4>{item.title}</h4>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+          <div className="kja-why-panel">
+            <header className="kja-why-head">
+              <div>
+                <span className="kja-nr-kicker kja-nr-kicker--light"><i className="fas fa-award" aria-hidden="true" /> Why choose us</span>
+                <h2 id="kja-why-title">What families <span>can count on</span></h2>
               </div>
-            </div>
-            <div className="col-lg-6">
-              <div className="choose-img wow fadeInRight" data-wow-delay=".25s">
-                <img src="/images/academics-2.png" alt="" />
+              <div className="kja-why-aside">
+                <p>From the classroom to the school office, Kampala Junior Academy is built around teachers who know each child, materials that are ready, and a school that keeps families informed.</p>
+                <Link href="/admissions" className="kja-nr-btn kja-nr-btn--gold">
+                  See how to join
+                  <i className="fas fa-arrow-right" aria-hidden="true" />
+                </Link>
               </div>
+            </header>
+            <div className="kja-why-layout">
+              <figure className="kja-why-photo">
+                <img src="/images/about-004.jpg" alt="Children learning outdoors at Kampala Junior Academy" />
+              </figure>
+              {settings.choose_items.length ? (
+                <ol className="kja-why-list">
+                  {settings.choose_items.map((item, index) => (
+                    <li key={item.title}>
+                      <span className="kja-why-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+                      <span className="kja-why-icon"><img src={item.icon} alt="" /></span>
+                      <h3>{item.title}</h3>
+                      {CHOOSE_COPY[item.title] ? <p>{CHOOSE_COPY[item.title]}</p> : null}
+                    </li>
+                  ))}
+                </ol>
+              ) : null}
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="gallery-area py-120">
+      <section className="kja-home-gal" aria-labelledby="kja-gal-title">
         <div className="container">
-          <div className="row">
-            <div className="col-lg-6 mx-auto">
-              <div className="site-heading text-center">
-                <span className="site-title-tagline">
-                  <i className="fas fa-images" /> Gallery
-                </span>
-                <h2 className="site-title">
-                  Our Photo <span>Gallery</span>
-                </h2>
-                <p>We keep a collection of images taken at various moments at school. This help us to share with our community the moments that we have at school that they might have missed.</p>
-              </div>
+          <header className="kja-gal-head">
+            <div>
+              <span className="kja-nr-kicker"><i className="fas fa-images" aria-hidden="true" /> Gallery</span>
+              <h2 id="kja-gal-title">Moments from <span>school life</span></h2>
             </div>
-          </div>
+            <div className="kja-gal-aside">
+              <p>Photographs from classrooms, celebrations and the days in between. A record of school life for families who could not be there.</p>
+              <Link href="/gallery" className="kja-gal-more">
+                View the gallery
+                <i className="fas fa-arrow-right" aria-hidden="true" />
+              </Link>
+            </div>
+          </header>
           <HomeGallery />
         </div>
-      </div>
+      </section>
 
       <div className="event-area bg py-120">
         <div className="container">

@@ -73,6 +73,15 @@ export async function deleteRecord(table: string, id: string) {
   revalidatePath("/", "layout");
 }
 
+export async function reorderRecords(table: string, ids: string[]) {
+  if (!TABLES.has(table)) throw new Error("Unknown collection.");
+  const supabase = await adminClient();
+  const results = await Promise.all(ids.map((id, index) => supabase.from(table).update({ sort_order: index }).eq("id", id)));
+  const failed = results.find((result) => result.error);
+  if (failed?.error) throw new Error(failed.error.message);
+  revalidatePath("/", "layout");
+}
+
 export async function saveSettings(formData: FormData) {
   const supabase = await adminClient();
   const jsonFields = ["counters", "hero_slides", "features", "choose_items", "socials"] as const;
@@ -181,25 +190,6 @@ async function publicClient() {
   return supabase;
 }
 
-export async function submitApplication(formData: FormData) {
-  const supabase = await publicClient();
-  const birthdate = clean(formData.get("child_birtDate"));
-  const { data: { user } } = await supabase.auth.getUser();
-  const { error } = await supabase.from("applications").insert({
-    user_id: user?.id ?? null,
-    parent_name: clean(formData.get("parent_names")),
-    email: clean(formData.get("parent_email")),
-    phone: clean(formData.get("parent_phone")),
-    child_name: clean(formData.get("child_name")),
-    campus: clean(formData.get("campus")),
-    grade: clean(formData.get("grade")),
-    child_dob: birthdate && /^\d{4}-\d{2}-\d{2}$/.test(birthdate) ? birthdate : null,
-    message: clean(formData.get("message")),
-    status: "received",
-  });
-  if (error) throw new Error(error.message);
-}
-
 export async function submitContact(formData: FormData) {
   const supabase = await publicClient();
   const { error } = await supabase.from("contact_messages").insert({
@@ -264,34 +254,6 @@ export async function subscribeNewsletter(formData: FormData) {
   const email = clean(formData.get("email"));
   const { error } = await supabase.from("newsletter_subscribers").insert({ email });
   if (error && !error.message.toLowerCase().includes("duplicate")) throw new Error(error.message);
-}
-
-export async function markInquiry(formData: FormData) {
-  const table = String(formData.get("table"));
-  if (table !== "applications" && table !== "contact_messages") throw new Error("Unknown inbox.");
-  await setInquiryRead(table, String(formData.get("id")), true);
-}
-
-export async function removeInquiry(formData: FormData) {
-  const table = String(formData.get("table"));
-  if (table !== "applications" && table !== "contact_messages" && table !== "newsletter_subscribers") {
-    throw new Error("Unknown inbox.");
-  }
-  await deleteInquiry(table, String(formData.get("id")));
-}
-
-export async function setInquiryRead(table: "applications" | "contact_messages", id: string, read: boolean) {
-  const supabase = await adminClient();
-  const { error } = await supabase.from(table).update({ read }).eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin");
-}
-
-export async function deleteInquiry(table: "applications" | "contact_messages" | "newsletter_subscribers", id: string) {
-  const supabase = await adminClient();
-  const { error } = await supabase.from(table).delete().eq("id", id);
-  if (error) throw new Error(error.message);
-  revalidatePath("/admin");
 }
 
 export async function signOut() {

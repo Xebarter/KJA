@@ -8,12 +8,14 @@ import {
   bulkUpdateApplications,
   deleteApplicationNote,
   deleteApplications,
+  recheckPayment,
   updateApplication,
   type ActionResult,
 } from "@/app/admin/(panel)/applications/actions";
 import {
   APPLICATION_STATUSES,
   CLASS_OPTIONS,
+  PAYMENT_FILTERS,
   filterHref,
   initials,
   statusInfo,
@@ -49,7 +51,7 @@ export function ApplicationFiltersBar({
   const router = useRouter();
   const [q, setQ] = useState(filters.q);
   const go = (changes: Partial<ApplicationFilters>) => router.push(filterHref(filters, changes));
-  const filtered = Boolean(filters.q || filters.campus || filters.grade || filters.owner || filters.sort !== "newest");
+  const filtered = Boolean(filters.q || filters.campus || filters.grade || filters.owner || filters.payment || filters.sort !== "newest");
 
   return (
     <form
@@ -79,12 +81,15 @@ export function ApplicationFiltersBar({
         <option value="none">Unassigned</option>
         {team.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
       </select>
+      <select aria-label="Admission fee" value={filters.payment} onChange={(event) => go({ payment: event.target.value as ApplicationFilters["payment"] })}>
+        {PAYMENT_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+      </select>
       <select aria-label="Sort" value={filters.sort} onChange={(event) => go({ sort: event.target.value as ApplicationFilters["sort"] })}>
         <option value="newest">Newest first</option>
         <option value="oldest">Oldest first</option>
       </select>
       {filtered ? (
-        <Link className="app-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", sort: "newest" })}>
+        <Link className="app-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", payment: "", sort: "newest" })}>
           Clear
         </Link>
       ) : null}
@@ -102,10 +107,83 @@ export type ApplicationRow = {
   status: string | null;
   ownerName: string | null;
   submitted: string;
+  submittedDate: string;
   submittedFull: string;
   visit: string | null;
   unread: boolean;
+  paid: boolean;
+  fee: string | null;
 };
+
+export type PendingPayment = {
+  id: string;
+  child: string;
+  parent: string;
+  campus: string;
+  amount: string;
+  phone: string;
+  started: string;
+  startedFull: string;
+  stuck: boolean;
+};
+
+export function PendingPayments({ items }: { items: PendingPayment[] }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState<string | null>(null);
+  const [result, setResult] = useState<ActionResult | null>(null);
+
+  const recheck = async (id: string) => {
+    setBusy(id);
+    const outcome = await recheckPayment(id).catch(() => ({ error: "Could not check this payment. Try again." }));
+    setResult(outcome);
+    setBusy(null);
+    router.refresh();
+  };
+
+  return (
+    <section className="apl-card apl-payq" aria-labelledby="apl-payq-title">
+      <header className="apl-payq-head">
+        <span className="apl-payq-icon" aria-hidden="true"><i className="fa-solid fa-hourglass-half" /></span>
+        <div>
+          <h2 id="apl-payq-title">Payments in progress</h2>
+          <p>Parents who started paying the admission fee but have no application yet. An application is created automatically once the payment is confirmed.</p>
+        </div>
+      </header>
+      <Feedback result={result} />
+      <ul className="apl-payq-list">
+        {items.map((item) => (
+          <li key={item.id} className={item.stuck ? "is-stuck" : ""}>
+            <div className="apl-payq-who">
+              <strong>{item.child}</strong>
+              <small>{item.parent} · {item.phone}</small>
+            </div>
+            <span className="apl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" />{item.campus}</span>
+            <span className="apl-payq-amount">{item.amount}</span>
+            <span className="apl-payq-state" title={item.startedFull}>
+              {item.stuck ? "Paid, application pending" : "Waiting for approval"}
+              <small>Started {item.started}</small>
+            </span>
+            <button type="button" className="app-link-btn" disabled={busy === item.id} onClick={() => recheck(item.id)}>
+              <i className={`fa-solid fa-rotate${busy === item.id ? " fa-spin" : ""}`} aria-hidden="true" /> Re-check
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+export function PaymentBadge({ paid, fee }: { paid: boolean; fee?: string | null }) {
+  return paid ? (
+    <span className="apl-pay is-paid" title={fee ? `Admission fee paid: ${fee}` : "Admission fee paid"}>
+      <i className="fa-solid fa-circle-check" aria-hidden="true" /> Paid
+    </span>
+  ) : (
+    <span className="apl-pay is-unpaid" title="No admission fee payment recorded">
+      <i className="fa-regular fa-circle" aria-hidden="true" /> Not paid
+    </span>
+  );
+}
 
 export function ApplicationsTable({
   rows,
@@ -207,6 +285,7 @@ export function ApplicationsTable({
             <th>Child</th>
             <th>Parent</th>
             <th>Campus</th>
+            <th>Admission fee</th>
             <th>Status</th>
             <th>Owner</th>
             <th>Received</th>
@@ -228,27 +307,41 @@ export function ApplicationsTable({
                   <input type="checkbox" aria-label={`Select ${row.child}`} checked={selected.has(row.id)} onChange={() => toggle(row.id)} />
                 </td>
                 <td className="app-col-child">
-                  <Link href={href}>
-                    {row.unread ? <span className="app-dot" title="Not opened yet" /> : null}
-                    {row.child}
+                  <Link href={href} className="apl-child">
+                    <span className={`apl-avatar${row.unread ? " is-unread" : ""}`} aria-hidden="true">{initials(row.child)}</span>
+                    <span className="apl-child-text">
+                      <strong>{row.child}</strong>
+                      {row.childMeta ? <small>{row.childMeta}</small> : null}
+                    </span>
+                    {row.unread ? <span className="visually-hidden">(not opened yet)</span> : null}
                   </Link>
-                  {row.childMeta ? <small>{row.childMeta}</small> : null}
                 </td>
                 <td data-label="Parent">
                   <span className="app-cell-main">{row.parent}</span>
                   <small>{row.contact}</small>
                 </td>
-                <td data-label="Campus">{row.campus || <span className="app-muted">Any</span>}</td>
+                <td data-label="Campus">
+                  {row.campus ? (
+                    <span className="apl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" />{row.campus}</span>
+                  ) : <span className="app-muted">Any campus</span>}
+                </td>
+                <td data-label="Admission fee">
+                  <PaymentBadge paid={row.paid} fee={row.fee} />
+                  {row.fee ? <small>{row.fee}</small> : null}
+                </td>
                 <td data-label="Status">
                   <StatusBadge status={row.status} />
-                  {row.visit ? <small><i className="fa-regular fa-calendar" /> {row.visit}</small> : null}
+                  {row.visit ? <small className="apl-visit"><i className="fa-regular fa-calendar" aria-hidden="true" /> {row.visit}</small> : null}
                 </td>
                 <td data-label="Owner">
                   {row.ownerName ? (
                     <span className="app-owner"><Avatar name={row.ownerName} />{row.ownerName}</span>
-                  ) : <span className="app-muted">Unassigned</span>}
+                  ) : <span className="apl-unassigned">Unassigned</span>}
                 </td>
-                <td data-label="Received" title={row.submittedFull}>{row.submitted}</td>
+                <td data-label="Received" title={row.submittedFull}>
+                  <span className="app-cell-main">{row.submitted}</span>
+                  {row.submitted !== row.submittedDate ? <small>{row.submittedDate}</small> : null}
+                </td>
               </tr>
             );
           })}

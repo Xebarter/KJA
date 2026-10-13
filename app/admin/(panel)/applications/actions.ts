@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { requireAdmin, loadPeople } from "@/lib/admin-applications";
 import { formatDateTime, fromKampalaInput, isStatus, statusInfo } from "@/lib/applications";
+import { loadPayment, refreshPayment } from "@/lib/payments/admission";
 
 export type ActionResult = { error?: string; ok?: string };
 
@@ -139,4 +140,16 @@ export async function deleteApplications(list: string[]): Promise<ActionResult> 
   if (error) return { error: error.message };
   refresh();
   return { ok: `Deleted ${targets.length} application${targets.length === 1 ? "" : "s"}.` };
+}
+
+export async function recheckPayment(id: string): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const row = await loadPayment(String(id));
+  if (!row) return { error: "This payment could not be found. Check that SUPABASE_SERVICE_ROLE_KEY is set." };
+  const latest = await refreshPayment(row);
+  refresh();
+  if (latest.status === "paid") return { ok: latest.application_id ? "Payment confirmed and the application has been created." : "Payment confirmed, but the application could not be created yet. Try again shortly." };
+  if (latest.status === "failed") return { ok: "The payment was not completed by the parent." };
+  return { ok: "Still waiting for the parent to approve the payment." };
 }

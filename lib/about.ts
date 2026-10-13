@@ -1,12 +1,11 @@
 import { decodeEntities, localizeHtml } from "@/lib/html";
 import { cleanExcerpt, newsroomPhotos } from "@/lib/newsroom";
+import { FEATURED_TEACHERS, orderTeachers } from "@/lib/teacher-admin";
 import type { Article, Counter, SiteContent } from "@/lib/types";
 
 export const FOUNDED = 1993;
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
-const LEADER_ORDER = ["shafik-baingana", "alice-namusoke", "shamim-nalubidde", "pual-kakande"];
-
 export const MILESTONES = [
   { year: "1993", title: "A nursery on Clement Hill Road", text: "Mrs Mary Mulumba opens a small nursery section, giving Kampala's youngest learners a safe, caring first classroom." },
   { year: "1997", title: "The primary school opens", text: "Families ask us to keep walking with their children, so KJA grows beyond the early years into primary education." },
@@ -61,7 +60,7 @@ export function composeAbout(content: SiteContent) {
   const { settings, pages } = content;
   const page = pages.find((item) => item.slug === "about-us");
   const directorPage = pages.find((item) => item.slug === "from-the-director");
-  const leaders = ordered(content.teachers, LEADER_ORDER).slice(0, 4);
+  const leaders = orderTeachers(content.teachers).slice(0, FEATURED_TEACHERS);
   const director = leaders.find((person) => /director/i.test(person.role || "")) ?? leaders[0];
   const message = paragraphs(directorPage?.body);
   const [lede, ...story] = splitAfter(settings.about_body, "since 1993.");

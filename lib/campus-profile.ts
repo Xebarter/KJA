@@ -1,3 +1,4 @@
+import { CAMPUS_ORDER, campusIcon, type CampusInsight } from "@/lib/campus-admin";
 import { getCampusPage, loadCampusData, type CampusPage, type CampusSectionBlock } from "@/lib/campus-pages";
 import { decodeEntities, localizeHtml } from "@/lib/html";
 import { cleanExcerpt, newsroomEvents } from "@/lib/newsroom";
@@ -11,8 +12,6 @@ type Meta = {
   flag?: string;
   levels?: CampusLevel[];
 };
-
-const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
 
 const PRIMARY_LEVELS: CampusLevel[] = [
   { name: "Nursery", age: "3–6 years", text: "Play-based early years classes that grow confidence, language, early literacy and numeracy." },
@@ -87,30 +86,6 @@ function paragraphs(html?: string | null) {
   return Array.from((html || "").matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi))
     .map((match) => text(match[1]))
     .filter((value) => value && !seen.has(value) && seen.add(value));
-}
-
-function icon(label: string, fallback = "fa-star") {
-  const rules: [RegExp, string][] = [
-    [/librar|read/i, "fa-book-open"],
-    [/ict|computer/i, "fa-laptop"],
-    [/art|music|language room/i, "fa-palette"],
-    [/playground|sport|field/i, "fa-futbol"],
-    [/toy|play\/?/i, "fa-puzzle-piece"],
-    [/classroom/i, "fa-chalkboard"],
-    [/drop-off|pick-up/i, "fa-car-side"],
-    [/parking/i, "fa-square-parking"],
-    [/restroom/i, "fa-restroom"],
-    [/4s club|achievement|reward/i, "fa-trophy"],
-    [/celebrat|special day|theme day/i, "fa-cake-candles"],
-    [/assembl/i, "fa-people-group"],
-    [/leader|prefect/i, "fa-user-tie"],
-    [/language/i, "fa-language"],
-    [/safe|secur/i, "fa-shield-heart"],
-    [/parent/i, "fa-people-roof"],
-    [/scenic|environment/i, "fa-tree"],
-    [/kind|giving/i, "fa-hand-holding-heart"],
-  ];
-  return rules.find(([pattern]) => pattern.test(label))?.[1] ?? fallback;
 }
 
 function ratioOf(value?: string | null) {
@@ -239,14 +214,14 @@ export function composeCampus(campus: Article, content: SiteContent) {
 
   const facilitySection = page ? (sectionsOf(page, "facilities")[0] as Extract<CampusSectionBlock, { kind: "facilities" }> | undefined) : undefined;
   const facilities: CampusFacility[] = facilitySection
-    ? facilitySection.items.map((item) => ({ title: title(item.title), image: item.image_url, icon: icon(title(item.title)) }))
-    : (group(/facilities/i)?.html.map(text).filter(Boolean) ?? []).map((value) => ({ title: title(value), image: "", icon: icon(title(value)) }));
+    ? facilitySection.items.map((item) => ({ title: title(item.title), image: item.image_url, icon: campusIcon(title(item.title)) }))
+    : (group(/facilities/i)?.html.map(text).filter(Boolean) ?? []).map((value) => ({ title: title(value), image: "", icon: campusIcon(title(value)) }));
 
   const welcomeSet = new Set(welcomeText);
   const cultureText = paragraphs(culture?.body_html).filter((value) => !welcomeSet.has(value));
   const moments: CampusMoment[] = momentBlock
-    ? momentBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: icon(item.title) }))
-    : (cultureGroup?.items ?? []).filter((item) => item !== ratioItem).map((item) => ({ title: title(item.title), html: itemHtml(item), icon: icon(item.title) }));
+    ? momentBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: campusIcon(item.title) }))
+    : (cultureGroup?.items ?? []).filter((item) => item !== ratioItem).map((item) => ({ title: title(item.title), html: itemHtml(item), icon: campusIcon(item.title) }));
   const ratioText = ratioItem ? itemText(ratioItem).join(" ") : culture?.ratio_value && !/^\s*\d+\s*teacher/i.test(culture.ratio_value) ? culture.ratio_value : "";
 
   const feeGroup = group(/fees/i);
@@ -274,7 +249,7 @@ export function composeCampus(campus: Article, content: SiteContent) {
   const community = communityBlock
     ? {
         image: communityBlock.image_url,
-        items: communityBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: icon(item.title) })),
+        items: communityBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: campusIcon(item.title) })),
       }
     : null;
 
@@ -336,3 +311,22 @@ export function composeCampus(campus: Article, content: SiteContent) {
 }
 
 export type CampusProfile = ReturnType<typeof composeCampus>;
+
+export function campusInsight(campus: Article, content: SiteContent): CampusInsight {
+  const profile = composeCampus(campus, content);
+  return {
+    hasLayout: Boolean(getCampusPage(campus.slug)),
+    stage: profile.stage,
+    flag: profile.flag,
+    address: profile.address,
+    heroImage: profile.heroImages[0] ?? "",
+    photos: profile.gallery.length,
+    facilities: profile.facilities.length,
+    clubs: profile.clubs.reduce((sum, club) => sum + Math.max(1, club.activities.length), 0),
+    ratio: profile.culture.ratio,
+    levels: profile.levels.map((level) => level.name),
+    steps: profile.steps.length,
+    events: profile.events.upcoming ? profile.events.items.length : 0,
+    fees: Boolean(profile.fees?.tuition || profile.fees?.admission),
+  };
+}

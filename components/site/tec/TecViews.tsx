@@ -742,7 +742,8 @@ export function TecMonthView({ view, today }: { view: MonthView; today: string }
             {[1, 2, 3, 4, 5, 6, 0].map((index) => (
               <th key={index} className="tribe-events-calendar-month__header-column" scope="col" abbr={WEEKDAYS_SHORT[index]}>
                 <div className="tribe-events-calendar-month__header-column-title tribe-common-b3">
-                  <span aria-hidden="true">{WEEKDAYS[index][0]}</span>
+                  <span aria-hidden="true" className="kja-ev-wd-letter">{WEEKDAYS[index][0]}</span>
+                  <span aria-hidden="true" className="kja-ev-wd-short">{WEEKDAYS_SHORT[index]}</span>
                   <span className="screen-reader-text">{WEEKDAYS[index]}</span>
                 </div>
               </th>

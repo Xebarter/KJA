@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
@@ -236,25 +235,12 @@ export function HomeGallery() {
 
   return (
     <>
-      <div className="row kja-gal">
-        {GALLERY.map((column, columnIndex) => (
-          <div className="col-md-4" key={column[0].src}>
-            {column.map((photo, row) => {
-              const index = GALLERY_PHOTOS.indexOf(photo);
-              return (
-                <div className="kja-gal-cell wow fadeInUp" data-wow-delay={`${0.15 + columnIndex * 0.15 + row * 0.1}s`} key={photo.src}>
-                  <GalleryCard photo={photo} index={index} total={GALLERY_PHOTOS.length} onOpen={() => setOpen(index)} />
-                </div>
-              );
-            })}
+      <div className="kja-gal kja-hg">
+        {GALLERY_PHOTOS.map((photo, index) => (
+          <div className="kja-gal-cell wow fadeInUp" data-wow-delay={`${0.08 + index * 0.06}s`} key={photo.src}>
+            <GalleryCard photo={photo} index={index} total={GALLERY_PHOTOS.length} onOpen={() => setOpen(index)} />
           </div>
         ))}
-        <div className="col-12 d-flex justify-content-center wow fadeInUp" data-wow-delay=".75s">
-          <Link href="/gallery" className="kja-btn mt-3">
-            View All
-            <i className="fas fa-arrow-right-long" />
-          </Link>
-        </div>
       </div>
       <PhotoLightbox photos={GALLERY_PHOTOS} open={open} setOpen={setOpen} />
     </>

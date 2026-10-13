@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AuthForm } from "@/components/account/AuthForm";
+import { safeNext } from "@/lib/safe-next";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 type AuthDialogContextValue = {
@@ -44,7 +45,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   }, [params, pathname, router]);
 
   const openAuth = useCallback((nextPath = "/account") => {
-    setNext(nextPath);
+    setNext(safeNext(nextPath));
     setOpen(true);
   }, []);
 
@@ -54,7 +55,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
 
   useEffect(() => {
     if (params.get("login") === "1") {
-      setNext(params.get("next") || "/account");
+      setNext(safeNext(params.get("next")));
       setOpen(true);
     }
   }, [params]);

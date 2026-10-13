@@ -6,6 +6,7 @@ import {
   DeleteNoteButton,
   ManagePanel,
   NoteForm,
+  PaymentBadge,
   StatusBadge,
 } from "@/components/admin/Applications";
 import { loadPeople, loadTeam, requireAdmin } from "@/lib/admin-applications";
@@ -29,6 +30,16 @@ const KIND_ICONS: Record<string, string> = {
 };
 
 type Activity = { id: string; actor_id: string | null; kind: string; body: string; created_at: string };
+type Payment = {
+  id: string;
+  receipt_no: string | null;
+  amount: number;
+  currency: string;
+  phone: string;
+  network: string | null;
+  transaction_ref: string | null;
+  paid_at: string | null;
+};
 
 function Detail({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -54,10 +65,14 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
     await supabase.from("applications").update({ read: true }).eq("id", id);
   }
 
-  const [{ data: activityData }, team] = await Promise.all([
+  const [{ data: activityData }, team, { data: paymentData }] = await Promise.all([
     supabase.from("application_activity").select("id, actor_id, kind, body, created_at").eq("application_id", id).order("created_at", { ascending: false }),
     loadTeam(supabase),
+    app.payment_id
+      ? supabase.from("admission_payments").select("id, receipt_no, amount, currency, phone, network, transaction_ref, paid_at").eq("id", app.payment_id).maybeSingle()
+      : Promise.resolve({ data: null }),
   ]);
+  const payment = paymentData as Payment | null;
   const activity = (activityData || []) as Activity[];
   const people = await loadPeople(supabase, [app.assigned_to, app.updated_by, ...activity.map((entry) => entry.actor_id)]);
   const now = Date.now();
@@ -149,7 +164,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                     <strong>{app.parent_name || "Parent"}</strong>
                     <span title={formatDateTime(app.created_at)}>{timeAgo(app.created_at, now)}</span>
                   </p>
-                  <p>Submitted the application</p>
+                  <p>Submitted the application{app.payment_status === "paid" ? " and paid the admission fee" : ""}</p>
                 </div>
               </li>
             </ol>
@@ -172,6 +187,31 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             {app.updated_at && updatedBy ? (
               <p className="app-updated">Last changed by {updatedBy} · {timeAgo(app.updated_at, now)}</p>
             ) : null}
+          </section>
+          <section className={`admin-card apl-paycard${app.payment_status === "paid" ? " is-paid" : ""}`}>
+            <h2 className="app-card-title">Admission fee</h2>
+            <div className="apl-paycard-head">
+              <PaymentBadge paid={app.payment_status === "paid"} />
+              {app.admission_fee ? <strong>UGX {app.admission_fee.toLocaleString("en-US")}</strong> : null}
+            </div>
+            {payment ? (
+              <>
+                <dl className="apl-paycard-facts">
+                  <div><dt>Receipt no.</dt><dd>{payment.receipt_no ?? "—"}</dd></div>
+                  <div><dt>Paid on</dt><dd>{formatDateTime(payment.paid_at)}</dd></div>
+                  <div><dt>Method</dt><dd>{payment.network ?? "Mobile money"}</dd></div>
+                  <div><dt>Paid from</dt><dd>{payment.phone.replace(/^256/, "0")}</dd></div>
+                  {payment.transaction_ref ? <div><dt>Transaction</dt><dd className="apl-paycard-ref">{payment.transaction_ref}</dd></div> : null}
+                </dl>
+                <a className="admin-btn admin-btn-ghost apl-paycard-btn" href={`/apply/receipt/${payment.id}`}>
+                  <i className="fa-solid fa-file-arrow-down" aria-hidden="true" /> Download receipt
+                </a>
+              </>
+            ) : (
+              <p className="app-muted apl-paycard-note">
+                {app.payment_status === "paid" ? "Payment details are not available." : "This application was submitted before online payment was introduced, or without paying the admission fee."}
+              </p>
+            )}
           </section>
           <DeleteApplicationButton id={app.id} child={child} />
         </aside>

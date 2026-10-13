@@ -20,11 +20,13 @@ export async function GET(request: Request) {
   const people = await loadPeople(supabase, rows.map((row) => row.assigned_to));
 
   const header = [
-    "Received", "Status", "Child", "Date of birth", "Class", "Campus", "Parent", "Phone", "Email", "Owner", "School visit", "Message",
+    "Received", "Status", "Admission fee", "Amount paid (UGX)", "Child", "Date of birth", "Class", "Campus", "Parent", "Phone", "Email", "Owner", "School visit", "Message",
   ];
   const lines = rows.map((row) => [
     formatDateTime(row.created_at),
     statusInfo(row.status).label,
+    row.payment_status === "paid" ? "Paid" : "Not paid",
+    row.payment_status === "paid" ? row.admission_fee ?? "" : "",
     row.child_name,
     formatDate(row.child_dob),
     row.grade,

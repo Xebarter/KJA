@@ -35,10 +35,19 @@ export type Application = {
   visit_at: string | null;
   read: boolean | null;
   user_id: string | null;
+  payment_status: string | null;
+  payment_id: string | null;
+  admission_fee: number | null;
   created_at: string;
   updated_at: string | null;
   updated_by: string | null;
 };
+
+export const PAYMENT_FILTERS = [
+  { value: "", label: "Any payment" },
+  { value: "paid", label: "Fee paid" },
+  { value: "unpaid", label: "Not paid" },
+] as const;
 
 export type TeamMember = { id: string; name: string; email: string | null };
 
@@ -122,6 +131,7 @@ export type ApplicationFilters = {
   campus: string;
   grade: string;
   owner: string;
+  payment: "" | "paid" | "unpaid";
   sort: "newest" | "oldest";
   page: number;
 };
@@ -132,7 +142,9 @@ export function parseFilters(params: Record<string, string | string[] | undefine
     return (Array.isArray(value) ? value[0] : value)?.trim() ?? "";
   };
   const status = pick("status");
+  const payment = pick("payment");
   return {
+    payment: payment === "paid" || payment === "unpaid" ? payment : "",
     status: status === "all" || isStatus(status) ? status : "open",
     q: pick("q").slice(0, 80),
     campus: pick("campus"),
@@ -151,6 +163,7 @@ export function filterHref(filters: ApplicationFilters, changes: Partial<Applica
   if (next.campus) params.set("campus", next.campus);
   if (next.grade) params.set("grade", next.grade);
   if (next.owner) params.set("owner", next.owner);
+  if (next.payment) params.set("payment", next.payment);
   if (next.sort !== "newest") params.set("sort", next.sort);
   if (next.page > 1) params.set("page", String(next.page));
   const query = params.toString();

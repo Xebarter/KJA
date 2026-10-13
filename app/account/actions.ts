@@ -58,25 +58,6 @@ export async function removeChild(formData: FormData) {
   refresh();
 }
 
-export async function submitParentApplication(formData: FormData) {
-  const { user, supabase } = await parentClient();
-  const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).maybeSingle();
-  const { error } = await supabase.from("applications").insert({
-    user_id: user.id,
-    parent_name: profile?.full_name || user.email,
-    email: user.email,
-    phone: profile?.phone || clean(formData.get("phone")),
-    child_name: clean(formData.get("child_name")),
-    child_dob: clean(formData.get("child_dob")),
-    campus: clean(formData.get("campus")),
-    grade: clean(formData.get("grade")),
-    message: clean(formData.get("message")),
-    status: "received",
-  });
-  if (error) throw new Error(error.message);
-  refresh();
-}
-
 export async function signupClub(formData: FormData) {
   const { user, supabase } = await parentClient();
   const { error } = await supabase.from("club_signups").insert({

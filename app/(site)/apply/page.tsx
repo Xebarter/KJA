@@ -1,20 +1,30 @@
 import Link from "next/link";
 import { ApplyForm } from "@/components/site/ApplyForm";
 import { getContent } from "@/lib/content";
+import { admissionFees } from "@/lib/payments/admission";
 
 export const metadata = { title: "Apply to Enroll" };
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
 
-const STEPS = ["Apply online", "Visit the school", "Placement"];
+const STEPS = [
+  { title: "Apply and pay online", text: "Fill in the form and pay the admission fee by mobile money." },
+  { title: "Visit the school", text: "We'll call to arrange a visit and assessment." },
+  { title: "Placement", text: "Receive your child's placement and joining details." },
+];
 
 export default async function ApplyPage() {
-  const { campuses, settings } = await getContent();
+  const [{ campuses, settings }, fees] = await Promise.all([getContent(), admissionFees()]);
   const rank = (slug: string) => {
     const index = CAMPUS_ORDER.indexOf(slug);
     return index === -1 ? CAMPUS_ORDER.length : index;
   };
-  const campusNames = [...campuses].sort((a, b) => rank(a.slug) - rank(b.slug)).map((campus) => campus.title);
+  const order = [...campuses].sort((a, b) => rank(a.slug) - rank(b.slug)).map((campus) => campus.title.trim().toLowerCase());
+  const place = (name: string) => {
+    const index = order.indexOf(name.trim().toLowerCase());
+    return index === -1 ? order.length : index;
+  };
+  const campusFees = [...fees].sort((a, b) => place(a.campus) - place(b.campus));
 
   return (
     <div className="kja-apply">
@@ -28,8 +38,8 @@ export default async function ApplyPage() {
           <p className="apply-eyebrow apply-rise">Admissions · Nursery &amp; Primary</p>
           <h1 className="apply-rise">Apply to Enroll</h1>
           <p className="apply-lead apply-rise">
-            Begin your child&apos;s journey at Kampala Junior Academy. Share a few details below and our admissions
-            team will be in touch to welcome you.
+            Begin your child&apos;s journey at Kampala Junior Academy. Share a few details below, pay the admission fee
+            by mobile money, and our admissions team will be in touch to welcome you.
           </p>
         </div>
       </section>
@@ -37,7 +47,7 @@ export default async function ApplyPage() {
       <section className="container apply-body">
         <div className="apply-grid">
           <div className="apply-main apply-rise">
-            <ApplyForm campuses={campusNames} phone={settings.phone} email={settings.email} />
+            <ApplyForm fees={campusFees} phone={settings.phone} email={settings.email} />
           </div>
 
           <aside className="apply-aside apply-rise">
@@ -45,9 +55,12 @@ export default async function ApplyPage() {
               <h2>Next steps</h2>
               <ol className="apply-steps">
                 {STEPS.map((step, index) => (
-                  <li key={step}>
+                  <li key={step.title}>
                     <span className="apply-steps-num" aria-hidden="true">{index + 1}</span>
-                    <h3>{step}</h3>
+                    <div>
+                      <h3>{step.title}</h3>
+                      <p>{step.text}</p>
+                    </div>
                   </li>
                 ))}
               </ol>
@@ -55,6 +68,23 @@ export default async function ApplyPage() {
                 Admission process <i className="fas fa-arrow-right" aria-hidden="true" />
               </Link>
             </div>
+
+            {campusFees.length ? (
+              <div className="apply-panel">
+                <h2>Admission fee</h2>
+                <ul className="apply-fees">
+                  {campusFees.map((item) => (
+                    <li key={item.campus}>
+                      <span>{item.campus}</span>
+                      <strong>UGX {item.fee.toLocaleString("en-US")}</strong>
+                    </li>
+                  ))}
+                </ul>
+                <Link className="apply-panel-link" href="/fees">
+                  Full fees structure <i className="fas fa-arrow-right" aria-hidden="true" />
+                </Link>
+              </div>
+            ) : null}
 
             <div className="apply-panel apply-panel-dark">
               <h2>Need help?</h2>

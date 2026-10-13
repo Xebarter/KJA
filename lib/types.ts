@@ -82,9 +82,18 @@ export type Vacancy = {
   id?: string;
   title: string;
   body?: string | null;
+  summary?: string | null;
   location?: string | null;
+  department?: string | null;
+  employment_type?: string | null;
+  positions?: number | null;
+  salary?: string | null;
+  start_date?: string | null;
+  apply_email?: string | null;
   closes_on?: string | null;
   published?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
 };
 
 export type SiteContent = {

@@ -190,7 +190,7 @@ export function RichTextEditor({ initialHtml, onChange, onUpload, startInSource,
 
       {complex && visual ? (
         <p className="rte-note">
-          <i className="fa-solid fa-circle-info" aria-hidden="true" /> This story was imported with custom layout (tables, embeds or WordPress blocks).
+          <i className="fa-solid fa-circle-info" aria-hidden="true" /> This content was imported with custom layout (tables, embeds or WordPress blocks).
           Editing it visually may simplify that layout. Use <button type="button" className="app-link-btn" onClick={toggleMode}>HTML mode</button> to keep it exactly.
         </p>
       ) : null}

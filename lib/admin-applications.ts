@@ -32,6 +32,8 @@ export function applicationsQuery(
   if (filters.owner === "me") query = query.eq("assigned_to", userId);
   else if (filters.owner === "none") query = query.is("assigned_to", null);
   else if (filters.owner) query = query.eq("assigned_to", filters.owner);
+  if (filters.payment === "paid") query = query.eq("payment_status", "paid");
+  else if (filters.payment === "unpaid") query = query.is("payment_status", null);
   return query.order("created_at", { ascending: filters.sort === "oldest" });
 }
 
