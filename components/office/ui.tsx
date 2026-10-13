@@ -162,6 +162,30 @@ export function Pager({ page, pages, total, from, size, href }: {
   );
 }
 
+export function Card({ title, icon, tone, count, action, footer, id, children }: {
+  title: string;
+  icon: string;
+  tone?: "med" | "danger" | "warn";
+  count?: number;
+  action?: React.ReactNode;
+  footer?: React.ReactNode;
+  id?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`admin-card ofc-card${tone ? ` is-${tone}` : ""}`} id={id}>
+      <header className="ofc-card-head">
+        <span className="ofc-card-icon" aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>
+        <h2>{title}</h2>
+        {count ? <span className="ofc-card-count">{count}</span> : null}
+        {action}
+      </header>
+      <div className="ofc-card-body">{children}</div>
+      {footer ? <footer className="ofc-card-foot">{footer}</footer> : null}
+    </section>
+  );
+}
+
 export function Detail({ label, children, wide = false }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
     <div className={`app-detail${wide ? " ofc-detail-wide" : ""}`}>

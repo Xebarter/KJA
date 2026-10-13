@@ -40,7 +40,11 @@ export async function middleware(request: NextRequest) {
     },
   });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getClaims verifies the session token locally when the project uses asymmetric signing keys,
+  // and falls back to asking Supabase Auth otherwise. It also refreshes an expired session.
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = typeof claims?.claims?.sub === "string" ? claims.claims.sub : null;
+  const user = userId ? { id: userId } : null;
 
   if (isAdmin) {
     if (!user) return parentLogin(isAdminLogin ? "/admin" : path + request.nextUrl.search);

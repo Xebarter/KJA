@@ -1,12 +1,16 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ActionButton, PrintButton } from "@/components/office/client";
+import { ActionButton, CopyButton, PrintButton } from "@/components/office/client";
+import { ProfileTabs, TabLink, TabNav, TabPanel } from "@/components/office/ProfileTabs";
 import { StudentForm } from "@/components/office/StudentForm";
 import { ChangeFamily, DeleteStudentNote, StudentNoteForm, StudentStatusActions } from "@/components/office/StudentProfile";
-import { Detail, MigrationHint, OfficeNotice, Sex, StudentStatus } from "@/components/office/ui";
+import { Card, Detail, MigrationHint, OfficeNotice, Sex, StudentStatus } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, initials, statusInfo, timeAgo, whatsappLink } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
+import { signStudentPhotos } from "@/lib/student-photos";
+import { createClient } from "@/lib/supabase/server";
+import { StudentPhoto } from "@/components/office/StudentPhoto";
 import {
   OFFICE,
   ageOutlier,
@@ -47,6 +51,20 @@ const KIND_ICONS: Record<string, string> = {
 
 type Sibling = { id: string; full_name: string; class_code: string | null; stream: string | null; status: string; date_of_birth: string | null };
 
+type FamilyRow = {
+  id: string;
+  family_code: string;
+  mailing_name: string | null;
+  home_area: string | null;
+  home_address: string | null;
+  street: string | null;
+  country: string | null;
+  notes: string | null;
+  guardians: Guardian[] | null;
+  family_contacts: FamilyContact[] | null;
+  students: Sibling[] | null;
+};
+
 export default async function StudentPage({
   params,
   searchParams,
@@ -57,34 +75,49 @@ export default async function StudentPage({
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const query = await searchParams;
-  const tab = TABS.find((entry) => entry.value === pick(query, "tab"))?.value ?? "overview";
-  const auth = await requireOffice();
-  if ("error" in auth) return <OfficeNotice title="Student" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
-  const { supabase, user } = auth;
+  const supabase = await createClient();
+  if (!supabase) return <OfficeNotice title="Student" heading="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code>.</p></OfficeNotice>;
 
-  const { data, error } = await supabase.from("students").select("*").eq("id", id).maybeSingle();
+  // The student, family, parents, contacts and siblings come back in one request. The access check
+  // runs alongside it; row-level security already limits the register to office staff.
+  const [auth, { data, error }, activityResult, streamResult] = await Promise.all([
+    requireOffice(),
+    supabase
+      .from("students")
+      .select("*, family:families(*, guardians(*), family_contacts(*), students(id, full_name, class_code, stream, status, date_of_birth))")
+      .eq("id", id)
+      .maybeSingle(),
+    supabase.from("student_activity").select("*").eq("student_id", id).order("created_at", { ascending: false }).limit(200),
+    supabase.from("students").select("stream").not("stream", "is", null).eq("status", "active").limit(2000),
+  ]);
+  if ("error" in auth) return <OfficeNotice title="Student" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
+  const { user } = auth;
   if (error) return <OfficeNotice title="Student" heading="This student could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
   if (!data) notFound();
-  const student = data as Student;
 
-  const [familyResult, guardianResult, contactResult, siblingResult, activityResult, appResult, streamResult] = await Promise.all([
-    student.family_id ? supabase.from("families").select("*").eq("id", student.family_id).maybeSingle() : Promise.resolve({ data: null }),
-    student.family_id ? supabase.from("guardians").select("*").eq("family_id", student.family_id).order("relationship") : Promise.resolve({ data: [] }),
-    student.family_id ? supabase.from("family_contacts").select("*").eq("family_id", student.family_id).order("position") : Promise.resolve({ data: [] }),
-    student.family_id
-      ? supabase.from("students").select("id, full_name, class_code, stream, status, date_of_birth").eq("family_id", student.family_id).neq("id", id).order("date_of_birth")
-      : Promise.resolve({ data: [] }),
-    supabase.from("student_activity").select("*").eq("student_id", id).order("created_at", { ascending: false }).limit(200),
-    supabase.from("applications").select("id, status, created_at, parent_name").or(`student_id.eq.${id}${student.admitted_from_application ? `,id.eq.${student.admitted_from_application}` : ""}`).limit(3),
-    tab === "edit" ? supabase.from("students").select("stream").not("stream", "is", null).eq("status", "active").limit(2000) : Promise.resolve({ data: [] }),
-  ]);
-  const family = familyResult.data as { id: string; family_code: string; mailing_name: string | null; home_area: string | null; home_address: string | null; street: string | null; country: string | null; notes: string | null } | null;
-  const guardians = (guardianResult.data || []) as Guardian[];
-  const contacts = (contactResult.data || []) as FamilyContact[];
-  const siblings = (siblingResult.data || []) as Sibling[];
+  const { family: familyRow, ...studentRow } = data as Student & { family: FamilyRow | null };
+  const student = studentRow as Student;
+  const family = familyRow;
+  const guardians = [...(familyRow?.guardians ?? [])].sort((a, b) => a.relationship.localeCompare(b.relationship));
+  const contacts = [...(familyRow?.family_contacts ?? [])].sort((a, b) => a.position - b.position);
+  const siblings = (familyRow?.students ?? [])
+    .filter((sibling) => sibling.id !== id)
+    .sort((a, b) => (a.date_of_birth ?? "9999").localeCompare(b.date_of_birth ?? "9999"));
   const activity = (activityResult.data || []) as StudentActivity[];
+  const streams = [...new Set(((streamResult.data || []) as { stream: string }[]).map((row) => row.stream))];
+
+  const photoPath = (student as Student & { photo_path?: string | null }).photo_path ?? null;
+  const [appResult, people, photos] = await Promise.all([
+    supabase
+      .from("applications")
+      .select("id, status, created_at, parent_name")
+      .or(`student_id.eq.${id}${student.admitted_from_application ? `,id.eq.${student.admitted_from_application}` : ""}`)
+      .limit(3),
+    loadPeople(supabase, activity.map((entry) => entry.actor_id)),
+    signStudentPhotos(supabase, [photoPath]),
+  ]);
+  const photoUrl = photoPath ? photos.get(photoPath) ?? null : null;
   const applications = (appResult.data || []) as { id: string; status: string; created_at: string; parent_name: string | null }[];
-  const people = await loadPeople(supabase, activity.map((entry) => entry.actor_id));
 
   const age = studentAge(student.date_of_birth);
   const outlier = ageOutlier(student.class_code, student.date_of_birth);
@@ -92,7 +125,6 @@ export default async function StudentPage({
   const notes = student.import_notes ?? [];
   const phones = contacts.filter((contact) => contact.kind === "phone");
   const emails = contacts.filter((contact) => contact.kind === "email");
-  const tabHref = (value: string) => `${OFFICE}/students/${id}${value === "overview" ? "" : `?tab=${value}`}`;
   const noteCount = activity.filter((entry) => entry.kind === "note").length;
   const active = student.status === "active";
 
@@ -118,29 +150,118 @@ export default async function StudentPage({
   );
 
   const parentCards = guardians.length ? (
-    <ul className="ofc-guardians">
+    <ul className="ofc-people">
       {guardians.map((guardian) => {
         const whatsapp = whatsappLink(guardian.phone);
+        const otherPhones = [
+          guardian.phone_alt ? { label: "Other", value: guardian.phone_alt } : null,
+          guardian.work_phone ? { label: "Work", value: guardian.work_phone } : null,
+        ].filter((entry): entry is { label: string; value: string } => Boolean(entry));
+        const work = [guardian.occupation, guardian.employer].filter(Boolean).join(" at ");
         return (
-          <li key={guardian.id}>
-            <span className="app-avatar app-avatar-md">{initials(guardian.full_name)}</span>
-            <div>
-              <strong>{[guardian.title, guardian.full_name].filter(Boolean).join(" ")}</strong>
-              <small>{cap(guardian.relationship)}{guardian.is_primary ? " · Main contact" : ""}{guardian.occupation ? ` · ${guardian.occupation}` : ""}</small>
-              <span className="ofc-agenda-contact">
-                {guardian.phone ? <a href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
-                {whatsapp ? <a href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a> : null}
-                {guardian.email ? <a href={`mailto:${guardian.email}`}><i className="fa-regular fa-envelope" aria-hidden="true" /> {guardian.email}</a> : null}
-              </span>
+          <li key={guardian.id} className={guardian.is_primary ? "is-primary" : ""}>
+            <div className="ofc-person-head">
+              <span className={`ofc-person-avatar is-${guardian.relationship}`} aria-hidden="true">{initials(guardian.full_name)}</span>
+              <div>
+                <strong>{[guardian.title, guardian.full_name].filter(Boolean).join(" ")}</strong>
+                <span>{cap(guardian.relationship)}{work ? ` · ${work}` : ""}</span>
+              </div>
+              {guardian.is_primary ? <span className="ofc-person-badge">Main contact</span> : null}
             </div>
+            {guardian.phone || guardian.email || whatsapp ? (
+              <div className="ofc-person-actions">
+                {guardian.phone ? (
+                  <span className="ofc-chip-group">
+                    <a className="ofc-chip-btn" href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a>
+                    <CopyButton value={displayPhone(guardian.phone)} label={`${guardian.full_name}'s phone number`} />
+                  </span>
+                ) : null}
+                {whatsapp ? (
+                  <a className="ofc-chip-btn is-whatsapp" href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a>
+                ) : null}
+                {guardian.email ? (
+                  <span className="ofc-chip-group">
+                    <a className="ofc-chip-btn" href={`mailto:${guardian.email}`}><i className="fa-regular fa-envelope" aria-hidden="true" /> {guardian.email}</a>
+                    <CopyButton value={guardian.email} label={`${guardian.full_name}'s email`} />
+                  </span>
+                ) : null}
+              </div>
+            ) : <p className="ofc-person-none">No phone or email on file</p>}
+            {otherPhones.length ? (
+              <p className="ofc-person-more">
+                {otherPhones.map((entry) => (
+                  <a key={entry.label} href={telHref(entry.value)}>{entry.label}: {displayPhone(entry.value)}</a>
+                ))}
+              </p>
+            ) : null}
           </li>
         );
       })}
     </ul>
-  ) : <p className="app-muted">No parents or guardians on file.</p>;
+  ) : <p className="ofc-empty-line">No parents or guardians on file.</p>;
+
+  const siblingList = siblings.length ? (
+    <ul className="ofc-kin">
+      {siblings.map((sibling) => (
+        <li key={sibling.id}>
+          <span className="ofc-kin-avatar" aria-hidden="true">{initials(sibling.full_name)}</span>
+          <Link href={`${OFFICE}/students/${sibling.id}`}>{sibling.full_name}</Link>
+          {sibling.status === "active" ? (
+            <span className="ofc-kin-class">{sibling.class_code ?? "No class"}{sibling.stream ? ` ${sibling.stream}` : ""}</span>
+          ) : (
+            <span className="ofc-kin-class is-gone">{cap(sibling.status)}</span>
+          )}
+        </li>
+      ))}
+    </ul>
+  ) : <p className="ofc-empty-line">No brothers or sisters on the register.</p>;
+
+  const yearsAtSchool = studentAge(student.enrolled_on);
+  const glance: { key: string; label: string; icon: string; value: React.ReactNode; sub?: React.ReactNode; warn?: boolean }[] = [
+    {
+      key: "class",
+      label: "Class",
+      icon: "fa-chalkboard",
+      value: student.class_code ? className(student.class_code) : "No class",
+      sub: outlier ?? (student.stream ? `Stream ${student.stream}` : "No stream"),
+      warn: Boolean(outlier),
+    },
+    {
+      key: "age",
+      label: "Age",
+      icon: "fa-cake-candles",
+      value: age !== null ? `${age} years` : "Not recorded",
+      sub: birthday !== null && birthday <= 14
+        ? birthday === 0 ? "Birthday today" : `Birthday in ${birthday} day${birthday === 1 ? "" : "s"}`
+        : student.date_of_birth ? `Born ${formatDate(student.date_of_birth)}` : "Date of birth missing",
+    },
+    { key: "house", label: "House", icon: "fa-flag", value: student.house ?? "No house", sub: student.tutor_group ? `Tutor group ${student.tutor_group}` : undefined },
+    { key: "campus", label: "Campus", icon: "fa-school", value: student.campus ?? "Not recorded" },
+    {
+      key: "enrolled",
+      label: "At KJA since",
+      icon: "fa-calendar-check",
+      value: student.enrolled_on ? formatDate(student.enrolled_on) : "Not recorded",
+      sub: yearsAtSchool !== null ? (yearsAtSchool < 1 ? "Joined this year" : `${yearsAtSchool} year${yearsAtSchool === 1 ? "" : "s"} at the school`) : undefined,
+    },
+    {
+      key: "family",
+      label: "Family",
+      icon: "fa-people-roof",
+      value: family ? <Link href={`${OFFICE}/families/${family.id}`} className="ofc-num">{family.family_code}</Link> : "Not linked",
+      sub: siblings.length ? `${siblings.length} sibling${siblings.length === 1 ? "" : "s"} on the register` : family ? "Only child at KJA" : undefined,
+    },
+  ];
+
+  const panadol = student.panadol_allowed === true
+    ? <span className="ofc-yes"><i className="fa-solid fa-check" aria-hidden="true" /> Allowed</span>
+    : student.panadol_allowed === false
+      ? <span className="ofc-no"><i className="fa-solid fa-ban" aria-hidden="true" /> Not allowed</span>
+      : null;
 
   return (
     <div className="app-page ofc-page ofc-profile">
+      <ProfileTabs tabs={TABS.map((entry) => entry.value)}>
       <Link href={`${OFFICE}/students`} className="app-back no-print"><i className="fa-solid fa-arrow-left" /> Students</Link>
 
       {pick(query, "enrolled") ? (
@@ -154,13 +275,13 @@ export default async function StudentPage({
       ) : null}
 
       <header className="ofc-profile-head no-print">
-        <span className={`ofc-avatar is-${student.sex === "M" ? "boy" : student.sex === "F" ? "girl" : "none"}`}>{initials(student.full_name)}</span>
+        <StudentPhoto id={id} name={student.full_name} url={photoUrl} sex={student.sex} size="lg" />
         <div className="ofc-profile-title">
           <p className="ofc-profile-kicker">
             <span className="ofc-num">{student.student_number}</span>
             <StudentStatus status={student.status} />
             {student.staff_child ? <span className="ofc-tag"><i className="fa-solid fa-id-badge" aria-hidden="true" /> Staff child</span> : null}
-            {student.medical_notes ? <Link className="ofc-tag is-med" href={tabHref("medical")}><i className="fa-solid fa-notes-medical" aria-hidden="true" /> Medical</Link> : null}
+            {student.medical_notes ? <TabLink tab="medical" className="ofc-tag is-med"><i className="fa-solid fa-notes-medical" aria-hidden="true" /> Medical</TabLink> : null}
           </p>
           <h1>{student.full_name}</h1>
           <p className="ofc-profile-sub">
@@ -172,7 +293,7 @@ export default async function StudentPage({
           </p>
         </div>
         <div className="ofc-profile-actions">
-          <Link className="admin-hero-btn is-primary" href={tabHref("edit")}><i className="fa-solid fa-pen" aria-hidden="true" /> Edit</Link>
+          <TabLink tab="edit" className="admin-hero-btn is-primary"><i className="fa-solid fa-pen" aria-hidden="true" /> Edit</TabLink>
           <PrintButton label="Print record" />
           <StudentStatusActions id={id} name={student.full_name} status={student.status} classCode={student.class_code} />
         </div>
@@ -198,139 +319,150 @@ export default async function StudentPage({
         </div>
       ) : null}
 
-      <nav className="ofc-tabs no-print" aria-label="Student record">
-        {TABS.map((entry) => (
-          <Link key={entry.value} href={tabHref(entry.value)} className={tab === entry.value ? "active" : ""} aria-current={tab === entry.value ? "page" : undefined}>
-            <i className={`fa-solid ${entry.icon}`} aria-hidden="true" /> {entry.label}
-            {entry.value === "timeline" && activity.length ? <span>{activity.length}</span> : null}
-            {entry.value === "family" && siblings.length ? <span>{siblings.length + 1}</span> : null}
-          </Link>
-        ))}
-      </nav>
+      <TabNav
+        label="Student record"
+        tabs={TABS.map((entry) => ({
+          ...entry,
+          count: entry.value === "timeline" ? activity.length : entry.value === "family" && siblings.length ? siblings.length + 1 : undefined,
+        }))}
+      />
 
       <div className="no-print">
-        {tab === "overview" ? (
-          <div className="app-detail-grid">
-            <div className="app-detail-main">
-              <section className="admin-card">
-                <h2 className="app-card-title">Personal details</h2>
-                <dl className="app-details">
-                  <Detail label="Surname">{student.surname}</Detail>
-                  <Detail label="Given names">{student.given_names}</Detail>
-                  <Detail label="Sex"><Sex sex={student.sex} /> {student.sex === "M" ? "Boy" : student.sex === "F" ? "Girl" : null}</Detail>
-                  <Detail label="Date of birth">
-                    {student.date_of_birth ? (
-                      <>
-                        {formatDate(student.date_of_birth)}
-                        {birthday !== null && birthday <= 14 ? <small className="ofc-inline-note"> · {birthday === 0 ? "Birthday today" : `Birthday in ${birthday} days`}</small> : null}
-                      </>
-                    ) : null}
-                  </Detail>
-                  <Detail label="Nationality">{student.nationality}</Detail>
-                  <Detail label="Religion">{student.religion}</Detail>
-                  <Detail label="Home language">{student.home_language}</Detail>
-                  <Detail label="Passport or ID">{student.passport_or_id}</Detail>
-                  {student.formal_name ? <Detail label="Formal name" wide>{student.formal_name}</Detail> : null}
-                </dl>
-              </section>
-              <section className="admin-card">
-                <h2 className="app-card-title">School</h2>
-                <dl className="app-details">
-                  <Detail label="Class">
-                    <Link href={`${OFFICE}/classes/${student.class_code}`}>{className(student.class_code)}</Link>
-                    {outlier ? <small className="ofc-inline-note is-warn"> · {outlier}</small> : null}
-                  </Detail>
-                  <Detail label="Stream">{student.stream}</Detail>
-                  <Detail label="House">{student.house}</Detail>
-                  <Detail label="Tutor group">{student.tutor_group}</Detail>
-                  <Detail label="Campus">{student.campus}</Detail>
-                  <Detail label="Enrolled">{student.enrolled_on ? formatDate(student.enrolled_on) : null}</Detail>
-                  <Detail label="Previous school">{student.transferred_from}</Detail>
-                  <Detail label="PLE index number">{student.exam_index_number}</Detail>
-                  {student.staff_child ? <Detail label="Staff category">{student.staff_category ?? "Staff child"}</Detail> : null}
-                  {applications.length ? (
-                    <Detail label="Application">
-                      {applications.map((app) => (
-                        <Link key={app.id} href={`${OFFICE}/applications/${app.id}`}>
-                          {formatDate(app.created_at)} · {statusInfo(app.status).label}
-                        </Link>
-                      ))}
+        <TabPanel tab="overview">
+            <dl className="ofc-glance" aria-label="At a glance">
+              {glance.map((item) => (
+                <div key={item.key} className={item.warn ? "is-warn" : ""}>
+                  <span className="ofc-glance-icon" aria-hidden="true"><i className={`fa-solid ${item.icon}`} /></span>
+                  <dt>{item.label}</dt>
+                  <dd>
+                    <strong>{item.value}</strong>
+                    {item.sub ? <small>{item.sub}</small> : null}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+
+            <div className="app-detail-grid ofc-profile-grid">
+              <div className="app-detail-main">
+                <Card title="Personal details" icon="fa-user" action={<TabLink tab="edit" className="ofc-card-link">Edit <i className="fa-solid fa-pen" aria-hidden="true" /></TabLink>}>
+                  <dl className="ofc-facts">
+                    <Detail label="Surname">{student.surname}</Detail>
+                    <Detail label="Given names">{student.given_names}</Detail>
+                    <Detail label="Preferred name">{student.preferred_name}</Detail>
+                    <Detail label="Sex">{student.sex ? <><Sex sex={student.sex} /> {student.sex === "M" ? "Boy" : "Girl"}</> : null}</Detail>
+                    <Detail label="Date of birth">{student.date_of_birth ? formatDate(student.date_of_birth) : null}</Detail>
+                    <Detail label="Nationality">{student.nationality}</Detail>
+                    <Detail label="Religion">{student.religion}</Detail>
+                    <Detail label="Home language">{student.home_language}</Detail>
+                    <Detail label="Passport or ID">{student.passport_or_id}</Detail>
+                    {student.formal_name ? <Detail label="Formal name">{student.formal_name}</Detail> : null}
+                  </dl>
+                </Card>
+
+                <Card title="School" icon="fa-graduation-cap">
+                  <dl className="ofc-facts">
+                    <Detail label="Class">
+                      {student.class_code ? <Link href={`${OFFICE}/classes/${student.class_code}`}>{className(student.class_code)}</Link> : null}
                     </Detail>
-                  ) : null}
-                </dl>
-              </section>
-              <section className="admin-card">
-                <h2 className="app-card-title">
-                  Parents and guardians
-                  {family ? <Link className="ofc-title-link" href={`${OFFICE}/families/${family.id}`}>{family.family_code} <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : null}
-                </h2>
-                {parentCards}
-              </section>
+                    <Detail label="Stream">{student.stream}</Detail>
+                    <Detail label="House">{student.house ? <span className={`ofc-house is-${student.house.toLowerCase()}`}>{student.house}</span> : null}</Detail>
+                    <Detail label="Tutor group">{student.tutor_group}</Detail>
+                    <Detail label="Campus">{student.campus}</Detail>
+                    <Detail label="Enrolled">{student.enrolled_on ? formatDate(student.enrolled_on) : null}</Detail>
+                    <Detail label="Previous school">{student.transferred_from}</Detail>
+                    <Detail label="PLE index number">{student.exam_index_number ? <span className="ofc-num">{student.exam_index_number}</span> : null}</Detail>
+                    {student.staff_child ? <Detail label="Staff category">{student.staff_category ?? "Staff child"}</Detail> : null}
+                    {applications.length ? (
+                      <Detail label="Application">
+                        {applications.map((app) => (
+                          <Link key={app.id} href={`${OFFICE}/applications/${app.id}`} className="ofc-block-link">
+                            {formatDate(app.created_at)} · {statusInfo(app.status).label}
+                          </Link>
+                        ))}
+                      </Detail>
+                    ) : null}
+                  </dl>
+                </Card>
+
+                <Card
+                  title="Parents and guardians"
+                  icon="fa-people-roof"
+                  action={family ? <Link className="ofc-card-link" href={`${OFFICE}/families/${family.id}`}>Family {family.family_code} <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : null}
+                >
+                  {parentCards}
+                </Card>
+              </div>
+
+              <aside className="app-detail-side">
+                <Card
+                  title="Health"
+                  icon="fa-notes-medical"
+                  tone="med"
+                  action={<TabLink tab="medical" className="ofc-card-link">Details <i className="fa-solid fa-arrow-right" aria-hidden="true" /></TabLink>}
+                >
+                  {student.medical_notes ? (
+                    <p className="ofc-health-note">{student.medical_notes}</p>
+                  ) : (
+                    <p className="ofc-empty-line"><i className="fa-regular fa-circle-check" aria-hidden="true" /> No medical notes on file.</p>
+                  )}
+                  <p className="ofc-health-line"><span>Panadol</span>{panadol ?? <span className="app-muted">Not asked</span>}</p>
+                </Card>
+
+                <Card
+                  title="Brothers and sisters"
+                  icon="fa-children"
+                  count={siblings.length}
+                  footer={family ? <Link className="ofc-card-foot-link" href={`${OFFICE}/students/new?family=${family.id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Enrol a sibling</Link> : null}
+                >
+                  {siblingList}
+                </Card>
+
+                <Card
+                  title="Notes"
+                  icon="fa-comment"
+                  count={noteCount}
+                  footer={activity.length > 5 ? <TabLink tab="timeline" className="ofc-card-foot-link">See the full timeline <i className="fa-solid fa-arrow-right" aria-hidden="true" /></TabLink> : null}
+                >
+                  <StudentNoteForm id={id} />
+                  {activity.length ? timeline(activity.slice(0, 5)) : null}
+                </Card>
+              </aside>
             </div>
-            <aside className="app-detail-side">
-              <section className="admin-card">
-                <h2 className="app-card-title">Brothers and sisters</h2>
-                {siblings.length ? (
-                  <ul className="ofc-list">
-                    {siblings.map((sibling) => (
-                      <li key={sibling.id}>
-                        <span className="ofc-mono">{initials(sibling.full_name)}</span>
-                        <div>
-                          <Link href={`${OFFICE}/students/${sibling.id}`}>{sibling.full_name}</Link>
-                          <small>{sibling.status === "active" ? `${sibling.class_code ?? "No class"}${sibling.stream ? ` ${sibling.stream}` : ""}` : cap(sibling.status)}</small>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : <p className="app-muted">No siblings on the register.</p>}
-                {family ? (
-                  <Link className="app-link-btn" href={`${OFFICE}/students/new?family=${family.id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Enrol a sibling</Link>
-                ) : null}
-              </section>
-              <section className="admin-card">
-                <h2 className="app-card-title">Notes <span className="app-count">{noteCount}</span></h2>
-                <StudentNoteForm id={id} />
-                {activity.length ? timeline(activity.slice(0, 5)) : null}
-                {activity.length > 5 ? <Link className="app-link-btn ofc-more" href={tabHref("timeline")}>See the full timeline</Link> : null}
-              </section>
-            </aside>
-          </div>
-        ) : null}
+        </TabPanel>
 
-        {tab === "edit" ? (
-          <StudentForm
-            mode="edit"
-            initial={student}
-            streams={[...new Set(((streamResult.data || []) as { stream: string }[]).map((row) => row.stream))]}
-          />
-        ) : null}
+        <TabPanel tab="edit">
+          <StudentForm mode="edit" initial={student} streams={streams} />
+        </TabPanel>
 
-        {tab === "family" ? (
-          <div className="app-detail-grid">
+        <TabPanel tab="family">
+          <div className="app-detail-grid ofc-profile-grid">
             <div className="app-detail-main">
-              <section className="admin-card">
-                <h2 className="app-card-title">
-                  {family ? family.mailing_name || family.family_code : "No family"}
-                  {family ? <Link className="ofc-title-link" href={`${OFFICE}/families/${family.id}`}>Open family page <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : null}
-                </h2>
+              <Card
+                title={family ? family.mailing_name || `Family ${family.family_code}` : "No family linked"}
+                icon="fa-house-chimney-user"
+                action={family ? <Link className="ofc-card-link" href={`${OFFICE}/families/${family.id}`}>Open family page <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : null}
+                footer={<ChangeFamily id={id} current={student.family_id} />}
+              >
                 {family ? (
-                  <dl className="app-details">
+                  <dl className="ofc-facts">
                     <Detail label="Family code"><span className="ofc-num">{family.family_code}</span></Detail>
                     <Detail label="Home area">{family.home_area}</Detail>
                     <Detail label="Address" wide>{[family.street, family.home_address, family.country].filter(Boolean).join(", ")}</Detail>
                     {family.notes ? <Detail label="Notes" wide>{family.notes}</Detail> : null}
                   </dl>
-                ) : <p className="app-muted">This student isn&apos;t linked to a family yet, so no parents&apos; contacts are on file.</p>}
-                <div className="ofc-row-actions"><ChangeFamily id={id} current={student.family_id} /></div>
-              </section>
-              <section className="admin-card">
-                <h2 className="app-card-title">Parents and guardians</h2>
+                ) : <p className="ofc-empty-line">This student isn&apos;t linked to a family yet, so no parents&apos; contacts are on file.</p>}
+              </Card>
+              <Card title="Parents and guardians" icon="fa-people-roof">
                 {parentCards}
-              </section>
+              </Card>
             </div>
             <aside className="app-detail-side">
-              <section className="admin-card">
-                <h2 className="app-card-title">All contacts</h2>
+              <Card
+                title="All contacts"
+                icon="fa-address-book"
+                count={contacts.length}
+                footer={family ? <Link className="ofc-card-foot-link" href={`${OFFICE}/families/${family.id}#contacts`}><i className="fa-solid fa-pen" aria-hidden="true" /> Edit contacts</Link> : null}
+              >
                 {contacts.length ? (
                   <ul className="ofc-contacts">
                     {[...phones, ...emails].map((contact) => (
@@ -343,49 +475,39 @@ export default async function StudentPage({
                       </li>
                     ))}
                   </ul>
-                ) : <p className="app-muted">No contacts on file.</p>}
-                {family ? <Link className="app-link-btn" href={`${OFFICE}/families/${family.id}#contacts`}>Edit contacts</Link> : null}
-              </section>
-              <section className="admin-card">
-                <h2 className="app-card-title">Siblings</h2>
-                {siblings.length ? (
-                  <ul className="ofc-list">
-                    {siblings.map((sibling) => (
-                      <li key={sibling.id}>
-                        <span className="ofc-mono">{initials(sibling.full_name)}</span>
-                        <div>
-                          <Link href={`${OFFICE}/students/${sibling.id}`}>{sibling.full_name}</Link>
-                          <small>{sibling.status === "active" ? className(sibling.class_code) : cap(sibling.status)}</small>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : <p className="app-muted">No siblings on the register.</p>}
-              </section>
+                ) : <p className="ofc-empty-line">No contacts on file.</p>}
+              </Card>
+              <Card title="Brothers and sisters" icon="fa-children" count={siblings.length}>
+                {siblingList}
+              </Card>
             </aside>
           </div>
-        ) : null}
+        </TabPanel>
 
-        {tab === "medical" ? (
-          <div className="app-detail-grid">
+        <TabPanel tab="medical">
+          <div className="app-detail-grid ofc-profile-grid">
             <div className="app-detail-main">
-              <section className="admin-card">
-                <h2 className="app-card-title">Medical notes</h2>
-                {student.medical_notes ? <p className="ofc-medical-note">{student.medical_notes}</p> : <p className="app-muted">No medical notes on file.</p>}
-                <dl className="app-details">
-                  <Detail label="Panadol">
-                    {student.panadol_allowed === true ? <span className="ofc-yes"><i className="fa-solid fa-check" aria-hidden="true" /> Allowed</span>
-                      : student.panadol_allowed === false ? <span className="ofc-no"><i className="fa-solid fa-ban" aria-hidden="true" /> Not allowed</span>
-                      : null}
-                  </Detail>
+              <Card
+                title="Medical notes"
+                icon="fa-notes-medical"
+                tone="med"
+                action={<TabLink tab="edit" className="ofc-card-link">Update <i className="fa-solid fa-pen" aria-hidden="true" /></TabLink>}
+              >
+                {student.medical_notes ? (
+                  <p className="ofc-medical-note">{student.medical_notes}</p>
+                ) : (
+                  <p className="ofc-empty-line"><i className="fa-regular fa-circle-check" aria-hidden="true" /> No allergies, conditions or medication on file.</p>
+                )}
+                <dl className="ofc-facts">
+                  <Detail label="Panadol">{panadol}</Detail>
                   <Detail label="Age">{age !== null ? `${age} years` : null}</Detail>
+                  <Detail label="Date of birth">{student.date_of_birth ? formatDate(student.date_of_birth) : null}</Detail>
+                  <Detail label="Sex">{student.sex === "M" ? "Boy" : student.sex === "F" ? "Girl" : null}</Detail>
                 </dl>
-                <Link className="app-link-btn" href={tabHref("edit")}><i className="fa-solid fa-pen" aria-hidden="true" /> Update medical details</Link>
-              </section>
+              </Card>
             </div>
             <aside className="app-detail-side">
-              <section className="admin-card">
-                <h2 className="app-card-title">Emergency contacts</h2>
+              <Card title="Emergency contacts" icon="fa-phone-volume" tone="danger">
                 {phones.length ? (
                   <ol className="ofc-contacts is-numbered">
                     {phones.slice(0, 5).map((contact) => (
@@ -398,27 +520,26 @@ export default async function StudentPage({
                       </li>
                     ))}
                   </ol>
-                ) : <p className="app-muted">No phone numbers on file.</p>}
-              </section>
+                ) : <p className="ofc-empty-line">No phone numbers on file.</p>}
+              </Card>
             </aside>
           </div>
-        ) : null}
+        </TabPanel>
 
-        {tab === "timeline" ? (
-          <div className="app-detail-grid">
-            <section className="admin-card">
-              <h2 className="app-card-title">Timeline <span className="app-count">{activity.length}</span></h2>
-              {activity.length ? timeline(activity) : <p className="app-muted">No changes recorded yet.</p>}
-            </section>
+        <TabPanel tab="timeline">
+          <div className="app-detail-grid ofc-profile-grid">
+            <Card title="Timeline" icon="fa-clock-rotate-left" count={activity.length}>
+              {activity.length ? timeline(activity) : <p className="ofc-empty-line">No changes recorded yet.</p>}
+            </Card>
             <aside className="app-detail-side">
-              <section className="admin-card">
-                <h2 className="app-card-title">Add a note</h2>
+              <Card title="Add a note" icon="fa-comment">
                 <StudentNoteForm id={id} />
-              </section>
+              </Card>
             </aside>
           </div>
-        ) : null}
+        </TabPanel>
       </div>
+      </ProfileTabs>
 
       <article className="ofc-print-sheet" aria-hidden="true">
         <header>

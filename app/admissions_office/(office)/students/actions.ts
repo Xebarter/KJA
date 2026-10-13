@@ -16,6 +16,7 @@ import {
   type ActionResult,
 } from "@/lib/office-forms";
 import { refreshOffice, requireOffice } from "@/lib/office";
+import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import {
   OFFICE,
   className,
@@ -402,6 +403,43 @@ export async function deleteStudentNote(noteId: string, studentId: string): Prom
   if (error) return { error: error.message };
   refreshOffice(`${OFFICE}/students/${studentId}`);
   return { ok: "Note deleted." };
+}
+
+const PHOTO_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg": "jpg", "image/png": "png" };
+
+/** Replaces a student's photo. The browser shrinks it to a small square before sending. */
+export async function setStudentPhoto(formData: FormData): Promise<ActionResult> {
+  const auth = await requireOffice();
+  if ("error" in auth) return { error: auth.error };
+  const id = String(formData.get("id") || "");
+  const photo = formData.get("photo");
+  if (!isUuid(id)) return { error: "This student could not be found." };
+  if (!(photo instanceof File) || !photo.size) return { error: "Choose a photo first." };
+  const extension = PHOTO_TYPES[photo.type];
+  if (!extension) return { error: "Use a JPG, PNG or WebP photo." };
+  if (photo.size > 1024 * 1024) return { error: "That photo is too large. Try a smaller one." };
+
+  const { data: current, error: readError } = await auth.supabase.from("students").select("photo_path").eq("id", id).maybeSingle();
+  if (readError) {
+    return { error: /photo_path/.test(readError.message) ? "Run supabase/0013_student_photos.sql in Supabase to turn on photos." : readError.message };
+  }
+  if (!current) return { error: "This student no longer exists." };
+
+  const path = `${id}/${Date.now()}.${extension}`;
+  const bucket = auth.supabase.storage.from(STUDENT_PHOTO_BUCKET);
+  const { error: uploadError } = await bucket.upload(path, photo, { contentType: photo.type, upsert: false });
+  if (uploadError) {
+    return { error: /bucket not found/i.test(uploadError.message) ? "Run supabase/0013_student_photos.sql in Supabase to turn on photos." : uploadError.message };
+  }
+  const { error } = await auth.supabase.from("students").update({ photo_path: path }).eq("id", id);
+  if (error) {
+    await bucket.remove([path]);
+    return { error: error.message };
+  }
+  if (current.photo_path) await bucket.remove([current.photo_path as string]);
+  await logStudents(auth.supabase, auth.user.id, [id], "edit", current.photo_path ? "Changed the photo" : "Added a photo");
+  refreshOffice(`${OFFICE}/students`, `${OFFICE}/students/${id}`);
+  return { ok: "Photo saved." };
 }
 
 /** Clears the import warnings on a student once someone has checked the record. */

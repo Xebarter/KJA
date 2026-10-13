@@ -407,13 +407,54 @@ export function searchNeedle(value: string) {
   return value.replace(/[%,()*\\:"']/g, " ").replace(/\s+/g, " ").trim();
 }
 
+/** The distinct words of a search, at most six of them. */
+export function searchWords(value: string) {
+  return [...new Set(searchNeedle(value).toLowerCase().split(" ").filter(Boolean))].slice(0, 6);
+}
+
+/** A PostgREST condition that holds when every word appears in at least one of the columns, in any order. */
+export function everyWord(words: string[], columns: string[]) {
+  const word = (text: string) => {
+    const tests = columns.map((column) => `${column}.ilike.%${text}%`);
+    return tests.length === 1 ? tests[0] : `or(${tests.join(",")})`;
+  };
+  return words.length === 1 ? word(words[0]) : `and(${words.map(word).join(",")})`;
+}
+
+/**
+ * The register search as a PostgREST or() filter. Names match word by word in any order, so
+ * "John Doe", "doe john" and "Jo Do" all find Doe John; the words must all belong to the
+ * student, or all to one parent. Numbers, codes, emails and phones match as typed.
+ */
+export function studentSearchFilter(raw: string) {
+  const needle = searchNeedle(raw);
+  const words = searchWords(raw);
+  if (!needle || !words.length) return "";
+  const like = `%${needle}%`;
+  const parts = [
+    everyWord(words, ["full_name", "preferred_name"]),
+    everyWord(words, ["father_name"]),
+    everyWord(words, ["mother_name"]),
+    `student_number.ilike.${like}`,
+    `family_code.ilike.${like}`,
+    `father_email.ilike.${like}`,
+    `mother_email.ilike.${like}`,
+  ];
+  const digits = needle.replace(/\D/g, "");
+  if (digits.length >= 6) {
+    const tail = `%${digits.slice(-9)}%`;
+    parts.push(`father_phone.ilike.${tail}`, `mother_phone.ilike.${tail}`);
+  }
+  return parts.join(",");
+}
+
 export function studentsQuery(
   supabase: SupabaseClient,
   filters: StudentFilters,
   columns = "*",
-  options: { count?: "exact" } = {},
+  options: { count?: "exact"; head?: boolean } = {},
 ) {
-  let query = supabase.from("student_directory").select(columns, options.count ? { count: options.count } : {});
+  let query = supabase.from("student_directory").select(columns, options.count ? { count: options.count, head: options.head } : {});
   if (filters.status !== "all") query = query.eq("status", filters.status);
   if (filters.section) query = query.eq("section", filters.section);
   if (filters.class) query = query.eq("class_code", filters.class);
@@ -423,25 +464,8 @@ export function studentsQuery(
   if (filters.staff) query = query.eq("staff_child", true);
   if (filters.medical) query = query.not("medical_notes", "is", null);
   if (filters.review) query = query.eq("needs_review", true);
-  const needle = searchNeedle(filters.q);
-  if (needle) {
-    const like = `%${needle}%`;
-    const digits = needle.replace(/\D/g, "");
-    const parts = [
-      `full_name.ilike.${like}`,
-      `student_number.ilike.${like}`,
-      `family_code.ilike.${like}`,
-      `father_name.ilike.${like}`,
-      `mother_name.ilike.${like}`,
-      `father_email.ilike.${like}`,
-      `mother_email.ilike.${like}`,
-    ];
-    if (digits.length >= 6) {
-      const tail = `%${digits.slice(-9)}%`;
-      parts.push(`father_phone.ilike.${tail}`, `mother_phone.ilike.${tail}`);
-    }
-    query = query.or(parts.join(","));
-  }
+  const search = studentSearchFilter(filters.q);
+  if (search) query = query.or(search);
   switch (filters.sort) {
     case "name":
       return query.order("full_name", { ascending: true });

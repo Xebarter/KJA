@@ -10,14 +10,6 @@ function clean(list: string[]) {
   return [...new Set(list.filter(isUuid))].slice(0, 2000);
 }
 
-export async function previewPromotion(exclude: string[]): Promise<PromotionResult> {
-  const auth = await requireOffice();
-  if ("error" in auth) return { error: auth.error };
-  const { data, error } = await auth.supabase.rpc("promote_students", { p_exclude: clean(exclude), p_dry_run: true });
-  if (error) return { error: error.message.includes("promote_students") ? "Run supabase/0011_admissions_office.sql in the Supabase SQL editor first." : error.message };
-  return { rows: (data || []) as PromotionRow[] };
-}
-
 export async function runPromotion(exclude: string[], confirmation: string, expected: number): Promise<PromotionResult> {
   const auth = await requireOffice();
   if ("error" in auth) return { error: auth.error };

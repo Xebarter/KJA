@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import {
   addStudentNote,
   changeStudentStatus,
@@ -112,6 +112,7 @@ export function StudentStatusActions({ id, name, status, classCode }: { id: stri
 export function StudentNoteForm({ id }: { id: string }) {
   const { result, pending, run } = useOfficeAction();
   const [body, setBody] = useState("");
+  const fieldId = useId();
   return (
     <form
       className="app-note-form"
@@ -122,9 +123,9 @@ export function StudentNoteForm({ id }: { id: string }) {
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <label className="visually-hidden" htmlFor="student-note">Add a note</label>
+      <label className="visually-hidden" htmlFor={fieldId}>Add a note</label>
       <textarea
-        id="student-note"
+        id={fieldId}
         name="body"
         value={body}
         onChange={(event) => setBody(event.target.value)}

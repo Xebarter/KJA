@@ -35,6 +35,29 @@ export function useOfficeAction() {
   return { result, setResult, pending, run };
 }
 
+export function CopyButton({ value, label }: { value: string; label: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      type="button"
+      className={`ofc-copy${copied ? " is-copied" : ""}`}
+      title={copied ? "Copied" : `Copy ${label}`}
+      aria-label={copied ? "Copied" : `Copy ${label}`}
+      onClick={async () => {
+        try {
+          await navigator.clipboard.writeText(value);
+          setCopied(true);
+          window.setTimeout(() => setCopied(false), 1500);
+        } catch {
+          window.prompt(`Copy ${label}`, value);
+        }
+      }}
+    >
+      <i className={`fa-${copied ? "solid fa-check" : "regular fa-copy"}`} aria-hidden="true" />
+    </button>
+  );
+}
+
 export function PrintButton({ label = "Print", className = "admin-hero-btn" }: { label?: string; className?: string }) {
   return (
     <button type="button" className={className} onClick={() => window.print()}>
