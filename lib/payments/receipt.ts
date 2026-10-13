@@ -1,16 +1,23 @@
-import { PDFDocument, StandardFonts, degrees, rgb, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
 import type { PaymentRow } from "@/lib/payments/admission";
 import { displayMsisdn } from "@/lib/payments/mobile";
 
 type School = { phone: string; email: string; address: string };
 
+const NAVY = rgb(0.098, 0.137, 0.169);
+const NAVY_SOFT = rgb(0.16, 0.21, 0.25);
 const RED = rgb(0.894, 0.141, 0.208);
 const GOLD = rgb(0.992, 0.639, 0.106);
+const GOLD_DEEP = rgb(0.769, 0.463, 0.016);
 const INK = rgb(0.098, 0.137, 0.169);
 const MUTED = rgb(0.435, 0.396, 0.353);
-const LINE = rgb(0.933, 0.89, 0.812);
-const TINT = rgb(0.988, 0.969, 0.933);
-const GREEN = rgb(0.106, 0.522, 0.29);
+const LINE = rgb(0.91, 0.87, 0.79);
+const TINT = rgb(0.992, 0.976, 0.945);
+const GOLD_TINT = rgb(1, 0.957, 0.882);
+const GREEN = rgb(0.09, 0.502, 0.239);
+const GREEN_TINT = rgb(0.89, 0.961, 0.91);
+const WHITE = rgb(1, 1, 1);
+const SOFT_WHITE = rgb(0.78, 0.8, 0.82);
 
 /** Standard PDF fonts only cover Latin-1. */
 function latin(text: string | null | undefined) {
@@ -18,7 +25,6 @@ function latin(text: string | null | undefined) {
     .replace(/[\u2018\u2019]/g, "'")
     .replace(/[\u201C\u201D]/g, '"')
     .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\u00B7/g, "-")
     .normalize("NFKD")
     .replace(/[^\x20-\x7E\xA0-\xFF]/g, "")
     .trim();
@@ -53,9 +59,15 @@ export function amountInWords(value: number) {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function kampalaDate(iso: string | null) {
+function kampalaDate(iso: string | null, withTime = true) {
   const date = iso ? new Date(iso) : new Date();
-  return new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kampala", day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Africa/Kampala",
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    ...(withTime ? { hour: "2-digit", minute: "2-digit", hour12: false } : {}),
+  }).format(date);
 }
 
 function fit(text: string, font: PDFFont, size: number, width: number) {
@@ -65,9 +77,23 @@ function fit(text: string, font: PDFFont, size: number, width: number) {
   return `${value.trimEnd()}...`;
 }
 
-export async function buildReceiptPdf(row: PaymentRow, school: School, logo: Uint8Array | null) {
+/** SVG path for a rounded rectangle whose origin is its top-left corner. */
+function rounded(w: number, h: number, r: number) {
+  return `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - r} Q${w},${h} ${w - r},${h} H${r} Q0,${h} 0,${h - r} V${r} Q0,0 ${r},0 Z`;
+}
+
+async function embed(pdf: PDFDocument, bytes: Uint8Array | null) {
+  if (!bytes) return null;
+  try {
+    return bytes[0] === 0x89 && bytes[1] === 0x50 ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export async function buildReceiptPdf(row: PaymentRow, school: School, crestBytes: Uint8Array | null) {
   const pdf = await PDFDocument.create();
-  pdf.setTitle(`Receipt ${row.receipt_no ?? ""}`.trim());
+  pdf.setTitle(`Admission fee receipt ${row.receipt_no ?? ""}`.trim());
   pdf.setAuthor("Kampala Junior Academy");
   pdf.setSubject("Admission fee receipt");
   pdf.setCreator("Kampala Junior Academy");
@@ -75,122 +101,175 @@ export async function buildReceiptPdf(row: PaymentRow, school: School, logo: Uin
 
   const page = pdf.addPage([595.28, 841.89]);
   const { width: W, height: H } = page.getSize();
-  const M = 56;
+  const M = 48;
+  const CW = W - 2 * M;
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const italic = await pdf.embedFont(StandardFonts.HelveticaOblique);
+  const crest: PDFImage | null = await embed(pdf, crestBytes);
+  const app = row.application;
+  const child = row.child_name ?? app.child_name;
+  const paid = `UGX ${row.amount.toLocaleString("en-US")}`;
 
-  const text = (p: PDFPage, value: string, x: number, y: number, size: number, font: PDFFont, color = INK) => p.drawText(latin(value), { x, y, size, font, color });
-  const right = (p: PDFPage, value: string, xRight: number, y: number, size: number, font: PDFFont, color = INK) => {
+  const text = (value: string, x: number, y: number, size: number, font: PDFFont, color: RGB = INK) =>
+    page.drawText(latin(value), { x, y, size, font, color });
+  const right = (value: string, xRight: number, y: number, size: number, font: PDFFont, color: RGB = INK) => {
     const clean = latin(value);
-    p.drawText(clean, { x: xRight - font.widthOfTextAtSize(clean, size), y, size, font, color });
+    page.drawText(clean, { x: xRight - font.widthOfTextAtSize(clean, size), y, size, font, color });
   };
-  const label = (value: string, x: number, y: number) => text(page, value.toUpperCase(), x, y, 7.5, bold, MUTED);
-
-  page.drawRectangle({ x: 0, y: H - 10, width: W, height: 10, color: RED });
-  page.drawRectangle({ x: 0, y: H - 13, width: W, height: 3, color: GOLD });
-
-  let top = H - 48;
-  let drewLogo = false;
-  if (logo) {
-    try {
-      const isPng = logo[0] === 0x89 && logo[1] === 0x50;
-      const image = isPng ? await pdf.embedPng(logo) : await pdf.embedJpg(logo);
-      const scaled = image.scaleToFit(200, 48);
-      page.drawImage(image, { x: M - 4, y: top - scaled.height + 4, width: scaled.width, height: scaled.height });
-      drewLogo = true;
-    } catch {
-      drewLogo = false;
+  const centered = (value: string, cx: number, y: number, size: number, font: PDFFont, color: RGB = INK) => {
+    const clean = latin(value);
+    page.drawText(clean, { x: cx - font.widthOfTextAtSize(clean, size) / 2, y, size, font, color });
+  };
+  const spacedWidth = (value: string, size: number, font: PDFFont, gap: number) =>
+    font.widthOfTextAtSize(value, size) + gap * Math.max(0, value.length - 1);
+  const spaced = (value: string, x: number, y: number, size: number, font: PDFFont, color: RGB, gap: number) => {
+    let cursor = x;
+    for (const char of latin(value)) {
+      page.drawText(char, { x: cursor, y, size, font, color });
+      cursor += font.widthOfTextAtSize(char, size) + gap;
     }
+  };
+  const label = (value: string, x: number, y: number, color: RGB = MUTED) => spaced(value.toUpperCase(), x, y, 7, bold, color, 0.9);
+  const box = (x: number, top: number, w: number, h: number, options: { fill?: RGB; border?: RGB; radius?: number; borderWidth?: number }) =>
+    page.drawSvgPath(rounded(w, h, options.radius ?? 10), {
+      x,
+      y: top,
+      color: options.fill,
+      borderColor: options.border,
+      borderWidth: options.border ? options.borderWidth ?? 1 : 0,
+    });
+
+  // Watermark
+  if (crest) {
+    const size = 330;
+    page.drawImage(crest, { x: (W - size) / 2, y: H / 2 - size / 2 - 60, width: size, height: size, opacity: 0.035 });
   }
-  if (!drewLogo) text(page, "KAMPALA JUNIOR ACADEMY", M, top - 20, 16, bold);
-  text(page, "Admissions Office", M, top - 60, 9.5, bold, INK);
-  text(page, fit(school.address, regular, 8.5, 260), M, top - 73, 8.5, regular, MUTED);
 
-  right(page, "RECEIPT", W - M, top - 24, 26, bold, RED);
-  right(page, "Admission fee", W - M, top - 40, 10, regular, MUTED);
+  // Header band
+  const bandH = 132;
+  page.drawRectangle({ x: 0, y: H - bandH, width: W, height: bandH, color: NAVY });
+  page.drawRectangle({ x: W - 210, y: H - bandH, width: 210, height: bandH, color: NAVY_SOFT });
+  page.drawRectangle({ x: 0, y: H - bandH - 4, width: W, height: 4, color: GOLD });
+  page.drawRectangle({ x: 0, y: H - bandH - 5.5, width: W, height: 1.5, color: RED });
 
-  top -= 92;
-  page.drawLine({ start: { x: M, y: top }, end: { x: W - M, y: top }, thickness: 1, color: LINE });
+  const crestCx = M + 42;
+  const crestCy = H - bandH / 2;
+  page.drawCircle({ x: crestCx, y: crestCy, size: 45, color: WHITE, borderColor: GOLD, borderWidth: 2.5 });
+  if (crest) page.drawImage(crest, { x: crestCx - 31, y: crestCy - 31, width: 62, height: 62 });
 
-  top -= 30;
-  const col = (W - 2 * M) / 3;
-  const meta: [string, string][] = [
-    ["Receipt no.", row.receipt_no ?? "-"],
+  const nameX = M + 102;
+  spaced("KAMPALA JUNIOR ACADEMY", nameX, H - 56, 14, bold, WHITE, 1.1);
+  text("Admissions Office", nameX, H - 74, 9.5, bold, GOLD);
+  text(fit(school.address, regular, 8.5, 220), nameX, H - 89, 8.5, regular, SOFT_WHITE);
+  text(fit(`${school.phone}  |  ${school.email}`, regular, 8.5, 220), nameX, H - 102, 8.5, regular, SOFT_WHITE);
+
+  const tag = "OFFICIAL RECEIPT";
+  spaced(tag, W - M - spacedWidth(tag, 8.5, bold, 1.6), H - 52, 8.5, bold, GOLD, 1.6);
+  right(row.receipt_no ?? "-", W - M, H - 72, 12.5, bold, WHITE);
+  right(`Issued ${kampalaDate(row.paid_at)}`, W - M, H - 88, 8.5, regular, SOFT_WHITE);
+
+  // Title
+  let top = H - bandH - 44;
+  text("Admission Fee Receipt", M, top, 21, bold, INK);
+  text(fit(`Thank you. We have received your payment for ${child}'s application to ${row.campus} campus.`, regular, 9.5, CW), M, top - 18, 9.5, regular, MUTED);
+  const pillW = 98;
+  box(W - M - pillW, top + 14, pillW, 26, { fill: GREEN_TINT, border: GREEN, radius: 13, borderWidth: 0.8 });
+  page.drawCircle({ x: W - M - pillW + 16, y: top + 1, size: 3.2, color: GREEN });
+  spaced("PAID IN FULL", W - M - pillW + 25, top - 2, 8, bold, GREEN, 0.7);
+
+  // Amount panel
+  top -= 42;
+  const amountH = 98;
+  box(M, top, CW, amountH, { fill: TINT, border: LINE });
+  page.drawRectangle({ x: M, y: top - amountH + 12, width: 3.5, height: amountH - 24, color: GOLD });
+  label("Amount received", M + 24, top - 26);
+  text(paid, M + 24, top - 60, 30, bold, RED);
+  text(fit(`${amountInWords(row.amount)} Uganda shillings only`, italic, 9, CW * 0.55 - 40), M + 24, top - 80, 9, italic, MUTED);
+  const splitX = M + CW * 0.58;
+  page.drawLine({ start: { x: splitX, y: top - 16 }, end: { x: splitX, y: top - amountH + 16 }, thickness: 1, color: LINE });
+  const facts: [string, string][] = [
     ["Date paid", kampalaDate(row.paid_at)],
     ["Payment method", row.network ?? "Mobile money"],
+    ["Paid from", displayMsisdn(row.phone)],
   ];
-  meta.forEach(([name, value], index) => {
-    label(name, M + col * index, top);
-    text(page, fit(value, bold, 11, col - 12), M + col * index, top - 16, 11, bold);
+  facts.forEach(([name, value], index) => {
+    const y = top - 28 - index * 22;
+    text(name, splitX + 20, y, 8.5, regular, MUTED);
+    right(fit(value, bold, 9.5, CW - (splitX - M) - 110), W - M - 20, y, 9.5, bold, INK);
   });
 
-  top -= 48;
-  const half = (W - 2 * M - 16) / 2;
-  const boxHeight = 112;
-  const app = row.application;
-  const boxes: [string, [string, string][]][] = [
-    ["Received from", [["Name", row.payer_name ?? app.parent_name], ["Email", row.payer_email ?? app.email], ["Paid from", displayMsisdn(row.phone)]]],
-    ["Application for", [["Child", row.child_name ?? app.child_name], ["Campus", row.campus], ["Class", app.grade ?? "To be confirmed"]]],
+  // Payer and application
+  top -= amountH + 20;
+  const cardH = 106;
+  const half = (CW - 16) / 2;
+  const cards: [string, RGB, [string, string][]][] = [
+    ["Received from", RED, [["Name", row.payer_name ?? app.parent_name], ["Email", row.payer_email ?? app.email], ["Phone", app.phone ?? displayMsisdn(row.phone)]]],
+    ["Application", GOLD_DEEP, [["Child", child], ["Campus", `${row.campus} campus`], ["Class", app.grade ?? "To be confirmed"]]],
   ];
-  boxes.forEach(([title, rows], index) => {
+  cards.forEach(([title, accent, rows], index) => {
     const x = M + index * (half + 16);
-    page.drawRectangle({ x, y: top - boxHeight, width: half, height: boxHeight, color: TINT, borderColor: LINE, borderWidth: 1 });
-    page.drawRectangle({ x, y: top - boxHeight, width: 3, height: boxHeight, color: index ? GOLD : RED });
-    text(page, title, x + 16, top - 22, 10.5, bold);
+    box(x, top, half, cardH, { border: LINE });
+    page.drawCircle({ x: x + 20, y: top - 22, size: 3.5, color: accent });
+    text(title, x + 30, top - 25.5, 10.5, bold, INK);
+    page.drawLine({ start: { x: x + 16, y: top - 36 }, end: { x: x + half - 16, y: top - 36 }, thickness: 0.6, color: LINE });
     rows.forEach(([name, value], line) => {
-      const y = top - 44 - line * 20;
-      text(page, name, x + 16, y, 8.5, regular, MUTED);
-      text(page, fit(value, bold, 9.5, half - 90), x + 78, y, 9.5, bold);
+      const y = top - 56 - line * 19;
+      text(name, x + 16, y, 8.5, regular, MUTED);
+      text(fit(value, bold, 9.5, half - 86), x + 70, y, 9.5, bold, INK);
     });
   });
 
-  top -= boxHeight + 34;
-  const tableW = W - 2 * M;
-  page.drawRectangle({ x: M, y: top - 8, width: tableW, height: 26, color: INK });
-  text(page, "DESCRIPTION", M + 14, top + 1, 8, bold, rgb(1, 1, 1));
-  right(page, "AMOUNT (UGX)", W - M - 14, top + 1, 8, bold, rgb(1, 1, 1));
+  // Payment summary
+  top -= cardH + 24;
+  page.drawSvgPath(`M8,0 H${CW - 8} Q${CW},0 ${CW},8 V26 H0 V8 Q0,0 8,0 Z`, { x: M, y: top, color: NAVY });
+  spaced("DESCRIPTION", M + 16, top - 17, 7.5, bold, WHITE, 1);
+  const amountHead = "AMOUNT (UGX)";
+  spaced(amountHead, W - M - 16 - spacedWidth(amountHead, 7.5, bold, 1), top - 17, 7.5, bold, WHITE, 1);
 
-  top -= 34;
-  text(page, fit(`Admission fee - ${row.campus} campus`, bold, 10.5, tableW - 160), M + 14, top, 10.5, bold);
-  text(page, `One-time admission fee for ${fit(row.child_name ?? app.child_name, regular, 9, 220)}`, M + 14, top - 15, 9, regular, MUTED);
-  right(page, row.amount.toLocaleString("en-US"), W - M - 14, top, 10.5, bold);
+  text(fit(`Admission fee - ${row.campus} campus`, bold, 10.5, CW - 160), M + 16, top - 46, 10.5, bold, INK);
+  text(fit(`One-time admission fee for ${child}`, regular, 8.5, CW - 160), M + 16, top - 60, 8.5, regular, MUTED);
+  right(row.amount.toLocaleString("en-US"), W - M - 16, top - 46, 10.5, bold, INK);
+  page.drawLine({ start: { x: M, y: top - 74 }, end: { x: W - M, y: top - 74 }, thickness: 0.8, color: LINE });
 
-  top -= 32;
-  page.drawLine({ start: { x: M, y: top }, end: { x: W - M, y: top }, thickness: 1, color: LINE });
-  top -= 28;
-  text(page, "Total paid", M + 14, top, 12, bold);
-  right(page, `UGX ${row.amount.toLocaleString("en-US")}`, W - M - 14, top, 16, bold, RED);
-  top -= 22;
-  text(page, `${amountInWords(row.amount)} Uganda shillings only.`, M + 14, top, 9.5, italic, MUTED);
+  const totalsW = 236;
+  const totalsX = W - M - totalsW;
+  text("Subtotal", totalsX + 14, top - 93, 9, regular, MUTED);
+  right(paid, W - M - 14, top - 93, 9, regular, INK);
+  box(totalsX, top - 104, totalsW, 32, { fill: GOLD_TINT, border: GOLD, radius: 8, borderWidth: 0.8 });
+  spaced("TOTAL PAID", totalsX + 14, top - 124, 8.5, bold, INK, 1);
+  right(paid, W - M - 14, top - 124.5, 13.5, bold, RED);
 
-  top -= 20;
-  page.drawLine({ start: { x: M, y: top }, end: { x: W - M, y: top }, thickness: 1, color: LINE });
+  label("Transaction ID", M + 16, top - 93);
+  text(fit(row.transaction_ref ?? row.id, regular, 8.5, totalsX - M - 40), M + 16, top - 107, 8.5, regular, INK);
+  label("Payment reference", M + 16, top - 124);
+  text(row.id.replace(/-/g, "").slice(0, 12).toUpperCase(), M + 16, top - 138, 8.5, regular, INK);
 
-  top -= 28;
-  label("Transaction reference", M, top);
-  text(page, fit(row.transaction_ref ?? row.id, regular, 9.5, tableW / 2), M, top - 15, 9.5, regular);
-  label("Status", M + tableW / 2 + 20, top);
-  text(page, "Paid in full", M + tableW / 2 + 20, top - 15, 9.5, bold, GREEN);
+  // Next steps and seal
+  top -= 168;
+  const noteW = CW - 128;
+  box(M, top, noteW, 74, { fill: TINT, border: LINE });
+  text("What happens next", M + 18, top - 23, 10.5, bold, INK);
+  text(fit("Our admissions team will contact you to arrange a school visit and assessment.", regular, 8.5, noteW - 36), M + 18, top - 41, 8.5, regular, MUTED);
+  text(fit("Please keep this receipt. You may be asked to present it during admission.", regular, 8.5, noteW - 36), M + 18, top - 55, 8.5, regular, MUTED);
 
-  const stampX = W - M - 150;
-  const stampY = top + 4;
-  page.drawRectangle({ x: stampX, y: stampY, width: 118, height: 44, borderColor: GREEN, borderWidth: 2.5, rotate: degrees(10), opacity: 0, borderOpacity: 0.85 });
-  page.drawText("PAID", { x: stampX + 22, y: stampY + 13, size: 24, font: bold, color: GREEN, rotate: degrees(10), opacity: 0.85 });
+  const sealX = W - M - 50;
+  const sealY = top - 37;
+  page.drawCircle({ x: sealX, y: sealY, size: 44, borderColor: GREEN, borderWidth: 2.2, borderOpacity: 0.9 });
+  page.drawCircle({ x: sealX, y: sealY, size: 38, borderColor: GREEN, borderWidth: 0.8, borderOpacity: 0.9 });
+  const sealTop = "KJA ADMISSIONS";
+  spaced(sealTop, sealX - spacedWidth(sealTop, 5.5, bold, 0.8) / 2, sealY + 15, 5.5, bold, GREEN, 0.8);
+  centered("PAID", sealX, sealY - 5, 19, bold, GREEN);
+  centered(kampalaDate(row.paid_at, false).toUpperCase(), sealX, sealY - 19, 6, bold, GREEN);
 
-  top -= 56;
-  page.drawRectangle({ x: M, y: top - 46, width: tableW, height: 54, color: TINT, borderColor: LINE, borderWidth: 1 });
-  text(page, "What happens next", M + 16, top - 8, 10, bold);
-  text(page, "Your application has been received. Our admissions team will contact you to arrange a school visit.", M + 16, top - 24, 8.5, regular, MUTED);
-  text(page, "Please keep this receipt for your records and bring it with you to the visit.", M + 16, top - 36, 8.5, regular, MUTED);
-
-  const footY = 64;
-  page.drawLine({ start: { x: M, y: footY + 22 }, end: { x: W - M, y: footY + 22 }, thickness: 1, color: LINE });
-  text(page, "This receipt was generated electronically and is valid without a signature.", M, footY + 6, 8, italic, MUTED);
-  text(page, `${school.phone}  |  ${school.email}  |  kja.ug`, M, footY - 8, 8, regular, MUTED);
-  right(page, row.receipt_no ?? "", W - M, footY - 8, 8, bold, MUTED);
-  page.drawRectangle({ x: 0, y: 0, width: W, height: 6, color: RED });
-  page.drawRectangle({ x: 0, y: 6, width: W, height: 2, color: GOLD });
+  // Footer
+  const footH = 46;
+  text("This is a computer-generated receipt and is valid without a signature.", M, footH + 22, 8, italic, MUTED);
+  right(`Receipt ${row.receipt_no ?? ""}`, W - M, footH + 22, 8, bold, MUTED);
+  page.drawRectangle({ x: 0, y: footH, width: W, height: 2.5, color: GOLD });
+  page.drawRectangle({ x: 0, y: 0, width: W, height: footH, color: NAVY });
+  centered(`${school.phone}   |   ${school.email}   |   kja.ug`, W / 2, 26, 8.5, bold, WHITE);
+  centered(fit(school.address, regular, 7.5, CW), W / 2, 13, 7.5, regular, SOFT_WHITE);
 
   return pdf.save();
 }

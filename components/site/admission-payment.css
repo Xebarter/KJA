@@ -130,32 +130,6 @@
   78%, 86%, 94% { transform: rotate(9deg); }
 }
 
-.pay-steps {
-  display: grid;
-  gap: 10px;
-  width: 100%;
-  max-width: 460px;
-  margin: 6px 0 0;
-  padding: 16px 18px;
-  border-radius: 14px;
-  background: var(--pay-tint);
-  list-style: none;
-  text-align: left;
-}
-.pay-steps li { display: flex; gap: 12px; align-items: flex-start; color: var(--pay-ink); font-size: 14px; line-height: 1.45; }
-.pay-steps span {
-  display: grid;
-  flex: none;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: var(--pay-ink);
-  color: #fff;
-  font-size: 11px;
-  font-weight: 800;
-}
-
 .pay-waiting { display: inline-flex; gap: 10px; align-items: center; margin: 0; color: var(--pay-muted); font-size: 13px; font-weight: 600; }
 .pay-dots { display: inline-flex; gap: 4px; }
 .pay-dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--pay-gold); animation: pay-dot 1.2s ease-in-out infinite; }

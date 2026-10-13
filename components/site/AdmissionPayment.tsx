@@ -16,14 +16,29 @@ const WAIT_MS = 150_000;
 
 type Phase = "idle" | "starting" | "waiting" | "timeout" | "paid" | "failed";
 
-function downloadReceipt(url: string) {
+function clickLink(href: string, name: string) {
   const link = document.createElement("a");
-  link.href = url;
+  link.href = href;
   link.rel = "noopener";
-  link.download = "";
+  link.download = name;
   document.body.appendChild(link);
   link.click();
   link.remove();
+}
+
+/** Saves the PDF to the device. Falls back to a direct link if the file can't be fetched first. */
+export async function downloadReceipt(url: string) {
+  try {
+    const response = await fetch(url, { cache: "no-store" });
+    if (!response.ok) throw new Error(String(response.status));
+    const blob = await response.blob();
+    const name = /filename="([^"]+)"/.exec(response.headers.get("Content-Disposition") || "")?.[1] || "KJA-Admission-Receipt.pdf";
+    const href = URL.createObjectURL(blob);
+    clickLink(href, name);
+    window.setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  } catch {
+    clickLink(url, "");
+  }
 }
 
 function remember(view: PaymentView | null, downloaded = false) {
@@ -57,7 +72,7 @@ export function useAdmissionPayment() {
       if (view.receiptUrl && downloaded.current !== view.id) {
         downloaded.current = view.id;
         remember(view, true);
-        downloadReceipt(view.receiptUrl);
+        void downloadReceipt(view.receiptUrl);
       }
     } else if (view.status === "failed") {
       setPhase("failed");
@@ -199,6 +214,7 @@ export function PaymentProgress({ flow, onChangeNumber, onRetry, onDone, doneLab
   const { phase, payment } = flow;
   const panel = useRef<HTMLDivElement>(null);
   const [checking, setChecking] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     panel.current?.focus({ preventScroll: true });
@@ -219,7 +235,7 @@ export function PaymentProgress({ flow, onChangeNumber, onRetry, onDone, doneLab
         <span className="pay-panel-icon" aria-hidden="true"><i className="fas fa-check" /></span>
         <h2>Payment received</h2>
         <p className="pay-panel-lead">
-          {payment.child}&apos;s application to {payment.campus} campus has been submitted. Your receipt is downloading now.
+          {payment.child}&apos;s application to {payment.campus} campus is submitted. Your receipt has been downloaded.
         </p>
         <dl className="pay-facts">
           <div><dt>Receipt no.</dt><dd>{payment.receiptNo}</dd></div>
@@ -228,13 +244,24 @@ export function PaymentProgress({ flow, onChangeNumber, onRetry, onDone, doneLab
         </dl>
         <div className="pay-actions">
           {payment.receiptUrl ? (
-            <a className="pay-btn pay-btn-primary" href={payment.receiptUrl} download>
-              <i className="fas fa-file-arrow-down" aria-hidden="true" /> Download receipt
-            </a>
+            <button
+              type="button"
+              className="pay-btn pay-btn-primary"
+              disabled={saving}
+              aria-busy={saving}
+              onClick={async () => {
+                setSaving(true);
+                await downloadReceipt(payment.receiptUrl as string);
+                setSaving(false);
+              }}
+            >
+              {saving ? <span className="pay-spinner" aria-hidden="true" /> : <i className="fas fa-file-arrow-down" aria-hidden="true" />}
+              Download again
+            </button>
           ) : null}
           <button type="button" className="pay-btn pay-btn-ghost" onClick={onDone}>{doneLabel}</button>
         </div>
-        <p className="pay-note">Our admissions team will contact you to arrange a school visit.</p>
+        <p className="pay-note">We&apos;ll contact you to arrange a school visit.</p>
       </div>
     );
   }
@@ -271,16 +298,10 @@ export function PaymentProgress({ flow, onChangeNumber, onRetry, onDone, doneLab
         <i className="fas fa-mobile-screen-button" />
         {timedOut ? null : <span className="pay-ring" />}
       </span>
-      <h2>{timedOut ? "Still waiting for approval" : "Approve the payment on your phone"}</h2>
+      <h2>{timedOut ? "Still waiting" : "Check your phone"}</h2>
       <p className="pay-panel-lead">
-        We sent a request for <strong>{ugx(payment.amount)}</strong> to <strong>{payment.phone}</strong> ({payment.network}).
-        {timedOut ? " If you've already entered your PIN, check again below." : " Enter your mobile money PIN when the prompt appears."}
+        {timedOut ? "Already approved? Check again." : <>Enter your PIN to pay <strong>{ugx(payment.amount)}</strong> from <strong>{payment.phone}</strong>.</>}
       </p>
-      <ol className="pay-steps">
-        <li><span>1</span>Unlock your phone and look for the payment prompt.</li>
-        <li><span>2</span>Check the amount, then enter your PIN to approve.</li>
-        <li><span>3</span>Keep this page open. Your receipt downloads automatically.</li>
-      </ol>
       {timedOut ? null : (
         <p className="pay-waiting"><span className="pay-dots" aria-hidden="true"><i /><i /><i /></span> Waiting for confirmation</p>
       )}
@@ -292,12 +313,11 @@ export function PaymentProgress({ flow, onChangeNumber, onRetry, onDone, doneLab
         ) : (
           <button type="button" className="pay-btn pay-btn-primary" onClick={checkNow} disabled={checking} aria-busy={checking}>
             {checking ? <span className="pay-spinner" aria-hidden="true" /> : <i className="fas fa-check" aria-hidden="true" />}
-            I&apos;ve approved it
+            I&apos;ve approved
           </button>
         )}
-        <button type="button" className="pay-btn pay-btn-ghost" onClick={onChangeNumber}>Use a different number</button>
+        <button type="button" className="pay-btn pay-btn-ghost" onClick={onChangeNumber}>Change number</button>
       </div>
-      <p className="pay-note">No prompt after a minute? Make sure the phone is on and has network, then try again.</p>
     </div>
   );
 }

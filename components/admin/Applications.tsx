@@ -8,6 +8,7 @@ import {
   bulkUpdateApplications,
   deleteApplicationNote,
   deleteApplications,
+  markPaymentFollowedUp,
   recheckPayment,
   updateApplication,
   type ActionResult,
@@ -119,22 +120,34 @@ export type PendingPayment = {
   id: string;
   child: string;
   parent: string;
+  email: string;
+  grade: string;
   campus: string;
   amount: string;
   phone: string;
+  tel: string;
+  state: "waiting" | "abandoned" | "failed" | "stuck";
+  reason: string | null;
+  attempts: number;
   started: string;
   startedFull: string;
-  stuck: boolean;
 };
 
-export function PendingPayments({ items }: { items: PendingPayment[] }) {
+const PAYMENT_STATES: Record<PendingPayment["state"], { label: string; icon: string }> = {
+  waiting: { label: "Paying now", icon: "fa-hourglass-half" },
+  abandoned: { label: "Payment not completed", icon: "fa-circle-pause" },
+  failed: { label: "Payment failed", icon: "fa-circle-xmark" },
+  stuck: { label: "Paid, application pending", icon: "fa-triangle-exclamation" },
+};
+
+export function PendingPayments({ items, tracked }: { items: PendingPayment[]; tracked: boolean }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
   const [result, setResult] = useState<ActionResult | null>(null);
 
-  const recheck = async (id: string) => {
+  const run = async (id: string, action: (id: string) => Promise<ActionResult>) => {
     setBusy(id);
-    const outcome = await recheckPayment(id).catch(() => ({ error: "Could not check this payment. Try again." }));
+    const outcome = await action(id).catch(() => ({ error: "Something went wrong. Try again." }));
     setResult(outcome);
     setBusy(null);
     router.refresh();
@@ -143,31 +156,58 @@ export function PendingPayments({ items }: { items: PendingPayment[] }) {
   return (
     <section className="apl-card apl-payq" aria-labelledby="apl-payq-title">
       <header className="apl-payq-head">
-        <span className="apl-payq-icon" aria-hidden="true"><i className="fa-solid fa-hourglass-half" /></span>
+        <span className="apl-payq-icon" aria-hidden="true"><i className="fa-solid fa-hand-holding-dollar" /></span>
         <div>
-          <h2 id="apl-payq-title">Payments in progress</h2>
-          <p>Parents who started paying the admission fee but have no application yet. An application is created automatically once the payment is confirmed.</p>
+          <h2 id="apl-payq-title">Unpaid applications <em className="apl-payq-count">{items.length}</em></h2>
+          <p>
+            Parents who filled in the application form but whose admission fee hasn&apos;t gone through. Paid applications move to the list below
+            automatically. Call to help them finish{tracked ? ", then mark them as followed up" : ""}.
+          </p>
         </div>
       </header>
       <Feedback result={result} />
       <ul className="apl-payq-list">
-        {items.map((item) => (
-          <li key={item.id} className={item.stuck ? "is-stuck" : ""}>
-            <div className="apl-payq-who">
-              <strong>{item.child}</strong>
-              <small>{item.parent} · {item.phone}</small>
-            </div>
-            <span className="apl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" />{item.campus}</span>
-            <span className="apl-payq-amount">{item.amount}</span>
-            <span className="apl-payq-state" title={item.startedFull}>
-              {item.stuck ? "Paid, application pending" : "Waiting for approval"}
-              <small>Started {item.started}</small>
-            </span>
-            <button type="button" className="app-link-btn" disabled={busy === item.id} onClick={() => recheck(item.id)}>
-              <i className={`fa-solid fa-rotate${busy === item.id ? " fa-spin" : ""}`} aria-hidden="true" /> Re-check
-            </button>
-          </li>
-        ))}
+        {items.map((item) => {
+          const state = PAYMENT_STATES[item.state];
+          const working = busy === item.id;
+          return (
+            <li key={item.id} className={`is-${item.state}`}>
+              <div className="apl-payq-who">
+                <strong>{item.child}{item.grade ? <span> · {item.grade}</span> : null}</strong>
+                <small>{item.parent} · {item.phone}{item.email ? ` · ${item.email}` : ""}</small>
+              </div>
+              <span className="apl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" />{item.campus}</span>
+              <span className="apl-payq-amount">{item.amount}</span>
+              <span className="apl-payq-state" title={item.reason ? `${state.label}: ${item.reason}` : item.startedFull}>
+                <span><i className={`fa-solid ${state.icon}`} aria-hidden="true" /> {state.label}</span>
+                <small>
+                  {item.started}
+                  {item.attempts > 1 ? ` · ${item.attempts} attempts` : ""}
+                </small>
+              </span>
+              <div className="apl-payq-actions">
+                <a className="app-link-btn" href={`tel:${item.tel}`} aria-label={`Call ${item.parent}`}>
+                  <i className="fa-solid fa-phone" aria-hidden="true" /> Call
+                </a>
+                {item.email ? (
+                  <a className="app-link-btn" href={`mailto:${item.email}?subject=${encodeURIComponent(`Your application for ${item.child}`)}`} aria-label={`Email ${item.parent}`}>
+                    <i className="fa-solid fa-envelope" aria-hidden="true" /> Email
+                  </a>
+                ) : null}
+                {item.state !== "failed" ? (
+                  <button type="button" className="app-link-btn" disabled={working} onClick={() => run(item.id, recheckPayment)}>
+                    <i className={`fa-solid fa-rotate${working ? " fa-spin" : ""}`} aria-hidden="true" /> Re-check
+                  </button>
+                ) : null}
+                {tracked && item.state !== "waiting" ? (
+                  <button type="button" className="app-link-btn" disabled={working} onClick={() => run(item.id, markPaymentFollowedUp)}>
+                    <i className="fa-solid fa-check" aria-hidden="true" /> Followed up
+                  </button>
+                ) : null}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </section>
   );

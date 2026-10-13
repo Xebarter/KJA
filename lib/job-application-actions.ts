@@ -80,8 +80,12 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
   if (!supabase) return { error: "Online applications aren't available right now.", unavailable: true };
 
   // Bots fill the hidden field or submit instantly; pretend it worked so they don't retry.
-  const started = Number(formData.get("started") || 0);
-  if (text(formData.get("company_website")) || (started && Date.now() - started < MIN_FILL_MS)) {
+  // `elapsed` is measured on the applicant's own clock, so a skewed device clock can't trip it.
+  const elapsed = Number(formData.get("elapsed"));
+  const trapped = Boolean(text(formData.get("ja_hp")));
+  const tooFast = Number.isFinite(elapsed) && elapsed > 0 && elapsed < MIN_FILL_MS;
+  if (trapped || tooFast) {
+    console.warn("[job-applications] discarded as spam", { trapped, elapsed, email: text(formData.get("email"), 160) });
     return { ok: "Application received.", reference: reference(randomUUID()) };
   }
 
@@ -136,6 +140,7 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
     const path = `${id}/${index + 1}-${safeFileName(entry.file.name)}`;
     const { error } = await supabase.storage.from(JOB_BUCKET).upload(path, entry.file, { contentType: entry.type, upsert: false });
     if (error) {
+      console.error("[job-applications] upload failed", { path, size: entry.file.size, error });
       if (missingSetup(error)) return { error: "Online applications are still being set up.", unavailable: true };
       return { error: "We couldn't upload your documents. Please check your connection and try again." };
     }
@@ -159,6 +164,7 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
     documents,
   });
   if (error) {
+    if (error.code !== "23505") console.error("[job-applications] insert failed", { vacancyId, error });
     if (error.code === "23505") return { error: "You've already applied for this role with this email address. We'll be in touch about your application." };
     if (missingSetup(error)) return { error: "Online applications are still being set up.", unavailable: true };
     if (error.code === "42501") return { error: "This role is no longer taking applications. You can still send a general application." };

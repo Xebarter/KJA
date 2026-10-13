@@ -1,4 +1,5 @@
 import { AdminShell } from "@/components/admin/Shell";
+import { loadUnpaidApplications } from "@/lib/admission-followups";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -10,13 +11,14 @@ export default async function PanelLayout({ children }: { children: React.ReactN
   let newJobApplications = 0;
   let admin = { name: "Administrator", email: "" };
   if (supabase) {
-    const [{ data }, apps, notes, jobs] = await Promise.all([
+    const [{ data }, apps, unpaid, notes, jobs] = await Promise.all([
       supabase.auth.getUser(),
       supabase.from("applications").select("id", { count: "exact", head: true }).eq("status", "received"),
+      loadUnpaidApplications(supabase),
       supabase.from("contact_messages").select("id", { count: "exact", head: true }).eq("read", false),
       supabase.from("job_applications").select("id", { count: "exact", head: true }).eq("status", "new"),
     ]);
-    newApplications = apps.count ?? 0;
+    newApplications = (apps.count ?? 0) + unpaid.items.length;
     unreadMessages = notes.count ?? 0;
     newJobApplications = jobs.count ?? 0;
     if (data.user) {

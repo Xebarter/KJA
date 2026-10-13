@@ -5,7 +5,7 @@ Next.js site for Kampala Junior Academy. Public pages read Supabase when it is c
 ## Setup
 
 1. Create a Supabase project.
-2. In the SQL editor, run the scripts in `supabase/` in filename order: `0001_schema.sql`, `0002_seed.sql`, `0003_parent_portal.sql`, `0004_admissions.sql`, `0005_stories.sql`, `0006_vacancies.sql`, `0007_job_applications.sql`.
+2. In the SQL editor, run the scripts in `supabase/` in filename order: `0001_schema.sql`, `0002_seed.sql`, `0003_parent_portal.sql`, `0004_admissions.sql`, `0005_stories.sql`, `0006_vacancies.sql`, `0007_job_applications.sql`, `0008_admission_payments.sql`, `0009_payment_followups.sql`.
 3. In Storage, confirm the public `media` bucket and the private `job-applications` bucket (for applicants' CVs) exist. The scripts create both.
 4. In Authentication, enable Email and Google providers. For Google, add the redirect URL `https://YOUR-DOMAIN/auth/callback`.
 5. Create the first admin: sign up through "Parent portal" on the site (or add an Auth user), then run:

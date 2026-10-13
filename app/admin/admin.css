@@ -138,15 +138,15 @@ body:has(.kja-admin) {
   min-width: 22px;
   padding: 0 7px;
   border-radius: 999px;
-  background: var(--admin-gold);
-  color: var(--admin-navy);
+  background: var(--admin-red);
+  color: #fff;
   font-size: .72rem;
   font-style: normal;
   font-weight: 800;
   line-height: 20px;
   text-align: center;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, .14), 0 4px 10px rgba(228, 36, 53, .35);
 }
-.admin-nav > a.active .admin-nav-badge { background: var(--admin-red); color: #fff; }
 .admin-nav-group > summary { list-style: none; }
 .admin-nav-group > summary::-webkit-details-marker { display: none; }
 .admin-nav-caret { font-size: .62rem; color: rgba(255, 255, 255, .35); transition: transform .2s ease; }
@@ -2324,21 +2324,44 @@ label.admin-hero-btn { cursor: pointer; }
 .apl-payq-head p { margin: .2rem 0 0; color: var(--admin-muted); font-size: .84rem; line-height: 1.45; }
 .apl-payq .app-feedback { margin: .75rem 1.15rem 0; }
 .apl-payq-list { margin: 0; padding: .35rem 0; list-style: none; }
+.apl-payq-head h2 { display: flex; align-items: center; gap: .5rem; }
+.apl-payq-count {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: var(--admin-red);
+  color: #fff;
+  font-size: .72rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
 .apl-payq-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1.6fr) auto minmax(90px, auto) minmax(150px, 1fr) auto;
+  grid-template-columns: minmax(0, 1.6fr) auto minmax(90px, auto) minmax(160px, 1fr) auto;
   align-items: center;
   gap: .9rem;
   padding: .7rem 1.15rem;
+  border-left: 3px solid transparent;
 }
 .apl-payq-list li + li { border-top: 1px solid var(--admin-line); }
 .apl-payq-who { min-width: 0; }
 .apl-payq-who strong { display: block; color: var(--admin-navy); font-size: .92rem; }
+.apl-payq-who strong span { color: var(--admin-muted); font-weight: 600; }
 .apl-payq-who small { display: block; overflow: hidden; color: var(--admin-muted); font-size: .8rem; text-overflow: ellipsis; white-space: nowrap; }
 .apl-payq-amount { color: var(--admin-navy); font-size: .88rem; font-weight: 700; white-space: nowrap; }
 .apl-payq-state { color: #b26b02; font-size: .82rem; font-weight: 600; }
+.apl-payq-state > span { display: inline-flex; align-items: center; gap: .35rem; }
 .apl-payq-state small { display: block; color: var(--admin-muted); font-size: .76rem; font-weight: 400; }
+.apl-payq-list li.is-waiting { border-left-color: #fda31b; }
+.apl-payq-list li.is-abandoned { border-left-color: #9aa5b1; }
+.apl-payq-list li.is-abandoned .apl-payq-state { color: #4f5b67; }
+.apl-payq-list li.is-failed,
+.apl-payq-list li.is-stuck { border-left-color: var(--admin-red); }
+.apl-payq-list li.is-failed .apl-payq-state,
 .apl-payq-list li.is-stuck .apl-payq-state { color: var(--admin-red); }
+.apl-payq-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .35rem .75rem; }
 .apl-payq-list .app-link-btn { white-space: nowrap; }
 
 .apl-paycard.is-paid { border-top: 3px solid #17803d; }
@@ -2356,4 +2379,5 @@ label.admin-hero-btn { cursor: pointer; }
   .apl-payq-list li { grid-template-columns: minmax(0, 1fr) auto; row-gap: .45rem; }
   .apl-payq-list .apl-campus { justify-self: start; }
   .apl-payq-amount { justify-self: end; }
+  .apl-payq-actions { grid-column: 1 / -1; justify-content: flex-start; }
 }

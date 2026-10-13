@@ -13,6 +13,7 @@ import {
   timeAgo,
   type Application,
 } from "@/lib/applications";
+import { loadUnpaidApplications } from "@/lib/admission-followups";
 import { getContent } from "@/lib/content";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
@@ -22,18 +23,6 @@ const PAGE_SIZE = 25;
 const DAY = 24 * 3600 * 1000;
 const COLUMNS = "id, parent_name, email, phone, child_name, child_dob, campus, grade, status, assigned_to, visit_at, read, payment_status, admission_fee, created_at";
 const ugx = (value: number) => `UGX ${value.toLocaleString("en-US")}`;
-
-type PaymentAttempt = {
-  id: string;
-  child_name: string | null;
-  payer_name: string | null;
-  campus: string;
-  amount: number;
-  phone: string;
-  status: string;
-  application_id: string | null;
-  created_at: string;
-};
 
 function Notice({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -66,18 +55,12 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   const filters = parseFilters(await searchParams);
   const from = (filters.page - 1) * PAGE_SIZE;
 
-  const [listResult, summaryResult, team, content, attemptsResult] = await Promise.all([
+  const [listResult, summaryResult, team, content, unpaid] = await Promise.all([
     applicationsQuery(supabase, filters, user.id, COLUMNS, { count: "exact" }).range(from, from + PAGE_SIZE - 1),
     supabase.from("applications").select("status, read, created_at, visit_at, assigned_to, payment_status, admission_fee"),
     loadTeam(supabase),
     getContent(),
-    supabase
-      .from("admission_payments")
-      .select("id, child_name, payer_name, campus, amount, phone, status, application_id, created_at")
-      .or("status.in.(initiated,pending),and(status.eq.paid,application_id.is.null)")
-      .gte("created_at", new Date(Date.now() - 14 * DAY).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(20),
+    loadUnpaidApplications(supabase),
   ]);
 
   if (listResult.error || summaryResult.error) {
@@ -106,19 +89,21 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
   const mine = summary.filter((row) => row.assigned_to === user.id && isOpen(row)).length;
   const paidRows = summary.filter((row) => row.payment_status === "paid");
   const collected = paidRows.reduce((sum, row) => sum + (row.admission_fee ?? 0), 0);
-  const attempts = ((attemptsResult.data || []) as PaymentAttempt[]).filter(
-    (row) => row.status === "paid" || now - new Date(row.created_at).getTime() > 2 * 60 * 1000,
-  );
-  const pendingPayments: PendingPayment[] = attempts.map((row) => ({
+  const pendingPayments: PendingPayment[] = unpaid.items.map((row) => ({
     id: row.id,
-    child: row.child_name || "Unnamed child",
-    parent: row.payer_name || "Parent",
+    child: row.child || "Unnamed child",
+    parent: row.parent || "Parent",
+    email: row.email ?? "",
+    grade: row.grade ?? "",
     campus: row.campus,
     amount: ugx(row.amount),
     phone: row.phone.replace(/^256/, "0"),
-    started: timeAgo(row.created_at, now),
-    startedFull: formatDateTime(row.created_at),
-    stuck: row.status === "paid",
+    tel: `+${row.phone.replace(/^\+/, "")}`,
+    state: row.state,
+    reason: row.reason,
+    attempts: row.attempts,
+    started: timeAgo(row.createdAt, now),
+    startedFull: formatDateTime(row.createdAt),
   }));
   const unassigned = summary.filter((row) => !row.assigned_to && isOpen(row)).length;
 
@@ -229,7 +214,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
         ))}
       </div>
 
-      {pendingPayments.length ? <PendingPayments items={pendingPayments} /> : null}
+      {pendingPayments.length ? <PendingPayments items={pendingPayments} tracked={unpaid.tracked} /> : null}
 
       <section className="apl-card">
         <nav className="apl-tabs" aria-label="Filter by status">

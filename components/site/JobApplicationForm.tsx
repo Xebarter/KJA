@@ -201,7 +201,7 @@ export function JobApplicationForm({
     }
     const data = new FormData(form);
     data.set("cover_letter", letter);
-    data.set("started", String(started));
+    data.set("elapsed", String(started ? Date.now() - started : ""));
     data.delete("documents");
     if (cv) data.set("cv", cv);
     extras.forEach((file) => data.append("documents", file));
@@ -262,9 +262,20 @@ export function JobApplicationForm({
 
   return (
     <form ref={formRef} className="kja-ct-form kja-ja-form" noValidate onSubmit={onSubmit} aria-label="Job application form" aria-busy={sending || undefined}>
+      {/* Spam trap: must stay unrendered and free of autofill-friendly names, or browsers fill it and the application is discarded. */}
       <div className="kja-ja-trap" aria-hidden="true">
-        <label htmlFor="ja-company-website">Company website</label>
-        <input id="ja-company-website" name="company_website" type="text" tabIndex={-1} autoComplete="off" />
+        <label htmlFor="ja-hp">Leave this empty</label>
+        <input
+          id="ja-hp"
+          name="ja_hp"
+          type="text"
+          tabIndex={-1}
+          autoComplete="off"
+          data-1p-ignore=""
+          data-lpignore="true"
+          data-bwignore=""
+          data-form-type="other"
+        />
       </div>
 
       <fieldset className="kja-ct-step">

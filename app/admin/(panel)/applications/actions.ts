@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { requireAdmin, loadPeople } from "@/lib/admin-applications";
 import { formatDateTime, fromKampalaInput, isStatus, statusInfo } from "@/lib/applications";
 import { loadPayment, refreshPayment } from "@/lib/payments/admission";
+import { serviceClient } from "@/lib/supabase/service";
 
 export type ActionResult = { error?: string; ok?: string };
 
@@ -152,4 +153,21 @@ export async function recheckPayment(id: string): Promise<ActionResult> {
   if (latest.status === "paid") return { ok: latest.application_id ? "Payment confirmed and the application has been created." : "Payment confirmed, but the application could not be created yet. Try again shortly." };
   if (latest.status === "failed") return { ok: "The payment was not completed by the parent." };
   return { ok: "Still waiting for the parent to approve the payment." };
+}
+
+export async function markPaymentFollowedUp(id: string): Promise<ActionResult> {
+  const auth = await requireAdmin();
+  if ("error" in auth) return { error: auth.error };
+  if (!/^[0-9a-f-]{36}$/i.test(String(id))) return { error: "This payment could not be found." };
+  const db = serviceClient();
+  if (!db) return { error: "Set SUPABASE_SERVICE_ROLE_KEY to manage unpaid applications." };
+  const { error } = await db
+    .from("admission_payments")
+    .update({ followed_up_at: new Date().toISOString(), followed_up_by: auth.user.id })
+    .eq("id", id);
+  if (error) {
+    return { error: error.code === "42703" ? "Run supabase/0009_payment_followups.sql in the Supabase SQL editor first." : error.message };
+  }
+  refresh();
+  return { ok: "Marked as followed up." };
 }

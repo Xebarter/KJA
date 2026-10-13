@@ -15,12 +15,12 @@ async function isAdmin() {
   return data?.role === "admin";
 }
 
-async function logo(request: Request) {
+async function crest(request: Request) {
   try {
-    return new Uint8Array(await readFile(path.join(process.cwd(), "public", "images", "kja-logo.png")));
+    return new Uint8Array(await readFile(path.join(process.cwd(), "public", "images", "icon.png")));
   } catch {
     try {
-      const response = await fetch(new URL("/images/kja-logo.png", request.url));
+      const response = await fetch(new URL("/images/icon.png", request.url));
       return response.ok ? new Uint8Array(await response.arrayBuffer()) : null;
     } catch {
       return null;
@@ -42,7 +42,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (row.status !== "paid") return notAvailable("This payment has not been completed, so there is no receipt yet.", 409);
 
   const { settings } = await getContent();
-  const bytes = await buildReceiptPdf(row, settings, await logo(request));
+  const bytes = await buildReceiptPdf(row, settings, await crest(request));
   const name = `KJA-Admission-Receipt-${row.receipt_no ?? row.id.slice(0, 8)}.pdf`;
   return new Response(Buffer.from(bytes), {
     headers: {

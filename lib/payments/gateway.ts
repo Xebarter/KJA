@@ -23,10 +23,18 @@ export type Collection = {
   paidAt: string | null;
 };
 
+function env(...names: string[]) {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 function settings() {
-  const brandId = process.env.PAYMENTS_BRAND_ID?.trim();
-  const secretKey = process.env.PAYMENTS_SECRET_KEY?.trim();
-  const baseUrl = (process.env.PAYMENTS_API_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, "");
+  const brandId = env("PAYMENTS_BRAND_ID", "PAYTOTA_BRAND_ID");
+  const secretKey = env("PAYMENTS_SECRET_KEY", "PAYTOTA_SECRET_KEY");
+  const baseUrl = (env("PAYMENTS_API_URL", "PAYTOTA_BASE_URL") || DEFAULT_BASE_URL).replace(/\/+$/, "").replace(/\/api\/v1$/, "");
   return { brandId, secretKey, baseUrl };
 }
 

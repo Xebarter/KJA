@@ -399,7 +399,7 @@
 .kja-ct-role-foot > span i { color: #fda31b; }
 
 /* Careers: online job application */
-.kja-ja-trap { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.kja-ja-trap { display: none !important; }
 .kja-ja-closed { margin: -.6rem 0 1.8rem; }
 .kja-ja-docs { display: grid; gap: 1.3rem; }
 .kja-ja-drop {
