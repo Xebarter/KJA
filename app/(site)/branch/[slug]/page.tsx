@@ -1,15 +1,30 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { CampusView } from "@/components/site/CampusView";
-import { Banner, Detail, SectionList } from "@/components/site/Views";
-import { getCampusPage } from "@/lib/campus-pages";
+import { composeCampus } from "@/lib/campus-profile";
 import { findBySlug, getContent } from "@/lib/content";
+import { SITE_URL } from "@/lib/newsroom";
 
 type Params = { params: Promise<{ slug: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
-  const campus = findBySlug((await getContent()).campuses, (await params).slug);
-  return { title: campus?.title ?? "Campus", description: campus?.excerpt || undefined };
+  const content = await getContent();
+  const campus = findBySlug(content.campuses, (await params).slug);
+  if (!campus) return { title: "Campus" };
+  const profile = composeCampus(campus, content);
+  const title = `KJA ${profile.name} Campus`;
+  const description = campus.seo_description || profile.summary || undefined;
+  return {
+    title,
+    description,
+    alternates: { canonical: `${SITE_URL}/branch/${campus.slug}` },
+    openGraph: {
+      title: `${title} | Kampala Junior Academy`,
+      description,
+      type: "website",
+      images: profile.heroImages[0] ? [{ url: profile.heroImages[0] }] : undefined,
+    },
+  };
 }
 
 export default async function CampusPage({ params }: Params) {
@@ -18,18 +33,23 @@ export default async function CampusPage({ params }: Params) {
   const campus = findBySlug(content.campuses, slug);
   if (!campus) notFound();
 
-  const page = getCampusPage(slug);
-  if (page) {
-    const slideTitle = content.settings.hero_slides[0]?.title ?? "Kampala Junior Academy, Choose the right School for your child";
-    return <CampusView page={page} slideTitle={slideTitle} />;
-  }
-
-  const sections = content.campus_sections.filter((section) => !section.campus_slug || section.campus_slug === slug);
+  const profile = composeCampus(campus, content);
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "School",
+    name: `Kampala Junior Academy – ${profile.name}`,
+    url: `${SITE_URL}/branch/${slug}`,
+    description: profile.summary || undefined,
+    image: profile.heroImages.slice(0, 3),
+    telephone: profile.phones[0] || undefined,
+    email: profile.email || undefined,
+    address: profile.address ? { "@type": "PostalAddress", streetAddress: profile.address, addressLocality: "Kampala", addressCountry: "UG" } : undefined,
+    parentOrganization: { "@type": "School", name: "Kampala Junior Academy", url: SITE_URL },
+  };
   return (
-    <main>
-      <Banner title={campus.title} crumbs="Campuses" />
-      <Detail item={campus} />
-      <div className="container pb-5"><SectionList sections={sections} /></div>
-    </main>
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }} />
+      <CampusView profile={profile} />
+    </>
   );
 }

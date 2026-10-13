@@ -53,7 +53,7 @@ export default async function ApplicationsPage({ searchParams }: { searchParams:
     return (
       <Notice title="Applications could not be loaded">
         <p>{message}</p>
-        <p>If this is a new setup, run <code>supabase/schema.sql</code>, <code>supabase/parent-portal.sql</code> and <code>supabase/admissions.sql</code> in the Supabase SQL editor.</p>
+        <p>If this is a new setup, run <code>supabase/0001_schema.sql</code>, <code>supabase/0003_parent_portal.sql</code> and <code>supabase/0004_admissions.sql</code> in the Supabase SQL editor.</p>
       </Notice>
     );
   }

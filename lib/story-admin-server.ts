@@ -4,7 +4,7 @@ import { cleanExcerpt, kampalaIso, STORY_SOURCE_KEYS, STORY_SOURCES, type StoryS
 import { storyStatus, type StoryListItem, type StoryRecord } from "@/lib/story-admin";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
-/** live: fully set up · migrate: tables exist but stories.sql hasn't run · setup: no tables yet (read-only imported content). */
+/** live: fully set up · migrate: tables exist but 0005_stories.sql hasn't run · setup: no tables yet (read-only imported content). */
 export type StoriesMode = "live" | "migrate" | "setup";
 
 type DbError = { code?: string; message: string } | null;

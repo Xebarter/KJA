@@ -32,8 +32,6 @@
 .page-banner h1 { color: #fff; margin-bottom: 8px; }
 .kja-html img, .kja-html iframe, .kja-html video { max-width: 100%; height: auto; }
 .kja-html figure { margin: 1rem 0; }
-.event-slider { display: flex; gap: 1.25rem; overflow-x: auto; padding-bottom: 1rem; }
-.event-slider .event-item { flex: 0 0 320px; background: #fff; }
 .gallery-link { cursor: pointer; }
 .admin-wrap { background: #f6f3ee; min-height: 100vh; }
 .admin-sidebar {

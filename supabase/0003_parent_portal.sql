@@ -1,4 +1,4 @@
--- Parent portal. Run after schema.sql (safe to re-run).
+-- Parent portal. Run after 0001_schema.sql (safe to re-run).
 
 alter table public.profiles drop constraint if exists profiles_role_check;
 alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'staff', 'parent'));

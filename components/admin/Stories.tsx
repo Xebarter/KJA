@@ -47,16 +47,16 @@ export function StoriesSetupNotice({ mode }: { mode: StoriesMode }) {
               then refresh this page:
             </p>
             <ol>
-              <li><code>supabase/schema.sql</code>: creates the tables</li>
-              <li><code>supabase/seed.sql</code>: imports the existing stories</li>
-              <li><code>supabase/stories.sql</code>: adds featuring, tags, SEO and scheduling</li>
+              <li><code>supabase/0001_schema.sql</code>: creates the tables</li>
+              <li><code>supabase/0002_seed.sql</code>: imports the existing stories</li>
+              <li><code>supabase/0005_stories.sql</code>: adds featuring, tags, SEO and scheduling</li>
             </ol>
           </>
         ) : (
           <>
             <h2>One more step to unlock every story feature</h2>
             <p>
-              Stories can be edited, but categories, tags, featuring and SEO fields need <code>supabase/stories.sql</code>. Run it once in the
+              Stories can be edited, but categories, tags, featuring and SEO fields need <code>supabase/0005_stories.sql</code>. Run it once in the
               Supabase SQL editor. It&apos;s safe to run again.
             </p>
           </>

@@ -2,7 +2,6 @@
 
 import { useRef, useState } from "react";
 import { submitApplication } from "@/app/actions";
-import { APPLIED_KEY } from "@/components/site/Popup";
 
 type FieldName = "parent_names" | "parent_email" | "parent_phone" | "child_name" | "child_birtDate";
 type Errors = Partial<Record<FieldName, string>>;
@@ -114,9 +113,6 @@ export function ApplyForm({ campuses, phone, email }: { campuses: string[]; phon
       await submitApplication(data);
       setFirstName(String(data.get("parent_names") || "").trim().split(/\s+/)[0] || "");
       setStatus("sent");
-      try {
-        localStorage.setItem(APPLIED_KEY, "1");
-      } catch {}
       requestAnimationFrame(() => {
         successRef.current?.focus({ preventScroll: true });
         successRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });

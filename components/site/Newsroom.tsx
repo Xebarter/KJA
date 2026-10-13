@@ -14,7 +14,7 @@ type NewsroomProps = {
   email: string;
 };
 
-function CoverStory({ story }: { story: Story }) {
+export function CoverStory({ story }: { story: Story }) {
   return (
     <article className="kja-cover">
       <Link href={story.href} className="kja-cover-media" tabIndex={-1} aria-hidden="true">

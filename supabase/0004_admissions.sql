@@ -1,4 +1,4 @@
--- Admissions dashboard. Run after schema.sql and parent-portal.sql (safe to re-run).
+-- Admissions dashboard. Run after 0001_schema.sql and 0003_parent_portal.sql (safe to re-run).
 
 alter table public.applications add column if not exists user_id uuid references auth.users (id) on delete set null;
 alter table public.applications add column if not exists status text not null default 'received';

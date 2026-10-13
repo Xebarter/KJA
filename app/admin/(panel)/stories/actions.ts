@@ -11,12 +11,12 @@ export type StoryActionResult = { ok?: string; error?: string; warning?: string;
 type DbError = { code?: string; message: string };
 
 const EXTENDED_FIELDS = ["category", "tags", "featured", "seo_title", "seo_description"] as const;
-const SETUP_HINT = "Run supabase/stories.sql in the Supabase SQL editor to enable categories, tags, featuring and SEO fields.";
+const SETUP_HINT = "Run supabase/0005_stories.sql in the Supabase SQL editor to enable categories, tags, featuring and SEO fields.";
 
 function friendly(error: DbError, table: StoryTable, slug?: string) {
   const singular = STORY_SOURCES[sourceForTable(table)!].singular.toLowerCase();
   if (error.code === "23505") return `Another ${singular} already uses the address ${storyPath(table, slug ?? "")}. Change the URL slug and save again.`;
-  if (error.code === "PGRST205" || error.code === "42P01") return "Story tables are missing. Run supabase/schema.sql and supabase/stories.sql in the Supabase SQL editor.";
+  if (error.code === "PGRST205" || error.code === "42P01") return "Story tables are missing. Run supabase/0001_schema.sql and supabase/0005_stories.sql in the Supabase SQL editor.";
   if (error.code === "PGRST204" || error.code === "42703") return `Your database is missing story fields. ${SETUP_HINT}`;
   if (error.code === "42501") return "Your account doesn't have permission to change stories.";
   return error.message;

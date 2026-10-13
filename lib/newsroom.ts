@@ -26,7 +26,14 @@ export function isStoryTable(table: string): table is StoryTable {
 }
 
 export function sourceListingHref(source: StorySource) {
+  if (source === "alumni") return "/alumni-news";
+  if (source === "alumni_story") return "/alumni-stories";
   return source === "news" ? "/news" : `/news?type=${source}`;
+}
+
+/** The top-level section a story's breadcrumb starts from. */
+export function sourceSection(source: StorySource) {
+  return source === "alumni" || source === "alumni_story" ? { label: "Alumni", href: "/alumni-news" } : { label: "News", href: "/news" };
 }
 
 /** Imported WordPress dates carry no offset; they are Kampala time. */

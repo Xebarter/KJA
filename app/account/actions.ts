@@ -108,9 +108,25 @@ export async function sendParentMessage(formData: FormData) {
   refresh();
 }
 
-export async function markNoticeRead(formData: FormData) {
+export async function markMessagesRead(formData: FormData) {
+  const ids = formData.getAll("id").map(String).filter(Boolean);
+  if (!ids.length) return;
   const { user, supabase } = await parentClient();
-  const { error } = await supabase.from("notifications").update({ read: true }).eq("id", String(formData.get("id"))).eq("user_id", user.id);
+  const { error } = await supabase
+    .from("parent_messages")
+    .update({ read: true })
+    .in("id", ids)
+    .eq("user_id", user.id)
+    .eq("direction", "in");
+  if (error) throw new Error(error.message);
+  refresh();
+}
+
+export async function markNoticeRead(formData: FormData) {
+  const ids = formData.getAll("id").map(String).filter(Boolean);
+  if (!ids.length) return;
+  const { user, supabase } = await parentClient();
+  const { error } = await supabase.from("notifications").update({ read: true }).in("id", ids).eq("user_id", user.id);
   if (error) throw new Error(error.message);
   refresh();
 }

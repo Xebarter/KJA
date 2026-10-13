@@ -3,30 +3,19 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAuthDialog } from "@/components/account/AuthDialog";
 
-type Phase = "hidden" | "open" | "collapsing" | "closing" | "fab" | "closed";
+type Phase = "hidden" | "open" | "collapsing" | "closing" | "fab";
 
-const STORAGE_KEY = "kja-admissions-popup";
-export const APPLIED_KEY = "kja-applied";
+/* Module state is reset by every full page load, so the dialog opens once per load of the home page. */
+let dialogShown = false;
 
 function reducedMotion() {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
-function hasApplied() {
-  try {
-    return localStorage.getItem(APPLIED_KEY) === "1";
-  } catch {
-    return false;
-  }
-}
-
 export function AdmissionsPopup({ title, body, label, href }: { title: string; body: string; label: string; href: string }) {
   const pathname = usePathname();
   const signingIn = useSearchParams().has("login");
-  const { signedIn, ready } = useAuthDialog();
-  const popupPage = pathname === "/" || pathname.startsWith("/branch/");
   const [phase, setPhase] = useState<Phase>("hidden");
   const cardRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLAnchorElement>(null);
@@ -34,27 +23,19 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
   const restoreFocus = useRef<HTMLElement | null>(null);
   const [morphed, setMorphed] = useState(false);
 
-  /* Opens at most once per browser session; existing parents and families who have applied never see it. */
   useEffect(() => {
-    if (!ready) return;
-    if (signedIn || hasApplied()) {
-      setPhase("hidden");
+    if (pathname !== "/" || dialogShown || signingIn) {
+      setPhase((current) => (current === "hidden" ? "fab" : current));
       return;
     }
-    const saved = sessionStorage.getItem(STORAGE_KEY);
-    if (saved === "fab") {
-      setPhase("fab");
-      return;
-    }
-    if (saved === "closed" || !popupPage || signingIn) return;
     const timer = setTimeout(() => {
-      sessionStorage.setItem(STORAGE_KEY, "fab");
+      dialogShown = true;
       restoreFocus.current = document.activeElement as HTMLElement | null;
       setMorphed(false);
       setPhase("open");
-    }, pathname === "/" ? 400 : 700);
+    }, 400);
     return () => clearTimeout(timer);
-  }, [pathname, popupPage, ready, signedIn, signingIn]);
+  }, [pathname, signingIn]);
 
   const modal = phase === "open" || phase === "collapsing" || phase === "closing";
 
@@ -73,7 +54,6 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
 
   const collapse = useCallback(() => {
     if (phase !== "open") return;
-    sessionStorage.setItem(STORAGE_KEY, "fab");
     document.body.classList.remove("no-scroll");
     const card = cardRef.current;
     const fab = fabRef.current;
@@ -100,10 +80,10 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
 
   const close = useCallback(() => {
     if (phase !== "open") return;
-    sessionStorage.setItem(STORAGE_KEY, "closed");
     setPhase("closing");
     window.setTimeout(() => {
-      setPhase("closed");
+      setMorphed(false);
+      setPhase("fab");
       restoreFocus.current?.focus?.({ preventScroll: true });
     }, reducedMotion() ? 0 : 320);
   }, [phase]);
@@ -124,7 +104,7 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
     return () => document.removeEventListener("keydown", onKey);
   }, [phase, collapse]);
 
-  if (phase === "hidden" || phase === "closed") return null;
+  if (phase === "hidden") return null;
 
   return (
     <>
@@ -151,10 +131,7 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
                 ref={ctaRef}
                 className="kja-adm-cta"
                 href={href}
-                onClick={() => {
-                  sessionStorage.setItem(STORAGE_KEY, "fab");
-                  setPhase("fab");
-                }}
+                onClick={() => setPhase("fab")}
               >
                 {label || "Apply now"}
                 <i className="fas fa-arrow-right" aria-hidden="true" />

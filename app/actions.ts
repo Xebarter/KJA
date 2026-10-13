@@ -212,6 +212,40 @@ export async function submitContact(formData: FormData) {
   if (error) throw new Error(error.message);
 }
 
+export async function submitEnquiry(formData: FormData) {
+  const supabase = await publicClient();
+  const topic = clean(formData.get("topic")) ?? "General enquiry";
+  const campus = clean(formData.get("campus"));
+  const { error } = await supabase.from("contact_messages").insert({
+    name: clean(formData.get("name")),
+    email: clean(formData.get("email")),
+    phone: clean(formData.get("phone")),
+    subject: campus ? `${topic} · ${campus}` : topic,
+    message: clean(formData.get("message")),
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function submitVisitRequest(formData: FormData) {
+  const supabase = await publicClient();
+  const campus = clean(formData.get("campus")) ?? "Any campus";
+  const details = [
+    ["Campus", campus],
+    ["Preferred date", clean(formData.get("date"))],
+    ["Preferred time", clean(formData.get("time"))],
+    ["Child's age or class", clean(formData.get("child"))],
+    ["Notes", clean(formData.get("notes"))],
+  ].filter(([, value]) => value);
+  const { error } = await supabase.from("contact_messages").insert({
+    name: clean(formData.get("name")),
+    email: clean(formData.get("email")),
+    phone: clean(formData.get("phone")),
+    subject: `Campus visit request · ${campus}`,
+    message: details.map(([label, value]) => `${label}: ${value}`).join("\n"),
+  });
+  if (error) throw new Error(error.message);
+}
+
 export async function submitAlumniStory(formData: FormData) {
   const supabase = await publicClient();
   const answers = ALUMNI_QUESTIONS.map((question, index) => `${question}\n${clean(formData.get(`question${index + 1}`)) ?? ""}`);

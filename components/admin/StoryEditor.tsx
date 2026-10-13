@@ -415,7 +415,7 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
 
           <section className="admin-card story-panel">
             <h2 className="app-card-title"><i className="fa-brands fa-google" /> Search &amp; sharing</h2>
-            {!extended ? <p className="story-hint">Needs <code>supabase/stories.sql</code>. Until then, search engines use the headline and summary.</p> : null}
+            {!extended ? <p className="story-hint">Needs <code>supabase/0005_stories.sql</code>. Until then, search engines use the headline and summary.</p> : null}
             <div className="story-seo">
               <div className="story-seo-fields">
                 <div className="story-field">

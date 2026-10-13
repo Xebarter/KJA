@@ -1,16 +1,17 @@
 import Link from "next/link";
+import type { CSSProperties } from "react";
 import { Hero } from "@/components/site/Hero";
-import { CounterValue, EventSlider, HomeGallery, VideoPlay } from "@/components/site/HomeMotion";
+import { HomeEvents } from "@/components/site/HomeEvents";
+import { CounterValue, HomeGallery, VideoPlay } from "@/components/site/HomeMotion";
 import { StoryCard } from "@/components/site/StoryCard";
+import { kampalaClock, toCalEvents } from "@/lib/events-calendar";
 import { toStory } from "@/lib/newsroom";
 import type { SiteContent } from "@/lib/types";
 
 const CAMPUS_ORDER = ["kitante", "najjanankumbi", "makindye", "bunga"];
 const TEACHER_ORDER = ["shafik-baingana", "alice-namusoke", "shamim-nalubidde", "pual-kakande"];
 
-function featureClass(title: string) {
-  return `feature-item-${title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")}`;
-}
+const PILLAR_TONES = ["#4886ff", "#9cc24a", "#ff6f6f", "#fda31b"];
 
 function ordered<T extends { slug: string }>(items: T[] | null | undefined, order: string[]) {
   return [...(items ?? [])].sort((a, b) => {
@@ -33,162 +34,109 @@ function AboutTitle({ title }: { title: string }) {
   );
 }
 
-function AboutBody({ text }: { text: string }) {
+function splitAbout(text: string) {
   const marker = "since 1993.";
   const index = text.toLowerCase().indexOf(marker);
-  if (index < 0) return <>{text}</>;
+  if (index < 0) return [text, ""];
   const cut = index + marker.length;
-  return (
-    <>
-      {text.slice(0, cut)}
-      <br />
-      {text.slice(cut).trim()}
-    </>
-  );
+  return [text.slice(0, cut), text.slice(cut).trim()];
 }
 
 export function HomeView({ content }: { content: SiteContent }) {
   const { settings } = content;
   const campuses = ordered(content.campuses, CAMPUS_ORDER);
   const teachers = ordered(content.teachers, TEACHER_ORDER).slice(0, 4);
-  const events = [...content.events].sort((a, b) => String(b.starts_on || "").localeCompare(String(a.starts_on || "")));
+  const locations = new Map(content.events.map((item) => [item.slug, item.location || null]));
+  const events = toCalEvents(content.events).map((event) => ({ ...event, location: locations.get(event.slug) ?? null }));
   const stories = [...content.news].sort((a, b) => String(b.published_at || "").localeCompare(String(a.published_at || ""))).slice(0, 2);
   const today = settings.campuses_intro.indexOf("Today,");
   const introLead = today > 0 ? settings.campuses_intro.slice(0, today).trim() : settings.campuses_intro;
   const introRest = today > 0 ? settings.campuses_intro.slice(today).trim() : "";
+  const [aboutLead, aboutRest] = splitAbout(settings.about_body);
+  const years = settings.counters.find((counter) => /year/i.test(counter.label))?.value ?? 30;
 
   return (
     <main className="main">
       <Hero slides={settings.hero_slides} />
 
-      <div className="feature-area-t pt-5">
-        <div className="col-xl-11 ms-auto me-auto">
-          <div className="feature-wrapper">
-            <div className="row g-3">
-              {settings.features.map((feature, index) => (
-                <div className="col-md-6 col-lg-3" key={feature.title}>
-                  <div className={`feature-item ${featureClass(feature.title)}`}>
-                    <span className="count">{String(index + 1).padStart(2, "0")}</span>
-                    <div className="feature-icon">
-                      <img src={feature.icon} alt="" />
-                    </div>
-                    <div className="feature-content">
-                      <h4 className="feature-title">{feature.title}</h4>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div className="about-area py-120">
+      <section className="kja-ha" aria-labelledby="kja-ha-title">
         <div className="container">
-          <div className="row g-4 align-items-center">
-            <div className="col-lg-6">
-              <div className="about-left wow fadeInLeft" data-wow-delay=".25s">
-                <div className="about-img">
-                  <div className="row g-4">
-                    <div className="col-md-6">
-                      <img className="img-1" src="/images/speakers.jpg" alt="" />
-                      <div className="about-experience mt-4">
-                        <div className="about-experience-icon">
-                          <img src="/images/exchange-idea.svg" alt="" />
-                        </div>
-                        <b className="text-start">
-                          {" "}
-                          Over 30 Years Of <br /> Quality Service
-                        </b>
-                      </div>
-                    </div>
-                    <div className="col-md-6">
-                      <img className="img-2" src="/images/kids-4.jpg" alt="" />
-                      <img className="img-3 mt-4" src="/images/slider-66.jpg" alt="" />
-                    </div>
-                  </div>
-                </div>
+          <nav className="kja-ha-pillars" aria-label="Learning at KJA">
+            {settings.features.map((feature, index) => (
+              <Link
+                key={feature.title}
+                href={feature.href || "/academics"}
+                className="kja-ha-pillar"
+                style={{ "--tone": PILLAR_TONES[index % PILLAR_TONES.length] } as CSSProperties}
+              >
+                <span className="kja-ha-pillar-icon"><img src={feature.icon} alt="" /></span>
+                <span className="kja-ha-pillar-body">
+                  <strong>{feature.title}</strong>
+                  <span>Explore <i className="fas fa-arrow-right" aria-hidden="true" /></span>
+                </span>
+                <span className="kja-ha-pillar-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+              </Link>
+            ))}
+          </nav>
+
+          <div className="kja-ha-grid">
+            <div className="kja-ha-media wow fadeInLeft" data-wow-delay=".25s">
+              <figure className="kja-ha-photo kja-ha-photo--main"><img src="/images/speakers.jpg" alt="A Kampala Junior Academy pupil at a school celebration" /></figure>
+              <figure className="kja-ha-photo kja-ha-photo--top"><img src="/images/kids-4.jpg" alt="" /></figure>
+              <figure className="kja-ha-photo kja-ha-photo--bottom"><img src="/images/slider-66.jpg" alt="" /></figure>
+              <div className="kja-ha-years">
+                <span className="kja-ha-years-icon"><img src="/images/exchange-idea.svg" alt="" /></span>
+                <span><strong>{years}+</strong>Years of quality service</span>
               </div>
             </div>
-            <div className="col-lg-6">
-              <div className="about-right wow fadeInRight" data-wow-delay=".25s">
-                <div className="site-heading mb-3">
-                  <span className="site-title-tagline">
-                    <i className="fas fa-book-open" /> About Us
-                  </span>
-                  <h2 className="site-title">
-                    <AboutTitle title={settings.about_title} />
-                  </h2>
-                </div>
-                <p className="about-text">
-                  <AboutBody text={settings.about_body} />
-                </p>
-                <div className="about-content">
-                  <div className="row">
-                    <div className="col">
-                      <div className="about-item">
-                        <div className="about-item-icon">
-                          <img src="/images/open-book.svg" alt="" />
-                        </div>
-                        <div className="about-item-content">
-                          <h3>Our Vision</h3>
-                          <p>{settings.vision}</p>
-                        </div>
-                      </div>
-                      <div className="about-item">
-                        <div className="about-item-icon">
-                          <img src="/images/global-education.svg" alt="" />
-                        </div>
-                        <div className="about-item-content">
-                          <h3>Our Mission</h3>
-                          <p>{settings.mission}</p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                <div className="about-bottom">
-                  <Link href="/about-us" className="kja-btn">
-                    Discover More
-                    <i className="fas fa-arrow-right-long" />
-                  </Link>
-                  <div className="about-phone">
-                    <div className="icon">
-                      <i className="fas fa-headset" />
-                    </div>
-                    <div className="number">
-                      <span>Call Now</span>
-                      <h6>
-                        <a href={`tel:${settings.phone.replace(/\s/g, "")}`}>{settings.phone}</a>
-                      </h6>
-                    </div>
-                  </div>
-                </div>
+
+            <div className="kja-ha-copy wow fadeInRight" data-wow-delay=".25s">
+              <span className="kja-nr-kicker"><i className="fas fa-book-open" aria-hidden="true" /> About us</span>
+              <h2 id="kja-ha-title" className="kja-ha-title"><AboutTitle title={settings.about_title} /></h2>
+              <p className="kja-ha-lede">{aboutLead}</p>
+              {aboutRest ? <p className="kja-ha-text">{aboutRest}</p> : null}
+              <div className="kja-ha-vm">
+                <article>
+                  <span className="kja-ha-vm-icon"><img src="/images/open-book.svg" alt="" /></span>
+                  <h3>Our Vision</h3>
+                  <p>{settings.vision}</p>
+                </article>
+                <article>
+                  <span className="kja-ha-vm-icon"><img src="/images/global-education.svg" alt="" /></span>
+                  <h3>Our Mission</h3>
+                  <p>{settings.mission}</p>
+                </article>
+              </div>
+              <div className="kja-ha-actions">
+                <Link href="/about-us" className="kja-btn">
+                  Discover More
+                  <i className="fas fa-arrow-right-long" />
+                </Link>
+                <a href={`tel:${settings.phone.replace(/\s/g, "")}`} className="kja-ha-call">
+                  <span className="kja-ha-call-icon"><i className="fas fa-headset" aria-hidden="true" /></span>
+                  <span><small>Call now</small><strong>{settings.phone}</strong></span>
+                </a>
               </div>
             </div>
           </div>
-        </div>
-      </div>
 
-      <div className="counter-area pt-60 pb-60">
-        <div className="container">
-          <div className="row d-flex justify-content-center">
+          <div className="kja-ha-stats">
             {settings.counters.map((counter) => (
-              <div className="col-lg-3 col-sm-6" key={counter.label}>
-                <div className="counter-box">
-                  <div className="icon">
-                    <img src={counter.icon} alt="" />
-                  </div>
-                  <div>
-                    <CounterValue value={counter.value} />
-                    <h6 className="title">{counter.label}</h6>
-                  </div>
-                </div>
+              <div className="kja-ha-stat" key={counter.label}>
+                <span className="kja-ha-stat-icon"><img src={counter.icon} alt="" /></span>
+                <span>
+                  <strong><CounterValue value={counter.value} />{counter.label.trim().startsWith("+") ? "+" : ""}</strong>
+                  <small>{counter.label.replace(/^\s*\+\s*/, "")}</small>
+                </span>
               </div>
             ))}
+            <Link href="/apply" className="kja-ha-stats-cta">
+              <span><small>Start your journey</small>Join the KJA family</span>
+              <i className="fas fa-arrow-right" aria-hidden="true" />
+            </Link>
           </div>
         </div>
-      </div>
+      </section>
 
       <div className="course-area py-120">
         <div className="container">
@@ -369,20 +317,7 @@ export function HomeView({ content }: { content: SiteContent }) {
 
       <div className="event-area bg py-120">
         <div className="container">
-          <div className="row">
-            <div className="col-lg-6 mx-auto">
-              <div className="site-heading text-center">
-                <span className="site-title-tagline">
-                  <i className="fas fa-calendar-days" /> Events
-                </span>
-                <h2 className="site-title">
-                  Our Upcoming <span>Events</span>
-                </h2>
-                <p>We usually hold events of various kinds, academics, sports, entatainment, tours, etc. Here is a glimpse of what is coming up at each campus</p>
-              </div>
-            </div>
-          </div>
-          <EventSlider items={events} />
+          <HomeEvents events={events} initialClock={kampalaClock()} />
         </div>
       </div>
 

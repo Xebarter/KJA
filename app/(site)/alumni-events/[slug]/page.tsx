@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { PostSingle } from "@/components/site/PostSingle";
+import { AlumniEventView } from "@/components/site/AlumniViews";
+import { splitAlumniEvents } from "@/lib/alumni";
 import { findBySlug, getContent } from "@/lib/content";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -14,5 +15,7 @@ export default async function AlumniEventDetail({ params }: Params) {
   const content = await getContent();
   const item = findBySlug(content.alumni_events, (await params).slug);
   if (!item) notFound();
-  return <PostSingle item={item} hrefBase="/alumni-events" siblings={content.alumni_events} sidebar={{ news: content.news, events: content.events }} />;
+  const { upcoming, past } = splitAlumniEvents(content.alumni_events);
+  const others = [...upcoming, ...past].filter((event) => event.slug !== item.slug);
+  return <AlumniEventView item={item} others={others} email={content.settings.email} />;
 }

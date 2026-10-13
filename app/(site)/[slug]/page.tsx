@@ -10,7 +10,6 @@ const SIDEBAR_PAGES = new Set([
   "from-the-director", "admissions", "fees",
   "academics", "arts", "sport", "leadership",
   "sports", "music", "language", "adventure", "religion", "talent",
-  "visit-us",
 ]);
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

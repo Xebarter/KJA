@@ -3,7 +3,7 @@ import { NewsroomClose, SectionHead } from "@/components/site/Newsroom";
 import { ArticleToc, ReadingProgress, ShareBar } from "@/components/site/StoryArticleClient";
 import { StoryCard } from "@/components/site/StoryCard";
 import { formatBlogDate } from "@/lib/format";
-import { SITE_URL, sourceListingHref, STORY_SOURCES, type Story } from "@/lib/newsroom";
+import { SITE_URL, sourceListingHref, sourceSection, STORY_SOURCES, type Story } from "@/lib/newsroom";
 import { kampalaIso, type StoryPageData } from "@/lib/story-page";
 
 function wasUpdated(story: Story) {
@@ -29,6 +29,7 @@ function AdjacentCard({ story, direction }: { story: Story | null; direction: "o
 export function StoryArticle({ story, html, toc, related, latest, older, newer, email }: StoryPageData) {
   const type = STORY_SOURCES[story.source];
   const listing = sourceListingHref(story.source);
+  const section = sourceSection(story.source);
   const url = `${SITE_URL}${story.href}`;
   const hasToc = toc.length >= 2;
   const jsonLd = [
@@ -56,7 +57,7 @@ export function StoryArticle({ story, html, toc, related, latest, older, newer, 
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Home", item: SITE_URL },
-        { "@type": "ListItem", position: 2, name: "News", item: `${SITE_URL}/news` },
+        { "@type": "ListItem", position: 2, name: section.label, item: `${SITE_URL}${section.href}` },
         { "@type": "ListItem", position: 3, name: story.title, item: url },
       ],
     },
@@ -72,8 +73,8 @@ export function StoryArticle({ story, html, toc, related, latest, older, newer, 
           <nav aria-label="breadcrumb" className="kja-nr-crumbs">
             <Link href="/"><i className="fa-solid fa-house" aria-hidden="true" /> Home</Link>
             <i className="fas fa-chevron-right" aria-hidden="true" />
-            <Link href="/news">News</Link>
-            {story.source !== "news" ? (
+            <Link href={section.href}>{section.label}</Link>
+            {listing !== section.href ? (
               <>
                 <i className="fas fa-chevron-right" aria-hidden="true" />
                 <Link href={listing}>{type.label}</Link>

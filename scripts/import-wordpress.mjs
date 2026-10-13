@@ -244,7 +244,7 @@ on conflict (id) do update set phone = excluded.phone, email = excluded.email, a
     insert("alumni_photos", content.alumni_photos, ["title", "image_url", "sort_order"]),
     insert("campus_sections", content.campus_sections, ["campus_slug", "kind", "title", "body", "image_url"]),
   ];
-  writeFileSync("supabase/seed.sql", lines.filter(Boolean).join("\n\n"));
+  writeFileSync("supabase/0002_seed.sql", lines.filter(Boolean).join("\n\n"));
 }
 
 async function main() {

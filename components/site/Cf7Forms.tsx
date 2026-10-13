@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { submitAlumniStory, submitContact } from "@/app/actions";
+import { submitAlumniStory } from "@/app/actions";
 import { ALUMNI_QUESTIONS } from "@/lib/forms";
 
 type Status = "init" | "submitting" | "invalid" | "sent" | "failed";
@@ -115,119 +115,63 @@ const TEL = "wpcf7-form-control wpcf7-tel wpcf7-validates-as-required wpcf7-text
    wrapper beside the page body would animate the body's blocks one by one instead of the whole column. */
 const SELECTOR = "contact-form-7-contact-form-selector";
 
-export function ContactUsForm() {
-  const cf7 = useCf7(submitContact);
-  return (
-    <div className={SELECTOR}>
-      <div className="wpcf7 js" lang="en-US" dir="ltr">
-        <form {...cf7.form} aria-label="Contact form">
-          <input type="hidden" name="subject" value="Contact us" />
-          <div className="d-flex flex-column gap-0  event-registration-form mt-3">
-            <div className="row mb-0">
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="names">Names<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="names">
-                    <input size={40} maxLength={400} {...cf7.field("name", TEXT)} id="names" type="text" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-6 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="email">Contact email<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="email">
-                    <input size={40} maxLength={400} {...cf7.field("email", EMAIL)} id="email" type="email" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-6 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="phone">Phone Number<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="phone">
-                    <input size={40} maxLength={400} {...cf7.field("phone", TEL)} id="phone" type="tel" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-12 mt-0">
-                <div className="form-group">
-                  <label className="form-label" htmlFor="message">Message<span className="text-danger">*</span></label>
-                  <span className="wpcf7-form-control-wrap" data-name="message">
-                    <textarea cols={40} rows={7} maxLength={2000} {...cf7.field("message", "wpcf7-form-control wpcf7-textarea wpcf7-validates-as-required not-rounded form-control w-100")} id="message" />
-                  </span>
-                </div>
-              </div>
-              <div className="col-12 mt-lg-4 mt-0">
-                <div className="w-100 h-100 d-flex align-items-center gap-4">
-                  <button type="submit" className="kja-btn px-5 wpcf7-submit form-button" disabled={cf7.submitDisabled}><Loader />send</button>
-                  <button type="button" className="kja-btn px-4">cancel</button>
-                </div>
-              </div>
-            </div>
-          </div>
-          {cf7.output}
-        </form>
-      </div>
-    </div>
-  );
-}
-
 export function AlumniTouchForm() {
   const cf7 = useCf7(submitAlumniStory);
   return (
     <div className={SELECTOR}>
       <div className="wpcf7 js" lang="en-US" dir="ltr">
-        <form {...cf7.form} aria-label="Contact form">
-          <div className="row event-registration-form mb-3">
-            <div className="col-12 mt-5">
-              <div className="form-group">
-                <label className="mb-1" htmlFor="full_names">Full Name<span className="text-danger">*</span></label>
+        <form {...cf7.form} aria-label="Alumni story form">
+          <fieldset className="kja-al-fieldset">
+            <legend><span>1</span> About you</legend>
+            <div className="row g-3">
+              <div className="col-md-6">
+                <label className="form-label" htmlFor="full_names">Full name<span className="text-danger">*</span></label>
                 <span className="wpcf7-form-control-wrap" data-name="full_names">
-                  <input size={40} maxLength={400} {...cf7.field("full_names", TEXT)} id="full_names" type="text" />
+                  <input size={40} maxLength={400} {...cf7.field("full_names", TEXT)} id="full_names" type="text" autoComplete="name" />
                 </span>
               </div>
-            </div>
-            <div className="col-12 mt-4">
-              <div className="form-group">
-                <label className="mb-1" htmlFor="email">Email address<span className="text-danger">*</span></label>
-                <span className="wpcf7-form-control-wrap" data-name="email">
-                  <input size={40} maxLength={400} {...cf7.field("email", EMAIL)} id="email" type="email" />
-                </span>
-              </div>
-            </div>
-            <div className="col-12 mt-4">
-              <div className="form-group">
-                <label className="mb-1" htmlFor="class_of">Class Of<span className="text-danger">*</span></label>
+              <div className="col-md-6">
+                <label className="form-label" htmlFor="class_of">Class of<span className="text-danger">*</span></label>
                 <span className="wpcf7-form-control-wrap" data-name="class_of">
-                  <input size={40} maxLength={400} {...cf7.field("class_of", TEXT)} id="class_of" type="text" />
+                  <input size={40} maxLength={400} {...cf7.field("class_of", TEXT)} id="class_of" type="text" inputMode="numeric" placeholder="e.g. 2012" />
                 </span>
               </div>
-            </div>
-            <div className="col-12 mt-4">
-              <div className="form-group">
-                <label className="mb-1" htmlFor="phone">Phone Number<span className="text-danger">*</span></label>
+              <div className="col-md-6">
+                <label className="form-label" htmlFor="email">Email address<span className="text-danger">*</span></label>
+                <span className="wpcf7-form-control-wrap" data-name="email">
+                  <input size={40} maxLength={400} {...cf7.field("email", EMAIL)} id="email" type="email" autoComplete="email" />
+                </span>
+              </div>
+              <div className="col-md-6">
+                <label className="form-label" htmlFor="phone">Phone number<span className="text-danger">*</span></label>
                 <span className="wpcf7-form-control-wrap" data-name="phone">
-                  <input size={40} maxLength={400} {...cf7.field("phone", TEL)} id="phone" type="tel" />
+                  <input size={40} maxLength={400} {...cf7.field("phone", TEL)} id="phone" type="tel" autoComplete="tel" />
                 </span>
               </div>
             </div>
+          </fieldset>
+          <fieldset className="kja-al-fieldset">
+            <legend><span>2</span> Your KJA story</legend>
             {ALUMNI_QUESTIONS.map((question, index) => {
               const name = `question${index + 1}`;
               return (
-                <div className="col-12 mt-4" key={name}>
-                  <div className="form-group">
-                    <p id={`${name}-label`}>{question}</p>
-                    <span className="wpcf7-form-control-wrap" data-name={name}>
-                      <textarea cols={40} rows={7} maxLength={2000} {...cf7.field(name, "wpcf7-form-control wpcf7-textarea wpcf7-validates-as-required form-control not-rounded")} id={name} aria-labelledby={`${name}-label`} />
-                    </span>
-                  </div>
+                <div className="kja-al-question" key={name}>
+                  <label htmlFor={name}>
+                    <b aria-hidden="true">{String(index + 1).padStart(2, "0")}</b>
+                    <span>{question}<span className="text-danger">*</span></span>
+                  </label>
+                  <span className="wpcf7-form-control-wrap" data-name={name}>
+                    <textarea cols={40} rows={4} maxLength={2000} {...cf7.field(name, "wpcf7-form-control wpcf7-textarea wpcf7-validates-as-required form-control not-rounded")} id={name} />
+                  </span>
                 </div>
               );
             })}
-            <div className="col-12 mt-lg-4 mt-4">
-              <div className="w-100 h-100 d-flex align-items-center">
-                <button type="submit" className="kja-btn wpcf7-submit form-button" disabled={cf7.submitDisabled}><Loader />Send</button>
-              </div>
-            </div>
+          </fieldset>
+          <div className="kja-al-form-submit">
+            <p><i className="fas fa-lock" aria-hidden="true" /> We only use your contact details to follow up on your story.</p>
+            <button type="submit" className="kja-nr-btn kja-nr-btn--gold wpcf7-submit form-button" disabled={cf7.submitDisabled}>
+              <Loader />Send my story <i className="fas fa-arrow-right" aria-hidden="true" />
+            </button>
           </div>
           {cf7.output}
         </form>

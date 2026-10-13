@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { AboutNav, AboutTimeline } from "@/components/site/AboutClient";
+import { AboutTimeline } from "@/components/site/AboutClient";
 import { CounterValue, VideoPlay } from "@/components/site/HomeMotion";
+import { SectionNav } from "@/components/site/SectionNav";
 import { FOUNDED, MILESTONES, PROMISES, type AboutData } from "@/lib/about";
 
 const SECTIONS = [
@@ -123,7 +124,7 @@ export function AboutView({ data }: { data: AboutData }) {
         </section>
       ) : null}
 
-      <AboutNav sections={sections} />
+      <SectionNav sections={sections} />
 
       <section id="story" className="kja-ab-section">
         <div className="container">

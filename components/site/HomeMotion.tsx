@@ -2,10 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type PointerEvent, type SetStateAction } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type Dispatch, type MouseEvent as ReactMouseEvent, type PointerEvent, type ReactNode, type SetStateAction } from "react";
 import { createPortal } from "react-dom";
-import { formatEventDate } from "@/lib/format";
-import type { Article } from "@/lib/types";
 
 export type Photo = { src: string; tag?: string; title?: string };
 
@@ -27,20 +25,6 @@ const GALLERY_PHOTOS = GALLERY.flat();
 
 const pad = (value: number) => String(value).padStart(2, "0");
 
-function usePerPage() {
-  const [perPage, setPerPage] = useState(3);
-  useEffect(() => {
-    const update = () => {
-      const width = window.innerWidth;
-      setPerPage(width >= 1000 ? 3 : width >= 600 ? 2 : 1);
-    };
-    update();
-    window.addEventListener("resize", update);
-    return () => window.removeEventListener("resize", update);
-  }, []);
-  return perPage;
-}
-
 function useSwipe(onPrev: () => void, onNext: () => void) {
   const start = useRef<number | null>(null);
   return {
@@ -59,135 +43,6 @@ function useSwipe(onPrev: () => void, onNext: () => void) {
       start.current = null;
     },
   };
-}
-
-export function EventSlider({ items }: { items: Article[] }) {
-  const perPage = usePerPage();
-  const count = items.length;
-  const loop = count > perPage;
-  const frames = loop ? [...items.slice(-perPage), ...items, ...items.slice(0, perPage)] : items;
-  const [index, setIndex] = useState(loop ? perPage : 0);
-  const [sliding, setSliding] = useState(true);
-  const real = ((index - (loop ? perPage : 0)) % count + count) % count;
-  const gap = 25;
-
-  useEffect(() => {
-    setSliding(false);
-    setIndex(loop ? perPage : 0);
-    const frame = requestAnimationFrame(() => setSliding(true));
-    return () => cancelAnimationFrame(frame);
-  }, [perPage, loop]);
-
-  useEffect(() => {
-    if (!loop) return;
-    if (index >= count + perPage || index < perPage) {
-      const nextIndex = index >= count + perPage ? index - count : index + count;
-      const timer = setTimeout(() => {
-        setSliding(false);
-        setIndex(nextIndex);
-        requestAnimationFrame(() => requestAnimationFrame(() => setSliding(true)));
-      }, 450);
-      return () => clearTimeout(timer);
-    }
-  }, [index, count, perPage, loop]);
-
-  const next = () => setIndex((value) => value + 1);
-  const prev = () => setIndex((value) => value - 1);
-  const swipe = useSwipe(prev, next);
-
-  if (!count) return <p>No events to show yet.</p>;
-
-  const step = `calc(${-index} * (100% + ${gap}px) / ${perPage})`;
-  const basis = `calc((100% - ${gap * (perPage - 1)}px) / ${perPage})`;
-
-  return (
-    <div className="event-slider owl-carousel owl-theme">
-      <div className="kja-viewport" {...swipe}>
-        <div className={`kja-track${sliding ? " is-sliding" : ""}`} style={{ gap, transform: `translateX(${step})` }}>
-          {frames.map((item, frame) => (
-            <div className="kja-slide" style={{ flexBasis: basis }} key={`${item.slug}-${frame}`}>
-              <EventCard item={item} />
-            </div>
-          ))}
-        </div>
-      </div>
-      {loop ? (
-        <div className="owl-nav">
-          <button className="owl-prev kja-arrow" type="button" aria-label="Previous events" onClick={prev}>
-            <span className="kja-arrow-icon" aria-hidden="true" />
-          </button>
-          <button className="owl-next kja-arrow" type="button" aria-label="Next events" onClick={next}>
-            <span className="kja-arrow-icon" aria-hidden="true" />
-          </button>
-        </div>
-      ) : null}
-      <div className="owl-dots">
-        {items.map((item, dot) => (
-          <button
-            key={item.slug}
-            className={`owl-dot${dot === real ? " active" : ""}`}
-            type="button"
-            aria-label={`Show ${item.title}`}
-            onClick={() => setIndex((loop ? perPage : 0) + dot)}
-          >
-            <span />
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-
-function eventDay(value?: string | null) {
-  const [year, month, day] = (value || "").slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return null;
-  return { year, day, month: MONTH_ABBR[month - 1], weekday: WEEKDAYS[new Date(Date.UTC(year, month - 1, day)).getUTCDay()] };
-}
-
-function EventCard({ item }: { item: Article }) {
-  const time = item.start_time && item.end_time ? `${item.start_time} – ${item.end_time}` : item.start_time || item.end_time || "All day";
-  const date = eventDay(item.starts_on);
-  const href = `/event/${item.slug}`;
-  return (
-    <article className="event-item kja-ev h-100">
-      <div className="kja-ev-media">
-        {item.image_url ? <img src={item.image_url} alt="" loading="lazy" /> : null}
-        {date && item.starts_on ? (
-          <time className="kja-ev-date" dateTime={item.starts_on.slice(0, 10)} title={formatEventDate(item.starts_on)}>
-            <span className="kja-ev-month">{date.month}</span>
-            <span className="kja-ev-day">{date.day}</span>
-            <span className="kja-ev-year">{date.year}</span>
-          </time>
-        ) : null}
-        {item.location ? (
-          <span className="kja-ev-place">
-            <i className="fas fa-location-dot" aria-hidden="true" />
-            {item.location}
-          </span>
-        ) : null}
-      </div>
-      <div className="kja-ev-body">
-        <p className="kja-ev-meta">
-          <i className="far fa-clock" aria-hidden="true" />
-          {date ? <strong>{date.weekday}</strong> : null}
-          <span>{time}</span>
-        </p>
-        <h4 className="kja-ev-title">
-          <Link href={href}>{item.title}</Link>
-        </h4>
-        {item.excerpt?.trim() ? <p className="kja-ev-excerpt">{item.excerpt}</p> : null}
-        <div className="kja-ev-foot" aria-hidden="true">
-          <span>Event details</span>
-          <span className="kja-ev-go">
-            <i className="fas fa-arrow-right" />
-          </span>
-        </div>
-      </div>
-    </article>
-  );
 }
 
 export function PhotoLightbox({ photos, open, setOpen }: {
@@ -350,7 +205,7 @@ export function PhotoLightbox({ photos, open, setOpen }: {
   );
 }
 
-function GalleryCard({ photo, index, total, onOpen }: { photo: Photo; index: number; total: number; onOpen: () => void }) {
+export function GalleryCard({ photo, index, total, onOpen }: { photo: Photo; index: number; total: number; onOpen: () => void }) {
   return (
     <button
       className="kja-gal-card"
@@ -402,6 +257,24 @@ export function HomeGallery() {
         </div>
       </div>
       <PhotoLightbox photos={GALLERY_PHOTOS} open={open} setOpen={setOpen} />
+    </>
+  );
+}
+
+export function PhotoGrid({ photos, className = "", children }: { photos: Photo[]; className?: string; children?: ReactNode }) {
+  const [open, setOpen] = useState<number | null>(null);
+
+  return (
+    <>
+      <div className={`kja-gal kja-photo-grid ${className}`.trim()}>
+        {photos.map((photo, index) => (
+          <div className="kja-gal-cell" key={`${photo.src}-${index}`}>
+            <GalleryCard photo={photo} index={index} total={photos.length} onOpen={() => setOpen(index)} />
+          </div>
+        ))}
+        {children}
+      </div>
+      <PhotoLightbox photos={photos} open={open} setOpen={setOpen} />
     </>
   );
 }

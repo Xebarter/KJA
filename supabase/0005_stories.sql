@@ -1,6 +1,6 @@
 -- Stories upgrade: editorial fields, scheduling and draft privacy for
 -- news, posts (blog), alumni_news and alumni_stories.
--- Run after schema.sql. Safe to run more than once.
+-- Run after 0001_schema.sql and 0002_seed.sql (it backfills seeded stories). Safe to run more than once.
 
 create or replace function public.touch_updated_at()
 returns trigger

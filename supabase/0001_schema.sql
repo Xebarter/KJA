@@ -1,4 +1,4 @@
--- Kampala Junior Academy schema. Run this in the Supabase SQL editor before seed.sql.
+-- Kampala Junior Academy schema. Run this in the Supabase SQL editor before 0002_seed.sql.
 
 create extension if not exists pgcrypto;
 

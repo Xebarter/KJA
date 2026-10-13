@@ -1,16 +1,13 @@
-import { AlumniArchive } from "@/components/site/AlumniViews";
+import { AlumniProfilesView } from "@/components/site/AlumniViews";
+import { alumniProfiles } from "@/lib/alumni";
 import { getContent } from "@/lib/content";
 
-export const metadata = { title: "Alumni Profiles Archive" };
+export const metadata = {
+  title: "Alumni Profiles",
+  description: "Meet Kampala Junior Academy graduates and find out where they are now.",
+};
 
 export default async function AlumniProfilesPage() {
   const content = await getContent();
-  return (
-    <AlumniArchive
-      title="Alumni Profiles"
-      items={content.alumni_profiles}
-      hrefBase="/alumni-profile"
-      sidebar={{ news: content.news, events: content.events }}
-    />
-  );
+  return <AlumniProfilesView profiles={alumniProfiles(content.alumni_profiles)} email={content.settings.email} />;
 }
