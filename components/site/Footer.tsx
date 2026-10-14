@@ -13,13 +13,13 @@ export function Footer({ phone, email, address, mapUrl, footerText, socials }: {
   const year = new Date().getFullYear();
   return (
     <footer id="footer" className="footer-area bootscore-footer">
-      <div className="footer-shape footer-crest"><img src="/images/icon.png" alt="" /></div>
+      <div className="footer-shape footer-crest"><img src="/images/icon.png" alt="" loading="lazy" /></div>
       <div className="footer-widget">
         <div className="container">
           <div className="row footer-widget-wrapper pt-100 pb-70">
             <div className="col-md-6 col-lg-4">
               <div className="footer-widget-box about-us">
-                <Link href="/" className="footer-logo"><img src="/images/kja-logo-transparent.png" alt="KJA" /></Link>
+                <Link href="/" className="footer-logo"><img src="/images/kja-logo-transparent.png" alt="KJA" loading="lazy" /></Link>
                 <p className="mb-3">{footerText}</p>
                 <ul className="footer-contact">
                   <li><a href={`tel:${phone.replace(/\s/g, "")}`}><i className="fa fa-phone" />{phone}</a></li>

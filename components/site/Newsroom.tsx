@@ -18,7 +18,7 @@ export function CoverStory({ story }: { story: Story }) {
   return (
     <article className="kja-cover">
       <Link href={story.href} className="kja-cover-media" tabIndex={-1} aria-hidden="true">
-        {story.image ? <img src={story.image} alt="" /> : <span className="kja-story-fallback"><i className="fas fa-newspaper" /></span>}
+        {story.image ? <img src={story.image} alt="" loading="lazy" /> : <span className="kja-story-fallback"><i className="fas fa-newspaper" /></span>}
       </Link>
       <StoryDate value={story.date} />
       <div className="kja-cover-body">

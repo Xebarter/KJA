@@ -86,7 +86,7 @@ export function AlumniCover({ href, image, icon, flags, title, text, quote = fal
   return (
     <article className={`kja-cover kja-al-cover${quote ? " is-quote" : ""}`}>
       <Link href={href} className="kja-cover-media" tabIndex={-1} aria-hidden="true">
-        {image ? <img src={image} alt="" /> : <span className="kja-story-fallback"><i className={`fas ${icon}`} /></span>}
+        {image ? <img src={image} alt="" loading="lazy" /> : <span className="kja-story-fallback"><i className={`fas ${icon}`} /></span>}
       </Link>
       <div className="kja-cover-body">
         <div className="kja-cover-flags">
@@ -119,7 +119,7 @@ export function AlumniCover({ href, image, icon, flags, title, text, quote = fal
 export function HeroPhoto({ src, caption }: { src: string; caption?: string }) {
   return (
     <figure className="kja-al-hero-photo">
-      <img src={src} alt="" />
+      <img src={src} alt="" loading="lazy" />
       {caption ? <figcaption>{caption}</figcaption> : null}
     </figure>
   );

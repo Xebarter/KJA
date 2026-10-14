@@ -276,7 +276,7 @@ export function ArchiveGallery({ images }: { images: string[] }) {
           <div className="col-md-4 wow fadeInUp" data-wow-delay=".25s" key={`${src}-${index}`}>
             <div className="gallery-item w-100 h-100">
               <div className="gallery-img w-100 h-100">
-                <img className="w-100 h-100" src={src} alt="" />
+                <img className="w-100 h-100" src={src} alt="" loading="lazy" decoding="async" />
               </div>
               <div className="gallery-content">
                 <a

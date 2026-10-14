@@ -304,6 +304,7 @@ export default async function ClassPage({
           <BirthdaysCard
             pupils={rows.map((row) => ({ ...carePupil(row), dob: row.date_of_birth }))}
             scope={scope}
+            href={`${OFFICE}/birthdays?class=${code}`}
             showPlace={showStream}
           />
 

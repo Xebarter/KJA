@@ -9,7 +9,8 @@ export default async function PortalLayout({ children }: { children: React.React
   const role = portal.profile?.role;
   const staffLink = role === "admin"
     ? { href: "/admin", label: "Admin dashboard" }
-    : role === "admissions" ? { href: "/admissions_office", label: "Admissions office" } : null;
+    : role === "admissions" ? { href: "/admissions_office", label: "Admissions office" }
+    : role === "accounts" ? { href: "/accounts", label: "Accounts office" } : null;
   return (
     <AccountShell name={name} unread={portal.unread} staffLink={staffLink}>
       {children}

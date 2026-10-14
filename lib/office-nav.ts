@@ -10,6 +10,7 @@ export function isOfficeRole(role: string | null | undefined) {
 export const ROLE_LABELS: Record<string, string> = {
   admin: "Administrator",
   admissions: "Admissions officer",
+  accounts: "Accounts officer",
 };
 
 export type OfficeBadge = "applications" | "visits" | "quality";
@@ -26,5 +27,6 @@ export const officeNav: OfficeNavItem[] = [
   { href: `${OFFICE_BASE}/promotions`, label: "Promotions", icon: "fa-stairs", group: "Year end" },
   { href: `${OFFICE_BASE}/reports`, label: "Reports", icon: "fa-chart-column", group: "Insights" },
   { href: `${OFFICE_BASE}/medical`, label: "Medical", icon: "fa-kit-medical", group: "Insights" },
+  { href: `${OFFICE_BASE}/birthdays`, label: "Birthdays", icon: "fa-cake-candles", group: "Insights" },
   { href: `${OFFICE_BASE}/data-quality`, label: "Data quality", icon: "fa-clipboard-check", group: "Insights", badge: "quality" },
 ];

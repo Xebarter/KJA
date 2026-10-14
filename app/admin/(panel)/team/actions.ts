@@ -7,11 +7,12 @@ import { ROLE_LABELS } from "@/lib/office-nav";
 
 type ActionResult = { error?: string; ok?: string };
 
-const TEAM_ROLES = ["admin", "admissions"] as const;
+const TEAM_ROLES = ["admin", "admissions", "accounts"] as const;
 
 function refresh() {
   revalidatePath("/admin", "layout");
   revalidatePath("/admissions_office", "layout");
+  revalidatePath("/accounts", "layout");
 }
 
 export async function addAdmin(formData: FormData): Promise<ActionResult> {
@@ -40,7 +41,9 @@ export async function addAdmin(formData: FormData): Promise<ActionResult> {
   return {
     ok: role === "admin"
       ? `${name} can now sign in to the admin dashboard.`
-      : `${name} can now sign in to the admissions office at /admissions_office.`,
+      : role === "accounts"
+        ? `${name} can now sign in to the accounts office at /accounts.`
+        : `${name} can now sign in to the admissions office at /admissions_office.`,
   };
 }
 
@@ -57,7 +60,9 @@ export async function removeAdmin(id: string): Promise<ActionResult> {
   if (error) return { error: error.message };
   refresh();
   if (id === auth.user.id) return { ok: "You are no longer an admin." };
-  return { ok: target.role === "admin" ? "Admin access removed." : "Admissions office access removed." };
+  return {
+    ok: target.role === "admin" ? "Admin access removed." : target.role === "accounts" ? "Accounts office access removed." : "Admissions office access removed.",
+  };
 }
 
 export async function sendTestEmail(): Promise<ActionResult> {

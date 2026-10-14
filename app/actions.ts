@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import type { ImageTarget } from "@/lib/admin-images";
 import { campusDataPath, loadCampusData } from "@/lib/campus-pages";
 import { ALUMNI_QUESTIONS } from "@/lib/forms";
+import { refreshSite } from "@/lib/site-cache";
 import { createClient } from "@/lib/supabase/server";
 
 const TABLES = new Set([
@@ -62,7 +63,7 @@ export async function saveRecord(table: string, formData: FormData) {
     : supabase.from(table).insert(payload);
   const { error } = await query;
   if (error) throw new Error(error.message);
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 export async function deleteRecord(table: string, id: string) {
@@ -70,7 +71,7 @@ export async function deleteRecord(table: string, id: string) {
   const supabase = await adminClient();
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw new Error(error.message);
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 export async function reorderRecords(table: string, ids: string[]) {
@@ -79,7 +80,7 @@ export async function reorderRecords(table: string, ids: string[]) {
   const results = await Promise.all(ids.map((id, index) => supabase.from(table).update({ sort_order: index }).eq("id", id)));
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 export async function saveSettings(formData: FormData) {
@@ -97,7 +98,7 @@ export async function saveSettings(formData: FormData) {
   payload.popup_enabled = formData.get("popup_enabled") === "on";
   const { error } = await supabase.from("site_settings").upsert(payload);
   if (error) throw new Error(error.message);
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 export async function uploadMedia(formData: FormData) {
@@ -125,7 +126,7 @@ function setPointer(root: Record<string, unknown>, pointer: Array<string | numbe
 export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
   const supabase = await adminClient();
   if (target.kind === "public-file") {
-    revalidatePath("/", "layout");
+    refreshSite();
     revalidatePath("/admin");
     return;
   }
@@ -133,7 +134,7 @@ export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
     const data = loadCampusData() as unknown as Record<string, unknown>;
     setPointer(data, target.pointer, imageUrl);
     await writeFile(campusDataPath(), `${JSON.stringify(data, null, 2)}\n`, "utf8");
-    revalidatePath("/", "layout");
+    refreshSite();
     revalidatePath("/admin");
     return;
   }
@@ -147,7 +148,7 @@ export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
     list[target.index] = { ...current, [key]: imageUrl };
     const { error: saveError } = await supabase.from("site_settings").upsert({ id: 1, [field]: list });
     if (saveError) throw new Error(saveError.message);
-    revalidatePath("/", "layout");
+    refreshSite();
     revalidatePath("/admin");
     return;
   }
@@ -160,7 +161,7 @@ export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
   if (!query) throw new Error("This item needs to be imported to Supabase before its image can be saved.");
   const { error } = await query;
   if (error) throw new Error(error.message);
-  revalidatePath("/", "layout");
+  refreshSite();
   revalidatePath("/admin");
 }
 
@@ -173,7 +174,7 @@ export async function replaceImage(formData: FormData) {
     const dest = path.join(process.cwd(), "public", ...target.path.split("/"));
     await mkdir(path.dirname(dest), { recursive: true });
     await writeFile(dest, Buffer.from(await file.arrayBuffer()));
-    revalidatePath("/", "layout");
+    refreshSite();
     revalidatePath("/admin");
     return `/${target.path}?v=${Date.now()}`;
   }

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { StoryArticle } from "@/components/site/StoryArticle";
 import { getStoryPage, storyMetadata } from "@/lib/story-page";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -13,3 +14,5 @@ export default async function AlumniStoryDetail({ params }: Params) {
   if (!page) notFound();
   return <StoryArticle {...page} />;
 }
+
+export const generateStaticParams = renderOnFirstVisit;

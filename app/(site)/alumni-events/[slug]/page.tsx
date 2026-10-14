@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AlumniEventView } from "@/components/site/AlumniViews";
 import { splitAlumniEvents } from "@/lib/alumni";
 import { findBySlug, getContent } from "@/lib/content";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -19,3 +20,5 @@ export default async function AlumniEventDetail({ params }: Params) {
   const others = [...upcoming, ...past].filter((event) => event.slug !== item.slug);
   return <AlumniEventView item={item} others={others} email={content.settings.email} />;
 }
+
+export const generateStaticParams = renderOnFirstVisit;

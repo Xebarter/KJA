@@ -25,7 +25,7 @@ export function ArticleGrid({ items, hrefBase, empty }: { items: Article[]; href
       {items.map((item) => (
         <article className="blog-item h-100" key={item.slug}>
           {item.published_at ? <div className="blog-date"><i className="fas fa-calendar-days" /> {formatDate(item.published_at)}</div> : null}
-          {item.image_url ? <div className="blog-item-img"><img src={item.image_url} alt={item.title} /></div> : null}
+          {item.image_url ? <div className="blog-item-img"><img src={item.image_url} alt={item.title} loading="lazy" /></div> : null}
           <div className="blog-item-info">
             <h4 className="blog-title"><Link href={`${hrefBase}/${item.slug}`}>{item.title}</Link></h4>
             {item.excerpt ? <p>{item.excerpt}</p> : null}
@@ -44,7 +44,7 @@ export function EventGrid({ items, hrefBase = "/event" }: { items: Article[]; hr
       {items.map((item) => (
         <article className="event-item h-100" key={item.slug}>
           {item.location ? <div className="event-location"><span><i className="fas fa-location-dot" /> {item.location}</span></div> : null}
-          {item.image_url ? <div className="event-img"><img src={item.image_url} alt={item.title} /></div> : null}
+          {item.image_url ? <div className="event-img"><img src={item.image_url} alt={item.title} loading="lazy" /></div> : null}
           <div className="event-info">
             <div className="event-meta">
               {item.starts_on ? <span className="event-date"><i className="fas fa-calendar-days" /> {formatDate(item.starts_on)}</span> : null}
@@ -67,7 +67,7 @@ export function PeopleGrid({ items, hrefBase }: { items: Article[]; hrefBase: st
       {items.map((person) => (
         <div className="col-md-4 mb-4" key={person.slug}>
           <div className="team-item wow fadeInUp h-100" data-wow-delay=".25s">
-            <div className="team-img">{person.image_url ? <img src={person.image_url} alt={person.title} /> : null}</div>
+            <div className="team-img">{person.image_url ? <img src={person.image_url} alt={person.title} loading="lazy" /> : null}</div>
             <div className="team-social">
               <a href="#" aria-label="Facebook"><i className="fab fa-facebook-f" /></a>
               <a href="#" aria-label="WhatsApp"><i className="fab fa-whatsapp" /></a>

@@ -5,6 +5,7 @@ import { findBySlug, getContent } from "@/lib/content";
 import { formatHm, kampalaClock, toCalEvents, type CalEvent } from "@/lib/events-calendar";
 import { buildEventSingle } from "@/lib/events-single";
 import type { Article } from "@/lib/types";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -71,3 +72,5 @@ export default async function EventDetail({ params }: Params) {
     </>
   );
 }
+
+export const generateStaticParams = renderOnFirstVisit;

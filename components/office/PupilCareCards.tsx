@@ -63,12 +63,24 @@ function More({ count, children }: { count: number; children: React.ReactNode })
   );
 }
 
-export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, showPlace = false }: {
+/** In scroll mode every pupil is listed and the list scrolls inside the card. */
+function Scroller({ on, label, children }: { on: boolean; label: string; children: React.ReactNode }) {
+  if (!on) return <>{children}</>;
+  return (
+    <div className="occ-scroll" tabIndex={0} role="region" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, href, showPlace = false, scroll = false }: {
   pupils: BirthdayPupil[];
   within?: number;
   limit?: number;
   scope: string;
+  href?: string;
   showPlace?: boolean;
+  scroll?: boolean;
 }) {
   const now = new Date();
   const list = pupils
@@ -92,11 +104,11 @@ export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, showPlace
 
   const today = list.filter((pupil) => pupil.days === 0);
   const upcoming = list.filter((pupil) => pupil.days > 0);
-  const shown = upcoming.slice(0, limit);
-  const hidden = upcoming.slice(limit);
+  const shown = scroll ? upcoming : upcoming.slice(0, limit);
+  const hidden = scroll ? [] : upcoming.slice(limit);
 
   const row = (pupil: Entry, order: number) => (
-    <li key={pupil.id} style={{ "--i": order } as React.CSSProperties}>
+    <li key={pupil.id} style={{ "--i": Math.min(order, 8) } as React.CSSProperties}>
       <span className="occ-date" aria-hidden="true">
         <small>{MONTHS[pupil.month - 1]}</small>
         <strong>{pupil.day}</strong>
@@ -120,7 +132,7 @@ export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, showPlace
   ].filter((group) => group.items.length);
 
   return (
-    <section className="admin-card occ-card is-bday" aria-label="Birthdays">
+    <section className={`admin-card occ-card is-bday${scroll && upcoming.length ? " is-scroll" : ""}`} aria-label="Birthdays">
       <Head icon="fa-cake-candles" title="Birthdays" sub={`Next ${within} days in ${scope}`} count={list.length} />
       <div className="occ-body">
         {today.length ? (
@@ -144,14 +156,16 @@ export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, showPlace
           </div>
         ) : null}
 
-        {groups.map((group) => (
-          <div key={group.label}>
-            {groups.length > 1 || today.length ? <p className="occ-group">{group.label}</p> : null}
-            <ul className="occ-list">
-              {group.items.map((pupil) => row(pupil, shown.indexOf(pupil)))}
-            </ul>
-          </div>
-        ))}
+        <Scroller on={scroll && upcoming.length > 0} label="Upcoming birthdays">
+          {groups.map((group) => (
+            <div key={group.label}>
+              {groups.length > 1 || today.length ? <p className="occ-group">{group.label}</p> : null}
+              <ul className="occ-list">
+                {group.items.map((pupil) => row(pupil, shown.indexOf(pupil)))}
+              </ul>
+            </div>
+          ))}
+        </Scroller>
 
         <More count={hidden.length}>
           <ul className="occ-list">{hidden.map((pupil) => row(pupil, 0))}</ul>
@@ -164,26 +178,32 @@ export function BirthdaysCard({ pupils, within = 30, limit = 6, scope, showPlace
           </div>
         ) : null}
       </div>
+      {href ? (
+        <Link className="occ-foot" href={href}>
+          Open birthdays <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+        </Link>
+      ) : null}
     </section>
   );
 }
 
-export function MedicalCard({ pupils, limit = 5, scope, href, showPlace = false }: {
+export function MedicalCard({ pupils, limit = 5, scope, href, showPlace = false, scroll = false }: {
   pupils: MedicalPupil[];
   limit?: number;
   scope: string;
   href: string;
   showPlace?: boolean;
+  scroll?: boolean;
 }) {
   const list = [...pupils].sort(
     (a, b) => Number(b.panadol === false) - Number(a.panadol === false) || a.name.localeCompare(b.name),
   );
   const noPanadol = list.filter((pupil) => pupil.panadol === false).length;
-  const shown = list.slice(0, limit);
-  const hidden = list.slice(limit);
+  const shown = scroll ? list : list.slice(0, limit);
+  const hidden = scroll ? [] : list.slice(limit);
 
   const row = (pupil: MedicalPupil, order: number) => (
-    <li key={pupil.id} className="occ-med" style={{ "--i": order } as React.CSSProperties}>
+    <li key={pupil.id} className="occ-med" style={{ "--i": Math.min(order, 8) } as React.CSSProperties}>
       <Avatar pupil={pupil} />
       <div className="occ-main">
         <div className="occ-med-top">
@@ -199,7 +219,7 @@ export function MedicalCard({ pupils, limit = 5, scope, href, showPlace = false 
   );
 
   return (
-    <section className="admin-card occ-card is-med" aria-label="Medical notes">
+    <section className={`admin-card occ-card is-med${scroll && list.length ? " is-scroll" : ""}`} aria-label="Medical notes">
       <Head icon="fa-notes-medical" title="Medical" sub={`Health notes in ${scope}`} count={list.length} />
       <div className="occ-body">
         {noPanadol ? (
@@ -211,7 +231,9 @@ export function MedicalCard({ pupils, limit = 5, scope, href, showPlace = false 
 
         {list.length ? (
           <>
-            <ul className="occ-list">{shown.map((pupil, index) => row(pupil, index))}</ul>
+            <Scroller on={scroll} label="Pupils with medical notes">
+              <ul className="occ-list">{shown.map((pupil, index) => row(pupil, index))}</ul>
+            </Scroller>
             <More count={hidden.length}>
               <ul className="occ-list">{hidden.map((pupil) => row(pupil, 0))}</ul>
             </More>

@@ -63,7 +63,7 @@ function Menu({ label, items }: { label: string; items: string[][] }) {
 }
 
 export function Header({ campuses, socials, phone, email, address, mapUrl }: {
-  campuses: Article[];
+  campuses: Pick<Article, "title" | "slug">[];
   socials: Social[];
   phone: string;
   email: string;

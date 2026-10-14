@@ -1,7 +1,7 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-applications";
+import { refreshSite } from "@/lib/site-cache";
 import { isEmail } from "@/lib/vacancy-admin";
 
 export type VacancyActionResult = { ok?: string; error?: string; warning?: string; id?: string; updatedAt?: string | null };
@@ -25,7 +25,7 @@ function friendly(error: DbError) {
 }
 
 function refresh() {
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 function withoutExtended(payload: Record<string, unknown>) {

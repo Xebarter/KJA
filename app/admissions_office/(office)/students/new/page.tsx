@@ -91,7 +91,7 @@ export default async function NewStudentPage({ searchParams }: { searchParams: P
   const nextNumber = numberResult.error ? null : String(numberResult.data);
 
   return (
-    <div className="app-page ofc-page ofc-narrow">
+    <div className="app-page ofc-page enr-page">
       <Link href={app ? `${OFFICE}/applications/${app.id}` : `${OFFICE}/students`} className="app-back">
         <i className="fa-solid fa-arrow-left" /> {app ? "Back to the application" : "Students"}
       </Link>

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Banner, Prose } from "@/components/site/Views";
 import { WpPageView } from "@/components/site/WpPageView";
 import { findBySlug, getContent } from "@/lib/content";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -33,3 +34,5 @@ export default async function CmsPage({ params }: Params) {
     </main>
   );
 }
+
+export const generateStaticParams = renderOnFirstVisit;

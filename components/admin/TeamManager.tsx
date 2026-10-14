@@ -30,10 +30,14 @@ function Feedback({ result }: { result: Result }) {
     : <p className="tm-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p>;
 }
 
-export function TeamManager({ members, officers, alerts }: { members: Member[]; officers: Member[]; alerts: Alerts }) {
+type TeamRole = "admin" | "admissions" | "accounts";
+
+const SIGN_IN: Record<TeamRole, string> = { admin: "/admin", admissions: "/admissions_office", accounts: "/accounts" };
+
+export function TeamManager({ members, officers, accountants, alerts }: { members: Member[]; officers: Member[]; accountants: Member[]; alerts: Alerts }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
-  const [role, setRole] = useState<"admin" | "admissions">("admin");
+  const [role, setRole] = useState<TeamRole>("admin");
   const [result, setResult] = useState<Result>(null);
   const [removing, setRemoving] = useState<string | null>(null);
   const [testing, setTesting] = useState(false);
@@ -163,6 +167,49 @@ export function TeamManager({ members, officers, alerts }: { members: Member[]; 
         ) : (
           <p className="tm-empty">No admissions officers yet. Add one with the form, choosing &ldquo;Admissions officer&rdquo;.</p>
         )}
+
+        <header className="tm-panel-head tm-panel-head-sub" id="team-accounts">
+          <div>
+            <h2>Accounts officers</h2>
+            <p>They sign in to the accounts office to bill fees, record payments and expenses. They can&apos;t change the website.</p>
+          </div>
+          <span className="tm-count">{accountants.length}</span>
+        </header>
+        {accountants.length ? (
+          <ul className="tm-members">
+            {accountants.map((member) => (
+              <li key={member.id} className="tm-card">
+                <div className="tm-card-top">
+                  <span className="tm-avatar" aria-hidden="true">{initials(member.name)}</span>
+                  <div className="tm-who">
+                    <strong><span>{member.name}</span></strong>
+                    {member.email ? <a href={`mailto:${member.email}`}>{member.email}</a> : <small>No email on file</small>}
+                  </div>
+                </div>
+                <div className="tm-card-actions">
+                  <a href="/accounts" className="tm-link">
+                    Accounts office <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                  </a>
+                  <button
+                    type="button"
+                    className="tm-remove"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!window.confirm(`Remove accounts office access for ${member.name}? They will keep their parent portal account.`)) return;
+                      setRemoving(member.id);
+                      run("list", () => removeAdmin(member.id));
+                    }}
+                  >
+                    <i className="fa-solid fa-user-minus" aria-hidden="true" />
+                    {pending && removing === member.id ? "Removing…" : "Remove"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="tm-empty">No accounts officers yet. Add one with the form, choosing &ldquo;Accounts officer&rdquo;.</p>
+        )}
       </section>
 
       <aside className="tm-side">
@@ -173,7 +220,7 @@ export function TeamManager({ members, officers, alerts }: { members: Member[]; 
           <ol className="tm-steps">
             <li><span>1</span><p>They create an account with <strong>Parent portal</strong> on the website.</p></li>
             <li><span>2</span><p>You enter the email address they signed up with below and choose their role.</p></li>
-            <li><span>3</span><p>They sign in at <code>{role === "admin" ? "/admin" : "/admissions_office"}</code> with the same account.</p></li>
+            <li><span>3</span><p>They sign in at <code>{SIGN_IN[role]}</code> with the same account.</p></li>
           </ol>
           <form
             className="tm-add"
@@ -184,9 +231,10 @@ export function TeamManager({ members, officers, alerts }: { members: Member[]; 
             }}
           >
             <label htmlFor="team-role">Role</label>
-            <select id="team-role" name="role" className="tm-role" value={role} onChange={(event) => setRole(event.target.value as "admin" | "admissions")}>
+            <select id="team-role" name="role" className="tm-role" value={role} onChange={(event) => setRole(event.target.value as TeamRole)}>
               <option value="admin">Admin: the whole dashboard</option>
               <option value="admissions">Admissions officer: admissions office only</option>
+              <option value="accounts">Accounts officer: accounts office only</option>
             </select>
             <label htmlFor="team-email">Email address</label>
             <div className="tm-add-row">

@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { AlumniProfileView } from "@/components/site/AlumniViews";
 import { alumniProfiles, toProfile } from "@/lib/alumni";
 import { findBySlug, getContent } from "@/lib/content";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -29,3 +30,5 @@ export default async function AlumniProfileDetail({ params }: Params) {
     />
   );
 }
+
+export const generateStaticParams = renderOnFirstVisit;

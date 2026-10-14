@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PostSingle } from "@/components/site/PostSingle";
 import { findBySlug, getContent } from "@/lib/content";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -16,3 +17,5 @@ export default async function TeacherPage({ params }: Params) {
   if (!item) notFound();
   return <PostSingle item={item} hrefBase="/teacher" siblings={content.teachers} sidebar={{ news: content.news, events: content.events }} />;
 }
+
+export const generateStaticParams = renderOnFirstVisit;

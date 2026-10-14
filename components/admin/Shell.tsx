@@ -125,6 +125,10 @@ export function AdminShell({
             <i className="fa-solid fa-building-user" aria-hidden="true" />
             <span>Admissions office</span>
           </a>
+          <a href="/accounts">
+            <i className="fa-solid fa-calculator" aria-hidden="true" />
+            <span>Accounts office</span>
+          </a>
           <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
 
           <span className="admin-nav-label">Inbox</span>

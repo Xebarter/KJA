@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { CampusPostView } from "@/components/site/CampusPostView";
 import { getCampusPost } from "@/lib/campus-pages";
 import { getContent } from "@/lib/content";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -17,3 +18,5 @@ export default async function FacilityPage({ params }: Params) {
   const content = await getContent();
   return <CampusPostView post={post} news={content.news} events={content.events} />;
 }
+
+export const generateStaticParams = renderOnFirstVisit;

@@ -1,8 +1,6 @@
-import Link from "next/link";
-import { ApplicationFiltersBar, PendingPayments, type PendingPayment } from "@/components/admin/Applications";
-import { ApplicationBoard } from "@/components/admin/applications/ApplicationBoard";
-import { ApplicationList } from "@/components/admin/applications/ApplicationList";
+﻿import type { PendingPayment } from "@/components/admin/Applications";
 import type { ApplicationItem } from "@/components/admin/applications/types";
+import { WorkspaceView, type QuickView } from "@/components/admin/applications/WorkspaceView";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { applicationsQuery, loadPeople, loadStageSince, loadTeam } from "@/lib/admin-applications";
 import { requireOffice } from "@/lib/office";
@@ -156,24 +154,29 @@ export async function ApplicationsWorkspace({
   }));
   const unassigned = summary.filter((row) => !row.assigned_to && isOpen(row)).length;
 
-  const kpis = [
+  const quick: QuickView[] = [
     {
-      label: "Awaiting review", value: counts.get("received") ?? 0, icon: "fa-envelope-open-text",
+      label: "Needs attention", value: attentionCount, icon: attentionCount ? "fa-bell" : "fa-circle-check", tone: attentionCount ? "warn" : "ok",
+      note: attentionCount ? `No owner, waiting over ${ATTENTION_DAYS} days or a visit to follow up` : "Everything is moving on time",
+      href: filterHref(filters, { attention: !filters.attention }, base), active: filters.attention,
+    },
+    {
+      label: "Awaiting review", value: counts.get("received") ?? 0, icon: "fa-envelope-open-text", tone: "new",
       note: waiting.length ? `Oldest waiting ${timeAgo(waiting[0], now).replace(" ago", "")}` : "Nothing waiting",
       href: filterHref(filters, { status: "received", view: "list" }, base), active: filters.status === "received" && !board,
     },
     {
-      label: "Received this week", value: thisWeek, icon: "fa-inbox", up: thisWeek > 0,
+      label: "Received this week", value: thisWeek, icon: "fa-inbox", tone: "navy",
       note: `${thisMonth} in the last 30 days`,
       href: filterHref(filters, { status: "all", received: "7", view: "list" }, base), active: filters.received === "7",
     },
     {
-      label: "Upcoming visits", value: visits.length, icon: "fa-calendar-check",
+      label: "Upcoming visits", value: visits.length, icon: "fa-calendar-check", tone: "visit",
       note: visits.length ? `Next: ${visitLabel(visits[0])}` : "None booked",
       href: filterHref(filters, { status: "visit_scheduled", view: "list" }, base), active: filters.status === "visit_scheduled" && !board,
     },
     {
-      label: "Assigned to me", value: mine, icon: "fa-user-check",
+      label: "Assigned to me", value: mine, icon: "fa-user-check", tone: "offer",
       note: unassigned ? `${unassigned} open and unassigned` : "Every open application has an owner",
       href: filterHref(filters, { owner: "me", status: "open" }, base), active: filters.owner === "me",
     },
@@ -215,162 +218,36 @@ export async function ApplicationsWorkspace({
   });
   const context = { currentUserId: user.id, team, emailProblem: emailSetupProblem() };
 
-  const campuses = content.campuses.map((campus) => campus.title);
-  const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  const exportHref = filterHref(filters, { view: "list" }, base).replace(base, `${base}/export`);
   const tabs = [
     { value: "open", label: "Open", count: openCount, tone: "" },
     ...APPLICATION_STATUSES.map((status) => ({ value: status.value, label: status.label, count: counts.get(status.value) ?? 0, tone: status.tone })),
     { value: "all", label: "All", count: summary.length, tone: "" },
   ];
-  const pipeline = APPLICATION_STATUSES.map((status) => ({ ...status, count: counts.get(status.value) ?? 0 })).filter((status) => status.count);
 
   return (
-    <div className="app-page apl">
-      <PageHeader
-        kicker="Admissions"
-        icon="fa-file-signature"
-        title="Applications"
-        description="Every admission application from the website and parent portal, shared by the whole team."
-        actions={
-          <>
-            <a className="admin-hero-btn" href={exportHref}>
-              <i className="fa-solid fa-file-arrow-down" aria-hidden="true" /> Export CSV
-            </a>
-            <a className="admin-hero-btn" href="/admissions" target="_blank" rel="noopener noreferrer">
-              <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> Admissions page
-            </a>
-          </>
-        }
-      >
-        <div className="apl-pipeline">
-          <p className="apl-pipeline-head">
-            <span>Admissions pipeline</span>
-            <strong>{summary.length.toLocaleString("en-GB")} total</strong>
-          </p>
-          <div className="admin-pipeline is-dark" role="img" aria-label={pipeline.map((status) => `${status.label}: ${status.count}`).join(", ") || "No applications yet"}>
-            {pipeline.map((status) => (
-              <span key={status.value} className={`admin-seg admin-seg-${status.tone}`} style={{ flexGrow: status.count }} />
-            ))}
-          </div>
-          <dl className="apl-pipeline-figures">
-            <div><dt>Open</dt><dd>{openCount}</dd></div>
-            <div><dt>Offered</dt><dd>{counts.get("offered") ?? 0}</dd></div>
-            <div><dt>Enrolled</dt><dd>{counts.get("enrolled") ?? 0}</dd></div>
-          </dl>
-          <Link className="apl-pipeline-fees" href={filterHref(filters, { status: "all", payment: "paid" }, base)}>
-            <i className="fa-solid fa-mobile-screen-button" aria-hidden="true" />
-            <span><strong>{ugx(collected)}</strong> in admission fees</span>
-            <em>{paidRows.length} paid</em>
-          </Link>
-        </div>
-      </PageHeader>
-
-      <div className="admin-kpis">
-        {kpis.map((kpi) => (
-          <Link key={kpi.label} href={kpi.href} className={`admin-kpi${kpi.active ? " is-active" : ""}`} aria-current={kpi.active ? "page" : undefined}>
-            <span className="admin-kpi-icon"><i className={`fa-solid ${kpi.icon}`} aria-hidden="true" /></span>
-            <span className="admin-kpi-label">{kpi.label}</span>
-            <strong>{kpi.value.toLocaleString("en-GB")}</strong>
-            <span className={`admin-kpi-note${kpi.up ? " is-up" : ""}`}>
-              {kpi.up ? <i className="fa-solid fa-arrow-trend-up" aria-hidden="true" /> : null} {kpi.note}
-            </span>
-            <i className="fa-solid fa-arrow-right admin-kpi-go" aria-hidden="true" />
-          </Link>
-        ))}
-      </div>
-
-      {pendingPayments.length ? <PendingPayments items={pendingPayments} tracked={unpaid.tracked} /> : null}
-
-      <section className="apl-card apw-panel">
-        <div className="apw-toolbar">
-          <div className="apw-toolbar-title">
-            <h2>{board ? "Admissions board" : "Applications"}</h2>
-            <p>{board ? "Drag a card to move it to the next stage." : "Open a strip to see the full application and timeline."}</p>
-          </div>
-          <Link
-            href={filterHref(filters, { attention: !filters.attention }, base)}
-            className={`apw-attention${filters.attention ? " is-on" : ""}${attentionCount ? "" : " is-clear"}`}
-            aria-pressed={filters.attention}
-            title={`Open applications with no owner, waiting more than ${ATTENTION_DAYS} days, or with a visit to follow up`}
-          >
-            <i className={`fa-solid ${attentionCount ? "fa-bell" : "fa-circle-check"}`} aria-hidden="true" />
-            Needs attention
-            <em>{attentionCount}</em>
-          </Link>
-          <nav className="apw-views" aria-label="View">
-            <Link href={filterHref(filters, { view: "list" }, base)} className={board ? "" : "is-on"} aria-current={board ? undefined : "page"}>
-              <i className="fa-solid fa-list" aria-hidden="true" /> List
-            </Link>
-            <Link href={filterHref(filters, { view: "board" }, base)} className={board ? "is-on" : ""} aria-current={board ? "page" : undefined}>
-              <i className="fa-solid fa-table-columns" aria-hidden="true" /> Board
-            </Link>
-          </nav>
-        </div>
-
-        {board ? null : (
-          <nav className="apl-tabs" aria-label="Filter by status">
-            {tabs.map((tab) => {
-              const active = filters.status === tab.value;
-              return (
-                <Link key={tab.value} href={filterHref(filters, { status: tab.value }, base)} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
-                  {tab.tone ? <span className={`admin-dot admin-seg-${tab.tone}`} aria-hidden="true" /> : null}
-                  {tab.label}
-                  <em>{tab.count}</em>
-                </Link>
-              );
-            })}
-          </nav>
-        )}
-
-        <ApplicationFiltersBar filters={filters} campuses={campuses} team={team} />
-
-        {context.emailProblem ? (
-          <p className="apw-banner">
-            <i className="fa-regular fa-envelope" aria-hidden="true" />
-            Parent emails are off: {context.emailProblem}
-          </p>
-        ) : null}
-
-        {!items.length ? (
-          <div className="apl-empty">
-            <span><i className={`fa-regular ${filters.attention ? "fa-circle-check" : "fa-folder-open"}`} aria-hidden="true" /></span>
-            <h2>{filters.attention ? "Nothing needs attention" : summary.length ? "No matching applications" : "No applications yet"}</h2>
-            <p>
-              {filters.attention
-                ? "Every open application has an owner and is moving on time."
-                : summary.length ? "Try another status tab or clear the filters." : "New applications from the website will appear here."}
-            </p>
-          </div>
-        ) : board ? (
-          <ApplicationBoard items={items} context={context} truncated={truncated} />
-        ) : (
-          <ApplicationList items={items} context={context} exportHref={exportHref} />
-        )}
-
-        {!board && total ? (
-          <footer className="apl-pager">
-            <span>
-              Showing <strong>{from + 1}–{Math.min(from + PAGE_SIZE, total)}</strong> of <strong>{total}</strong>
-            </span>
-            {pages > 1 ? (
-              <div>
-                {filters.page > 1 ? (
-                  <Link className="apl-page-btn" href={filterHref(filters, { page: filters.page - 1 }, base)}>
-                    <i className="fa-solid fa-chevron-left" aria-hidden="true" /> Previous
-                  </Link>
-                ) : null}
-                <span className="apl-page-num">Page {filters.page} of {pages}</span>
-                {filters.page < pages ? (
-                  <Link className="apl-page-btn" href={filterHref(filters, { page: filters.page + 1 }, base)}>
-                    Next <i className="fa-solid fa-chevron-right" aria-hidden="true" />
-                  </Link>
-                ) : null}
-              </div>
-            ) : null}
-          </footer>
-        ) : null}
-      </section>
-    </div>
+    <WorkspaceView
+      base={base}
+      filters={filters}
+      totalApplications={summary.length}
+      openCount={openCount}
+      offered={counts.get("offered") ?? 0}
+      enrolled={counts.get("enrolled") ?? 0}
+      collected={ugx(collected)}
+      paidCount={paidRows.length}
+      pipeline={APPLICATION_STATUSES.map((status) => ({ ...status, count: counts.get(status.value) ?? 0 })).filter((status) => status.count)}
+      quick={quick}
+      tabs={tabs}
+      pendingPayments={pendingPayments}
+      paymentsTracked={unpaid.tracked}
+      campuses={content.campuses.map((campus) => campus.title)}
+      items={items}
+      context={context}
+      truncated={truncated}
+      exportHref={filterHref(filters, { view: "list" }, base).replace(base, `${base}/export`)}
+      total={total}
+      from={from}
+      pageSize={PAGE_SIZE}
+    />
   );
 }
+

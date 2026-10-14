@@ -150,6 +150,13 @@ export function OfficeShell({
               <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
             </a>
           ) : null}
+          {person.role === "Administrator" ? (
+            <a className="admin-side-link" href="/accounts">
+              <i className="fa-solid fa-calculator" aria-hidden="true" />
+              <span>Accounts office</span>
+              <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
+            </a>
+          ) : null}
           <a className="admin-side-link" href="/" target="_blank" rel="noopener noreferrer">
             <i className="fa-solid fa-globe" aria-hidden="true" />
             <span>View website</span>

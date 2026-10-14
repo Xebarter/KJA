@@ -2,6 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassSizeChart, ClassesBoard, ClassesHeroStats, type ClassSummary, type ClassesSection } from "@/components/office/ClassesBoard";
 import { ClassFinder, type FinderClass, type FinderPupil } from "@/components/office/ClassFinder";
+import { BirthdaysCard, MedicalCard, type CarePupil } from "@/components/office/PupilCareCards";
 import { Kpis, MigrationHint, OfficeNotice, type Kpi } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { CLASS_AGE, OFFICE, SCHOOL_CLASSES, fetchAll, pick, studentAge } from "@/lib/students";
@@ -22,6 +23,7 @@ type Row = {
   date_of_birth: string | null;
   house: string | null;
   medical_notes: string | null;
+  panadol_allowed: boolean | null;
   needs_review: boolean;
 };
 
@@ -41,7 +43,7 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
     fetchAll<Row>((from, to) =>
       supabase
         .from("student_directory")
-        .select("id, full_name, preferred_name, student_number, father_name, mother_name, class_code, stream, sex, date_of_birth, house, medical_notes, needs_review")
+        .select("id, full_name, preferred_name, student_number, father_name, mother_name, class_code, stream, sex, date_of_birth, house, medical_notes, panadol_allowed, needs_review")
         .eq("status", "active")
         .order("id")
         .range(from, to)).then((data) => ({ data }), (error: Error) => ({ error })),
@@ -100,6 +102,14 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
     f: row.father_name,
     m: row.mother_name,
   }));
+  const carePupil = (row: Row): CarePupil => ({
+    id: row.id,
+    name: row.full_name,
+    preferred: row.preferred_name,
+    sex: row.sex,
+    place: row.class_code ? `${row.class_code}${row.stream ? ` · ${row.stream}` : ""}` : "No class",
+  });
+
   const finderClasses: FinderClass[] = classes.map((entry) => ({
     code: entry.code,
     name: entry.name,
@@ -127,6 +137,21 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
       <ClassFinder pupils={pupils} classes={finderClasses} />
       <Kpis items={kpis} />
       <ClassSizeChart classes={classes} />
+      <div className="occ-pair no-print">
+        <BirthdaysCard
+          pupils={rows.map((row) => ({ ...carePupil(row), dob: row.date_of_birth }))}
+          within={14}
+          scope="the school"
+          href={`${OFFICE}/birthdays`}
+          showPlace
+        />
+        <MedicalCard
+          pupils={rows.filter((row) => row.medical_notes).map((row) => ({ ...carePupil(row), notes: row.medical_notes ?? "", panadol: row.panadol_allowed }))}
+          scope="the school"
+          href={`${OFFICE}/medical`}
+          showPlace
+        />
+      </div>
       <ClassesBoard classes={classes} view={view} section={section} />
     </div>
   );

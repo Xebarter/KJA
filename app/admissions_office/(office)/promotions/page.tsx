@@ -7,6 +7,7 @@ import { requireOffice } from "@/lib/office";
 import { OFFICE, fetchAll } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import type { PromotionRow } from "./actions";
+import "./promotions.css";
 
 export const metadata = { title: "Promotions" };
 

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { preload } from "react-dom";
 import type { Slide } from "@/lib/types";
 
 function HeroTitle({ title }: { title: string }) {
@@ -20,9 +21,9 @@ function HeroTitle({ title }: { title: string }) {
   return <h3 className="text-white slider-text">{title}</h3>;
 }
 
-function SlideFrame({ slide }: { slide: Slide }) {
+function SlideFrame({ slide, primed }: { slide: Slide; primed: boolean }) {
   return (
-    <div className="hero-single" style={{ background: `url('${slide.image_url}')` }}>
+    <div className="hero-single" style={primed ? { background: `url('${slide.image_url}')` } : undefined}>
       <div className="container" style={{ height: "100%" }}>
         <div className="row h-100">
           <div className="col-12 h-100">
@@ -48,6 +49,17 @@ export function Hero({ slides }: { slides: Slide[] }) {
   const [index, setIndex] = useState(loop ? 1 : 0);
   const [sliding, setSliding] = useState(true);
   const [paused, setPaused] = useState(false);
+  /* Only the visible slide's photo is in the server HTML; its neighbours load once the page is interactive
+     and the rest as the slider reaches them, so first paint isn't competing with every slide's download. */
+  const [primed, setPrimed] = useState(() => new Set([index]));
+  if (slides[0]) preload(slides[0].image_url, { as: "image", fetchPriority: "high" });
+
+  useEffect(() => {
+    setPrimed((current) => {
+      const wanted = [index - 1, index, index + 1].filter((frame) => !current.has(frame));
+      return wanted.length ? new Set([...current, ...wanted]) : current;
+    });
+  }, [index]);
 
   useEffect(() => {
     if (!loop || paused) return;
@@ -80,7 +92,7 @@ export function Hero({ slides }: { slides: Slide[] }) {
           <div className={`kja-track${sliding ? " is-sliding" : ""}`} style={{ transform: `translateX(-${index * 100}%)` }}>
             {frames.map((slide, frame) => (
               <div className="kja-slide" key={`${slide.image_url}-${frame}`}>
-                <SlideFrame slide={slide} />
+                <SlideFrame slide={slide} primed={frame === index || primed.has(frame)} />
               </div>
             ))}
           </div>

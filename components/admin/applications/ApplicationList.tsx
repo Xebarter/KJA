@@ -105,133 +105,135 @@ export function ApplicationList({ items, context, exportHref }: { items: Applica
 
   return (
     <div className="apw-list-wrap">
-      <div className="apw-list-head">
-        <label className="apw-check">
-          <input
-            type="checkbox"
-            aria-label="Select all on this page"
-            checked={all}
-            onChange={() => setSelected(all ? new Set() : new Set(items.map((item) => item.id)))}
-          />
+      <div className="apw-frame">
+        <div className="apw-list-head">
+          <label className="apw-check">
+            <input
+              type="checkbox"
+              aria-label="Select all on this page"
+              checked={all}
+              onChange={() => setSelected(all ? new Set() : new Set(items.map((item) => item.id)))}
+            />
+            <span />
+          </label>
+          <span>Child</span>
+          <span>Parent</span>
+          <span>Stage</span>
+          <span>Fee</span>
+          <span>Owner</span>
+          <span>Received</span>
           <span />
-        </label>
-        <span>Child</span>
-        <span>Parent</span>
-        <span>Stage</span>
-        <span>Fee</span>
-        <span>Owner</span>
-        <span>Received</span>
-        <span />
-      </div>
+        </div>
 
-      <ul className="apw-list" ref={list} onKeyDown={onListKey} aria-label="Applications">
-        {items.map((item) => {
-          const next = NEXT_STEP[item.status];
-          const busy = actions.busy === item.id;
-          const href = `${base}/${item.id}`;
-          return (
-            <li
-              key={item.id}
-              data-id={item.id}
-              tabIndex={0}
-              aria-label={`${item.child}, ${item.status.replace("_", " ")}`}
-              className={`apw-strip tone-${statusInfo(item.status).tone}${item.unread ? " is-unread" : ""}${selected.has(item.id) ? " is-selected" : ""}${busy ? " is-busy" : ""}`}
-              onClick={(event) => {
-                if ((event.target as HTMLElement).closest("a, button, input, label, .apw-menu")) return;
-                router.push(href);
-              }}
-            >
-              <label className="apw-check" onClick={(event) => event.stopPropagation()}>
-                <input type="checkbox" aria-label={`Select ${item.child}`} checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
-                <span />
-              </label>
+        <ul className="apw-list" ref={list} onKeyDown={onListKey} aria-label="Applications">
+          {items.map((item) => {
+            const next = NEXT_STEP[item.status];
+            const busy = actions.busy === item.id;
+            const href = `${base}/${item.id}`;
+            return (
+              <li
+                key={item.id}
+                data-id={item.id}
+                tabIndex={0}
+                aria-label={`${item.child}, ${item.status.replace("_", " ")}`}
+                className={`apw-strip tone-${statusInfo(item.status).tone}${item.unread ? " is-unread" : ""}${selected.has(item.id) ? " is-selected" : ""}${busy ? " is-busy" : ""}`}
+                onClick={(event) => {
+                  if ((event.target as HTMLElement).closest("a, button, input, label, .apw-menu")) return;
+                  router.push(href);
+                }}
+              >
+                <label className="apw-check" onClick={(event) => event.stopPropagation()}>
+                  <input type="checkbox" aria-label={`Select ${item.child}`} checked={selected.has(item.id)} onChange={() => toggle(item.id)} />
+                  <span />
+                </label>
 
-              <div className="apw-child">
-                <Monogram name={item.child} />
-                <div>
-                  <Link href={href} className="apw-name" tabIndex={-1}>
-                    {item.unread ? <i className="apw-unread" aria-label="Not opened yet" /> : null}
-                    {item.child}
-                  </Link>
-                  <p className="apw-sub">
-                    {[item.meta, item.campus].filter(Boolean).join(" · ") || "Class not given"}
-                  </p>
-                  <p className="apw-inline">
-                    {item.paid ? <span className="apw-paid is-mini"><i className="fa-solid fa-check" aria-hidden="true" /> Paid</span> : null}
-                    <span title={item.receivedFull}>{item.received}</span>
-                  </p>
-                  {item.duplicateHref ? (
-                    <Link className="apw-dup" href={item.duplicateHref} title="Another application has the same child and parent contact">
-                      <i className="fa-regular fa-clone" aria-hidden="true" /> Possible duplicate
+                <div className="apw-child">
+                  <Monogram name={item.child} />
+                  <div>
+                    <Link href={href} className="apw-name" tabIndex={-1}>
+                      {item.unread ? <i className="apw-unread" aria-label="Not opened yet" /> : null}
+                      {item.child}
                     </Link>
-                  ) : null}
+                    <p className="apw-sub">
+                      {[item.meta, item.campus].filter(Boolean).join(" · ") || "Class not given"}
+                    </p>
+                    <p className="apw-inline">
+                      {item.paid ? <span className="apw-paid is-mini"><i className="fa-solid fa-check" aria-hidden="true" /> Paid</span> : null}
+                      <span title={item.receivedFull}>{item.received}</span>
+                    </p>
+                    {item.duplicateHref ? (
+                      <Link className="apw-dup" href={item.duplicateHref} title="Another application has the same child and parent contact">
+                        <i className="fa-regular fa-clone" aria-hidden="true" /> Possible duplicate
+                      </Link>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
 
-              <div className="apw-parent">
-                <p className="apw-strong">{item.parent}</p>
-                <p className="apw-sub">{item.phone || item.email || "No contact"}</p>
-                <ContactLinks item={item} />
-              </div>
+                <div className="apw-parent">
+                  <p className="apw-strong">{item.parent}</p>
+                  <p className="apw-sub">{item.phone || item.email || "No contact"}</p>
+                  <ContactLinks item={item} />
+                </div>
 
-              <div className="apw-stage">
-                <StageChip status={item.status} />
-                <p className="apw-stage-meta">
-                  <StageTrack status={item.status} />
-                  {item.alert ? (
-                    <span className={`apw-due is-${item.alert.level}`} title={item.alert.text}>
-                      <i className={`fa-solid ${item.alert.level === "late" ? "fa-circle-exclamation" : "fa-clock"}`} aria-hidden="true" /> {item.alert.text}
-                    </span>
-                  ) : item.visitLabel ? (
-                    <span className="apw-due is-visit"><i className="fa-regular fa-calendar" aria-hidden="true" /> {item.visitLabel}</span>
+                <div className="apw-stage">
+                  <StageChip status={item.status} />
+                  <p className="apw-stage-meta">
+                    <StageTrack status={item.status} />
+                    {item.alert ? (
+                      <span className={`apw-due is-${item.alert.level}`} title={item.alert.text}>
+                        <i className={`fa-solid ${item.alert.level === "late" ? "fa-circle-exclamation" : "fa-clock"}`} aria-hidden="true" /> {item.alert.text}
+                      </span>
+                    ) : item.visitLabel ? (
+                      <span className="apw-due is-visit"><i className="fa-regular fa-calendar" aria-hidden="true" /> {item.visitLabel}</span>
+                    ) : (
+                      <span className="apw-sub">{item.stageFor} in stage</span>
+                    )}
+                  </p>
+                </div>
+
+                <div className="apw-fee" title={item.fee ? `Admission fee paid: ${item.fee}` : "No admission fee recorded"}>
+                  {item.paid ? (
+                    <>
+                      <span className="apw-paid"><i className="fa-solid fa-check" aria-hidden="true" /> Paid</span>
+                      {item.fee ? <p className="apw-sub">{item.fee.replace("UGX ", "")}</p> : null}
+                    </>
                   ) : (
-                    <span className="apw-sub">{item.stageFor} in stage</span>
+                    <span className="apw-unpaid">Unpaid</span>
                   )}
-                </p>
-              </div>
+                </div>
 
-              <div className="apw-fee" title={item.fee ? `Admission fee paid: ${item.fee}` : "No admission fee recorded"}>
-                {item.paid ? (
-                  <>
-                    <span className="apw-paid"><i className="fa-solid fa-check" aria-hidden="true" /> Paid</span>
-                    {item.fee ? <p className="apw-sub">{item.fee.replace("UGX ", "")}</p> : null}
-                  </>
-                ) : (
-                  <span className="apw-unpaid">Unpaid</span>
-                )}
-              </div>
+                <div className="apw-owner">
+                  <OwnerControl item={item} currentUserId={context.currentUserId} busy={busy} onAssign={(owner) => actions.assign(item, owner)} />
+                </div>
 
-              <div className="apw-owner">
-                <OwnerControl item={item} currentUserId={context.currentUserId} busy={busy} onAssign={(owner) => actions.assign(item, owner)} />
-              </div>
+                <div className="apw-received" title={item.receivedFull}>
+                  <p className="apw-strong">{item.received}</p>
+                </div>
 
-              <div className="apw-received" title={item.receivedFull}>
-                <p className="apw-strong">{item.received}</p>
-              </div>
-
-              <div className="apw-actions">
-                <button
-                  type="button"
-                  className={`apw-next${next.label === "Reopen" ? " is-quiet" : ""}`}
-                  disabled={busy}
-                  onClick={() => actions.move(item, next.to)}
-                >
-                  {busy ? <span className="apw-spin" aria-hidden="true" /> : <i className={`fa-solid ${next.icon}`} aria-hidden="true" />}
-                  {next.label}
-                </button>
-                <RowMenu
-                  item={item}
-                  currentUserId={context.currentUserId}
-                  onMove={(to) => actions.move(item, to)}
-                  onAssign={(owner) => actions.assign(item, owner)}
-                  onRead={(read) => actions.markRead(item, read)}
-                  onDelete={() => actions.remove(item)}
-                />
-              </div>
-            </li>
-          );
-        })}
-      </ul>
+                <div className="apw-actions">
+                  <button
+                    type="button"
+                    className={`apw-next${next.label === "Reopen" ? " is-quiet" : ""}`}
+                    disabled={busy}
+                    onClick={() => actions.move(item, next.to)}
+                  >
+                    {busy ? <span className="apw-spin" aria-hidden="true" /> : <i className={`fa-solid ${next.icon}`} aria-hidden="true" />}
+                    {next.label}
+                  </button>
+                  <RowMenu
+                    item={item}
+                    currentUserId={context.currentUserId}
+                    onMove={(to) => actions.move(item, to)}
+                    onAssign={(owner) => actions.assign(item, owner)}
+                    onRead={(read) => actions.markRead(item, read)}
+                    onDelete={() => actions.remove(item)}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
 
       <p className="apw-keys" aria-hidden="true">
         <kbd>J</kbd><kbd>K</kbd> move <span /> <kbd>Enter</kbd> open <span /> <kbd>N</kbd> next step <span /> <kbd>A</kbd> assign me <span /> <kbd>X</kbd> select <span /> <kbd>/</kbd> search

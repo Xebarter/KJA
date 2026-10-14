@@ -1,9 +1,9 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
 import { requireAdmin } from "@/lib/admin-applications";
 import { fromKampalaInput } from "@/lib/applications";
 import { isStoryTable, sourceForTable, STORY_SOURCES, type StoryTable } from "@/lib/newsroom";
+import { refreshSite } from "@/lib/site-cache";
 import { normalizeTags, slugify, storyPath } from "@/lib/story-admin";
 
 export type StoryActionResult = { ok?: string; error?: string; warning?: string; id?: string; table?: StoryTable; updatedAt?: string | null };
@@ -23,7 +23,7 @@ function friendly(error: DbError, table: StoryTable, slug?: string) {
 }
 
 function refresh() {
-  revalidatePath("/", "layout");
+  refreshSite();
 }
 
 const text = (value: FormDataEntryValue | null) => String(value ?? "").trim();

@@ -4,6 +4,7 @@ import { CampusView } from "@/components/site/CampusView";
 import { composeCampus } from "@/lib/campus-profile";
 import { findBySlug, getContent } from "@/lib/content";
 import { SITE_URL } from "@/lib/newsroom";
+import { renderOnFirstVisit } from "@/lib/site-cache";
 
 type Params = { params: Promise<{ slug: string }> };
 
@@ -53,3 +54,5 @@ export default async function CampusPage({ params }: Params) {
     </>
   );
 }
+
+export const generateStaticParams = renderOnFirstVisit;

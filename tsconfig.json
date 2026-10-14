@@ -32,9 +32,10 @@
     "**/*.ts",
     "**/*.tsx",
     ".next-agent/types/**/*.ts",
+    ".next-hdrtest/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-hdrtest/types/**/*.ts"
+    ".next-perf/types/**/*.ts"
   ],
   "exclude": [
     "node_modules"

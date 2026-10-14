@@ -42,79 +42,187 @@ function Feedback({ result }: { result: ActionResult | null }) {
     : <p className="app-feedback" role="status"><i className="fa-solid fa-check" /> {result.ok}</p>;
 }
 
+/** A row of tabs that scrolls sideways when narrow, with the current tab kept in view. */
+export function ScrollingTabs({ label, className, current, children }: { label: string; className: string; current: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    const nav = ref.current;
+    const active = nav?.querySelector<HTMLElement>("[aria-current]");
+    if (!nav || !active || nav.scrollWidth <= nav.clientWidth) return;
+    nav.scrollTo({ left: active.offsetLeft - (nav.clientWidth - active.offsetWidth) / 2, behavior: "instant" });
+  }, [current]);
+
+  return <nav ref={ref} className={className} aria-label={label}>{children}</nav>;
+}
+
+/** Search as you type, a folding panel for the less-used filters, and a chip for every filter in force. */
 export function ApplicationFiltersBar({
   filters,
   campuses,
   team,
+  total = null,
 }: {
   filters: ApplicationFilters;
   campuses: string[];
   team: TeamMember[];
+  total?: number | null;
 }) {
   const router = useRouter();
   const base = applicationsBase(usePathname());
   const [q, setQ] = useState(filters.q);
-  const go = (changes: Partial<ApplicationFilters>) => router.push(filterHref(filters, changes, base));
-  const filtered = Boolean(
-    filters.q || filters.campus || filters.grade || filters.owner || filters.payment || filters.received || filters.sort !== "newest",
-  );
+  const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
+  const pushed = useRef(filters.q);
+  const go = (changes: Partial<ApplicationFilters>) => startTransition(() => router.push(filterHref(filters, changes, base), { scroll: false }));
+
+  // Keep the box in step with links that change the search, without undoing what's being typed.
+  useEffect(() => {
+    if (filters.q !== pushed.current) {
+      pushed.current = filters.q;
+      setQ(filters.q);
+    }
+  }, [filters.q]);
+
+  useEffect(() => {
+    const next = q.trim();
+    if (next === pushed.current) return;
+    const timer = window.setTimeout(() => {
+      pushed.current = next;
+      startTransition(() => router.replace(filterHref(filters, { q: next }, base), { scroll: false }));
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [q, filters, base, router]);
+
+  const ownerName = filters.owner === "me" ? "Assigned to me" : filters.owner === "none" ? "Unassigned" : team.find((member) => member.id === filters.owner)?.name ?? "Former admin";
+  type Chip = { key: string; icon: string; label: string; clear: Partial<ApplicationFilters> };
+  const chips = ([
+    filters.attention ? { key: "attention", icon: "fa-bell", label: "Needs attention", clear: { attention: false } } : null,
+    filters.campus ? { key: "campus", icon: "fa-location-dot", label: filters.campus, clear: { campus: "" } } : null,
+    filters.grade ? { key: "grade", icon: "fa-chalkboard", label: filters.grade, clear: { grade: "" } } : null,
+    filters.owner ? { key: "owner", icon: "fa-user", label: ownerName, clear: { owner: "" } } : null,
+    filters.payment ? { key: "payment", icon: "fa-mobile-screen-button", label: PAYMENT_FILTERS.find((option) => option.value === filters.payment)?.label ?? "", clear: { payment: "" } } : null,
+    filters.received ? { key: "received", icon: "fa-clock", label: `Received ${RECEIVED_FILTERS.find((option) => option.value === filters.received)?.label.toLowerCase()}`, clear: { received: "" } } : null,
+  ] as (Chip | null)[]).filter((chip): chip is Chip => Boolean(chip));
+  const panelCount = [filters.campus, filters.grade, filters.owner, filters.payment, filters.received].filter(Boolean).length;
 
   return (
-    <form
-      className="app-filters"
-      role="search"
-      onSubmit={(event) => {
-        event.preventDefault();
-        go({ q: q.trim() });
-      }}
-    >
-      <label className="app-search">
-        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-        <span className="visually-hidden">Search applications</span>
-        <input
-          id="apl-search"
-          type="search"
-          value={q}
-          onChange={(event) => setQ(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Escape" && q) {
-              setQ("");
-              if (filters.q) go({ q: "" });
-            }
-          }}
-          placeholder="Search child, parent, email or phone"
-        />
-        <kbd aria-hidden="true">/</kbd>
-      </label>
-      <select aria-label="Campus" value={filters.campus} onChange={(event) => go({ campus: event.target.value })}>
-        <option value="">All campuses</option>
-        {campuses.map((campus) => <option key={campus}>{campus}</option>)}
-      </select>
-      <select aria-label="Class" value={filters.grade} onChange={(event) => go({ grade: event.target.value })}>
-        <option value="">All classes</option>
-        {CLASS_OPTIONS.map((grade) => <option key={grade}>{grade}</option>)}
-      </select>
-      <select aria-label="Owner" value={filters.owner} onChange={(event) => go({ owner: event.target.value })}>
-        <option value="">Any owner</option>
-        <option value="me">Assigned to me</option>
-        <option value="none">Unassigned</option>
-        {team.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
-      </select>
-      <select aria-label="Admission fee" value={filters.payment} onChange={(event) => go({ payment: event.target.value as ApplicationFilters["payment"] })}>
-        {PAYMENT_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <select aria-label="Received" value={filters.received} onChange={(event) => go({ received: event.target.value as ApplicationFilters["received"] })}>
-        {RECEIVED_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      <select aria-label="Sort" value={filters.sort} onChange={(event) => go({ sort: event.target.value as ApplicationFilters["sort"] })}>
-        {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-      </select>
-      {filtered ? (
-        <Link className="app-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", payment: "", received: "", sort: "newest" }, base)}>
-          Clear
-        </Link>
+    <div className={`apw-filters${pending ? " is-pending" : ""}`}>
+      <form
+        className="apw-filter-row"
+        role="search"
+        onSubmit={(event) => {
+          event.preventDefault();
+          pushed.current = q.trim();
+          go({ q: q.trim() });
+        }}
+      >
+        <label className="apw-search">
+          <i className={`fa-solid ${pending ? "fa-circle-notch fa-spin" : "fa-magnifying-glass"}`} aria-hidden="true" />
+          <span className="visually-hidden">Search applications</span>
+          <input
+            id="apl-search"
+            type="search"
+            value={q}
+            onChange={(event) => setQ(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Escape" && q) {
+                event.preventDefault();
+                setQ("");
+              }
+            }}
+            placeholder="Search by child, parent, email or phone"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          {q ? (
+            <button type="button" className="apw-search-clear" aria-label="Clear search" onClick={() => setQ("")}>
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
+            </button>
+          ) : <kbd aria-hidden="true">/</kbd>}
+        </label>
+        <button
+          type="button"
+          className={`apw-filter-btn${open ? " is-open" : ""}${panelCount ? " is-active" : ""}`}
+          aria-expanded={open}
+          aria-controls="apw-filter-panel"
+          onClick={() => setOpen((value) => !value)}
+        >
+          <i className="fa-solid fa-sliders" aria-hidden="true" /> Filters
+          {panelCount ? <em>{panelCount}</em> : null}
+          <i className="fa-solid fa-chevron-down apw-filter-caret" aria-hidden="true" />
+        </button>
+        <label className="apw-sort">
+          <i className="fa-solid fa-arrow-down-wide-short" aria-hidden="true" />
+          <span className="visually-hidden">Sort</span>
+          <select value={filters.sort} onChange={(event) => go({ sort: event.target.value as ApplicationFilters["sort"] })}>
+            {SORT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </label>
+      </form>
+
+      <div id="apw-filter-panel" className={`apw-filter-panel${open ? " is-open" : ""}`} inert={!open}>
+        <div className="apw-filter-grid">
+          <label>
+            <span>Campus</span>
+            <select value={filters.campus} onChange={(event) => go({ campus: event.target.value })}>
+              <option value="">All campuses</option>
+              {campuses.map((campus) => <option key={campus}>{campus}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Class</span>
+            <select value={filters.grade} onChange={(event) => go({ grade: event.target.value })}>
+              <option value="">All classes</option>
+              {CLASS_OPTIONS.map((grade) => <option key={grade}>{grade}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Owner</span>
+            <select value={filters.owner} onChange={(event) => go({ owner: event.target.value })}>
+              <option value="">Anyone</option>
+              <option value="me">Assigned to me</option>
+              <option value="none">Unassigned</option>
+              {team.map((member) => <option key={member.id} value={member.id}>{member.name}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Admission fee</span>
+            <select value={filters.payment} onChange={(event) => go({ payment: event.target.value as ApplicationFilters["payment"] })}>
+              {PAYMENT_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+          <label>
+            <span>Received</span>
+            <select value={filters.received} onChange={(event) => go({ received: event.target.value as ApplicationFilters["received"] })}>
+              {RECEIVED_FILTERS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      {chips.length || filters.q || total !== null ? (
+        <div className="apw-chips" aria-live="polite">
+          {total !== null ? (
+            <span className="apw-count">
+              <strong>{total.toLocaleString("en-GB")}</strong> {total === 1 ? "application" : "applications"}
+              {filters.q ? <> matching <q>{filters.q}</q></> : null}
+            </span>
+          ) : null}
+          {chips.map((chip) => (
+            <Link key={chip.key} className="apw-chip-filter" href={filterHref(filters, chip.clear, base)} scroll={false} aria-label={`Remove filter: ${chip.label}`}>
+              <i className={`fa-solid ${chip.icon}`} aria-hidden="true" /> {chip.label}
+              <span aria-hidden="true"><i className="fa-solid fa-xmark" /></span>
+            </Link>
+          ))}
+          {chips.length + (filters.q ? 1 : 0) > 1 ? (
+            <Link className="apw-chip-clear" href={filterHref(filters, { q: "", campus: "", grade: "", owner: "", payment: "", received: "", attention: false }, base)} scroll={false}>
+              Clear all
+            </Link>
+          ) : null}
+        </div>
       ) : null}
-    </form>
+    </div>
   );
 }
 
@@ -155,18 +263,21 @@ export function PendingPayments({ items, tracked }: { items: PendingPayment[]; t
     router.refresh();
   };
 
+  const urgent = items.some((item) => item.state === "stuck" || item.state === "failed");
+
   return (
-    <section className="apl-card apl-payq" id="unpaid-applications" aria-labelledby="apl-payq-title">
-      <header className="apl-payq-head">
+    <details className="apl-card apl-payq" id="unpaid-applications" open={urgent || undefined}>
+      <summary className="apl-payq-head">
         <span className="apl-payq-icon" aria-hidden="true"><i className="fa-solid fa-hand-holding-dollar" /></span>
         <div>
           <h2 id="apl-payq-title">Unpaid applications <em className="apl-payq-count">{items.length}</em></h2>
           <p>
-            Parents who filled in the application form but whose admission fee hasn&apos;t gone through. Paid applications move to the list below
+            Parents who filled in the form but whose admission fee hasn&apos;t gone through. Paid applications move to the list below
             automatically. Call to help them finish{tracked ? ", then mark them as followed up" : ""}.
           </p>
         </div>
-      </header>
+        <span className="apl-payq-toggle" aria-hidden="true"><i className="fa-solid fa-chevron-down" /></span>
+      </summary>
       <Feedback result={result} />
       <ul className="apl-payq-list">
         {items.map((item) => {
@@ -211,7 +322,7 @@ export function PendingPayments({ items, tracked }: { items: PendingPayment[]; t
           );
         })}
       </ul>
-    </section>
+    </details>
   );
 }
 

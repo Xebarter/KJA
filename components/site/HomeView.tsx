@@ -80,7 +80,7 @@ export function HomeView({ content }: { content: SiteContent }) {
                 className="kja-ha-pillar"
                 style={{ "--tone": PILLAR_TONES[index % PILLAR_TONES.length] } as CSSProperties}
               >
-                <span className="kja-ha-pillar-icon"><img src={feature.icon} alt="" /></span>
+                <span className="kja-ha-pillar-icon"><img src={feature.icon} alt="" loading="lazy" /></span>
                 <span className="kja-ha-pillar-body">
                   <strong>{feature.title}</strong>
                   <span>Explore <i className="fas fa-arrow-right" aria-hidden="true" /></span>
@@ -92,11 +92,11 @@ export function HomeView({ content }: { content: SiteContent }) {
 
           <div className="kja-ha-grid">
             <div className="kja-ha-media wow fadeInLeft" data-wow-delay=".25s">
-              <figure className="kja-ha-photo kja-ha-photo--main"><img src="/images/speakers.jpg" alt="A Kampala Junior Academy pupil at a school celebration" /></figure>
-              <figure className="kja-ha-photo kja-ha-photo--top"><img src="/images/kids-4.jpg" alt="" /></figure>
-              <figure className="kja-ha-photo kja-ha-photo--bottom"><img src="/images/slider-66.jpg" alt="" /></figure>
+              <figure className="kja-ha-photo kja-ha-photo--main"><img src="/images/speakers.jpg" alt="A Kampala Junior Academy pupil at a school celebration" loading="lazy" /></figure>
+              <figure className="kja-ha-photo kja-ha-photo--top"><img src="/images/kids-4.jpg" alt="" loading="lazy" /></figure>
+              <figure className="kja-ha-photo kja-ha-photo--bottom"><img src="/images/slider-66.jpg" alt="" loading="lazy" /></figure>
               <div className="kja-ha-years">
-                <span className="kja-ha-years-icon"><img src="/images/exchange-idea.svg" alt="" /></span>
+                <span className="kja-ha-years-icon"><img src="/images/exchange-idea.svg" alt="" loading="lazy" /></span>
                 <span><strong>{years}+</strong>Years of quality service</span>
               </div>
             </div>
@@ -108,12 +108,12 @@ export function HomeView({ content }: { content: SiteContent }) {
               {aboutRest ? <p className="kja-ha-text">{aboutRest}</p> : null}
               <div className="kja-ha-vm">
                 <article>
-                  <span className="kja-ha-vm-icon"><img src="/images/open-book.svg" alt="" /></span>
+                  <span className="kja-ha-vm-icon"><img src="/images/open-book.svg" alt="" loading="lazy" /></span>
                   <h3>Our Vision</h3>
                   <p>{settings.vision}</p>
                 </article>
                 <article>
-                  <span className="kja-ha-vm-icon"><img src="/images/global-education.svg" alt="" /></span>
+                  <span className="kja-ha-vm-icon"><img src="/images/global-education.svg" alt="" loading="lazy" /></span>
                   <h3>Our Mission</h3>
                   <p>{settings.mission}</p>
                 </article>
@@ -134,7 +134,7 @@ export function HomeView({ content }: { content: SiteContent }) {
           <div className="kja-ha-stats">
             {settings.counters.map((counter) => (
               <div className="kja-ha-stat" key={counter.label}>
-                <span className="kja-ha-stat-icon"><img src={counter.icon} alt="" /></span>
+                <span className="kja-ha-stat-icon"><img src={counter.icon} alt="" loading="lazy" /></span>
                 <span>
                   <strong><CounterValue value={counter.value} />{counter.label.trim().startsWith("+") ? "+" : ""}</strong>
                   <small>{counter.label.replace(/^\s*\+\s*/, "")}</small>
@@ -165,7 +165,7 @@ export function HomeView({ content }: { content: SiteContent }) {
             <Link href={`/branch/${campuses[0].slug}`} className="kja-camp-feature wow fadeInUp" data-wow-delay=".15s">
               <span className="kja-camp-feature-media">
                 {campuses[0].image_url ? (
-                  <img src={campuses[0].image_url} alt="" />
+                  <img src={campuses[0].image_url} alt="" loading="lazy" />
                 ) : (
                   <i className="fas fa-location-dot" aria-hidden="true" />
                 )}
@@ -191,7 +191,7 @@ export function HomeView({ content }: { content: SiteContent }) {
                 return (
                   <Link href={`/branch/${campus.slug}`} className="kja-camp-card wow fadeInUp" data-wow-delay={`${0.2 + index * 0.1}s`} key={campus.slug}>
                     <span className="kja-camp-card-media">
-                      {campus.image_url ? <img src={campus.image_url} alt="" /> : <i className="fas fa-location-dot" aria-hidden="true" />}
+                      {campus.image_url ? <img src={campus.image_url} alt="" loading="lazy" /> : <i className="fas fa-location-dot" aria-hidden="true" />}
                       <span className="kja-camp-stage">{fact?.stage ?? "Campus"}</span>
                     </span>
                     <span className="kja-camp-card-body">
@@ -261,7 +261,7 @@ export function HomeView({ content }: { content: SiteContent }) {
             {teachers.map((teacher) => (
               <div className="col-md-6 col-lg-3" key={teacher.slug}>
                 <div className="team-item wow fadeInUp h-100" data-wow-delay=".25s">
-                  <div className="team-img">{teacher.image_url ? <img src={teacher.image_url} alt={teacher.title} /> : null}</div>
+                  <div className="team-img">{teacher.image_url ? <img src={teacher.image_url} alt={teacher.title} loading="lazy" /> : null}</div>
                   <div className="team-content">
                     <div className="team-bio">
                       <h5>
@@ -303,14 +303,14 @@ export function HomeView({ content }: { content: SiteContent }) {
             </header>
             <div className="kja-why-layout">
               <figure className="kja-why-photo">
-                <img src="/images/about-004.jpg" alt="Children learning outdoors at Kampala Junior Academy" />
+                <img src="/images/about-004.jpg" alt="Children learning outdoors at Kampala Junior Academy" loading="lazy" />
               </figure>
               {settings.choose_items.length ? (
                 <ol className="kja-why-list">
                   {settings.choose_items.map((item, index) => (
                     <li key={item.title}>
                       <span className="kja-why-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-                      <span className="kja-why-icon"><img src={item.icon} alt="" /></span>
+                      <span className="kja-why-icon"><img src={item.icon} alt="" loading="lazy" /></span>
                       <h3>{item.title}</h3>
                       {CHOOSE_COPY[item.title] ? <p>{CHOOSE_COPY[item.title]}</p> : null}
                     </li>

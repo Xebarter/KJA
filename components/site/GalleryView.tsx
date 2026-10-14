@@ -10,7 +10,7 @@ function Mosaic({ photos, total }: { photos: GalleryPhoto[]; total: number }) {
     <a href="#photos" className={`kja-gl-mosaic${tiles.length === 1 ? " is-single" : ""}`} aria-label={`Browse all ${total} photos`}>
       {tiles.map((photo, index) => (
         <span className={`kja-gl-tile kja-gl-tile--${index + 1}`} key={`${photo.src}-${index}`}>
-          <img src={photo.src} alt="" />
+          <img src={photo.src} alt="" loading="lazy" />
         </span>
       ))}
       <span className="kja-gl-badge">
