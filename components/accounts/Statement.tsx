@@ -26,21 +26,26 @@ export function Statement({ entries, showLinks = true, emptyText = "Nothing bill
         <tbody>
           {entries.map((entry) => {
             const link = `${ACCOUNTS_BASE}/${entry.kind === "invoice" ? "invoices" : "payments"}/${entry.id}`;
+            const detail = (
+              <>
+                <span className={`acc-statement-icon is-${entry.kind}`} aria-hidden="true">
+                  <i className={`fa-solid ${entry.kind === "invoice" ? "fa-file-invoice" : "fa-receipt"}`} />
+                </span>
+                <span className="acc-statement-text">
+                  <strong>{entry.description}</strong>
+                  <small>{entry.ref}</small>
+                </span>
+              </>
+            );
             return (
               <tr key={`${entry.kind}-${entry.id}`} className={`is-${entry.kind}`}>
                 <td data-label="Date">{day(entry.date)}</td>
                 <td data-label="Details">
-                  <span className={`acc-statement-icon is-${entry.kind}`} aria-hidden="true">
-                    <i className={`fa-solid ${entry.kind === "invoice" ? "fa-file-invoice" : "fa-receipt"}`} />
-                  </span>
-                  <span className="acc-statement-text">
-                    {entry.description}
-                    <small>{showLinks ? <Link href={link}>{entry.ref}</Link> : entry.ref}</small>
-                  </span>
+                  {showLinks ? <Link href={link} className="acc-statement-detail">{detail}</Link> : <span className="acc-statement-detail">{detail}</span>}
                 </td>
-                <td data-label="Charges" className="is-num">{entry.charge ? amount(entry.charge) : ""}</td>
-                <td data-label="Paid" className="is-num acc-paid-cell">{entry.credit ? amount(entry.credit) : ""}</td>
-                <td data-label="Balance" className={`is-num${entry.balance > 0 ? " acc-owing" : ""}`}>{amount(entry.balance)}</td>
+                <td data-label="Charges" className="is-num">{entry.charge ? amount(entry.charge) : <span className="acc-statement-blank">—</span>}</td>
+                <td data-label="Paid" className="is-num acc-paid-cell">{entry.credit ? amount(entry.credit) : <span className="acc-statement-blank">—</span>}</td>
+                <td data-label="Balance" className={`is-num${entry.balance > 0 ? " acc-owing" : entry.balance < 0 ? " is-credit" : ""}`}>{amount(entry.balance)}</td>
               </tr>
             );
           })}
@@ -50,7 +55,7 @@ export function Statement({ entries, showLinks = true, emptyText = "Nothing bill
             <th scope="row" colSpan={2}>{closing < 0 ? "Credit on account" : "Balance due"}</th>
             <td className="is-num">{amount(charged)}</td>
             <td className="is-num">{amount(paid)}</td>
-            <td className={`is-num${closing > 0 ? " acc-owing" : ""}`}><strong>{amount(closing)}</strong></td>
+            <td className={`is-num${closing > 0 ? " acc-owing" : closing < 0 ? " is-credit" : " is-clear"}`}><strong>{amount(closing)}</strong></td>
           </tr>
         </tfoot>
       </table>

@@ -51,12 +51,11 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
         icon={category?.icon ?? "fa-receipt"}
         title={expense.payee}
         description={<>{ugx(expense.amount)} · {category?.name ?? "Uncategorised"} · {day(expense.spent_on)}{expense.campus ? ` · ${expense.campus}` : ""}</>}
-      >
-        <div className="acc-hero-figures">
-          <div className="acc-stat"><span>Status</span><strong><ExpenseStatus status={expense.status} /></strong></div>
-          <div className="acc-stat"><span>Amount</span><strong>{ugx(expense.amount)}</strong></div>
-        </div>
-      </PageHeader>
+      />
+      <div className="acc-hero-figures">
+        <div className="acc-stat"><span className="acc-stat-top"><span>Status</span><i className="fa-solid fa-flag" aria-hidden="true" /></span><strong><ExpenseStatus status={expense.status} /></strong></div>
+        <div className="acc-stat"><span className="acc-stat-top"><span>Amount</span><i className="fa-solid fa-coins" aria-hidden="true" /></span><strong>{ugx(expense.amount)}</strong></div>
+      </div>
 
       {expense.status === "rejected" ? (
         <div className="acc-banner is-danger">

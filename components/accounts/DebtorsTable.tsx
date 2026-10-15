@@ -1,10 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type MouseEvent } from "react";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
 import { sendReminders } from "@/app/accounts/(desk)/debtors/actions";
+import { StudentFace } from "@/components/StudentFace";
+import { initials } from "@/lib/applications";
 import { ACCOUNTS_BASE, AGING, agingOf, amount, day, overdueText, ugx } from "@/lib/accounts-format";
+import { className as classLabel, displayPhone, telHref } from "@/lib/students";
 
 export type DebtorRow = {
   student_id: string;
@@ -24,14 +28,137 @@ export type DebtorRow = {
   last_reminded: string | null;
 };
 
+export type FamilyDebtorRow = {
+  family_id: string;
+  family_code: string | null;
+  mailing_name: string | null;
+  contact_name: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+  children: number;
+  balance: number;
+  oldest_due: string | null;
+  last_paid_on: string | null;
+};
+
 const DEFAULT_MESSAGE =
   "This is a friendly reminder that school fees are outstanding for your child or children listed below. Please clear the balance, or contact the accounts office to agree a payment plan. Thank you for your support.";
 
+function AgePill({ oldest, today }: { oldest: string | null; today: string }) {
+  const bucket = AGING.find((entry) => entry.key === agingOf(oldest, today)) ?? AGING[0];
+  return <span className={`acc-age is-${bucket.tone}`}>{oldest ? overdueText(oldest, today) : "No due date"}</span>;
+}
+
+function Balance({ value, note }: { value: number; note?: string }) {
+  return (
+    <span className="acc-debt-figure" title={ugx(value)}>
+      <span className="acc-debt-balance">
+        <span className="acc-debt-ccy">UGX</span>
+        <strong className="acc-money is-owing">{amount(value)}</strong>
+      </span>
+      {note ? <span className="acc-debt-sub">{note}</span> : null}
+    </span>
+  );
+}
+
+function openRow(event: MouseEvent, href: string, push: (href: string) => void) {
+  if ((event.target as HTMLElement).closest("a, button, input, label, textarea")) return;
+  push(href);
+}
+
+export function FamilyDebtorsTable({ rows, today }: { rows: FamilyDebtorRow[]; today: string }) {
+  const router = useRouter();
+  return (
+    <div className="ofc-table-scroll">
+      <table className="app-table ofc-table ofc-reg-table acc-debt-table is-family">
+        <thead>
+          <tr>
+            <th scope="col">Family</th>
+            <th scope="col" className="ofc-col-parents">Contact</th>
+            <th scope="col" className="acc-col-children">Children</th>
+            <th scope="col" className="is-money">Balance</th>
+            <th scope="col">Overdue</th>
+            <th scope="col" className="acc-col-paid">Last paid</th>
+            <th scope="col" className="ofc-col-go"><span className="visually-hidden">Open</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((row) => {
+            const name = row.mailing_name || `Family ${row.family_code ?? ""}`.trim();
+            const href = `${ACCOUNTS_BASE}/families/${row.family_id}`;
+            return (
+              <tr key={row.family_id} onClick={(event) => openRow(event, href, router.push)}>
+                <td>
+                  <div className="ofc-who">
+                    <span className="ofc-who-avatar" aria-hidden="true">{initials(name)}</span>
+                    <div>
+                      <Link href={href} className="ofc-who-name">{name}</Link>
+                      <span className="ofc-who-meta">
+                        {row.family_code ? <span className="ofc-num">{row.family_code}</span> : null}
+                        <span>{row.children} child{row.children === 1 ? "" : "ren"}</span>
+                      </span>
+                    </div>
+                  </div>
+                </td>
+                <td className="ofc-col-parents" data-label="Contact">
+                  <Contact
+                    href={href}
+                    name={row.contact_name || row.mailing_name}
+                    phone={row.contact_phone}
+                    email={row.contact_email}
+                  />
+                </td>
+                <td className="acc-col-children" data-label="Children"><span className="acc-debt-count">{row.children}</span></td>
+                <td className="is-money" data-label="Balance"><Balance value={row.balance} /></td>
+                <td data-label="Overdue"><AgePill oldest={row.oldest_due} today={today} /></td>
+                <td className="acc-col-paid" data-label="Last paid">{row.last_paid_on ? day(row.last_paid_on) : <span className="app-muted">Never</span>}</td>
+                <td className="ofc-col-go" aria-hidden="true"><i className="fa-solid fa-chevron-right" /></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function Contact({ href, name, phone, email }: { href: string; name: string | null; phone: string | null; email: string | null }) {
+  if (!name && !phone && !email) return <span className="app-muted">No contact on file</span>;
+  return (
+    <dl className="ofc-reg-contacts">
+      <div>
+        <dt>Parent</dt>
+        <dd>
+          {name ? <Link href={href} className="acc-debt-parent">{name}</Link> : <span className="app-muted">Name not recorded</span>}
+          {phone ? (
+            <a href={telHref(phone)}>
+              <i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(phone)}
+            </a>
+          ) : null}
+          {email ? (
+            <a className="acc-debt-mail" href={`mailto:${email}`}>
+              <i className="fa-regular fa-envelope" aria-hidden="true" /> {email}
+            </a>
+          ) : (
+            <span className="ofc-row-flag is-warn">No email</span>
+          )}
+        </dd>
+      </div>
+    </dl>
+  );
+}
+
 export function DebtorsTable({ rows, today, emailReady }: { rows: DebtorRow[]; today: string; emailReady: string | null }) {
+  const router = useRouter();
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState(DEFAULT_MESSAGE);
   const { result, setResult, pending, run } = useOfficeAction();
+  const ids = useMemo(() => rows.map((row) => row.student_id), [rows]);
+
+  useEffect(() => {
+    setPicked((current) => new Set([...current].filter((id) => ids.includes(id))));
+  }, [ids]);
 
   const chosen = rows.filter((row) => picked.has(row.student_id));
   const families = useMemo(() => new Set(chosen.map((row) => row.family_id ?? row.student_id)).size, [chosen]);
@@ -48,68 +175,83 @@ export function DebtorsTable({ rows, today, emailReady }: { rows: DebtorRow[]; t
     });
 
   return (
-    <>
-      <div className={`acc-bulk${picked.size ? " is-on" : ""}`} aria-live="polite">
-        {picked.size ? (
-          <>
-            <span><strong>{picked.size}</strong> selected · {ugx(chosenTotal)}</span>
-            <button type="button" className="admin-btn" onClick={() => { setResult(null); setOpen(true); }}>
-              <i className="fa-regular fa-envelope" aria-hidden="true" /> Email reminders
-            </button>
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setPicked(new Set())}>Clear</button>
-          </>
-        ) : (
-          <span className="app-muted">Tick pupils to email their families a reminder.</span>
-        )}
-        <Feedback result={open ? null : result} />
-      </div>
+    <div className="app-table-wrap">
+      {picked.size ? (
+        <div className="app-bulk ofc-bulk acc-debt-bulk" role="region" aria-label="Remind selected families" aria-live="polite">
+          <strong>{picked.size} selected</strong>
+          <span>{ugx(chosenTotal)} · {families} famil{families === 1 ? "y" : "ies"}</span>
+          <button type="button" className="admin-btn admin-btn-gold" onClick={() => { setResult(null); setOpen(true); }}>
+            <i className="fa-regular fa-envelope" aria-hidden="true" /> Email reminders
+          </button>
+          <button type="button" className="app-link-btn app-bulk-close" onClick={() => setPicked(new Set())} aria-label="Clear selection">
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+      <Feedback result={open ? null : result} />
 
       <div className="ofc-table-scroll">
-        <table className="app-table acc-table acc-debtors">
+        <table className={`app-table ofc-table ofc-reg-table acc-debt-table${pending ? " is-busy" : ""}`}>
           <thead>
             <tr>
-              <th scope="col" className="is-check">
+              <th scope="col" className="app-col-check">
                 <input
                   type="checkbox"
                   aria-label="Select every pupil on this page"
                   checked={allOn}
-                  onChange={() => setPicked(allOn ? new Set() : new Set(rows.map((row) => row.student_id)))}
+                  onChange={() => setPicked(allOn ? new Set() : new Set(ids))}
                 />
               </th>
               <th scope="col">Pupil</th>
-              <th scope="col">Parent</th>
-              <th scope="col" className="is-num">Owes</th>
+              <th scope="col" className="ofc-col-parents">Family</th>
+              <th scope="col" className="is-money">Balance</th>
               <th scope="col">Overdue</th>
-              <th scope="col">Last paid</th>
-              <th scope="col">Reminded</th>
+              <th scope="col" className="acc-col-paid">Last paid</th>
+              <th scope="col" className="acc-col-reminded">Reminded</th>
+              <th scope="col" className="ofc-col-go"><span className="visually-hidden">Open</span></th>
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => {
-              const bucket = AGING.find((entry) => entry.key === agingOf(row.oldest_due, today)) ?? AGING[0];
+              const href = `${ACCOUNTS_BASE}/students/${row.student_id}`;
+              const on = picked.has(row.student_id);
               return (
-                <tr key={row.student_id} className={picked.has(row.student_id) ? "is-picked" : ""}>
-                  <td className="is-check">
-                    <input type="checkbox" aria-label={`Select ${row.full_name}`} checked={picked.has(row.student_id)} onChange={() => toggle(row.student_id)} />
+                <tr key={row.student_id} className={on ? "is-selected" : ""} onClick={(event) => openRow(event, href, router.push)}>
+                  <td className="app-col-check">
+                    <input type="checkbox" aria-label={`Select ${row.full_name}`} checked={on} onChange={() => toggle(row.student_id)} />
                   </td>
-                  <td data-label="Pupil">
-                    <Link className="acc-doc-link" href={`${ACCOUNTS_BASE}/students/${row.student_id}`}>{row.full_name}</Link>
-                    <small>{row.class_code ?? "No class"}{row.stream ? ` ${row.stream}` : ""} · {row.student_number}</small>
+                  <td>
+                    <div className="ofc-who">
+                      <StudentFace id={row.student_id} name={row.full_name} className="ofc-who-avatar" />
+                      <div>
+                        <Link href={href} className="ofc-who-name">{row.full_name}</Link>
+                        <span className="ofc-who-meta">
+                          <span className="ofc-num">{row.student_number}</span>
+                          <span>
+                            {row.class_code ? classLabel(row.class_code) : "No class"}
+                            {row.stream ? ` · ${row.stream}` : ""}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
                   </td>
-                  <td data-label="Parent">
-                    {row.family_id ? <Link href={`${ACCOUNTS_BASE}/families/${row.family_id}`}>{row.contact_name || row.mailing_name || "Family"}</Link> : <span className="app-muted">No family</span>}
-                    <small>
-                      {row.contact_phone ? <a href={`tel:${row.contact_phone.replace(/\s/g, "")}`}>{row.contact_phone}</a> : null}
-                      {row.contact_phone && !row.contact_email ? " · " : null}
-                      {!row.contact_email ? <span className="acc-warn-text">no email</span> : null}
-                    </small>
+                  <td className="ofc-col-parents" data-label="Family">
+                    {row.family_id ? (
+                      <Contact
+                        href={`${ACCOUNTS_BASE}/families/${row.family_id}`}
+                        name={row.contact_name || row.mailing_name}
+                        phone={row.contact_phone}
+                        email={row.contact_email}
+                      />
+                    ) : <span className="app-muted">No family on file</span>}
                   </td>
-                  <td data-label="Owes" className="is-num"><strong className="acc-owing">{amount(row.balance)}</strong>{row.terms_owing > 1 ? <small>{row.terms_owing} terms</small> : null}</td>
-                  <td data-label="Overdue">
-                    <span className={`acc-age is-${bucket.tone}`}>{row.oldest_due ? overdueText(row.oldest_due, today) : "No due date"}</span>
+                  <td className="is-money" data-label="Balance">
+                    <Balance value={row.balance} note={row.terms_owing > 1 ? `${row.terms_owing} terms` : undefined} />
                   </td>
-                  <td data-label="Last paid">{row.last_paid_on ? day(row.last_paid_on) : <span className="app-muted">Never</span>}</td>
-                  <td data-label="Reminded">{row.last_reminded ? day(row.last_reminded) : <span className="app-muted">–</span>}</td>
+                  <td data-label="Overdue"><AgePill oldest={row.oldest_due} today={today} /></td>
+                  <td className="acc-col-paid" data-label="Last paid">{row.last_paid_on ? day(row.last_paid_on) : <span className="app-muted">Never</span>}</td>
+                  <td className="acc-col-reminded" data-label="Reminded">{row.last_reminded ? day(row.last_reminded) : <span className="app-muted">Not yet</span>}</td>
+                  <td className="ofc-col-go" aria-hidden="true"><i className="fa-solid fa-chevron-right" /></td>
                 </tr>
               );
             })}
@@ -158,6 +300,6 @@ export function DebtorsTable({ rows, today, emailReady }: { rows: DebtorRow[]; t
           </div>
         </form>
       </Dialog>
-    </>
+    </div>
   );
 }

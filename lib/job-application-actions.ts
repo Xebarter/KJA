@@ -2,6 +2,7 @@
 
 import { randomUUID } from "crypto";
 import { revalidatePath } from "next/cache";
+import { forgetPrefix } from "@/lib/remember";
 import { notifyJobApplication } from "@/lib/admin-alerts";
 import { loadPeople, requireAdmin } from "@/lib/admin-applications";
 import { formatDateTime, fromKampalaInput } from "@/lib/applications";
@@ -44,6 +45,7 @@ function ids(list: string[]) {
 }
 
 function refresh(id?: string) {
+  forgetPrefix("admin-badges");
   revalidatePath("/admin", "layout");
   if (id) revalidatePath(`/admin/content/vacancies/applications/${id}`);
 }

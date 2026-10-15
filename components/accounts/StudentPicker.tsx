@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { searchPupils, type PupilHit } from "@/app/accounts/(desk)/payments/actions";
+import { StudentFace } from "@/components/StudentFace";
 import { ugx } from "@/lib/accounts-format";
 
 /** Search-as-you-type pupil finder. Arrow keys move, Enter picks, Escape closes. */
@@ -43,7 +44,7 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
   if (value) {
     return (
       <div className="acc-picked">
-        <span className="acc-picked-avatar" aria-hidden="true">{initials(value.full_name)}</span>
+        <StudentFace id={value.student_id} name={value.full_name} className="acc-picked-avatar" />
         <div>
           <strong>{value.full_name}</strong>
           <small>
@@ -129,7 +130,7 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
               }}
               onMouseEnter={() => setActive(index)}
             >
-              <span className="acc-picked-avatar" aria-hidden="true">{initials(row.full_name)}</span>
+              <StudentFace id={row.student_id} name={row.full_name} className="acc-picked-avatar" />
               <span>
                 <strong>{row.full_name}</strong>
                 <small>
@@ -145,8 +146,4 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
       ) : null}
     </div>
   );
-}
-
-function initials(name: string) {
-  return name.split(/\s+/).filter(Boolean).slice(0, 2).map((word) => word[0]?.toUpperCase()).join("");
 }

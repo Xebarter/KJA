@@ -4,7 +4,7 @@ import { PrintButton } from "@/components/office/client";
 import { MigrationHint, OfficeNotice } from "@/components/office/ui";
 import { BIRTHDAY_RANGES, type BirthdayRange } from "@/lib/birthdays";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { fetchAll, isClassCode, pick, todayIso } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./birthdays.css";
@@ -63,7 +63,6 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
     return <OfficeNotice title="Birthdays" heading="Birthdays could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
   }
 
-  const photos = await signStudentPhotos(auth.supabase, all.map((row) => row.photo_path));
   const rows: BirthdayRow[] = all.map((row) => ({
     id: row.id,
     name: row.full_name,
@@ -76,7 +75,7 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
     house: row.house,
     phone: row.mother_phone || row.father_phone,
     parent: row.mother_phone ? row.mother_name || "Mother" : row.father_phone ? row.father_name || "Father" : null,
-    photo: row.photo_path ? photos.get(row.photo_path) ?? null : null,
+    photo: studentPhotoUrl(row.id, row.photo_path ?? null),
   }));
 
   return (

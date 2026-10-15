@@ -79,36 +79,42 @@ export function FeeRateGrid({
   }
 
   return (
-    <div className="acc-grid-wrap">
-      <div className="acc-grid-tools">
-        <label className="ofc-finder-field is-inline">
-          <span>Term</span>
-          <select value={termId} onChange={(event) => go({ term: event.target.value })}>
-            {terms.map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}
-          </select>
-        </label>
-        <div className="acc-campus-tabs" role="tablist" aria-label="Campus">
-          {["", ...campuses].map((name) => (
-            <button
-              key={name || "all"}
-              type="button"
-              role="tab"
-              aria-selected={campus === name}
-              className={campus === name ? "is-on" : ""}
-              onClick={() => go({ campus: name })}
-            >
-              {name || "All campuses"}
-            </button>
-          ))}
+    <div className="set-grid">
+      <div className="set-finder">
+        <div className="set-finder-row">
+          <label className="ofc-finder-field">
+            <span>Term</span>
+            <select value={termId} onChange={(event) => go({ term: event.target.value })}>
+              {terms.map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}
+            </select>
+          </label>
+          <div className="set-campuses">
+            <span>Campus</span>
+            <div role="tablist" aria-label="Campus">
+              {["", ...campuses].map((name) => (
+                <button
+                  key={name || "all"}
+                  type="button"
+                  role="tab"
+                  aria-selected={campus === name}
+                  className={campus === name ? "is-on" : ""}
+                  onClick={() => go({ campus: name })}
+                >
+                  {name || "All campuses"}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
+        <p className="set-finder-note">
+          <i className="fa-solid fa-circle-info" aria-hidden="true" />
+          <span>
+            {campus
+              ? <>Amounts here apply to pupils at <strong>{campus}</strong>. Leave a cell empty to use the All campuses amount shown in grey.</>
+              : <>These amounts apply to every campus, unless a campus has its own. Leave a cell empty when a class does not pay that item.</>}
+          </span>
+        </p>
       </div>
-
-      <p className="acc-grid-help">
-        <i className="fa-solid fa-circle-info" aria-hidden="true" />{" "}
-        {campus
-          ? <>Amounts here apply to pupils at <strong>{campus}</strong>. Leave a cell empty to use the <em>All campuses</em> amount shown in grey.</>
-          : <>These amounts apply to every campus unless a campus tab sets its own. Leave a cell empty if the class doesn&apos;t pay that item.</>}
-      </p>
 
       <div className="ofc-table-scroll">
         <table className="app-table acc-grid">
@@ -152,8 +158,8 @@ export function FeeRateGrid({
         </table>
       </div>
 
-      <div className="ofc-form-foot acc-grid-foot">
-        <div className="acc-grid-extras">
+      <div className="set-foot">
+        <div className="set-extras">
           {tuition && website ? (
             <button
               type="button"
@@ -172,7 +178,7 @@ export function FeeRateGrid({
             </button>
           ) : null}
           {terms.length > 1 ? (
-            <span className="acc-copy">
+            <span className="set-copy">
               <select value={copyFrom} onChange={(event) => setCopyFrom(event.target.value)} aria-label="Copy rates from another term">
                 <option value="">Copy every campus from…</option>
                 {terms.filter((term) => term.id !== termId).map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}
@@ -191,10 +197,10 @@ export function FeeRateGrid({
               </button>
             </span>
           ) : null}
+          <Feedback result={result} />
         </div>
-        <Feedback result={result} />
         <div>
-          {dirty ? <span className="acc-dirty"><i className="fa-solid fa-circle" aria-hidden="true" /> Unsaved changes</span> : null}
+          {dirty ? <span className="set-dirty"><i className="fa-solid fa-circle" aria-hidden="true" /> Unsaved changes</span> : null}
           <button type="button" className="admin-btn admin-btn-ghost" disabled={!dirty || pending} onClick={() => { setValues(initial); setResult(null); }}>
             Undo
           </button>

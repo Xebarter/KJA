@@ -1,15 +1,17 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FeeRateGrid } from "@/components/accounts/FeeRateGrid";
+import { SetupNav, type SetupTile } from "@/components/accounts/SetupNav";
 import { CategoriesManager, DiscountsManager, ItemsManager, TermsManager } from "@/components/accounts/SetupForms";
 import { notReady } from "@/components/accounts/ui";
-import { Panel } from "@/components/office/ui";
+import { Empty } from "@/components/office/ui";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, missingAccountsSchema, requireAccounts } from "@/lib/accounts";
-import { kampalaToday, type DiscountRule, type ExpenseCategory, type FeeItem, type FeeRate } from "@/lib/accounts-format";
+import { kampalaToday, ugxShort, type DiscountRule, type ExpenseCategory, type FeeItem, type FeeRate } from "@/lib/accounts-format";
 import { getContent } from "@/lib/content";
 import { composeFees } from "@/lib/info-pages";
 import { SCHOOL_CLASSES, isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "./settings.css";
 
 export const metadata = { title: "Fee setup" };
 
@@ -83,63 +85,101 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   for (const row of invoiceTerms.data || []) termUse[row.term_id] = (termUse[row.term_id] ?? 0) + 1;
   const rateRows = (rates.data || []) as FeeRate[];
   const ratedClasses = new Set(rateRows.map((rate) => rate.class_code));
+  const discountRules = (rules.data || []) as DiscountRule[];
+  const expenseCategories = (categories.data || []) as ExpenseCategory[];
+  const activeRules = discountRules.filter((rule) => rule.active);
+  const activeCategories = expenseCategories.filter((entry) => entry.active);
+  const monthSpent = Object.values(spent).reduce((sum, value) => sum + value, 0);
+  const hasTuition = active.some((item) => item.kind === "tuition");
+  const classesLeft = SCHOOL_CLASSES.length - ratedClasses.size;
+  const staleTerm = isUuid(wanted) && !terms.some((entry) => entry.id === wanted);
 
-  const steps = [
-    { done: Boolean(current), label: "Set the current term", href: "#terms" },
-    { done: active.some((item) => item.kind === "tuition"), label: "Have a Tuition fee item", href: "#items" },
-    { done: ratedClasses.size >= SCHOOL_CLASSES.length, label: `Fees set for every class${term ? ` in ${term.label}` : ""}`, href: "#rates" },
-    { done: (rules.data || []).some((rule) => rule.active), label: "Switch on the discounts you use", href: "#discounts" },
+  const tiles: SetupTile[] = [
+    {
+      id: "terms",
+      label: "Current term",
+      icon: "fa-calendar-days",
+      tone: current ? "ok" : "warn",
+      value: current ? `T${current.term}` : "—",
+      note: current ? current.label : "Choose a term to bill",
+    },
+    {
+      id: "items",
+      label: "Fee items",
+      icon: "fa-list-check",
+      tone: hasTuition ? "navy" : "warn",
+      value: String(active.length),
+      note: !allItems.length ? "Nothing to bill yet" : !hasTuition ? "Tuition is missing" : allItems.length === active.length ? "All items are billed" : `${allItems.length - active.length} switched off`,
+    },
+    {
+      id: "rates",
+      label: "Classes set",
+      icon: "fa-table-cells",
+      tone: term && classesLeft <= 0 ? "ok" : "warn",
+      value: term ? String(ratedClasses.size) : "—",
+      note: !term ? "Add a term first" : classesLeft > 0 ? `${classesLeft} still to set` : "Every class has fees",
+      share: term ? Math.round((ratedClasses.size / SCHOOL_CLASSES.length) * 100) : undefined,
+    },
+    {
+      id: "discounts",
+      label: "Discounts",
+      icon: "fa-tags",
+      tone: activeRules.length ? "gold" : "warn",
+      value: String(activeRules.length),
+      note: activeRules.length ? "On for new invoices" : discountRules.length ? "None switched on" : "None added yet",
+    },
+    {
+      id: "categories",
+      label: "Categories",
+      icon: "fa-folder-tree",
+      tone: "navy",
+      value: String(activeCategories.length),
+      note: monthSpent ? `${ugxShort(monthSpent)} spent this month` : "No spending this month",
+    },
   ];
 
+  const ready = [Boolean(current), hasTuition, Boolean(term) && classesLeft <= 0, activeRules.length > 0].filter(Boolean).length;
+  const ratesNote = !term
+    ? "Add a term first, then set what each class pays."
+    : staleTerm
+      ? `That term no longer exists. Showing ${term.label}.`
+      : `What each class pays in ${term.label}.`;
+
   return (
-    <div className="app-page ofc-page acc-page">
+    <div className="app-page ofc-page acc-page set-page">
       <PageHeader
         kicker="Setup"
         icon="fa-sliders"
         title="Fee setup"
-        description="Terms, what each class pays, and the discounts and expense categories the office uses. Invoices are generated from these settings."
+        description={ready === 4
+          ? "Fee setup is complete for the current term. New invoices use these terms, class fees and discounts."
+          : `${ready} of 4 setup steps are done. Terms, class fees, discounts and expense categories are what new invoices are built from.`}
         actions={
           <>
             <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/invoices/generate`}><i className="fa-solid fa-file-invoice" aria-hidden="true" /> Generate term invoices</Link>
             <Link className="admin-hero-btn" href="/fees" target="_blank"><i className="fa-solid fa-globe" aria-hidden="true" /> Website fee page</Link>
           </>
         }
-      >
-        <ol className="acc-checklist">
-          {steps.map((step) => (
-            <li key={step.label} className={step.done ? "is-done" : ""}>
-              <a href={step.href}>
-                <i className={`fa-solid ${step.done ? "fa-circle-check" : "fa-circle"}`} aria-hidden="true" />
-                {step.label}
-              </a>
-            </li>
-          ))}
-        </ol>
-      </PageHeader>
+      />
 
-      <nav className="acc-subnav" aria-label="Setup sections">
-        <a href="#terms">Terms</a>
-        <a href="#items">Fee items</a>
-        <a href="#rates">Fees by class</a>
-        <a href="#discounts">Discounts</a>
-        <a href="#categories">Expense categories</a>
-      </nav>
+      <SetupNav tiles={tiles} />
 
-      <div className="ofc-two acc-setup-top">
-        <Panel title="Terms" description="The current term is used for new payments and invoices." id="terms">
-          <TermsManager terms={terms} usage={termUse} />
-        </Panel>
-        <Panel title="Fee items" description="What families are billed for. Switch an item off to stop billing it." id="items">
-          <ItemsManager items={allItems} />
-        </Panel>
-      </div>
+      <TermsManager terms={terms} usage={termUse} />
+      <ItemsManager items={allItems} />
 
-      <Panel
-        title="Fees by class"
-        description={term ? `What each class pays in ${term.label}. ${ratedClasses.size} of ${SCHOOL_CLASSES.length} classes have fees.` : "Add a term first."}
-        id="rates"
-        className="acc-rates-panel"
-      >
+      <section className="admin-card ofc-register set-card set-rates" id="rates" aria-labelledby="rates-heading">
+        <header className="ofc-reg-results">
+          <div>
+            <h2 id="rates-heading">
+              Fees by class
+              {term ? <span className="set-count">{ratedClasses.size} of {SCHOOL_CLASSES.length}</span> : null}
+            </h2>
+            <p>{ratesNote}</p>
+          </div>
+          <p className="ofc-reg-hint">
+            <i className="fa-solid fa-coins" aria-hidden="true" /> Amounts are per pupil, for the term
+          </p>
+        </header>
         {term ? (
           <FeeRateGrid
             key={`${term.id}-${campus}`}
@@ -151,18 +191,13 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
             rates={rateRows}
             prefill={website.prefill}
           />
-        ) : <p className="app-muted">Add a term above, then set the fees for each class.</p>}
-      </Panel>
+        ) : (
+          <Empty icon="fa-calendar" title="No term yet">Add a term above, then set the fees for each class.</Empty>
+        )}
+      </section>
 
-      <div className="ofc-two">
-        <Panel title="Discounts" description="Sibling and staff discounts apply automatically. Bursaries are given to individual pupils from their fee account." id="discounts">
-          <DiscountsManager rules={(rules.data || []) as DiscountRule[]} usage={ruleUse} />
-        </Panel>
-        <Panel title="Expense categories" description="Used to group spending in reports. Set a monthly budget to track overspending." id="categories">
-          <CategoriesManager categories={(categories.data || []) as ExpenseCategory[]} spent={spent} />
-        </Panel>
-      </div>
-      {isUuid(wanted) && !terms.some((entry) => entry.id === wanted) ? <p className="app-muted">That term no longer exists; showing the current term.</p> : null}
+      <DiscountsManager rules={discountRules} usage={ruleUse} />
+      <CategoriesManager categories={expenseCategories} spent={spent} />
     </div>
   );
 }

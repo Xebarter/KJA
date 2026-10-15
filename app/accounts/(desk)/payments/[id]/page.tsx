@@ -61,12 +61,19 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
             <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/payments/new?student=${payment.student_id}&term=${payment.term_id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Another payment</Link>
           </>
         }
-      >
-        <div className="acc-hero-figures">
-          <div className={`acc-stat${voided ? "" : " is-good"}`}><span>Amount</span><strong>{ugx(payment.amount)}</strong><small>{voided ? "Void, not counted" : "Received"}</small></div>
-          <div className="acc-stat"><span>Method</span><strong><MethodTag method={payment.method} /></strong>{payment.reference ? <small>{payment.reference}</small> : null}</div>
+      />
+      <div className="acc-hero-figures">
+        <div className={`acc-stat${voided ? " is-bad" : " is-good"}`}>
+          <span className="acc-stat-top"><span>Amount</span><i className="fa-solid fa-coins" aria-hidden="true" /></span>
+          <strong>{ugx(payment.amount)}</strong>
+          <small>{voided ? "Void, not counted" : "Received"}</small>
         </div>
-      </PageHeader>
+        <div className="acc-stat">
+          <span className="acc-stat-top"><span>Method</span><i className="fa-solid fa-money-bill-wave" aria-hidden="true" /></span>
+          <strong><MethodTag method={payment.method} /></strong>
+          {payment.reference ? <small>{payment.reference}</small> : null}
+        </div>
+      </div>
 
       {voided ? (
         <div className="acc-banner is-danger">

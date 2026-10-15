@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { StudentFinder, StudentTable, type RegisterRow } from "@/components/office/StudentRegister";
 import { Empty, MigrationHint, OfficeNotice, Pager } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { OFFICE, className, parseStudentFilters, studentFilterHref, studentStatusInfo, studentsQuery, type StudentFilters } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
@@ -56,8 +56,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     return <OfficeNotice title="Students" heading="The student register could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
   }
   const rows = (data || []) as unknown as RegisterRow[];
-  const photos = await signStudentPhotos(supabase, rows.map((row) => row.photo_path));
-  for (const row of rows) row.photo_url = row.photo_path ? photos.get(row.photo_path) ?? null : null;
+  for (const row of rows) row.photo_url = studentPhotoUrl(row.id, row.photo_path ?? null);
   const total = count ?? 0;
   const pages = Math.max(1, Math.ceil(total / filters.size));
   const streams = [...new Set((streamRows || []).map((row) => row.stream as string))];

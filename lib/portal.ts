@@ -8,9 +8,12 @@ import type {
   MessageRow,
   NoticeRow,
   ProfileRow,
+  ReceiptRow,
   ReportRow,
   SignupRow,
 } from "@/lib/account";
+import { methodInfo } from "@/lib/accounts-format";
+import { className } from "@/lib/students";
 import type { Article } from "@/lib/types";
 
 async function rows<T>(query: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
@@ -51,6 +54,8 @@ export async function getPortal() {
       applications: [] as ApplicationRow[],
       reports: [] as ReportRow[],
       fees: [] as FeeRow[],
+      receipts: [] as ReceiptRow[],
+      pupils: [] as ChildRow[],
       clubs: [] as ClubRow[],
       signups: [] as SignupRow[],
       messages: [] as MessageRow[],
@@ -61,8 +66,9 @@ export async function getPortal() {
   }
 
   await ensureProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
+  await Promise.resolve(supabase.rpc("claim_guardian_links")).catch(() => undefined);
 
-  const [profileRes, children, applications, clubs, signups, messages, notifications, content] = await Promise.all([
+  const [profileRes, children, applications, clubs, signups, messages, notifications, content, students] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
     rows<ChildRow>(supabase.from("children").select("*").eq("user_id", user.id).order("full_name")),
     rows<ApplicationRow>(supabase.from("applications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
@@ -71,15 +77,62 @@ export async function getPortal() {
     rows<MessageRow>(supabase.from("parent_messages").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     rows<NoticeRow>(supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     getContent(),
+    rows<{ id: string; full_name: string; class_code: string | null; campus: string | null; student_number: string }>(
+      supabase.from("students").select("id, full_name, class_code, campus, student_number").order("full_name"),
+    ),
   ]);
 
   const childIds = children.map((child) => child.id);
   const reports = childIds.length
     ? await rows<ReportRow>(supabase.from("student_reports").select("*").in("child_id", childIds).order("issued_on", { ascending: false }))
     : [];
-  const fees = childIds.length
-    ? await rows<FeeRow>(supabase.from("fee_balances").select("*").in("child_id", childIds).order("due_on", { ascending: false }))
-    : [];
+
+  const studentIds = students.map((student) => student.id);
+  const [terms, balances, payments] = studentIds.length
+    ? await Promise.all([
+        rows<{ id: string; label: string }>(supabase.from("fee_terms").select("id, label")),
+        rows<{ student_id: string; term_id: string; invoiced: number; paid: number; balance: number; due_on: string | null }>(
+          supabase.from("student_term_balances").select("student_id, term_id, invoiced, paid, balance, due_on").in("student_id", studentIds),
+        ),
+        rows<{ id: string; receipt_no: string; student_id: string; amount: number; method: string; paid_on: string }>(
+          supabase.from("payments").select("id, receipt_no, student_id, amount, method, paid_on").in("student_id", studentIds).is("voided_at", null).order("paid_on", { ascending: false }),
+        ),
+      ])
+    : [[], [], []];
+  const termLabel = new Map(terms.map((term) => [term.id, term.label]));
+  const accountFees: FeeRow[] = balances
+    .filter((row) => Number(row.invoiced) > 0 || Number(row.paid) > 0)
+    .map((row) => ({
+      id: `${row.student_id}:${row.term_id}`,
+      child_id: row.student_id,
+      term: termLabel.get(row.term_id) ?? "Term",
+      description: null,
+      amount_due: Number(row.invoiced),
+      amount_paid: Number(row.paid),
+      due_on: row.due_on,
+    }));
+  const receipts: ReceiptRow[] = payments.map((payment) => ({
+    id: payment.id,
+    child_id: payment.student_id,
+    receipt_no: payment.receipt_no,
+    amount: Number(payment.amount),
+    paid_on: payment.paid_on,
+    method: methodInfo(payment.method).label,
+  }));
+  const pupils: ChildRow[] = students.map((student) => ({
+    id: student.id,
+    user_id: user.id,
+    full_name: student.full_name,
+    campus: student.campus,
+    grade: className(student.class_code),
+    date_of_birth: null,
+    student_code: student.student_number,
+  }));
+  const fees = pupils.length
+    ? accountFees
+    : childIds.length
+      ? await rows<FeeRow>(supabase.from("fee_balances").select("*").in("child_id", childIds).order("due_on", { ascending: false }))
+      : [];
 
   const events = [...content.events]
     .filter((event) => event.starts_on)
@@ -99,6 +152,8 @@ export async function getPortal() {
     applications,
     reports,
     fees,
+    receipts,
+    pupils,
     clubs,
     signups,
     messages,

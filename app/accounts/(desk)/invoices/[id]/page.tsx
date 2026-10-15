@@ -81,19 +81,24 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
             ) : null}
           </>
         }
-      >
-        <div className="acc-hero-figures">
-          <div className="acc-stat"><span>Status</span><strong><InvoiceStatus status={invoice.status} /></strong></div>
-          <div className="acc-stat"><span>Invoice total</span><strong>{ugx(invoice.total)}</strong></div>
-          {!isVoid ? (
-            <div className={`acc-stat${termBalance > 0 ? " is-bad" : " is-good"}`}>
-              <span>Term balance</span>
-              <strong>{termBalance > 0 ? ugx(termBalance) : termBalance < 0 ? `${ugx(-termBalance)} credit` : "Paid"}</strong>
-              {termBalance > 0 && invoice.due_on ? <small>{overdueText(invoice.due_on)}</small> : null}
-            </div>
-          ) : null}
+      />
+      <div className="acc-hero-figures">
+        <div className="acc-stat">
+          <span className="acc-stat-top"><span>Status</span><i className="fa-solid fa-flag" aria-hidden="true" /></span>
+          <strong><InvoiceStatus status={invoice.status} /></strong>
         </div>
-      </PageHeader>
+        <div className="acc-stat">
+          <span className="acc-stat-top"><span>Invoice total</span><i className="fa-solid fa-file-invoice" aria-hidden="true" /></span>
+          <strong>{ugx(invoice.total)}</strong>
+        </div>
+        {!isVoid ? (
+          <div className={`acc-stat${termBalance > 0 ? " is-bad" : " is-good"}`}>
+            <span className="acc-stat-top"><span>Term balance</span><i className="fa-solid fa-scale-balanced" aria-hidden="true" /></span>
+            <strong>{termBalance > 0 ? ugx(termBalance) : termBalance < 0 ? `${ugx(-termBalance)} credit` : "Paid"}</strong>
+            {termBalance > 0 && invoice.due_on ? <small>{overdueText(invoice.due_on)}</small> : null}
+          </div>
+        ) : null}
+      </div>
 
       {isDraft ? (
         <div className="acc-banner is-warn">

@@ -211,12 +211,11 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             <a className="admin-hero-btn" href={exportHref}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
           </>
         }
-      >
-        <div className="acc-hero-figures">
-          <Stat label={`Collected ${dates.label}`} value={<Money value={collected} short />} note={`${valid.length.toLocaleString("en-GB")} receipts`} tone="good" />
-          <Stat label="Average payment" value={<Money value={valid.length ? collected / valid.length : 0} short />} />
-        </div>
-      </PageHeader>
+      />
+      <div className="acc-hero-figures">
+        <Stat label={`Collected ${dates.label}`} value={<Money value={collected} short />} note={`${valid.length.toLocaleString("en-GB")} receipts`} tone="good" icon="fa-sack-dollar" />
+        <Stat label="Average payment" value={<Money value={valid.length ? collected / valid.length : 0} short />} icon="fa-calculator" />
+      </div>
 
       <section className="admin-card ofc-register">
         {finder}

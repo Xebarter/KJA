@@ -7,7 +7,7 @@ import { Card, MigrationHint, OfficeNotice } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, timeAgo } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { createClient } from "@/lib/supabase/server";
 import {
   OFFICE,
@@ -68,12 +68,9 @@ export default async function FamilyPage({ params }: { params: Promise<{ id: str
   const current = children.filter((child) => child.status === "active");
   const former = children.filter((child) => child.status !== "active");
 
-  const [activityResult, photos] = await Promise.all([
-    children.length
-      ? supabase.from("student_activity").select("*").in("student_id", children.map((child) => child.id)).order("created_at", { ascending: false }).limit(60)
-      : Promise.resolve({ data: [] }),
-    signStudentPhotos(supabase, children.map((child) => child.photo_path ?? null)),
-  ]);
+  const activityResult = children.length
+    ? await supabase.from("student_activity").select("*").in("student_id", children.map((child) => child.id)).order("created_at", { ascending: false }).limit(60)
+    : { data: [] };
 
   // Family changes are logged on every current child's record, so show each change once.
   const names = new Map(children.map((child) => [child.id, child.preferred_name || child.full_name.split(/\s+/)[0]]));
@@ -148,7 +145,7 @@ export default async function FamilyPage({ params }: { params: Promise<{ id: str
     const active = child.status === "active";
     return (
       <li key={child.id} className={active ? "" : "is-gone"}>
-        <StudentPhoto id={child.id} name={child.full_name} url={child.photo_path ? photos.get(child.photo_path) ?? null : null} sex={child.sex} />
+        <StudentPhoto id={child.id} name={child.full_name} url={studentPhotoUrl(child.id, child.photo_path ?? null)} sex={child.sex} />
         <div className="ofc-fam-child-main">
           <Link href={`${OFFICE}/students/${child.id}`} className="ofc-fam-child-name">{child.full_name}</Link>
           <span className="ofc-fam-child-meta">

@@ -18,6 +18,7 @@ export const accountsNav: AccountsNavItem[] = [
   { href: `${ACCOUNTS_BASE}/payments`, label: "Payments", icon: "fa-money-bill-wave", group: "Billing" },
   { href: `${ACCOUNTS_BASE}/debtors`, label: "Debtors", icon: "fa-hand-holding-dollar", group: "Billing" },
   { href: `${ACCOUNTS_BASE}/expenses`, label: "Expenses", icon: "fa-receipt", group: "Spending", badge: "expenses" },
+  { href: `${ACCOUNTS_BASE}/budgeting`, label: "Budgeting", icon: "fa-scale-balanced", group: "Spending" },
   { href: `${ACCOUNTS_BASE}/reports`, label: "Reports", icon: "fa-chart-column", group: "Insights" },
   { href: `${ACCOUNTS_BASE}/settings`, label: "Fee setup", icon: "fa-sliders", group: "Setup" },
 ];

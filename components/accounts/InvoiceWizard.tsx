@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { generateInvoices, type GenerateRow } from "@/app/accounts/(desk)/invoices/actions";
+import { generateInvoices, type GenerateResult, type GenerateRow } from "@/app/accounts/(desk)/invoices/actions";
 import { Feedback } from "@/components/accounts/client";
 import { ACCOUNTS_BASE, amount, day, ugx } from "@/lib/accounts-format";
 import type { ActionResult } from "@/lib/office-forms";
@@ -47,7 +47,7 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
   const runRpc = (dryRun: boolean) => {
     setResult(null);
     start(async () => {
-      const outcome = await generateInvoices(term, classes, dryRun, status).catch(() => ({ error: "Something went wrong. Check your connection and try again." }));
+      const outcome: GenerateResult = await generateInvoices(term, classes, dryRun, status).catch(() => ({ error: "Something went wrong. Check your connection and try again." }));
       if ("rows" in outcome && outcome.rows) setRows(outcome.rows);
       setResult(outcome.error ? { error: outcome.error } : outcome.ok ? { ok: outcome.ok } : null);
       if (!outcome.error) {

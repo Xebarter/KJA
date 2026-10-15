@@ -1,10 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PageHeader } from "@/components/admin/PageHeader";
 import { AccountNoteForm, DiscountButton, ExtraInvoiceButton } from "@/components/accounts/AccountTools";
 import { RecordPaymentButton } from "@/components/accounts/PaymentForm";
 import { Statement } from "@/components/accounts/Statement";
-import { BalancePill, Chips, InvoiceStatus, Money, Progress, Stat, notReady } from "@/components/accounts/ui";
+import { BalancePill, Chips, InvoiceStatus, Progress, notReady } from "@/components/accounts/ui";
+import { StudentFace } from "@/components/StudentFace";
 import { ActionButton } from "@/components/office/client";
 import { Panel } from "@/components/office/ui";
 import { removeStudentDiscount } from "../actions";
@@ -27,7 +27,8 @@ import {
   type TermBalance,
 } from "@/lib/accounts-format";
 import { loadPeople } from "@/lib/admin-applications";
-import { className, displayPhone, isUuid, pick, telHref } from "@/lib/students";
+import { initials, whatsappLink } from "@/lib/applications";
+import { cap, className, displayPhone, isStudentStatus, isUuid, pick, studentStatusInfo, telHref } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Fee account" };
@@ -61,7 +62,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
   if (!row) notFound();
   const pupil = { ...(row as BalanceRow), balance: Number(row.balance), invoiced: Number(row.invoiced), paid: Number(row.paid) };
 
-  const [invoiceRes, paymentRes, termRes, discountRes, ruleRes, siblingRes, activityRes, guardianRes, reminderRes] = await Promise.all([
+  const [invoiceRes, paymentRes, termRes, discountRes, ruleRes, siblingRes, activityRes, guardianRes, reminderRes, faceRes] = await Promise.all([
     supabase.from("invoices").select("*").eq("student_id", id).order("issued_on", { ascending: false }),
     supabase.from("payments").select("*").eq("student_id", id).order("paid_on", { ascending: false }),
     supabase.from("student_term_balances").select("student_id, term_id, invoiced, paid, balance, due_on, last_paid_on").eq("student_id", id),
@@ -75,6 +76,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
       ? supabase.from("guardians").select("id, full_name, relationship, phone, email, is_primary").eq("family_id", pupil.family_id).order("is_primary", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("fee_reminders").select("id, sent_to, amount, status, sent_at").eq("student_id", id).order("sent_at", { ascending: false }).limit(5),
+    supabase.from("students").select("photo_path, sex").eq("id", id).maybeSingle(),
   ]);
   const invoices = (invoiceRes.data || []) as Invoice[];
   const payments = (paymentRes.data || []) as Payment[];
@@ -85,6 +87,17 @@ export default async function FeeAccountPage({ params, searchParams }: {
   const activity = (activityRes.data || []) as AccountActivity[];
   const guardians = (guardianRes.data || []) as { id: string; full_name: string; relationship: string; phone: string | null; email: string | null; is_primary: boolean }[];
   const reminders = (reminderRes.data || []) as { id: string; sent_to: string; amount: number; status: string; sent_at: string }[];
+  let photoPath: string | null = null;
+  let sex: "M" | "F" | null = null;
+  if (faceRes.error?.message && /photo_path/.test(faceRes.error.message)) {
+    const retry = await supabase.from("students").select("sex").eq("id", id).maybeSingle();
+    if (retry.data?.sex === "M" || retry.data?.sex === "F") sex = retry.data.sex;
+  } else {
+    const face = faceRes.data as { photo_path?: string | null; sex?: string | null } | null;
+    photoPath = typeof face?.photo_path === "string" && face.photo_path ? face.photo_path : null;
+    if (face?.sex === "M" || face?.sex === "F") sex = face.sex;
+  }
+  const tone = sex === "M" ? "boy" : sex === "F" ? "girl" : "none";
   const people = await loadPeople(supabase, activity.map((entry) => entry.actor_id));
 
   const termOrder = new Map(terms.map((term, index) => [term.id, index]));
@@ -116,9 +129,18 @@ export default async function FeeAccountPage({ params, searchParams }: {
   const payTerm = owingTerm?.term_id ?? current?.id ?? terms[0]?.id ?? "";
   const statementPdf = `${ACCOUNTS_BASE}/students/${id}/statement${termFilter ? `?term=${termFilter}` : ""}`;
   const base = `${ACCOUNTS_BASE}/students/${id}`;
+  const collected = pupil.invoiced > 0 ? Math.max(0, Math.min(100, Math.round((Math.max(pupil.paid, 0) / pupil.invoiced) * 100))) : null;
+  const balanceNote = pupil.balance > 0 && pupil.oldest_due
+    ? overdueText(pupil.oldest_due)
+    : pupil.balance > 0
+      ? `${pupil.terms_owing} term${pupil.terms_owing === 1 ? "" : "s"} owing`
+      : pupil.balance < 0
+        ? "Overpaid"
+        : "Nothing owed";
+  const balanceTone = pupil.balance > 0 ? "bad" : pupil.balance < 0 ? "credit" : "ok";
 
   return (
-    <div className="app-page ofc-page acc-page">
+    <div className="app-page ofc-page acc-page fac-page">
       <p className="acc-crumbs">
         <Link href={`${ACCOUNTS_BASE}/students`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Fee accounts</Link>
         {pupil.family_id ? (
@@ -128,35 +150,48 @@ export default async function FeeAccountPage({ params, searchParams }: {
           </>
         ) : null}
       </p>
-      <PageHeader
-        kicker="Fee account"
-        icon="fa-user-graduate"
-        title={pupil.full_name}
-        description={
-          <>
-            {pupil.student_number} · {className(pupil.class_code)}{pupil.stream ? ` ${pupil.stream}` : ""}
-            {pupil.campus ? ` · ${pupil.campus}` : ""}{pupil.staff_child ? " · staff child" : ""}
-            {pupil.status !== "active" ? ` · ${pupil.status}` : ""}
-          </>
-        }
-        actions={
-          <>
-            {terms.length ? <RecordPaymentButton terms={termOptions} termId={payTerm} pupil={hit} /> : null}
-            <a className="admin-hero-btn" href={statementPdf} target="_blank" rel="noreferrer"><i className="fa-solid fa-file-pdf" aria-hidden="true" /> Statement</a>
-            {terms.length ? <ExtraInvoiceButton studentId={id} terms={termOptions} termId={current?.id ?? terms[0].id} /> : null}
-          </>
-        }
-      >
-        <div className="acc-hero-figures">
-          <Stat
-            label={pupil.balance < 0 ? "In credit" : "Balance"}
-            value={<Money value={Math.abs(pupil.balance)} />}
-            note={pupil.balance > 0 && pupil.oldest_due ? overdueText(pupil.oldest_due) : pupil.balance > 0 ? `${pupil.terms_owing} term${pupil.terms_owing === 1 ? "" : "s"} owing` : "Nothing owed"}
-            tone={pupil.balance > 0 ? "bad" : "good"}
-          />
-          <Stat label="Billed" value={<Money value={pupil.invoiced} short />} note={`Paid ${ugx(pupil.paid)}`} />
+      <header className="fac-account">
+        <div className="fac-account-id">
+          <span className={`fac-portrait is-${tone}`}>
+            <StudentFace id={id} name={pupil.full_name} photoPath={photoPath} className="fac-portrait-face" />
+          </span>
+          <div className="fac-account-copy">
+            <p className="fac-account-kicker">Fee account</p>
+            <h1>{pupil.full_name}</h1>
+            <p className="fac-account-meta">
+              <span className="ofc-num">{pupil.student_number}</span>
+              <span>{className(pupil.class_code)}{pupil.stream ? ` ${pupil.stream}` : ""}</span>
+              {pupil.campus ? <span>{pupil.campus}</span> : null}
+              {pupil.staff_child ? <em className="fac-tag is-staff">Staff child</em> : null}
+              {pupil.status !== "active" ? <em className="fac-tag">{isStudentStatus(pupil.status) ? studentStatusInfo(pupil.status).label : pupil.status}</em> : null}
+            </p>
+            <div className="fac-account-actions">
+              {terms.length ? <RecordPaymentButton className="fac-act is-primary" terms={termOptions} termId={payTerm} pupil={hit} /> : null}
+              <a className="fac-act" href={statementPdf} target="_blank" rel="noreferrer"><i className="fa-solid fa-file-pdf" aria-hidden="true" /> Statement</a>
+              {terms.length ? <ExtraInvoiceButton className="fac-act" studentId={id} terms={termOptions} termId={current?.id ?? terms[0].id} /> : null}
+            </div>
+          </div>
         </div>
-      </PageHeader>
+        <div className="fac-account-side">
+          <dl className="fac-account-figs">
+            <div className={`is-${balanceTone}`}>
+              <dt>{pupil.balance < 0 ? "In credit" : "Balance"}</dt>
+              <dd title={ugx(Math.abs(pupil.balance))}><small>UGX</small> {amount(Math.abs(pupil.balance))}</dd>
+              <p>{balanceNote}</p>
+            </div>
+            <div>
+              <dt>Billed</dt>
+              <dd title={ugx(pupil.invoiced)}><small>UGX</small> {amount(pupil.invoiced)}</dd>
+              <p>Paid {ugx(pupil.paid)}</p>
+            </div>
+          </dl>
+          {collected !== null ? (
+            <div className="fac-account-bar" role="img" aria-label={`${collected}% of billed fees collected`}>
+              <span style={{ width: `${collected}%` }} />
+            </div>
+          ) : null}
+        </div>
+      </header>
 
       {drafts.length ? (
         <div className="acc-banner is-warn">
@@ -189,7 +224,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
         <div className="dash-col">
           <Panel
             title="Statement"
-            description={termFilter ? `${termLabel.get(termFilter)} only` : "Every term, oldest first"}
+            description={accountTerms.length > 1 ? undefined : "Invoices and payments, oldest first"}
             action={{ href: statementPdf, label: "Download PDF", file: true }}
           >
             {accountTerms.length > 1 ? (
@@ -229,69 +264,87 @@ export default async function FeeAccountPage({ params, searchParams }: {
           <Panel title="Account notes and activity">
             <AccountNoteForm studentId={id} />
             {activity.length ? (
-              <ul className="acc-feed is-compact">
+              <ol className="fac-log">
                 {activity.map((entry) => (
                   <li key={entry.id} className={entry.kind === "note" ? "is-note" : ""}>
-                    <span className={`acc-feed-icon is-${entry.kind}`}><i className={`fa-solid ${ACTIVITY_ICONS[entry.kind] ?? "fa-pen"}`} aria-hidden="true" /></span>
+                    <span className={`fac-log-mark is-${entry.kind}`} aria-hidden="true"><i className={`fa-solid ${ACTIVITY_ICONS[entry.kind] ?? "fa-pen"}`} /></span>
                     <div>
-                      <strong>{entry.body}</strong>
+                      <p>{entry.body}</p>
                       <small>{dateTime(entry.created_at)}{entry.actor_id ? ` · ${people.get(entry.actor_id) ?? "Teammate"}` : ""}</small>
                     </div>
                   </li>
                 ))}
-              </ul>
-            ) : <p className="app-muted acc-empty-line">Nothing recorded yet.</p>}
+              </ol>
+            ) : <p className="fac-empty"><i className="fa-regular fa-note-sticky" aria-hidden="true" /> Nothing recorded yet. A note here stays with the fee account.</p>}
           </Panel>
         </div>
 
         <div className="dash-col">
           <Panel title="Who to contact" action={pupil.family_id ? { href: `${ACCOUNTS_BASE}/families/${pupil.family_id}`, label: "Family account" } : undefined}>
             {guardians.length ? (
-              <ul className="acc-contacts">
-                {guardians.map((guardian) => (
-                  <li key={guardian.id}>
-                    <strong>{guardian.full_name}</strong>
-                    <small>{guardian.relationship}{guardian.is_primary ? " · main contact" : ""}</small>
-                    <span>
-                      {guardian.phone ? <a href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
-                      {guardian.email ? <a href={`mailto:${guardian.email}`}><i className="fa-regular fa-envelope" aria-hidden="true" /> {guardian.email}</a> : null}
-                    </span>
-                  </li>
-                ))}
+              <ul className="fac-people">
+                {guardians.map((guardian) => {
+                  const whatsapp = whatsappLink(guardian.phone);
+                  return (
+                    <li key={guardian.id}>
+                      <span className="fac-person-mark" aria-hidden="true">{initials(guardian.full_name)}</span>
+                      <div>
+                        <strong>{guardian.full_name}</strong>
+                        <small>
+                          {cap(guardian.relationship)}
+                          {guardian.is_primary ? <em>Main</em> : null}
+                        </small>
+                        {guardian.phone || guardian.email ? (
+                          <span className="fac-person-links">
+                            {guardian.phone ? <a href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
+                            {whatsapp ? <a className="is-wa" href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a> : null}
+                            {guardian.email ? <a href={`mailto:${guardian.email}`}><i className="fa-regular fa-envelope" aria-hidden="true" /> {guardian.email}</a> : null}
+                          </span>
+                        ) : <span className="fac-person-none">No phone or email on file</span>}
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : <p className="app-muted acc-empty-line">No parents on record. Add them in the admissions office.</p>}
+            ) : <p className="fac-empty"><i className="fa-solid fa-address-book" aria-hidden="true" /> No parents on record. Add them in the admissions office.</p>}
             {reminders.length ? (
-              <p className="acc-soft">
-                <i className="fa-regular fa-envelope" aria-hidden="true" /> Last reminder {dateTime(reminders[0].sent_at)} to {reminders[0].sent_to}
-                {reminders[0].status === "failed" ? " (failed)" : ""}
+              <p className={`fac-remind${reminders[0].status === "failed" ? " is-failed" : ""}`}>
+                <i className="fa-regular fa-envelope" aria-hidden="true" />
+                <span>Last reminder {dateTime(reminders[0].sent_at)} to {reminders[0].sent_to}{reminders[0].status === "failed" ? " did not send" : ""}</span>
               </p>
             ) : null}
           </Panel>
 
-          <Panel title="Discounts" description="Taken off tuition when term invoices are generated.">
+          <Panel title="Discounts" description="Taken off tuition when the next term invoices are generated.">
             {discounts.length || pupil.staff_child ? (
-              <ul className="ofc-list acc-mini-list">
+              <ul className="fac-cuts">
                 {pupil.staff_child ? (
-                  <li>
-                    <span><i className="fa-solid fa-id-badge" aria-hidden="true" /> Staff child</span>
-                    <span className="app-muted">Automatic, from Fee setup</span>
+                  <li className="is-auto">
+                    <span className="fac-cut-mark" aria-hidden="true"><i className="fa-solid fa-id-badge" /></span>
+                    <div>
+                      <strong>Staff child</strong>
+                      <small>Comes off tuition automatically</small>
+                    </div>
                   </li>
                 ) : null}
-                {discounts.map((discount) => (
+                {discounts.map((discount) => {
+                  const scope = discount.term_id ? `${termLabel.get(discount.term_id) ?? "One term"} only` : "Every term";
+                  const detail = discount.note ? `${scope} · ${discount.note}` : scope;
+                  return (
                   <li key={discount.id}>
-                    <span>
+                    <span className="fac-cut-mark" aria-hidden="true"><i className="fa-solid fa-tag" /></span>
+                    <div>
                       <strong>{discount.label}</strong>
-                      <small>{discount.term_id ? `${termLabel.get(discount.term_id) ?? "One term"} only` : "Every term"}{discount.note ? ` · ${discount.note}` : ""}</small>
-                    </span>
-                    <strong>{discountText(discount.method, discount.value)}</strong>
-                    <ActionButton action={removeStudentDiscount.bind(null, discount.id)} label="Remove" icon="fa-xmark" className="acc-row-btn is-danger" confirm={`Remove ${discount.label}?`} />
+                      <small title={detail}>{detail}</small>
+                    </div>
+                    <em>{discountText(discount.method, discount.value)}</em>
+                    <ActionButton action={removeStudentDiscount.bind(null, discount.id)} label="Remove" icon="fa-xmark" className="fac-cut-remove" confirm={`Remove ${discount.label}?`} />
                   </li>
-                ))}
+                  );
+                })}
               </ul>
-            ) : <p className="app-muted acc-empty-line">No discounts.</p>}
-            <div className="acc-panel-actions">
-              <DiscountButton studentId={id} rules={rules} terms={termOptions} />
-            </div>
+            ) : <p className="fac-empty"><i className="fa-solid fa-tag" aria-hidden="true" /> No discounts on this account.</p>}
+            <DiscountButton className="fac-add" studentId={id} rules={rules} terms={termOptions} />
           </Panel>
 
           {siblings.length ? (
@@ -308,21 +361,41 @@ export default async function FeeAccountPage({ params, searchParams }: {
             </Panel>
           ) : null}
 
-          <Panel title="Invoices" action={{ href: `${ACCOUNTS_BASE}/invoices?term=all&q=${encodeURIComponent(pupil.full_name)}`, label: "All" }}>
+          <Panel
+            title="Invoices"
+            description={invoices.length > 8 ? `Latest 8 of ${invoices.length}` : undefined}
+            action={{ href: `${ACCOUNTS_BASE}/invoices?term=all&q=${encodeURIComponent(pupil.full_name)}`, label: "All" }}
+          >
             {invoices.length ? (
-              <ul className="ofc-list acc-mini-list">
-                {invoices.slice(0, 8).map((invoice) => (
-                  <li key={invoice.id}>
-                    <span>
-                      <Link href={`${ACCOUNTS_BASE}/invoices/${invoice.id}`}>{invoice.invoice_no}</Link>
-                      <small>{termLabel.get(invoice.term_id)} · {invoice.kind === "term" ? "term bill" : "extra"} · {day(invoice.issued_on)}</small>
-                    </span>
-                    <strong>{amount(invoice.total)}</strong>
-                    <InvoiceStatus status={invoice.status} />
-                  </li>
-                ))}
+              <ul className="fac-bills">
+                {invoices.slice(0, 8).map((invoice) => {
+                  const due = invoice.status === "issued" && invoice.due_on ? overdueText(invoice.due_on) : "";
+                  const late = due.endsWith("overdue") || due === "Due today";
+                  return (
+                    <li key={invoice.id} className={invoice.status === "void" ? "is-void" : ""}>
+                      <Link href={`${ACCOUNTS_BASE}/invoices/${invoice.id}`}>
+                        <span className={`fac-bill-mark is-${invoice.status}`} aria-hidden="true">
+                          <i className={`fa-solid ${invoice.kind === "extra" ? "fa-file-circle-plus" : "fa-file-invoice"}`} />
+                        </span>
+                        <span className="fac-bill-copy">
+                          <strong>{invoice.invoice_no}</strong>
+                          <small>
+                            {termLabel.get(invoice.term_id) ?? "Term"}
+                            {" · "}
+                            {invoice.kind === "term" ? "Term bill" : "Extra"}
+                            {due ? "" : ` · ${day(invoice.issued_on)}`}
+                          </small>
+                        </span>
+                        <span className="fac-bill-sum">
+                          <em>{ugx(invoice.total)}</em>
+                          {due ? <small className={late ? "is-late" : ""}>{due}</small> : <InvoiceStatus status={invoice.status} />}
+                        </span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : <p className="app-muted acc-empty-line">No invoices yet.</p>}
+            ) : <p className="fac-empty"><i className="fa-regular fa-file" aria-hidden="true" /> No invoices yet. Generate this term&apos;s bill or add an extra charge.</p>}
           </Panel>
         </div>
       </div>

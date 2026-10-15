@@ -1,10 +1,27 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useEffect, useId, useRef, useState } from "react";
 import { Feedback, useOfficeAction } from "@/components/office/client";
 import type { ActionResult } from "@/lib/office-forms";
 
 export { Feedback, useOfficeAction };
+
+/** Opens the row when the click is not already on a link or button. */
+export function ClickRow({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
+  const router = useRouter();
+  return (
+    <tr
+      className={className}
+      onClick={(event) => {
+        if ((event.target as HTMLElement).closest("a, button, input, label")) return;
+        router.push(href);
+      }}
+    >
+      {children}
+    </tr>
+  );
+}
 
 /** Submits the surrounding GET form as soon as a select or checkbox changes, so filters feel instant. */
 export function AutoSubmit({ children, className, action, label }: { children: React.ReactNode; className?: string; action: string; label: string }) {

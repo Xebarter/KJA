@@ -2,21 +2,18 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { AuthForm } from "@/components/account/AuthForm";
+import dynamic from "next/dynamic";
+import { usePathname, useRouter } from "next/navigation";
 import { safeNext } from "@/lib/safe-next";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
+
+const AuthForm = dynamic(() => import("@/components/account/AuthForm").then((mod) => mod.AuthForm));
 
 type AuthDialogContextValue = {
   openAuth: (next?: string) => void;
-  signedIn: boolean;
-  ready: boolean;
 };
 
 const AuthDialogContext = createContext<AuthDialogContextValue>({
   openAuth: () => undefined,
-  signedIn: false,
-  ready: false,
 });
 
 export function useAuthDialog() {
@@ -26,23 +23,19 @@ export function useAuthDialog() {
 export function AuthDialogProvider({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const params = useSearchParams();
   const [open, setOpen] = useState(false);
   const [next, setNext] = useState("/account");
-  const [signedIn, setSignedIn] = useState(false);
-  const [ready, setReady] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   const closeAuth = useCallback(() => {
     setOpen(false);
-    if (params.get("login")) {
-      const nextParams = new URLSearchParams(params.toString());
-      nextParams.delete("login");
-      nextParams.delete("next");
-      const query = nextParams.toString();
-      router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
-    }
-  }, [params, pathname, router]);
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has("login")) return;
+    params.delete("login");
+    params.delete("next");
+    const query = params.toString();
+    router.replace(query ? `${pathname}?${query}` : pathname, { scroll: false });
+  }, [pathname, router]);
 
   const openAuth = useCallback((nextPath = "/account") => {
     setNext(safeNext(nextPath));
@@ -54,26 +47,11 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   }, []);
 
   useEffect(() => {
-    if (params.get("login") === "1") {
-      setNext(safeNext(params.get("next")));
-      setOpen(true);
-    }
-  }, [params]);
-
-  useEffect(() => {
-    const supabase = createBrowserSupabase();
-    if (!supabase) {
-      setReady(true);
-      return;
-    }
-    supabase.auth.getSession()
-      .then(({ data }) => setSignedIn(Boolean(data.session)))
-      .finally(() => setReady(true));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSignedIn(Boolean(session));
-    });
-    return () => subscription.unsubscribe();
-  }, []);
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("login") !== "1") return;
+    setNext(safeNext(params.get("next")));
+    setOpen(true);
+  }, [pathname]);
 
   useEffect(() => {
     if (!open) return;
@@ -89,7 +67,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
     };
   }, [open, closeAuth]);
 
-  const value = useMemo(() => ({ openAuth, signedIn, ready }), [openAuth, signedIn, ready]);
+  const value = useMemo(() => ({ openAuth }), [openAuth]);
 
   return (
     <AuthDialogContext.Provider value={value}>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import {
   deleteDiscountRule,
@@ -13,9 +14,11 @@ import {
   toggleItem,
 } from "@/app/accounts/(desk)/settings/actions";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
+import { Empty } from "@/components/office/ui";
 import {
   DISCOUNT_KINDS,
   ITEM_KINDS,
+  ACCOUNTS_BASE,
   day,
   discountText,
   itemKindInfo,
@@ -67,6 +70,51 @@ function RowButton({ label, icon, onClick, danger = false, disabled = false }: {
   );
 }
 
+function Section({ id, title, meta, description, action, children }: {
+  id: string;
+  title: string;
+  meta?: string;
+  description: React.ReactNode;
+  action: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="admin-card ofc-register set-card" id={id} aria-labelledby={`${id}-heading`}>
+      <header className="ofc-reg-results">
+        <div>
+          <h2 id={`${id}-heading`}>
+            {title}
+            {meta ? <span className="set-count">{meta}</span> : null}
+          </h2>
+          <p>{description}</p>
+        </div>
+        {action}
+      </header>
+      {children}
+    </section>
+  );
+}
+
+function AddButton({ label, onClick }: { label: string; onClick: () => void }) {
+  return (
+    <button type="button" className="admin-btn fee-add" onClick={onClick}>
+      <i className="fa-solid fa-plus" aria-hidden="true" /> {label}
+    </button>
+  );
+}
+
+function Who({ mark, gold = false, title, detail }: { mark: React.ReactNode; gold?: boolean; title: React.ReactNode; detail?: React.ReactNode }) {
+  return (
+    <div className="set-who">
+      <span className={`set-mark${gold ? " is-gold" : ""}`} aria-hidden="true">{mark}</span>
+      <span>
+        <strong>{title}</strong>
+        {detail ? <small>{detail}</small> : null}
+      </span>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- terms
 
 export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<string, number> }) {
@@ -76,46 +124,64 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
   const nextYear = terms[0] ? (terms[0].term === 3 ? terms[0].year + 1 : terms[0].year) : new Date().getFullYear();
   const nextTerm = terms[0] ? (terms[0].term === 3 ? 1 : terms[0].term + 1) : 1;
   return (
-    <>
-      <div className="acc-panel-actions">
-        <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setEditing("new")}>
-          <i className="fa-solid fa-plus" aria-hidden="true" /> Add a term
-        </button>
-      </div>
+    <Section
+      id="terms"
+      title="Terms"
+      meta={terms.length ? `${terms.length} on file` : undefined}
+      description="The current term is used for new payments and invoices."
+      action={<AddButton label="Add a term" onClick={() => setEditing("new")} />}
+    >
       <Feedback result={result} />
       {terms.length ? (
-        <ul className="acc-terms">
-          {terms.map((entry) => (
-            <li key={entry.id} className={entry.is_current ? "is-current" : ""}>
-              <span className="acc-term-badge" aria-hidden="true">T{entry.term}</span>
-              <div>
-                <strong>{entry.label}</strong>
-                <small>
-                  {entry.starts_on ? `${day(entry.starts_on, false)} – ${day(entry.ends_on)}` : "Dates not set"}
-                  {entry.due_on ? ` · fees due ${day(entry.due_on, false)}` : ""}
-                  {usage[entry.id] ? ` · ${usage[entry.id].toLocaleString("en-GB")} invoices` : ""}
-                </small>
-              </div>
-              {entry.is_current ? (
-                <span className="app-status app-status-done">Current</span>
-              ) : (
-                <button type="button" className="app-link-btn" disabled={pending} onClick={() => run(() => setCurrentTerm(entry.id))}>Make current</button>
-              )}
-              <RowButton label={`Edit ${entry.label}`} icon="fa-pen" onClick={() => setEditing(entry)} />
-              {!entry.is_current && !usage[entry.id] ? (
-                <RowButton
-                  label={`Remove ${entry.label}`}
-                  icon="fa-trash-can"
-                  danger
-                  disabled={pending}
-                  onClick={() => window.confirm(`Remove ${entry.label}? Its fee rates go too.`) && run(() => deleteTerm(entry.id))}
-                />
-              ) : null}
-            </li>
-          ))}
-        </ul>
+        <div className="ofc-table-scroll">
+          <table className="set-table">
+            <thead>
+              <tr>
+                <th scope="col">Term</th>
+                <th scope="col">Dates</th>
+                <th scope="col">Fees due</th>
+                <th scope="col">Invoices</th>
+                <th scope="col">Status</th>
+                <th scope="col"><span className="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {terms.map((entry) => (
+                <tr key={entry.id} className={entry.is_current ? "is-current" : ""}>
+                  <td>
+                    <Who mark={`T${entry.term}`} title={entry.label} />
+                  </td>
+                  <td className="set-num" data-label="Dates">{entry.starts_on ? `${day(entry.starts_on, false)} – ${day(entry.ends_on)}` : <span className="set-muted">Not set</span>}</td>
+                  <td className="set-num" data-label="Fees due">{entry.due_on ? day(entry.due_on, false) : <span className="set-muted">—</span>}</td>
+                  <td className="set-num" data-label="Invoices">{usage[entry.id] ? usage[entry.id].toLocaleString("en-GB") : <span className="set-muted">—</span>}</td>
+                  <td data-label="Status">
+                    {entry.is_current ? (
+                      <span className="set-pill"><i className="fa-solid fa-circle-check" aria-hidden="true" /> Current</span>
+                    ) : (
+                      <button type="button" className="set-quiet" disabled={pending} onClick={() => run(() => setCurrentTerm(entry.id))}>Make current</button>
+                    )}
+                  </td>
+                  <td className="is-actions">
+                    <div className="set-actions">
+                      <RowButton label={`Edit ${entry.label}`} icon="fa-pen" onClick={() => setEditing(entry)} />
+                      {!entry.is_current && !usage[entry.id] ? (
+                        <RowButton
+                          label={`Remove ${entry.label}`}
+                          icon="fa-trash-can"
+                          danger
+                          disabled={pending}
+                          onClick={() => window.confirm(`Remove ${entry.label}? Its fee rates go too.`) && run(() => deleteTerm(entry.id))}
+                        />
+                      ) : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       ) : (
-        <p className="app-muted">No terms yet. Add the current term to start billing.</p>
+        <Empty icon="fa-calendar" title="No terms yet">Add the current term to start billing.</Empty>
       )}
 
       <FormDialog
@@ -156,7 +222,7 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
           <input name="due_on" type="date" defaultValue={term?.due_on ?? ""} />
         </label>
       </FormDialog>
-    </>
+    </Section>
   );
 }
 
@@ -166,34 +232,57 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
   const [editing, setEditing] = useState<FeeItem | "new" | null>(null);
   const { result, pending, run } = useOfficeAction();
   const item = editing && editing !== "new" ? editing : null;
+  const billing = items.filter((entry) => entry.active).length;
   return (
-    <>
-      <div className="acc-panel-actions">
-        <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setEditing("new")}>
-          <i className="fa-solid fa-plus" aria-hidden="true" /> Add an item
-        </button>
-      </div>
+    <Section
+      id="items"
+      title="Fee items"
+      meta={items.length ? `${billing} billing` : undefined}
+      description="What families are billed for. Switch an item off to stop billing it."
+      action={<AddButton label="Add an item" onClick={() => setEditing("new")} />}
+    >
       <Feedback result={result} />
-      <ul className="acc-items">
-        {items.map((entry) => {
-          const kind = itemKindInfo(entry.kind);
-          return (
-            <li key={entry.id} className={entry.active ? "" : "is-off"}>
-              <span className="acc-item-icon" aria-hidden="true"><i className={`fa-solid ${kind.icon}`} /></span>
-              <div>
-                <strong>{entry.name}</strong>
-                <small>{kind.label}{entry.description ? ` · ${entry.description}` : ""}</small>
-              </div>
-              <label className="acc-switch" title={entry.active ? "Billed on new invoices" : "Not billed"}>
-                <input type="checkbox" checked={entry.active} disabled={pending} onChange={(event) => run(() => toggleItem(entry.id, event.target.checked))} />
-                <span aria-hidden="true" />
-                <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
-              </label>
-              <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => setEditing(entry)} />
-            </li>
-          );
-        })}
-      </ul>
+      {items.length ? (
+        <div className="ofc-table-scroll">
+          <table className="set-table">
+            <thead>
+              <tr>
+                <th scope="col">Item</th>
+                <th scope="col">Kind</th>
+                <th scope="col">Billed</th>
+                <th scope="col"><span className="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.map((entry) => {
+                const kind = itemKindInfo(entry.kind);
+                return (
+                  <tr key={entry.id} className={entry.active ? "" : "is-off"}>
+                    <td>
+                      <Who mark={<i className={`fa-solid ${kind.icon}`} />} title={entry.name} detail={entry.description || undefined} />
+                    </td>
+                    <td data-label="Kind"><span className="set-kind">{kind.label}</span></td>
+                    <td data-label="Billed">
+                      <label className="acc-switch" title={entry.active ? "Billed on new invoices" : "Not billed"}>
+                        <input type="checkbox" checked={entry.active} disabled={pending} onChange={(event) => run(() => toggleItem(entry.id, event.target.checked))} />
+                        <span aria-hidden="true" />
+                        <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
+                      </label>
+                    </td>
+                    <td className="is-actions">
+                      <div className="set-actions">
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => setEditing(entry)} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Empty icon="fa-rectangle-list" title="No fee items yet">Add Tuition first, then anything else families are billed for.</Empty>
+      )}
 
       <FormDialog
         open={editing !== null}
@@ -223,7 +312,7 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
           <input name="description" maxLength={200} defaultValue={item?.description ?? ""} />
         </label>
       </FormDialog>
-    </>
+    </Section>
   );
 }
 
@@ -240,41 +329,64 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
     setMethod(next === "new" ? "percent" : next.method);
     setKind(next === "new" ? "bursary" : next.kind);
   };
+  const active = rules.filter((entry) => entry.active).length;
   return (
-    <>
-      <div className="acc-panel-actions">
-        <button type="button" className="admin-btn admin-btn-ghost" onClick={() => open("new")}>
-          <i className="fa-solid fa-plus" aria-hidden="true" /> Add a discount
-        </button>
-      </div>
+    <Section
+      id="discounts"
+      title="Discounts"
+      meta={rules.length ? `${active} on` : undefined}
+      description="Sibling and staff discounts apply automatically. Bursaries are given to individual pupils from their fee account."
+      action={<AddButton label="Add a discount" onClick={() => open("new")} />}
+    >
       <Feedback result={result} />
-      <ul className="acc-items">
-        {rules.map((entry) => {
-          const info = DISCOUNT_KINDS.find((item) => item.value === entry.kind);
-          return (
-            <li key={entry.id} className={entry.active ? "" : "is-off"}>
-              <span className="acc-item-icon is-gold" aria-hidden="true">{entry.method === "percent" ? `${Number(entry.value)}%` : <i className="fa-solid fa-tag" />}</span>
-              <div>
-                <strong>{entry.name} <em className="acc-soft">{discountText(entry.method, entry.value)}</em></strong>
-                <small>
-                  {entry.kind === "sibling" ? `From the ${ordinal(entry.sibling_from)} child in a family, on tuition` : info?.note}
-                  {usage[entry.id] ? ` · ${usage[entry.id]} pupil${usage[entry.id] === 1 ? "" : "s"}` : ""}
-                  {entry.active ? "" : " · Off"}
-                </small>
-              </div>
-              <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => open(entry)} />
-              <RowButton
-                label={`Remove ${entry.name}`}
-                icon="fa-trash-can"
-                danger
-                disabled={pending}
-                onClick={() => window.confirm(`Remove ${entry.name}? Pupils who already have it keep it.`) && run(() => deleteDiscountRule(entry.id))}
-              />
-            </li>
-          );
-        })}
-      </ul>
-      {!rules.length ? <p className="app-muted">No discounts yet.</p> : null}
+      {rules.length ? (
+        <div className="ofc-table-scroll">
+          <table className="set-table">
+            <thead>
+              <tr>
+                <th scope="col">Discount</th>
+                <th scope="col">Who</th>
+                <th scope="col">Pupils</th>
+                <th scope="col"><span className="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rules.map((entry) => {
+                const info = DISCOUNT_KINDS.find((item) => item.value === entry.kind);
+                const pupils = usage[entry.id] ?? 0;
+                return (
+                  <tr key={entry.id} className={entry.active ? "" : "is-off"}>
+                    <td>
+                      <Who
+                        gold
+                        mark={entry.method === "percent" ? `${Number(entry.value)}%` : <i className="fa-solid fa-tag" />}
+                        title={<>{entry.name} <span className="set-amount">{discountText(entry.method, entry.value)}</span></>}
+                        detail={entry.kind === "sibling" ? `From the ${ordinal(entry.sibling_from)} child in a family, on tuition` : info?.note}
+                      />
+                    </td>
+                    <td data-label="Who"><span className="set-kind">{info?.label ?? entry.kind}{entry.active ? "" : " · Off"}</span></td>
+                    <td className="set-num" data-label="Pupils">{pupils ? pupils.toLocaleString("en-GB") : <span className="set-muted">—</span>}</td>
+                    <td className="is-actions">
+                      <div className="set-actions">
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => open(entry)} />
+                        <RowButton
+                          label={`Remove ${entry.name}`}
+                          icon="fa-trash-can"
+                          danger
+                          disabled={pending}
+                          onClick={() => window.confirm(`Remove ${entry.name}? Pupils who already have it keep it.`) && run(() => deleteDiscountRule(entry.id))}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Empty icon="fa-tag" title="No discounts yet">Add a sibling, staff or bursary discount. They come off tuition when invoices are generated.</Empty>
+      )}
 
       <FormDialog
         open={editing !== null}
@@ -320,7 +432,7 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
         </label>
         <p className="acc-dialog-note is-wide">{DISCOUNT_KINDS.find((entry) => entry.value === kind)?.note}.</p>
       </FormDialog>
-    </>
+    </Section>
   );
 }
 
@@ -340,34 +452,68 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
   const [icon, setIcon] = useState("fa-receipt");
   const { result, pending, run } = useOfficeAction();
   const category = editing && editing !== "new" ? editing : null;
+  const shown = categories.filter((entry) => entry.active).length;
   return (
-    <>
-      <div className="acc-panel-actions">
-        <button type="button" className="admin-btn admin-btn-ghost" onClick={() => { setEditing("new"); setIcon("fa-receipt"); }}>
-          <i className="fa-solid fa-plus" aria-hidden="true" /> Add a category
-        </button>
-      </div>
+    <Section
+      id="categories"
+      title="Expense categories"
+      meta={categories.length ? `${shown} shown` : undefined}
+      description={<>Used to group spending. Monthly plans are watched on the <Link href={`${ACCOUNTS_BASE}/budgeting`}>Budgeting page</Link>.</>}
+      action={<AddButton label="Add a category" onClick={() => { setEditing("new"); setIcon("fa-receipt"); }} />}
+    >
       <Feedback result={result} />
-      <ul className="acc-items is-grid">
-        {categories.map((entry) => (
-          <li key={entry.id} className={entry.active ? "" : "is-off"}>
-            <span className="acc-item-icon" aria-hidden="true"><i className={`fa-solid ${entry.icon}`} /></span>
-            <div>
-              <strong>{entry.name}</strong>
-              <small>
-                {entry.monthly_budget ? `Budget ${ugx(entry.monthly_budget)} a month` : "No monthly budget"}
-                {spent[entry.id] ? ` · ${ugx(spent[entry.id])} this month` : ""}
-              </small>
-            </div>
-            <label className="acc-switch" title={entry.active ? "Shown on new expenses" : "Hidden"}>
-              <input type="checkbox" checked={entry.active} disabled={pending} onChange={(event) => run(() => toggleCategory(entry.id, event.target.checked))} />
-              <span aria-hidden="true" />
-              <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
-            </label>
-            <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => { setEditing(entry); setIcon(entry.icon); }} />
-          </li>
-        ))}
-      </ul>
+      {categories.length ? (
+        <div className="ofc-table-scroll">
+          <table className="set-table">
+            <thead>
+              <tr>
+                <th scope="col">Category</th>
+                <th scope="col">Monthly budget</th>
+                <th scope="col">This month</th>
+                <th scope="col">Shown</th>
+                <th scope="col"><span className="visually-hidden">Actions</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((entry) => {
+                const used = spent[entry.id] ?? 0;
+                const over = Boolean(entry.monthly_budget && used > entry.monthly_budget);
+                const share = entry.monthly_budget ? Math.min(100, Math.round((used / entry.monthly_budget) * 100)) : 0;
+                return (
+                  <tr key={entry.id} className={entry.active ? "" : "is-off"}>
+                    <td>
+                      <Who mark={<i className={`fa-solid ${entry.icon}`} />} title={entry.name} />
+                    </td>
+                    <td className="set-num" data-label="Monthly budget">{entry.monthly_budget ? ugx(entry.monthly_budget) : <span className="set-muted">No budget</span>}</td>
+                    <td className="set-num" data-label="This month">
+                      <div>
+                        <span className={over ? "set-over" : ""}>{used ? ugx(used) : <span className="set-muted">—</span>}</span>
+                        {entry.monthly_budget ? (
+                          <span className="acc-progress set-meter" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+                        ) : null}
+                      </div>
+                    </td>
+                    <td data-label="Shown">
+                      <label className="acc-switch" title={entry.active ? "Shown on new expenses" : "Hidden"}>
+                        <input type="checkbox" checked={entry.active} disabled={pending} onChange={(event) => run(() => toggleCategory(entry.id, event.target.checked))} />
+                        <span aria-hidden="true" />
+                        <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
+                      </label>
+                    </td>
+                    <td className="is-actions">
+                      <div className="set-actions">
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => { setEditing(entry); setIcon(entry.icon); }} />
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <Empty icon="fa-folder-open" title="No categories yet">Add a category so spending can be grouped and watched against a monthly plan.</Empty>
+      )}
 
       <FormDialog
         open={editing !== null}
@@ -398,6 +544,6 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
           </div>
         </fieldset>
       </FormDialog>
-    </>
+    </Section>
   );
 }

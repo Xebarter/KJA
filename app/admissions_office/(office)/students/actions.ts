@@ -16,6 +16,7 @@ import {
   type ActionResult,
 } from "@/lib/office-forms";
 import { refreshOffice, requireOffice } from "@/lib/office";
+import { forgetPrefix } from "@/lib/remember";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import {
   OFFICE,
@@ -234,6 +235,7 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
           : []),
         { application_id: fromApplication, actor_id: user.id, kind: "note", body: `Added to the student register as ${values.full_name} (${studentNumber})` },
       ]);
+      forgetPrefix("admin-badges");
       revalidatePath("/admin", "layout");
     }
   }

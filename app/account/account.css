@@ -186,13 +186,11 @@ body:has(.kja-account) {
 .account-form input, .account-form textarea, .account-form select, .account-auth input {
   width: 100%; border: 1px solid #d9d3c6; border-radius: 10px; padding: .65rem .8rem; background: #fff; font: inherit;
 }
-.account-btn, .account-google {
+.account-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
   border: 0; border-radius: 999px; padding: .65rem 1.15rem; background: var(--red); color: #fff; font: inherit; cursor: pointer;
 }
 .account-btn-ghost { background: #fff; color: var(--navy); border: 1px solid var(--line); }
-.account-google { width: 100%; background: #fff; color: var(--navy); border: 1px solid #e4ddd0; padding: .8rem 1.15rem; }
-.account-google svg { flex-shrink: 0; }
 .account-empty { text-align: center; color: var(--muted); padding: 1.5rem .5rem; }
 .account-auth {
   --navy: #19232b;
@@ -431,7 +429,9 @@ body:has(.kja-account) {
   flex: none; display: grid; place-items: center; width: 48px; height: 48px; border-radius: 50%;
   background: var(--navy); color: #ffd27a; font-family: Cinzel, "Times New Roman", serif; font-size: .95rem; font-weight: 700;
   box-shadow: 0 0 0 3px #fff, 0 0 0 4px rgba(253, 163, 27, .7);
+  overflow: hidden;
 }
+.ov-child-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .ov-child-text { display: grid; gap: .1rem; flex: 1; min-width: 0; }
 .ov-child-text strong { color: var(--navy); font-size: 1rem; }
 .ov-child-text span { color: var(--muted); font-size: .84rem; }
@@ -1366,6 +1366,13 @@ body:has(.kja-account) {
 .fe-pill--part { background: #fff3d9; color: #9a5b00; }
 .fe-pill--due { background: #eceff3; color: #3a4552; }
 .fe-pill--overdue { background: #fdecee; color: #c81e2d; }
+
+.fe-receipts ul { display: grid; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.fe-receipts li { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .75rem .9rem; border: 1px solid #f1e6cf; border-radius: 14px; background: #fffcf6; }
+.fe-receipts a { display: grid; gap: .1rem; min-width: 0; color: var(--navy); }
+.fe-receipts a span { overflow: hidden; color: var(--muted); font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.fe-receipts em { color: #17803d; font-style: normal; font-weight: 700; white-space: nowrap; }
+.fe-receipts a:hover strong { color: var(--red); }
 
 @media (max-width: 1100px) {
   .fe-row { grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr)) 104px; }

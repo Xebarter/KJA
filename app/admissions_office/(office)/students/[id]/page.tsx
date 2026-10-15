@@ -8,7 +8,7 @@ import { Card, Detail, MigrationHint, OfficeNotice, Sex, StudentStatus } from "@
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, initials, statusInfo, timeAgo, whatsappLink } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { createClient } from "@/lib/supabase/server";
 import { StudentPhoto } from "@/components/office/StudentPhoto";
 import {
@@ -107,16 +107,15 @@ export default async function StudentPage({
   const streams = [...new Set(((streamResult.data || []) as { stream: string }[]).map((row) => row.stream))];
 
   const photoPath = (student as Student & { photo_path?: string | null }).photo_path ?? null;
-  const [appResult, people, photos] = await Promise.all([
+  const photoUrl = studentPhotoUrl(id, photoPath);
+  const [appResult, people] = await Promise.all([
     supabase
       .from("applications")
       .select("id, status, created_at, parent_name")
       .or(`student_id.eq.${id}${student.admitted_from_application ? `,id.eq.${student.admitted_from_application}` : ""}`)
       .limit(3),
     loadPeople(supabase, activity.map((entry) => entry.actor_id)),
-    signStudentPhotos(supabase, [photoPath]),
   ]);
-  const photoUrl = photoPath ? photos.get(photoPath) ?? null : null;
   const applications = (appResult.data || []) as { id: string; status: string; created_at: string; parent_name: string | null }[];
 
   const age = studentAge(student.date_of_birth);

@@ -3,7 +3,7 @@ import { PrintButton } from "@/components/office/client";
 import { MedicalRegister, type MedicalRow, type MedicalView } from "@/components/office/MedicalRegister";
 import { MigrationHint, OfficeNotice } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { fetchAll, isClassCode, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./medical.css";
@@ -62,7 +62,6 @@ export default async function MedicalPage({ searchParams }: { searchParams: Prom
     return <OfficeNotice title="Medical" heading="Medical records could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
   }
 
-  const photos = await signStudentPhotos(auth.supabase, all.map((row) => row.photo_path));
   const rows: MedicalRow[] = all.map((row) => ({
     id: row.id,
     name: row.full_name,
@@ -77,7 +76,7 @@ export default async function MedicalPage({ searchParams }: { searchParams: Prom
     phone: row.mother_phone || row.father_phone,
     phoneName: row.mother_phone ? row.mother_name || "Mother" : row.father_phone ? row.father_name || "Father" : null,
     contacts: [row.mother_name, row.mother_phone, row.father_name, row.father_phone].filter(Boolean).join(" "),
-    photo: row.photo_path ? photos.get(row.photo_path) ?? null : null,
+    photo: studentPhotoUrl(row.id, row.photo_path ?? null),
   }));
 
   const withNotes = rows.filter((row) => row.notes);

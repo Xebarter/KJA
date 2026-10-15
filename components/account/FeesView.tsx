@@ -1,6 +1,6 @@
 import Link from "next/link";
-import type { ChildRow, FeeRow } from "@/lib/account";
-import { initials } from "@/lib/applications";
+import type { ChildRow, FeeRow, ReceiptRow } from "@/lib/account";
+import { StudentFace } from "@/components/StudentFace";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY = 86_400_000;
@@ -58,10 +58,11 @@ function newestFirst(a: FeeRow, b: FeeRow) {
   return String(b.due_on || "").localeCompare(String(a.due_on || ""));
 }
 
-export function FeesView({ kids, fees, childId }: { kids: ChildRow[]; fees: FeeRow[]; childId?: string }) {
+export function FeesView({ kids, fees, receipts = [], childId }: { kids: ChildRow[]; fees: FeeRow[]; receipts?: ReceiptRow[]; childId?: string }) {
   const today = kampalaToday();
   const selected = kids.find((child) => child.id === childId);
   const visible = selected ? fees.filter((row) => row.child_id === selected.id) : fees;
+  const visibleReceipts = (selected ? receipts.filter((row) => row.child_id === selected.id) : receipts).slice(0, 12);
   const sum = totals(visible);
   const all = totals(fees);
   const paidPercent = sum.due ? Math.min(100, Math.round((sum.paid / sum.due) * 100)) : 100;
@@ -214,7 +215,11 @@ export function FeesView({ kids, fees, childId }: { kids: ChildRow[]; fees: FeeR
             return (
               <section className="ov-panel fe-group" key={id}>
                 <header className="fe-group-head">
-                  <span className="ov-child-avatar" aria-hidden="true">{child ? initials(child.full_name) : <i className="fa-solid fa-receipt" />}</span>
+                  {child ? (
+                    <StudentFace id={child.id} name={child.full_name} className="ov-child-avatar" />
+                  ) : (
+                    <span className="ov-child-avatar" aria-hidden="true"><i className="fa-solid fa-receipt" /></span>
+                  )}
                   <div>
                     <h2>{child ? child.full_name : "Other fee records"}</h2>
                     <p>{child ? [child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "Fee statement" : "Not linked to a child on your account"}</p>
@@ -262,6 +267,32 @@ export function FeesView({ kids, fees, childId }: { kids: ChildRow[]; fees: FeeR
           })}
         </>
       )}
+
+      {visibleReceipts.length ? (
+        <section className="ov-panel fe-receipts">
+          <header className="fe-group-head">
+            <span className="ov-child-avatar" aria-hidden="true"><i className="fa-solid fa-receipt" /></span>
+            <div>
+              <h2>Receipts</h2>
+              <p>Payments recorded by the accounts office. Open one to download the PDF.</p>
+            </div>
+          </header>
+          <ul>
+            {visibleReceipts.map((receipt) => {
+              const child = kids.find((kid) => kid.id === receipt.child_id);
+              return (
+                <li key={receipt.id}>
+                  <a href={`/account/fees/receipt/${receipt.id}`}>
+                    <strong>{receipt.receipt_no}</strong>
+                    <span>{[child?.full_name.split(/\s+/)[0], receipt.method, shortDate(receipt.paid_on)].filter(Boolean).join(" · ")}</span>
+                  </a>
+                  <em>{ugx(receipt.amount)}</em>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ) : null}
 
       <aside className="rp-help">
         <span className="rp-help-icon"><i className="fa-solid fa-headset" aria-hidden="true" /></span>

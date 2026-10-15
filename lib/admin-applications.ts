@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cache } from "react";
 import { ATTENTION_DAYS, OPEN_STATUSES, personName, type ApplicationFilters, type TeamMember } from "@/lib/applications";
 import { createClient } from "@/lib/supabase/server";
 
-export async function requireAdmin() {
+export const requireAdmin = cache(async function requireAdmin() {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
   const { data: { user } } = await supabase.auth.getUser();
@@ -10,7 +11,7 @@ export async function requireAdmin() {
   const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
   if (profile?.role !== "admin") return { error: "This account is not an admin." } as const;
   return { supabase, user, profile } as const;
-}
+});
 
 export function applicationsQuery(
   supabase: SupabaseClient,

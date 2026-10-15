@@ -10,7 +10,7 @@ import { ACCOUNTS_BASE, discountText, ugx, type DiscountRule } from "@/lib/accou
 type TermOption = { id: string; label: string };
 
 /** Gives the pupil a bursary or another discount on tuition. */
-export function DiscountButton({ studentId, rules, terms }: { studentId: string; rules: DiscountRule[]; terms: TermOption[] }) {
+export function DiscountButton({ studentId, rules, terms, className = "acc-row-btn" }: { studentId: string; rules: DiscountRule[]; terms: TermOption[]; className?: string }) {
   const [open, setOpen] = useState(false);
   const usable = rules.filter((rule) => rule.kind === "bursary" || rule.kind === "other");
   const [ruleId, setRuleId] = useState(usable[0]?.id ?? "");
@@ -19,7 +19,7 @@ export function DiscountButton({ studentId, rules, terms }: { studentId: string;
   const { result, setResult, pending, run } = useOfficeAction();
   return (
     <>
-      <button type="button" className="acc-row-btn" onClick={() => { setResult(null); setOpen(true); }}>
+      <button type="button" className={className} onClick={() => { setResult(null); setOpen(true); }}>
         <i className="fa-solid fa-plus" aria-hidden="true" /> Add discount
       </button>
       <Dialog open={open} onClose={() => setOpen(false)} title="Add a discount" description="Comes off tuition when term invoices are generated. Invoices already issued don't change.">

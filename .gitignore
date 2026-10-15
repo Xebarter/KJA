@@ -22,6 +22,8 @@ pnpm-debug.log*
 
 # Student records: children's personal and medical details, never commit
 students.csv
+student_images/
+scripts/student-register-schema.sql
 supabase/0010_student_register.sql
 supabase/0010_student_register/
 

@@ -471,10 +471,9 @@ export function ThemeEffects() {
     // Same visibility test as WOW.js: layout offsets only, so boxes inside an off-screen
     // offcanvas are revealed by scroll position rather than when the panel slides in.
     let pending = nodes;
-    let scrolled = true;
+    let frame = 0;
     const reveal = () => {
-      if (!scrolled) return;
-      scrolled = false;
+      frame = 0;
       const viewTop = window.scrollY;
       const viewBottom = viewTop + Math.min(document.documentElement.clientHeight, window.innerHeight);
       pending = pending.filter((node) => {
@@ -484,15 +483,20 @@ export function ThemeEffects() {
         node.classList.add("animated");
         return false;
       });
+      if (!pending.length) {
+        window.removeEventListener("scroll", onScroll);
+        window.removeEventListener("resize", onScroll);
+      }
     };
     const onScroll = () => {
-      scrolled = true;
+      if (frame) return;
+      frame = window.requestAnimationFrame(reveal);
     };
-    const timer = window.setInterval(reveal, 50);
-    window.addEventListener("scroll", onScroll);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onScroll);
     return () => {
-      window.clearInterval(timer);
+      window.cancelAnimationFrame(frame);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onScroll);
     };

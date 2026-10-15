@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { forgetPrefix } from "@/lib/remember";
 import { sendTestAlert } from "@/lib/admin-alerts";
 import { requireAdmin } from "@/lib/admin-applications";
 import { ROLE_LABELS } from "@/lib/office-nav";
@@ -10,6 +11,8 @@ type ActionResult = { error?: string; ok?: string };
 const TEAM_ROLES = ["admin", "admissions", "accounts"] as const;
 
 function refresh() {
+  forgetPrefix("admin-badges");
+  forgetPrefix("office-badges");
   revalidatePath("/admin", "layout");
   revalidatePath("/admissions_office", "layout");
   revalidatePath("/accounts", "layout");

@@ -1,14 +1,15 @@
 import Link from "next/link";
+import type { CSSProperties, ReactNode } from "react";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { AutoSubmit } from "@/components/accounts/client";
-import { DebtorsTable, type DebtorRow } from "@/components/accounts/DebtorsTable";
-import { AgingBar, Chips, Money, Stat, notReady } from "@/components/accounts/ui";
+import { DebtorFinder } from "@/components/accounts/DebtorFinder";
+import { DebtorsTable, FamilyDebtorsTable, type DebtorRow, type FamilyDebtorRow } from "@/components/accounts/DebtorsTable";
+import { notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
-import { DEBTOR_SORTS, debtorsBase, debtorsQuery, familyDebtorsQuery, filterState, parseDebtorFilters } from "./filters";
+import { debtorsBase, debtorsQuery, familyDebtorsQuery, filterState, parseDebtorFilters, type DebtorFilters } from "./filters";
 import { ACCOUNTS_BASE, loadCampuses, requireAccounts } from "@/lib/accounts";
-import { AGING, agingOf, amount, day, hrefWith, kampalaToday, overdueText, type AgingKey } from "@/lib/accounts-format";
+import { AGING, agingOf, hrefWith, kampalaToday, ugx, ugxShort, type AgingKey } from "@/lib/accounts-format";
 import { emailSetupProblem } from "@/lib/email/send";
-import { SCHOOL_CLASSES, displayPhone, fetchAll } from "@/lib/students";
+import { className as classLabel, fetchAll } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Debtors" };
@@ -16,18 +17,43 @@ export const metadata = { title: "Debtors" };
 const BASE = `${ACCOUNTS_BASE}/debtors`;
 const SIZE = 50;
 
-type FamilyRow = {
-  family_id: string;
-  family_code: string | null;
-  mailing_name: string | null;
-  contact_name: string | null;
-  contact_phone: string | null;
-  contact_email: string | null;
-  children: number;
-  balance: number;
-  oldest_due: string | null;
-  last_paid_on: string | null;
+const BAND_ICON: Record<AgingKey, string> = {
+  current: "fa-calendar-check",
+  d30: "fa-clock",
+  d60: "fa-hourglass-half",
+  d60plus: "fa-triangle-exclamation",
 };
+
+function owingHeading(total: number, families: boolean) {
+  const n = total.toLocaleString("en-GB");
+  if (families) return total === 1 ? "1 family owes" : `${n} families owe`;
+  return total === 1 ? "1 pupil owes" : `${n} pupils owe`;
+}
+
+function scopeLine(filters: DebtorFilters) {
+  const sort = filters.sort === "oldest"
+    ? "longest overdue first"
+    : filters.sort === "name"
+      ? "name A–Z"
+      : filters.sort === "class"
+        ? "by class, then name"
+        : "largest balance first";
+  const parts = [
+    filters.aging ? AGING.find((entry) => entry.key === filters.aging)?.label : "",
+    filters.class ? classLabel(filters.class) : "",
+    filters.campus,
+    filters.pupils === "left" ? "Former pupils" : filters.pupils === "all" ? "Current and former pupils" : "",
+    filters.min ? `Owing at least ${ugx(filters.min)}` : "",
+    filters.q ? `Matching “${filters.q}”` : "",
+  ].filter(Boolean);
+  if (!parts.length) {
+    return filters.view === "families"
+      ? `Every family with a balance, ${sort}`
+      : `Every current pupil with a balance, ${sort}`;
+  }
+  const line = parts.join(" · ");
+  return `${line.charAt(0).toUpperCase()}${line.slice(1)} · ${sort.charAt(0).toUpperCase()}${sort.slice(1)}`;
+}
 
 export default async function DebtorsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!supabaseConfigured()) return notReady("Debtors", { kind: "config" });
@@ -39,6 +65,7 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   const href = (changes: Record<string, string | number | null>) => hrefWith(BASE, state, changes);
   const today = kampalaToday();
   const from = (filters.page - 1) * SIZE;
+  const families = filters.view === "families";
 
   let everyone: { balance: number; oldest_due: string | null; family_id: string | null }[];
   try {
@@ -53,154 +80,84 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
     bucket.total += Number(row.balance);
   }
   const owed = everyone.reduce((sum, row) => sum + Number(row.balance), 0);
-  const overdue = owed - buckets.current.total;
   const familyCount = new Set(everyone.map((row) => row.family_id ?? "")).size;
   const campuses = await loadCampuses(supabase);
+  const narrowed = Boolean(filters.q || filters.class || filters.campus || filters.aging || filters.min || filters.pupils);
 
-  const header = (
-    <PageHeader
-      kicker="Billing"
-      icon="fa-hand-holding-dollar"
-      title="Debtors"
-      description="Everyone who owes, oldest debts first to chase. Email families a reminder in a few clicks, or export the list to call them."
-      actions={
-        <a className="admin-hero-btn" href={hrefWith(`${BASE}/export`, state)}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
-      }
-    >
-      <div className="acc-hero-figures">
-        <Stat label="Total owed" value={<Money value={owed} short />} note={`${everyone.length.toLocaleString("en-GB")} pupils · ${familyCount.toLocaleString("en-GB")} families`} tone={owed ? "bad" : "good"} />
-        <Stat label="Overdue" value={<Money value={overdue} short />} note={owed ? `${Math.round((overdue / owed) * 100)}% of what's owed` : "Nothing overdue"} tone={overdue ? "warn" : undefined} />
-      </div>
-    </PageHeader>
+  const tiles = (
+    <nav className="ofc-reg-summary acc-debt-summary" aria-label="How old the debts are">
+      <Link
+        href={href({ aging: "" })}
+        className={`ofc-reg-tile${owed ? "" : " is-ok"}${filters.aging ? "" : " is-on"}`}
+        aria-current={filters.aging ? undefined : "true"}
+        scroll={false}
+      >
+        <span className="ofc-reg-tile-icon" aria-hidden="true"><i className="fa-solid fa-hand-holding-dollar" /></span>
+        <span className="ofc-reg-tile-body">
+          <span className="ofc-reg-tile-label">Outstanding</span>
+          <strong>
+            <span className="visually-hidden">{ugx(owed)} </span>
+            <span aria-hidden="true">{ugxShort(owed)}</span>
+          </strong>
+          <small>{owed ? `${everyone.length.toLocaleString("en-GB")} pupils · ${familyCount.toLocaleString("en-GB")} families` : "Every account is clear"}</small>
+        </span>
+      </Link>
+      {AGING.map((bucket) => {
+        const band = buckets[bucket.key];
+        const on = filters.aging === bucket.key;
+        const share = owed ? Math.round((band.total / owed) * 100) : 0;
+        return (
+          <Link
+            key={bucket.key}
+            href={href({ aging: on ? "" : bucket.key })}
+            className={`ofc-reg-tile is-${bucket.tone}${on ? " is-on" : ""}`}
+            aria-current={on ? "true" : undefined}
+            scroll={false}
+            title={ugx(band.total)}
+          >
+            <span className="ofc-reg-tile-icon" aria-hidden="true"><i className={`fa-solid ${BAND_ICON[bucket.key]}`} /></span>
+            <span className="ofc-reg-tile-body">
+              <span className="ofc-reg-tile-label">{bucket.short}</span>
+              <strong>
+                <span className="visually-hidden">{ugx(band.total)} </span>
+                <span aria-hidden="true">{ugxShort(band.total)}</span>
+              </strong>
+              <small>
+                {band.count
+                  ? `${band.count.toLocaleString("en-GB")} pupil${band.count === 1 ? "" : "s"} · ${share}%`
+                  : "None in this band"}
+              </small>
+              {owed ? (
+                <span className="acc-debt-meter" style={{ "--share": `${share}%` } as CSSProperties}>
+                  <span />
+                </span>
+              ) : null}
+            </span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 
-  const finder = (
-    <AutoSubmit className="ofc-finder" action={BASE} label="Filter debtors">
-      {filters.view ? <input type="hidden" name="view" value={filters.view} /> : null}
-      {filters.aging ? <input type="hidden" name="aging" value={filters.aging} /> : null}
-      <div className="ofc-finder-top">
-        <label className="ofc-finder-search">
-          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-          <span className="visually-hidden">Search</span>
-          <input type="search" name="q" defaultValue={filters.q} placeholder={filters.view ? "Family name, number or parent" : "Pupil, parent or family number"} />
-        </label>
-        {!filters.view ? (
-          <>
-            <label className="ofc-finder-field is-inline">
-              <span>Class</span>
-              <select name="class" defaultValue={filters.class}>
-                <option value="">All classes</option>
-                {SCHOOL_CLASSES.map((entry) => <option key={entry.code} value={entry.code}>{entry.code} · {entry.name}</option>)}
-              </select>
-            </label>
-            {campuses.length > 1 ? (
-              <label className="ofc-finder-field is-inline">
-                <span>Campus</span>
-                <select name="campus" defaultValue={filters.campus}>
-                  <option value="">All campuses</option>
-                  {campuses.map((entry) => <option key={entry} value={entry}>{entry}</option>)}
-                </select>
-              </label>
-            ) : null}
-            <label className="ofc-finder-field is-inline">
-              <span>Pupils</span>
-              <select name="pupils" defaultValue={filters.pupils}>
-                <option value="">Current pupils</option>
-                <option value="left">Former pupils</option>
-                <option value="all">Everyone</option>
-              </select>
-            </label>
-          </>
-        ) : null}
-        <label className="ofc-finder-field is-inline">
-          <span>Owing at least</span>
-          <input name="min" inputMode="numeric" defaultValue={filters.min ? amount(filters.min) : ""} placeholder="Any amount" className="acc-short-input" />
-        </label>
-        <label className="ofc-finder-field is-inline">
-          <span>Sort</span>
-          <select name="sort" defaultValue={filters.sort}>
-            {DEBTOR_SORTS.filter((entry) => !filters.view || entry.value !== "class").map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-          </select>
-        </label>
-        <button className="admin-btn" type="submit">Search</button>
-      </div>
-    </AutoSubmit>
-  );
+  const finder = <DebtorFinder filters={filters} campuses={campuses} />;
+  const scope = scopeLine(filters);
 
-  const views = (
-    <Chips
-      label="Group by"
-      items={[
-        { href: href({ view: "" }), label: "By pupil", on: !filters.view },
-        { href: href({ view: "families", class: "", campus: "", pupils: "" }), label: "By family", on: filters.view === "families" },
-      ]}
-    />
-  );
-
-  const aging = (
-    <section className="admin-card acc-aging-card">
-      <header>
-        <h2>How old the debts are</h2>
-        {filters.aging ? <Link className="app-link-btn" href={href({ aging: "" })}>Show all ages</Link> : <p>Click a band to see just those pupils.</p>}
-      </header>
-      <AgingBar buckets={buckets} hrefFor={(key) => href({ aging: filters.aging === key ? "" : key })} />
-    </section>
-  );
-
-  if (filters.view === "families") {
+  if (families) {
     const { data, count, error } = await familyDebtorsQuery(supabase, filters, "*", true).range(from, from + SIZE - 1);
     if (error) return notReady("Debtors", { kind: "schema", message: error.message });
-    const rows = ((data || []) as FamilyRow[]).map((row) => ({ ...row, balance: Number(row.balance) }));
+    const rows = ((data || []) as unknown as FamilyDebtorRow[]).map((row) => ({ ...row, balance: Number(row.balance) }));
     const total = count ?? 0;
     return (
-      <div className="app-page ofc-page acc-page">
-        {header}
-        {aging}
-        <section className="admin-card ofc-register">
-          {finder}
-          <div className="acc-list-head">{views}<p>{total.toLocaleString("en-GB")} famil{total === 1 ? "y" : "ies"} owe</p></div>
-          {rows.length ? (
-            <div className="ofc-table-scroll">
-              <table className="app-table acc-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Family</th>
-                    <th scope="col">Contact</th>
-                    <th scope="col">Children</th>
-                    <th scope="col" className="is-num">Owes</th>
-                    <th scope="col">Overdue</th>
-                    <th scope="col">Last paid</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => {
-                    const bucket = AGING.find((entry) => entry.key === agingOf(row.oldest_due, today)) ?? AGING[0];
-                    return (
-                      <tr key={row.family_id}>
-                        <td data-label="Family">
-                          <Link className="acc-doc-link" href={`${ACCOUNTS_BASE}/families/${row.family_id}`}>{row.mailing_name || `Family ${row.family_code}`}</Link>
-                          <small>{row.family_code}</small>
-                        </td>
-                        <td data-label="Contact">
-                          {row.contact_name ?? "–"}
-                          <small>{[row.contact_phone ? displayPhone(row.contact_phone) : "", row.contact_email ?? ""].filter(Boolean).join(" · ") || "No contact details"}</small>
-                        </td>
-                        <td data-label="Children">{row.children}</td>
-                        <td data-label="Owes" className="is-num"><strong className="acc-owing">{amount(row.balance)}</strong></td>
-                        <td data-label="Overdue"><span className={`acc-age is-${bucket.tone}`}>{row.oldest_due ? overdueText(row.oldest_due, today) : "No due date"}</span></td>
-                        <td data-label="Last paid">{row.last_paid_on ? day(row.last_paid_on) : <span className="app-muted">Never</span>}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty icon="fa-face-smile" title="No families owe">Nothing outstanding for these filters.</Empty>
-          )}
-          <Pager page={filters.page} pages={Math.max(1, Math.ceil(total / SIZE))} total={total} from={from} size={SIZE} href={(n) => href({ page: n })} />
-        </section>
-      </div>
+      <Shell tiles={tiles} finder={finder} heading={owingHeading(total, true)} scope={scope} hint="Open a family to see each child and what they owe" hintIcon="fa-solid fa-people-roof" showHint={rows.length > 0} exportHref={hrefWith(`${BASE}/export`, state)}>
+        {rows.length ? (
+          <FamilyDebtorsTable rows={rows} today={today} />
+        ) : (
+          <Empty icon={narrowed ? "fa-face-meh" : "fa-face-smile"} title={narrowed ? "No families match" : "No families owe"}>
+            {narrowed ? "Remove a filter above to widen the list." : "Nothing is outstanding."}
+          </Empty>
+        )}
+        <Pager page={filters.page} pages={Math.max(1, Math.ceil(total / SIZE))} total={total} from={from} size={SIZE} href={(n) => href({ page: n })} />
+      </Shell>
     );
   }
 
@@ -221,20 +178,66 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   const total = count ?? 0;
 
   return (
+    <Shell tiles={tiles} finder={finder} heading={owingHeading(total, false)} scope={scope} hint="Tick pupils to email their families a reminder" hintIcon="fa-regular fa-square-check" exportHref={hrefWith(`${BASE}/export`, state)} showHint={rows.length > 0}>
+      {rows.length ? (
+        <DebtorsTable rows={rows} today={today} emailReady={emailSetupProblem()} />
+      ) : (
+        <Empty icon={narrowed ? "fa-face-meh" : "fa-face-smile"} title={narrowed ? "Nobody matches" : "Nobody owes anything"}>
+          {narrowed ? "Remove a filter above to widen the list." : "Every pupil's account is clear."}
+        </Empty>
+      )}
+      <Pager page={filters.page} pages={Math.max(1, Math.ceil(total / SIZE))} total={total} from={from} size={SIZE} href={(n) => href({ page: n })} />
+    </Shell>
+  );
+}
+
+function Shell({
+  tiles,
+  finder,
+  heading,
+  scope,
+  hint,
+  hintIcon,
+  showHint = true,
+  exportHref,
+  children,
+}: {
+  tiles: ReactNode;
+  finder: ReactNode;
+  heading: string;
+  scope: string;
+  hint: string;
+  hintIcon: string;
+  showHint?: boolean;
+  exportHref: string;
+  children: ReactNode;
+}) {
+  return (
     <div className="app-page ofc-page acc-page">
-      {header}
-      {aging}
-      <section className="admin-card ofc-register">
+      <PageHeader
+        kicker="Billing"
+        icon="fa-hand-holding-dollar"
+        title="Debtors"
+        description="Balances still outstanding, across every term. Filter by how old the debt is, then email a reminder or export the list to call."
+        actions={
+          <a className="admin-hero-btn" href={exportHref}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
+        }
+      />
+      {tiles}
+      <section className="admin-card ofc-register" aria-labelledby="debtor-results">
         {finder}
-        <div className="acc-list-head">{views}<p>{total.toLocaleString("en-GB")} pupil{total === 1 ? "" : "s"} owe</p></div>
-        {rows.length ? (
-          <DebtorsTable rows={rows} today={today} emailReady={emailSetupProblem()} />
-        ) : (
-          <Empty icon="fa-face-smile" title={filters.q || filters.class || filters.aging || filters.min ? "Nobody matches" : "Nobody owes anything"}>
-            {filters.q || filters.class || filters.aging || filters.min ? "Try clearing a filter." : "Every pupil's account is clear."}
-          </Empty>
-        )}
-        <Pager page={filters.page} pages={Math.max(1, Math.ceil(total / SIZE))} total={total} from={from} size={SIZE} href={(n) => href({ page: n })} />
+        <header className="ofc-reg-results">
+          <div>
+            <h2 id="debtor-results">{heading}</h2>
+            <p>{scope}</p>
+          </div>
+          {showHint ? (
+            <p className="ofc-reg-hint">
+              <i className={hintIcon} aria-hidden="true" /> {hint}
+            </p>
+          ) : null}
+        </header>
+        {children}
       </section>
     </div>
   );

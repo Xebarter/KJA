@@ -6,7 +6,7 @@ import { PrintButton } from "@/components/office/client";
 import { BirthdaysCard, MedicalCard, type CarePupil } from "@/components/office/PupilCareCards";
 import { Card, Empty, MigrationHint, OfficeNotice } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
-import { signStudentPhotos } from "@/lib/student-photos";
+import { studentPhotoUrl } from "@/lib/student-photos";
 import { CLASS_AGE, HOUSES, OFFICE, SCHOOL_CLASSES, ageOutlier, daysToBirthday, fetchAll, isClassCode, pick } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
 
@@ -66,10 +66,9 @@ export default async function ClassPage({
   const streams = [...new Set(all.map((row) => row.stream).filter(Boolean) as string[])].sort();
   const unstreamed = all.filter((row) => !row.stream).length;
   const pupils = stream ? all.filter((row) => (stream === "NONE" ? !row.stream : row.stream === stream)) : all;
-  const photos = await signStudentPhotos(supabase, pupils.map((row) => row.photo_path ?? null));
   const rows: RosterRow[] = pupils.map(({ photo_path, ...row }) => ({
     ...row,
-    photo_url: photo_path ? photos.get(photo_path) ?? null : null,
+    photo_url: studentPhotoUrl(row.id, photo_path ?? null),
     outlier: ageOutlier(code, row.date_of_birth),
   }));
 

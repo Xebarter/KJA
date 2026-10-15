@@ -1,5 +1,6 @@
 import { EventsHero } from "@/components/site/EventsHero";
 import { NewsroomClose } from "@/components/site/Newsroom";
+import { TecBreakpoints } from "@/components/site/tec/TecBreakpoints";
 import { TecStyles } from "@/components/site/tec/TecStyles";
 import { getContent } from "@/lib/content";
 import { kampalaClock, toCalEvents } from "@/lib/events-calendar";
@@ -10,6 +11,7 @@ export default async function EventsLayout({ children }: { children: React.React
   return (
     <div className="kja-events">
       <TecStyles />
+      <TecBreakpoints />
       <EventsHero events={toCalEvents(content.events)} articles={content.events} clock={kampalaClock()} />
       <section id="kja-calendar" className="kja-ev-cal" aria-label="Events calendar">
         <div className="container">

@@ -44,14 +44,14 @@ export function SchemaHint({ message }: { message: string }) {
 }
 
 /** Shown in place of a page until Supabase is connected, the user has access and the schema exists. */
-export function notReady(title: string, problem: { kind: "config" } | { kind: "auth"; message: string } | { kind: "schema"; message: string }) {
+export function notReady(title: string, problem: { kind: "config" } | { kind: "auth"; message?: string | null } | { kind: "schema"; message?: string | null }) {
   if (problem.kind === "config") {
     return <AccountsNotice title={title} heading="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code> to use the accounts office.</p></AccountsNotice>;
   }
   if (problem.kind === "auth") {
     return <AccountsNotice title={title} icon="fa-lock" heading="Not available"><p>{problem.message}</p></AccountsNotice>;
   }
-  return <AccountsNotice title={title} heading="The accounts office isn't set up yet"><SchemaHint message={problem.message} /></AccountsNotice>;
+  return <AccountsNotice title={title} heading="The accounts office isn't set up yet"><SchemaHint message={problem.message || "The accounts tables are not available yet."} /></AccountsNotice>;
 }
 
 export function Money({ value, tone, short = false }: { value: number; tone?: "auto" | "plain"; short?: boolean }) {
@@ -179,10 +179,15 @@ export function Chips({ items, label }: { items: { href: string; label: string; 
   );
 }
 
-export function Stat({ label, value, note, tone }: { label: string; value: React.ReactNode; note?: React.ReactNode; tone?: "good" | "warn" | "bad" }) {
+const STAT_ICON = { good: "fa-circle-check", warn: "fa-clock", bad: "fa-circle-exclamation" };
+
+export function Stat({ label, value, note, tone, icon }: { label: string; value: React.ReactNode; note?: React.ReactNode; tone?: "good" | "warn" | "bad"; icon?: string }) {
   return (
     <div className={`acc-stat${tone ? ` is-${tone}` : ""}`}>
-      <span>{label}</span>
+      <span className="acc-stat-top">
+        <span>{label}</span>
+        <i className={`fa-solid ${icon ?? (tone ? STAT_ICON[tone] : "fa-chart-simple")}`} aria-hidden="true" />
+      </span>
       <strong>{value}</strong>
       {note ? <small>{note}</small> : null}
     </div>

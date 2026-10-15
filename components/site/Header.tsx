@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type MouseEvent } from "react";
 import { useAuthDialog } from "@/components/account/AuthDialog";
-import { createBrowserSupabase } from "@/lib/supabase/browser";
 import type { Article, Social } from "@/lib/types";
 
 const about = [
@@ -96,6 +95,7 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
   const onAccount = async (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     closeMenu();
+    const { createBrowserSupabase } = await import("@/lib/supabase/browser");
     const supabase = createBrowserSupabase();
     const session = supabase ? (await supabase.auth.getSession()).data.session : null;
     if (session) {

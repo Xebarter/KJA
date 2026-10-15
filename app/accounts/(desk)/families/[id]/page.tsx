@@ -62,12 +62,11 @@ export default async function FamilyAccountPage({ params }: { params: Promise<{ 
             <i className="fa-solid fa-file-pdf" aria-hidden="true" /> Family statement
           </a>
         }
-      >
-        <div className="acc-hero-figures">
-          <Stat label={balance < 0 ? "In credit" : "Family balance"} value={<Money value={Math.abs(balance)} />} note={balance > 0 && oldest ? overdueText(oldest) : balance > 0 ? "Owing" : "Nothing owed"} tone={balance > 0 ? "bad" : "good"} />
-          <Stat label="Paid to date" value={<Money value={paid} short />} note={`of ${ugx(billed)} billed`} />
-        </div>
-      </PageHeader>
+      />
+      <div className="acc-hero-figures">
+        <Stat label={balance < 0 ? "In credit" : "Family balance"} value={<Money value={Math.abs(balance)} />} note={balance > 0 && oldest ? overdueText(oldest) : balance > 0 ? "Owing" : "Nothing owed"} tone={balance > 0 ? "bad" : "good"} icon="fa-people-roof" />
+        <Stat label="Paid to date" value={<Money value={paid} short />} note={`of ${ugx(billed)} billed`} icon="fa-sack-dollar" />
+      </div>
 
       <ul className="acc-child-cards">
         {children.map((child) => (

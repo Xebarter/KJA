@@ -50,6 +50,15 @@ export type FeeRow = {
   due_on: string | null;
 };
 
+export type ReceiptRow = {
+  id: string;
+  child_id: string;
+  receipt_no: string;
+  amount: number;
+  paid_on: string;
+  method: string;
+};
+
 export type ClubRow = {
   id: string;
   title: string;

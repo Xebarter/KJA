@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 type Phase = "hidden" | "open" | "collapsing" | "closing" | "fab";
@@ -15,13 +15,17 @@ function reducedMotion() {
 
 export function AdmissionsPopup({ title, body, label, href }: { title: string; body: string; label: string; href: string }) {
   const pathname = usePathname();
-  const signingIn = useSearchParams().has("login");
+  const [signingIn, setSigningIn] = useState(false);
   const [phase, setPhase] = useState<Phase>("hidden");
   const cardRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLAnchorElement>(null);
   const ctaRef = useRef<HTMLAnchorElement>(null);
   const restoreFocus = useRef<HTMLElement | null>(null);
   const [morphed, setMorphed] = useState(false);
+
+  useEffect(() => {
+    setSigningIn(new URLSearchParams(window.location.search).has("login"));
+  }, [pathname]);
 
   useEffect(() => {
     if (pathname !== "/" || dialogShown || signingIn) {

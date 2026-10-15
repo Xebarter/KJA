@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { forgetPrefix } from "@/lib/remember";
 import { loadPeople } from "@/lib/admin-applications";
 import { requireOffice } from "@/lib/office";
 import { buildParentEmail } from "@/lib/admission-emails";
@@ -112,6 +113,8 @@ export async function moveApplication(input: MoveInput): Promise<ActionResult> {
 const MAX_BULK = 200;
 
 function refresh(id?: string) {
+  forgetPrefix("admin-badges");
+  forgetPrefix("office-badges");
   revalidatePath("/admin", "layout");
   revalidatePath("/admissions_office", "layout");
   if (id) {

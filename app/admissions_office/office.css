@@ -516,6 +516,8 @@
 }
 .ofc-who-avatar.is-boy { background: #e4edfb; color: var(--ofc-boy); box-shadow: inset 0 0 0 1.5px rgba(47, 111, 214, .25); }
 .ofc-who-avatar.is-girl { background: #fbe6ee; color: var(--ofc-girl); box-shadow: inset 0 0 0 1.5px rgba(214, 69, 122, .25); }
+.ofc-who-avatar:has(img) { overflow: hidden; background: #eceae5; }
+.ofc-who-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
 .ofc-who > div { min-width: 0; }
 
 .ofc-photo-wrap { display: inline-flex; flex: 0 0 auto; }
