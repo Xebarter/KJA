@@ -30,11 +30,11 @@ function Feedback({ result }: { result: Result }) {
     : <p className="tm-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p>;
 }
 
-type TeamRole = "admin" | "admissions" | "accounts";
+type TeamRole = "admin" | "admissions" | "accounts" | "academics";
 
-const SIGN_IN: Record<TeamRole, string> = { admin: "/admin", admissions: "/admissions_office", accounts: "/accounts" };
+const SIGN_IN: Record<TeamRole, string> = { admin: "/admin", admissions: "/admissions_office", accounts: "/accounts", academics: "/academics_office" };
 
-export function TeamManager({ members, officers, accountants, alerts }: { members: Member[]; officers: Member[]; accountants: Member[]; alerts: Alerts }) {
+export function TeamManager({ members, officers, accountants, teachers, alerts }: { members: Member[]; officers: Member[]; accountants: Member[]; teachers: Member[]; alerts: Alerts }) {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [role, setRole] = useState<TeamRole>("admin");
@@ -210,6 +210,49 @@ export function TeamManager({ members, officers, accountants, alerts }: { member
         ) : (
           <p className="tm-empty">No accounts officers yet. Add one with the form, choosing &ldquo;Accounts officer&rdquo;.</p>
         )}
+
+        <header className="tm-panel-head tm-panel-head-sub" id="team-academics">
+          <div>
+            <h2>Academics officers</h2>
+            <p>They sign in to the academics office for classes, attendance, marks and report cards. They can&apos;t change the website or the register.</p>
+          </div>
+          <span className="tm-count">{teachers.length}</span>
+        </header>
+        {teachers.length ? (
+          <ul className="tm-members">
+            {teachers.map((member) => (
+              <li key={member.id} className="tm-card">
+                <div className="tm-card-top">
+                  <span className="tm-avatar" aria-hidden="true">{initials(member.name)}</span>
+                  <div className="tm-who">
+                    <strong><span>{member.name}</span></strong>
+                    {member.email ? <a href={`mailto:${member.email}`}>{member.email}</a> : <small>No email on file</small>}
+                  </div>
+                </div>
+                <div className="tm-card-actions">
+                  <a href="/academics_office" className="tm-link">
+                    Academics office <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                  </a>
+                  <button
+                    type="button"
+                    className="tm-remove"
+                    disabled={pending}
+                    onClick={() => {
+                      if (!window.confirm(`Remove academics office access for ${member.name}? They will keep their parent portal account.`)) return;
+                      setRemoving(member.id);
+                      run("list", () => removeAdmin(member.id));
+                    }}
+                  >
+                    <i className="fa-solid fa-user-minus" aria-hidden="true" />
+                    {pending && removing === member.id ? "Removing…" : "Remove"}
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="tm-empty">No academics officers yet. Add one with the form, choosing &ldquo;Academics officer&rdquo;.</p>
+        )}
       </section>
 
       <aside className="tm-side">
@@ -235,6 +278,7 @@ export function TeamManager({ members, officers, accountants, alerts }: { member
               <option value="admin">Admin: the whole dashboard</option>
               <option value="admissions">Admissions officer: admissions office only</option>
               <option value="accounts">Accounts officer: accounts office only</option>
+              <option value="academics">Academics officer: academics office only</option>
             </select>
             <label htmlFor="team-email">Email address</label>
             <div className="tm-add-row">

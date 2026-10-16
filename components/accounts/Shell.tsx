@@ -4,8 +4,17 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
+import { searchFeeAccounts } from "@/app/accounts/(desk)/payments/actions";
+import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { ACCOUNTS_BASE, accountsNav, type AccountsBadge } from "@/lib/accounts-nav";
+import type { SidebarHit } from "@/lib/sidebar-search";
+
+const ACCOUNTS_PLACES: SidebarHit[] = [
+  ...accountsNav.map((item) => ({ id: item.href, href: item.href, title: item.label, meta: item.group, icon: item.icon })),
+  { id: `${ACCOUNTS_BASE}/payments/new`, href: `${ACCOUNTS_BASE}/payments/new`, title: "Record a payment", meta: "Quick add", icon: "fa-cash-register" },
+  { id: `${ACCOUNTS_BASE}/expenses/new`, href: `${ACCOUNTS_BASE}/expenses/new`, title: "Add an expense", meta: "Quick add", icon: "fa-file-circle-plus" },
+];
 
 function isActive(pathname: string, href: string) {
   return href === ACCOUNTS_BASE ? pathname === ACCOUNTS_BASE : pathname === href || pathname.startsWith(`${href}/`);
@@ -33,7 +42,6 @@ export function AccountsShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const search = useRef<HTMLInputElement>(null);
   const groups = [...new Set(accountsNav.map((item) => item.group))];
   const current = [...accountsNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
@@ -105,30 +113,18 @@ export function AccountsShell({
           </Link>
         ) : null}
 
-        <form
-          className="ofc-search"
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const q = query.trim();
-            if (!q) return;
-            router.push(`${ACCOUNTS_BASE}/students?status=all&q=${encodeURIComponent(q)}`);
-            setQuery("");
-          }}
-        >
-          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-          <label className="visually-hidden" htmlFor="accounts-search">Find a fee account</label>
-          <input
-            ref={search}
-            id="accounts-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Pupil, number or family"
-            autoComplete="off"
-          />
-          <kbd aria-hidden="true">Ctrl K</kbd>
-        </form>
+        <SidebarSearch
+          id="accounts-search"
+          label="Find a fee account"
+          placeholder="Pupil, number or family"
+          inputRef={search}
+          places={ACCOUNTS_PLACES}
+          recordsLabel="Pupils"
+          browseLabel="See all fee accounts"
+          browseHref={(q) => `${ACCOUNTS_BASE}/students?status=all&q=${encodeURIComponent(q)}`}
+          search={searchFeeAccounts}
+          empty="No pupils match. Try a surname, a student number, or a family number."
+        />
 
         <nav className="admin-nav" aria-label="Accounts office">
           {groups.map((group) => (
@@ -169,6 +165,11 @@ export function AccountsShell({
               <a className="admin-side-link" href="/admissions_office">
                 <i className="fa-solid fa-building-user" aria-hidden="true" />
                 <span>Admissions office</span>
+                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
+              </a>
+              <a className="admin-side-link" href="/academics_office">
+                <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
+                <span>Academics office</span>
                 <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
               </a>
             </>

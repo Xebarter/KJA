@@ -110,6 +110,7 @@ export function FeeAccountsView({
   const narrowed = Boolean(filters.q || filters.class || filters.campus || filters.balance || (filters.status && filters.status !== "active"));
   const n = (value: number) => value.toLocaleString("en-GB");
   let previous = "";
+  let stripe = 0;
 
   return (
     <div className="app-page ofc-page acc-page fac-page">
@@ -164,58 +165,6 @@ export function FeeAccountsView({
               </p>
             </div>
           </div>
-          <ul className="fac-figs">
-            <li>
-              <Link
-                className={`${filters.balance === "owing" ? "is-on" : ""}${totals.owed ? " is-bad" : ""}`}
-                href={href({ balance: filters.balance === "owing" ? "" : "owing" })}
-                scroll={false}
-                aria-current={filters.balance === "owing" ? "true" : undefined}
-                title={totals.owed ? ugx(totals.owed) : undefined}
-              >
-                <span>Outstanding</span>
-                <strong>{totals.owed ? ugxShort(totals.owed) : "None"}</strong>
-                <small>{totals.owing ? `${n(totals.owing)} ${totals.owing === 1 ? "pupil" : "pupils"}` : "Every account is clear"}</small>
-              </Link>
-            </li>
-            <li>
-              <Link
-                className={`${filters.balance === "clear" ? "is-on" : ""} is-ok`}
-                href={href({ balance: filters.balance === "clear" ? "" : "clear" })}
-                scroll={false}
-                aria-current={filters.balance === "clear" ? "true" : undefined}
-              >
-                <span>Fully paid</span>
-                <strong>{n(totals.clear)}</strong>
-                <small>{totals.pupils ? `${Math.round((totals.clear / totals.pupils) * 100)}% of ${n(totals.pupils)}` : "None in this view"}</small>
-              </Link>
-            </li>
-            <li>
-              <Link
-                className={`${filters.balance === "credit" ? "is-on" : ""} is-credit`}
-                href={href({ balance: filters.balance === "credit" ? "" : "credit" })}
-                scroll={false}
-                aria-current={filters.balance === "credit" ? "true" : undefined}
-                title={totals.credit ? ugx(totals.creditAmount) : undefined}
-              >
-                <span>In credit</span>
-                <strong>{n(totals.credit)}</strong>
-                <small>{totals.credit ? `${ugxShort(totals.creditAmount)} paid ahead` : "No one is ahead"}</small>
-              </Link>
-            </li>
-            <li>
-              <Link
-                className={filters.balance ? "" : "is-on"}
-                href={href({ balance: "" })}
-                scroll={false}
-                aria-current={filters.balance ? undefined : "true"}
-              >
-                <span>On roll</span>
-                <strong>{n(totals.pupils)}</strong>
-                <small>{filters.status === "all" ? "Every status" : "Current pupils"}</small>
-              </Link>
-            </li>
-          </ul>
         </div>
         {totals.billed ? (
           <div className="fac-book">
@@ -230,6 +179,71 @@ export function FeeAccountsView({
           </div>
         ) : null}
       </section>
+
+      <ul className="fac-tiles" aria-label="Fee position filters">
+        <li>
+          <Link
+            className={`fac-tile${totals.owed ? " is-bad" : ""}${filters.balance === "owing" ? " is-on" : ""}`}
+            href={href({ balance: filters.balance === "owing" ? "" : "owing" })}
+            scroll={false}
+            aria-current={filters.balance === "owing" ? "true" : undefined}
+            title={totals.owed ? ugx(totals.owed) : undefined}
+          >
+            <span className="fac-tile-icon" aria-hidden="true"><i className="fa-solid fa-hand-holding-dollar" /></span>
+            <span className="fac-tile-body">
+              <span className="fac-tile-label">Outstanding</span>
+              <strong>{totals.owed ? ugxShort(totals.owed) : "None"}</strong>
+              <small>{totals.owing ? `${n(totals.owing)} ${totals.owing === 1 ? "pupil" : "pupils"}` : "Every account is clear"}</small>
+            </span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            className={`fac-tile is-ok${filters.balance === "clear" ? " is-on" : ""}`}
+            href={href({ balance: filters.balance === "clear" ? "" : "clear" })}
+            scroll={false}
+            aria-current={filters.balance === "clear" ? "true" : undefined}
+          >
+            <span className="fac-tile-icon" aria-hidden="true"><i className="fa-solid fa-circle-check" /></span>
+            <span className="fac-tile-body">
+              <span className="fac-tile-label">Fully paid</span>
+              <strong>{n(totals.clear)}</strong>
+              <small>{totals.pupils ? `${Math.round((totals.clear / totals.pupils) * 100)}% of ${n(totals.pupils)}` : "None in this view"}</small>
+            </span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            className={`fac-tile is-credit${filters.balance === "credit" ? " is-on" : ""}`}
+            href={href({ balance: filters.balance === "credit" ? "" : "credit" })}
+            scroll={false}
+            aria-current={filters.balance === "credit" ? "true" : undefined}
+            title={totals.credit ? ugx(totals.creditAmount) : undefined}
+          >
+            <span className="fac-tile-icon" aria-hidden="true"><i className="fa-solid fa-coins" /></span>
+            <span className="fac-tile-body">
+              <span className="fac-tile-label">In credit</span>
+              <strong>{n(totals.credit)}</strong>
+              <small>{totals.credit ? `${ugxShort(totals.creditAmount)} paid ahead` : "No one is ahead"}</small>
+            </span>
+          </Link>
+        </li>
+        <li>
+          <Link
+            className={`fac-tile${filters.balance ? "" : " is-on"}`}
+            href={href({ balance: "" })}
+            scroll={false}
+            aria-current={filters.balance ? undefined : "true"}
+          >
+            <span className="fac-tile-icon" aria-hidden="true"><i className="fa-solid fa-children" /></span>
+            <span className="fac-tile-body">
+              <span className="fac-tile-label">On roll</span>
+              <strong>{n(totals.pupils)}</strong>
+              <small>{filters.status === "all" ? "Every status" : "Current pupils"}</small>
+            </span>
+          </Link>
+        </li>
+      </ul>
 
       <section className="ofc-register" aria-labelledby="fee-results">
         <FeeFinder filters={filters} campuses={campuses} />
@@ -272,6 +286,7 @@ export function FeeAccountsView({
                     ? [row.terms_owing > 1 ? `${row.terms_owing} terms` : "", overdueText(row.oldest_due, today)].filter(Boolean).join(" · ")
                     : "";
                   const state = row.balance > 0 ? "owing" : row.balance < 0 ? "credit" : "clear";
+                  const alt = stripe++ % 2 === 1;
                   const family = row.contact_name || row.mailing_name || row.family_code;
                   const pct = row.invoiced ? percent(row.paid, row.invoiced) : null;
                   return (
@@ -281,7 +296,7 @@ export function FeeAccountsView({
                           <td colSpan={6}>{classHeading(row)}</td>
                         </tr>
                       ) : null}
-                      <ClickRow href={`${BASE}/${row.student_id}`} className={`is-${state}`}>
+                      <ClickRow href={`${BASE}/${row.student_id}`} className={`is-${state}${alt ? " is-alt" : ""}`}>
                         <td data-label="Pupil">
                           <div className="fac-who">
                             <StudentFace id={row.student_id} name={row.full_name} className="ofc-who-avatar" />

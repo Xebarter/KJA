@@ -40,6 +40,15 @@ export type ReportRow = {
   issued_on: string | null;
 };
 
+export type PublishedReport = {
+  id: string;
+  student_id: string;
+  pupil_name: string;
+  term: string;
+  class_label: string;
+  published_at: string | null;
+};
+
 export type FeeRow = {
   id: string;
   child_id: string;

@@ -4,11 +4,18 @@
   --fac-line: #efe8da;
   --fac-hair: #f3eee6;
   --fac-ink: #8a8174;
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
+  /* Same face as the admissions student register. */
+  font-family: Cambria, Cochin, Georgia, Times, "Times New Roman", serif;
 }
-.fac-page.acc-page > .admin-hero { margin-top: 0; margin-bottom: 0; }
-.fac-page h1, .fac-page h2, .fac-hero strong, .fac-figs strong, .fac-book em {
-  font-family: Yantramanav, Roboto, sans-serif;
+.fac-page.acc-page > .admin-hero { margin-top: 0; margin-bottom: 1.5rem; }
+.kja-accounts .fac-page .ofc-panel .dash-panel-head h2,
+.fac-page h1,
+.fac-page h2,
+.fac-page button,
+.fac-page input,
+.fac-page select,
+.fac-page textarea {
+  font-family: Cambria, Cochin, Georgia, Times, "Times New Roman", serif;
 }
 
 /* ---------------------------------------------------------------- position */
@@ -50,10 +57,10 @@
 .fac-cap p:last-child { color: var(--admin-muted); letter-spacing: .1em; }
 .fac-board-main {
   display: grid;
-  grid-template-columns: minmax(280px, .72fr) minmax(0, 1.4fr);
+  grid-template-columns: minmax(0, 1fr);
   gap: 1.2rem 1.6rem;
   align-items: center;
-  padding: 1.05rem 1.45rem 1.15rem;
+  padding: 1.05rem 1.45rem .35rem;
 }
 .fac-hero { display: flex; align-items: center; gap: 1.1rem; min-width: 0; }
 .fac-hero > div { min-width: 0; }
@@ -70,7 +77,7 @@
   margin-top: .12rem;
   color: var(--admin-navy);
   font-size: clamp(2.05rem, 2.8vw, 2.7rem);
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.035em;
   line-height: .95;
@@ -78,7 +85,6 @@
 .fac-hero strong small {
   margin-right: .22rem;
   color: var(--admin-muted);
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
   font-size: .58rem;
   font-weight: 700;
   letter-spacing: .1em;
@@ -119,7 +125,6 @@
   place-items: center;
   margin: 0;
   color: var(--admin-navy);
-  font-family: Yantramanav, Roboto, sans-serif;
   font-size: .92rem;
   font-style: normal;
   font-weight: 700;
@@ -127,66 +132,83 @@
 }
 .fac-ring.is-done em { color: #127238; }
 
-.fac-figs {
+.fac-tiles {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  margin: 0;
-  padding: 0 0 0 1.5rem;
+  gap: .75rem;
+  margin: 1.25rem 0;
+  padding: 0;
   list-style: none;
-  border-left: 1px solid var(--fac-line);
 }
-.fac-figs li { animation: acc-in .55s cubic-bezier(.2, .7, .2, 1) both; }
-.fac-figs li:nth-child(2) { animation-delay: .05s; }
-.fac-figs li:nth-child(3) { animation-delay: .1s; }
-.fac-figs li:nth-child(4) { animation-delay: .15s; }
-.fac-figs a {
-  display: grid;
-  gap: .14rem;
+.fac-tiles li { min-width: 0; animation: acc-in .55s cubic-bezier(.2, .7, .2, 1) both; }
+.fac-tiles li:nth-child(2) { animation-delay: .05s; }
+.fac-tiles li:nth-child(3) { animation-delay: .1s; }
+.fac-tiles li:nth-child(4) { animation-delay: .15s; }
+.fac-tile {
+  --tone: var(--admin-navy);
+  --tone-soft: rgba(25, 35, 43, .07);
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
   min-width: 0;
-  padding: .35rem 1rem .4rem 0;
-  border-right: 1px solid var(--fac-line);
-  color: inherit;
-  transition: color .16s ease, box-shadow .16s ease;
+  height: 100%;
+  padding: .95rem 1rem;
+  border: 1px solid var(--admin-line);
+  border-radius: 14px;
+  background: var(--admin-paper);
+  color: var(--admin-navy);
+  box-shadow: 0 6px 18px rgba(25, 35, 43, .04);
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
 }
-.fac-figs li:nth-child(n + 2) a { padding-left: 1rem; }
-.fac-figs li:last-child a { padding-right: 0; border-right: 0; }
-.fac-figs a:hover { color: inherit; }
-.fac-figs a:hover strong { color: var(--admin-red); }
-.fac-figs a:focus-visible { outline: 2px solid rgba(253, 163, 27, .7); outline-offset: 2px; border-radius: 6px; }
-.fac-figs a > span {
+.fac-tile:hover { border-color: rgba(25, 35, 43, .22); box-shadow: 0 10px 24px rgba(25, 35, 43, .08); transform: translateY(-1px); color: inherit; }
+.fac-tile:focus-visible { outline: 2px solid rgba(253, 163, 27, .6); outline-offset: 2px; }
+.fac-tile.is-bad { --tone: #c81e2d; --tone-soft: #fdecee; }
+.fac-tile.is-ok { --tone: #17803d; --tone-soft: #e3f5e8; }
+.fac-tile.is-credit { --tone: #1d6fbf; --tone-soft: #e4eefb; }
+.fac-tile.is-on { border-color: var(--tone); box-shadow: inset 0 0 0 1px var(--tone), 0 10px 24px rgba(25, 35, 43, .08); }
+.fac-tile-icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: var(--tone-soft);
+  color: var(--tone);
+  font-size: .9rem;
+}
+.fac-tile-body { display: grid; min-width: 0; }
+.fac-tile-label {
   overflow: hidden;
   color: var(--admin-muted);
-  font-size: .66rem;
+  font-size: .74rem;
   font-weight: 700;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-overflow: ellipsis;
   text-transform: uppercase;
   white-space: nowrap;
 }
-.fac-figs strong {
+.fac-tile strong {
+  margin-top: .1rem;
   color: var(--admin-navy);
-  font-size: 1.42rem;
-  font-weight: 700;
+  font-size: 1.55rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.02em;
-  line-height: 1;
+  line-height: 1.15;
 }
-.fac-figs small {
+.fac-tile small {
+  margin-top: .15rem;
   overflow: hidden;
   color: var(--admin-muted);
-  font-size: .74rem;
+  font-size: .78rem;
   line-height: 1.35;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.fac-figs a.is-bad strong, .fac-figs a.is-bad:hover strong { color: #c81e2d; }
-.fac-figs a.is-ok strong, .fac-figs a.is-ok:hover strong { color: #127238; }
-.fac-figs a.is-credit strong, .fac-figs a.is-credit:hover strong { color: #1d6fbf; }
-.fac-figs a.is-on { box-shadow: inset 0 -2px 0 var(--admin-navy); }
-.fac-figs a.is-on > span { color: var(--admin-navy); }
-.fac-figs a.is-on.is-bad { box-shadow: inset 0 -2px 0 #c81e2d; }
-.fac-figs a.is-on.is-ok { box-shadow: inset 0 -2px 0 #127238; }
-.fac-figs a.is-on.is-credit { box-shadow: inset 0 -2px 0 #1d6fbf; }
+.fac-tile.is-on small { color: var(--tone); font-weight: 600; }
+.fac-tile.is-bad strong { color: #c81e2d; }
+.fac-tile.is-ok strong { color: #127238; }
+.fac-tile.is-credit strong { color: #1d6fbf; }
 
 .fac-book {
   display: grid;
@@ -255,17 +277,17 @@
 .fac-page .ofc-finder {
   gap: .85rem;
   padding: 1.05rem 1.2rem 1rem;
-  border-bottom: 1px solid var(--fac-line);
-  background: #fff;
+  border-bottom: 1px solid var(--admin-line);
+  background: linear-gradient(180deg, #faf6ee, rgba(250, 246, 238, 0));
 }
 .fac-toolbar { width: 100%; }
 .fac-page .ofc-finder-top { align-items: flex-end; gap: .65rem .75rem; }
 .fac-page .ofc-finder-search {
   flex: 1 1 18rem;
   height: 44px;
-  border-color: #e7e0d4;
+  border-color: #d9d3c6;
   border-radius: 12px;
-  background: #fbf9f5;
+  background: #fff;
 }
 .fac-page .ofc-finder-search:focus-within { background: #fff; }
 .fac-page .ofc-finder-field.is-inline span {
@@ -313,10 +335,9 @@
 .fac-results h2 {
   margin: 0;
   color: var(--admin-navy);
-  font-size: 1.22rem;
-  font-weight: 700;
+  font-size: 1.12rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.01em;
 }
 .fac-results p { margin: .12rem 0 0; color: var(--admin-muted); font-size: .82rem; }
 .fac-results .ofc-chips {
@@ -347,7 +368,6 @@
   padding: 0;
   background: transparent;
   color: var(--admin-muted);
-  font-family: Yantramanav, Roboto, sans-serif;
   font-size: .82rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
@@ -376,7 +396,9 @@
   background: transparent;
   transition: background-color .16s ease;
 }
-.fac-table tbody tr:hover { background: #faf7f1; }
+.fac-table tbody tr.is-alt:not(.is-owing):not(.is-credit) { background: rgba(250, 246, 238, .45); }
+.fac-table tbody tr:hover,
+.fac-table tbody tr.is-alt:hover { background: #fcf5e8; }
 .fac-table tbody tr.is-owing { box-shadow: inset 2px 0 0 #e7b4ba; }
 .fac-table tbody tr.is-credit { box-shadow: inset 2px 0 0 #c5d7ef; }
 .fac-table tbody tr.is-owing:hover { background: #fff8f8; }
@@ -449,9 +471,8 @@
 .fac-rate-note { display: block; color: var(--admin-muted); font-size: .76rem; line-height: 1.3; }
 .fac-rate strong {
   color: var(--admin-navy);
-  font-family: Yantramanav, Roboto, sans-serif;
   font-size: .92rem;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
 }
 
@@ -461,16 +482,14 @@
   align-items: baseline;
   gap: .32rem;
   color: var(--admin-navy);
-  font-family: Yantramanav, Roboto, sans-serif;
   font-size: 1.05rem;
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.01em;
   white-space: nowrap;
 }
 .fac-bal-sum small {
   color: var(--admin-muted);
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
   font-size: .62rem;
   font-weight: 700;
   letter-spacing: .08em;
@@ -507,7 +526,7 @@
 
 @media (max-width: 1180px) {
   .fac-board-main { grid-template-columns: 1fr; gap: 1rem; }
-  .fac-figs { padding: 1rem 0 0; border-left: 0; border-top: 1px solid var(--fac-line); }
+  .fac-tiles { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 900px) {
   .fac-table .fac-col-paid, .fac-table .fac-col-class { display: none; }
@@ -538,17 +557,12 @@
   .fac-table tr.fac-group td { padding: 0; }
 }
 @media (max-width: 640px) {
-  .fac-figs { grid-template-columns: 1fr 1fr; }
-  .fac-figs a { padding: .75rem 0; border-right: 0; border-bottom: 1px solid var(--fac-line); }
-  .fac-figs li:nth-child(odd) a { padding-right: .85rem; }
-  .fac-figs li:nth-child(even) a { padding-left: .85rem; border-left: 1px solid var(--fac-line); }
-  .fac-figs li:nth-child(n + 3) a { padding-top: .85rem; }
-  .fac-figs li:last-child a, .fac-figs li:nth-last-child(2):nth-child(odd) a { border-bottom: 0; }
+  .fac-tiles { grid-template-columns: 1fr; }
   .fac-page .ofc-finder-field.is-inline { flex: 1 1 46%; }
   .fac-go { width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .fac-board, .fac-ring .is-value, .fac-figs li, .fac-book-bar .is-in { animation: none; }
+  .fac-board, .fac-ring .is-value, .fac-tiles li, .fac-book-bar .is-in { animation: none; }
 }
 
 /* ---------------------------------------------------------------- one pupil */
@@ -599,8 +613,8 @@
   margin: .12rem 0 .4rem;
   color: var(--admin-navy);
   font-size: clamp(1.65rem, 2.3vw, 2.15rem);
-  font-weight: 700;
-  letter-spacing: -.025em;
+  font-weight: 800;
+  letter-spacing: -.02em;
   line-height: 1.05;
 }
 .fac-account-meta {
@@ -627,8 +641,8 @@
   color: var(--admin-navy);
   box-shadow: 0 0 0 4px #fff, 0 12px 24px -16px rgba(25, 35, 43, .65);
 }
-.fac-portrait.is-boy { background: #e4edfb; color: var(--ofc-boy, #2f6fd6); }
-.fac-portrait.is-girl { background: #fbe6ee; color: var(--ofc-girl, #d6457a); }
+.fac-portrait.is-boy { background: #e4edfb; color: var(--ofc-boy, #2f6fd6); box-shadow: 0 0 0 4px #fff, 0 0 0 6px rgba(47, 111, 214, .28); }
+.fac-portrait.is-girl { background: #fbe6ee; color: var(--ofc-girl, #d6457a); box-shadow: 0 0 0 4px #fff, 0 0 0 6px rgba(214, 69, 122, .28); }
 .fac-portrait-face {
   display: grid;
   place-items: center;
@@ -692,17 +706,15 @@ button.fac-act { font: inherit; font-size: .86rem; font-weight: 700; }
 .fac-account-figs dd {
   margin: 0;
   color: var(--admin-navy);
-  font-family: Yantramanav, Roboto, sans-serif;
   font-size: clamp(1.25rem, 1.7vw, 1.65rem);
-  font-weight: 700;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.03em;
+  letter-spacing: -.02em;
   line-height: 1.05;
 }
 .fac-account-figs dd small {
   margin-right: .15rem;
   color: var(--admin-muted);
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
   font-size: .52em;
   font-weight: 700;
   letter-spacing: .08em;
@@ -972,6 +984,19 @@ button.fac-add { font: inherit; font-size: .86rem; font-weight: 700; }
   overflow-x: auto;
   border-radius: 0 0 18px 18px;
 }
+.fac-page .acc-term-cards a {
+  border-radius: 14px;
+  box-shadow: 0 6px 18px rgba(25, 35, 43, .04);
+}
+.fac-page .acc-term-cards strong {
+  font-size: 1.35rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+.fac-page .acc-term-cards .is-owing strong { color: #c81e2d; }
+.fac-page .acc-term-cards .is-clear strong { color: #127238; }
 .fac-page .acc-statement { font-size: .9rem; }
 .fac-page .acc-statement th {
   padding: .45rem 1.25rem .6rem;
@@ -981,7 +1006,7 @@ button.fac-add { font: inherit; font-size: .86rem; font-weight: 700; }
 }
 .fac-page .acc-statement td { padding: .72rem 1.25rem; border-bottom-color: var(--fac-line); vertical-align: middle; }
 .fac-page .acc-statement tbody tr { cursor: default; }
-.fac-page .acc-statement tbody tr:hover { background: #fbf9f5; }
+.fac-page .acc-statement tbody tr:hover { background: #fcf5e8; }
 .fac-page .acc-statement-icon { width: 32px; height: 32px; margin-top: 0; border-radius: 10px; }
 .fac-page .acc-statement-icon.is-invoice { background: #e4edfb; color: #1d5fa8; }
 .fac-page .acc-statement-icon.is-payment { background: #e5f6eb; color: var(--acc-ok); }

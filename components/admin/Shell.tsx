@@ -2,10 +2,13 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
+import { searchAdmin } from "@/app/admin/(panel)/search/actions";
+import { SidebarSearch } from "@/components/SidebarSearch";
 import { contentGroups, inboxLinks, resourceLabel } from "@/lib/admin";
 import { initials } from "@/lib/applications";
+import type { SidebarHit } from "@/lib/sidebar-search";
 
 const GROUP_ICONS: Record<string, string> = {
   Website: "fa-globe",
@@ -19,6 +22,29 @@ const INBOX_ICONS: Record<string, string> = {
   "/admin/inbox/messages": "fa-envelope",
   "/admin/inbox/newsletter": "fa-paper-plane",
 };
+
+const ADMIN_PLACES: SidebarHit[] = [
+  { id: "/admin", href: "/admin", title: "Dashboard", meta: "Admin", icon: "fa-gauge-high" },
+  { id: "/admin/stories", href: "/admin/stories", title: "Stories", meta: "Newsroom", icon: "fa-newspaper" },
+  { id: "/admin/applications", href: "/admin/applications", title: "Applications", meta: "Admissions", icon: "fa-file-signature" },
+  { id: "/admissions_office", href: "/admissions_office", title: "Admissions office", meta: "Admissions", icon: "fa-building-user" },
+  { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Admissions", icon: "fa-calculator" },
+  { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Academics", icon: "fa-graduation-cap" },
+  { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admissions", icon: "fa-user-shield" },
+  { id: "/admin/inbox/messages", href: "/admin/inbox/messages", title: "Messages", meta: "Inbox", icon: "fa-envelope" },
+  { id: "/admin/inbox/newsletter", href: "/admin/inbox/newsletter", title: "Newsletter", meta: "Inbox", icon: "fa-paper-plane" },
+  { id: "/admin/images", href: "/admin/images", title: "Images", meta: "Website", icon: "fa-images" },
+  { id: "/admin/settings", href: "/admin/settings", title: "Site settings", meta: "Website", icon: "fa-sliders" },
+  ...contentGroups.flatMap((group) =>
+    group.keys.map((key) => ({
+      id: `/admin/content/${key}`,
+      href: `/admin/content/${key}`,
+      title: resourceLabel(key),
+      meta: group.title,
+      icon: GROUP_ICONS[group.title] ?? "fa-folder",
+    })),
+  ),
+];
 
 function isActive(pathname: string, href: string) {
   return href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
@@ -59,6 +85,7 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const search = useRef<HTMLInputElement>(null);
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -68,6 +95,17 @@ export function AdminShell({
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open]);
+
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.key === "k" && (event.metaKey || event.ctrlKey))) return;
+      event.preventDefault();
+      setOpen(true);
+      search.current?.focus();
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
   const sections = [
     { href: "/admin", label: "Dashboard" },
@@ -113,6 +151,19 @@ export function AdminShell({
           </span>
         </Link>
 
+        <SidebarSearch
+          id="admin-search"
+          label="Search the admin"
+          placeholder="Pages, people, stories, messages"
+          inputRef={search}
+          places={ADMIN_PLACES}
+          recordsLabel="Records"
+          browseLabel="See matching applications"
+          browseHref={(q) => `/admin/applications?q=${encodeURIComponent(q)}`}
+          search={searchAdmin}
+          empty="Nothing matches. Try a name, a page title, or a message subject."
+        />
+
         <nav className="admin-nav" aria-label="Admin">
           <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink>
 
@@ -128,6 +179,10 @@ export function AdminShell({
           <a href="/accounts">
             <i className="fa-solid fa-calculator" aria-hidden="true" />
             <span>Accounts office</span>
+          </a>
+          <a href="/academics_office">
+            <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
+            <span>Academics office</span>
           </a>
           <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
 

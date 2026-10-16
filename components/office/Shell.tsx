@@ -4,8 +4,16 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
+import { searchOffice } from "@/app/admissions_office/(office)/students/actions";
+import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { OFFICE_BASE, officeNav, type OfficeBadge } from "@/lib/office-nav";
+import type { SidebarHit } from "@/lib/sidebar-search";
+
+const OFFICE_PLACES: SidebarHit[] = [
+  ...officeNav.map((item) => ({ id: item.href, href: item.href, title: item.label, meta: item.group, icon: item.icon })),
+  { id: `${OFFICE_BASE}/students/new`, href: `${OFFICE_BASE}/students/new`, title: "Enrol a student", meta: "Quick add", icon: "fa-user-plus" },
+];
 
 function isActive(pathname: string, href: string) {
   return href === OFFICE_BASE ? pathname === OFFICE_BASE : pathname === href || pathname.startsWith(`${href}/`);
@@ -31,7 +39,6 @@ export function OfficeShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
   const search = useRef<HTMLInputElement>(null);
   const groups = [...new Set(officeNav.map((item) => item.group))];
   const current = [...officeNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
@@ -93,30 +100,18 @@ export function OfficeShell({
           </span>
         </Link>
 
-        <form
-          className="ofc-search"
-          role="search"
-          onSubmit={(event) => {
-            event.preventDefault();
-            const q = query.trim();
-            if (!q) return;
-            router.push(`${OFFICE_BASE}/students?status=all&q=${encodeURIComponent(q)}`);
-            setQuery("");
-          }}
-        >
-          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-          <label className="visually-hidden" htmlFor="office-search">Find a student</label>
-          <input
-            ref={search}
-            id="office-search"
-            type="search"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Name, number or parent phone"
-            autoComplete="off"
-          />
-          <kbd aria-hidden="true">Ctrl K</kbd>
-        </form>
+        <SidebarSearch
+          id="office-search"
+          label="Find a student"
+          placeholder="Name, number or parent phone"
+          inputRef={search}
+          places={OFFICE_PLACES}
+          recordsLabel="Students"
+          browseLabel="See all students"
+          browseHref={(q) => `${OFFICE_BASE}/students?status=all&q=${encodeURIComponent(q)}`}
+          search={searchOffice}
+          empty="No students match. Try a surname, a student number, or a parent phone."
+        />
 
         <nav className="admin-nav" aria-label="Admissions office">
           {groups.map((group) => (
@@ -154,6 +149,13 @@ export function OfficeShell({
             <a className="admin-side-link" href="/accounts">
               <i className="fa-solid fa-calculator" aria-hidden="true" />
               <span>Accounts office</span>
+              <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
+            </a>
+          ) : null}
+          {person.role === "Administrator" ? (
+            <a className="admin-side-link" href="/academics_office">
+              <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
+              <span>Academics office</span>
               <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
             </a>
           ) : null}

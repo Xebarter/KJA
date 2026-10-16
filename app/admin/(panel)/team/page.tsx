@@ -21,13 +21,21 @@ export default async function TeamPage() {
     );
   }
   const { supabase, user } = auth;
-  const [team, { data: open }, { data: roleRows }, { data: accountsRows }] = await Promise.all([
+  const [team, { data: open }, { data: roleRows }, { data: accountsRows }, { data: academicRows }] = await Promise.all([
     loadTeam(supabase),
     supabase.from("applications").select("assigned_to").in("status", OPEN_STATUSES),
     supabase.from("profiles").select("id, role").in("role", ["admin", "admissions"]),
     supabase.from("profiles").select("id, full_name, email").eq("role", "accounts").order("full_name"),
+    supabase.from("profiles").select("id, full_name, email").eq("role", "academics").order("full_name"),
   ]);
   const accountants = (accountsRows || []).map((row) => ({
+    id: row.id as string,
+    name: (row.full_name as string | null)?.trim() || (row.email as string | null) || "Unnamed",
+    email: (row.email as string | null) ?? null,
+    open: 0,
+    isYou: row.id === user.id,
+  }));
+  const teachers = (academicRows || []).map((row) => ({
     id: row.id as string,
     name: (row.full_name as string | null)?.trim() || (row.email as string | null) || "Unnamed",
     email: (row.email as string | null) ?? null,
@@ -69,7 +77,7 @@ export default async function TeamPage() {
         kicker="Administration"
         icon="fa-user-shield"
         title="Team"
-        description="Admins can sign in to the dashboard and manage applications, stories and website content. Admissions officers work in the admissions office, and accounts officers in the accounts office."
+        description="Admins can sign in to the dashboard and manage applications, stories and website content. Admissions, accounts and academics officers each have their own office."
         actions={
           <a className="admin-hero-btn" href="#team-invite">
             <i className="fa-solid fa-user-plus" aria-hidden="true" /> Add an admin
@@ -100,7 +108,7 @@ export default async function TeamPage() {
         ))}
       </div>
 
-      <TeamManager members={members} officers={officers} accountants={accountants} alerts={{ ...emailAlertStatus(), withoutEmail: members.filter((member) => !member.email).length }} />
+      <TeamManager members={members} officers={officers} accountants={accountants} teachers={teachers} alerts={{ ...emailAlertStatus(), withoutEmail: members.filter((member) => !member.email).length }} />
     </div>
   );
 }

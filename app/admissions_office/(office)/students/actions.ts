@@ -22,14 +22,18 @@ import {
   OFFICE,
   className,
   displayPhone,
+  everyWord,
   isClassCode,
   isStudentStatus,
   isUuid,
   phoneIsValid,
   searchNeedle,
+  searchWords,
+  studentSearchFilter,
   studentStatusInfo,
   todayIso,
 } from "@/lib/students";
+import type { SidebarHit } from "@/lib/sidebar-search";
 
 const MAX_BULK = 300;
 
@@ -529,4 +533,51 @@ export async function searchFamilies(raw: string): Promise<{ error?: string; ite
   });
   items.sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id));
   return { items };
+}
+
+type OfficeRow = {
+  id: string;
+  full_name: string;
+  student_number: string;
+  class_code: string | null;
+  stream: string | null;
+  status: string;
+};
+
+function officeHit(row: OfficeRow): SidebarHit {
+  const status = row.status === "active" ? "" : ` · ${studentStatusInfo(row.status).label}`;
+  return {
+    id: row.id,
+    href: `${OFFICE}/students/${row.id}`,
+    title: row.full_name,
+    meta: `${row.student_number} · ${className(row.class_code)}${row.stream ? ` ${row.stream}` : ""}${status}`,
+    icon: "fa-user",
+  };
+}
+
+/** Live sidebar matches: name in any word order, student number, family code, or a parent phone. */
+export async function searchOffice(raw: string): Promise<{ error?: string; hits: SidebarHit[] }> {
+  const auth = await requireOffice();
+  if ("error" in auth) return { error: auth.error, hits: [] };
+  const needle = searchNeedle(raw).slice(0, 60);
+  const words = searchWords(raw);
+  if (needle.length < 2 || !words.length) return { hits: [] };
+  const filter = studentSearchFilter(needle);
+  const columns = "id, full_name, student_number, class_code, stream, status";
+  const ranked = (rows: OfficeRow[]) =>
+    [...rows].sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active") || a.full_name.localeCompare(b.full_name)).slice(0, 8).map(officeHit);
+
+  if (filter) {
+    const { data, error } = await auth.supabase.from("student_directory").select(columns).or(filter).limit(8);
+    if (!error) return { hits: ranked((data || []) as OfficeRow[]) };
+  }
+
+  const like = `%${needle}%`;
+  const { data, error } = await auth.supabase
+    .from("students")
+    .select(columns)
+    .or([everyWord(words, ["full_name"]), `student_number.ilike.${like}`].join(","))
+    .limit(8);
+  if (error) return { error: error.message, hits: [] };
+  return { hits: ranked((data || []) as OfficeRow[]) };
 }

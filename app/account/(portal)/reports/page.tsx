@@ -32,7 +32,7 @@ function ReportActions({ report }: { report: ReportRow }) {
 }
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<{ child?: string }> }) {
-  const [{ children, reports }, { child: childParam }] = await Promise.all([getPortal(), searchParams]);
+  const [{ children, pupils, reports, cards }, { child: childParam }] = await Promise.all([getPortal(), searchParams]);
   const selected = children.find((child) => child.id === childParam);
   const visible = selected ? reports.filter((report) => report.child_id === selected.id) : reports;
   const latest = visible[0];
@@ -44,6 +44,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const countFor = (id: string) => reports.filter((report) => report.child_id === id).length;
   const latestChild = latest ? childOf(latest.child_id) : undefined;
   const latestType = fileType(latest?.file_url ?? null);
+  const visibleCards = childParam ? cards.filter((card) => card.student_id === childParam) : cards;
 
   return (
     <div className="ov rp">
@@ -87,7 +88,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </nav>
       ) : null}
 
-      {!children.length ? (
+      {!children.length && !pupils.length ? (
         <section className="ov-panel">
           <div className="ov-empty">
             <i className="fa-solid fa-children" aria-hidden="true" />
@@ -95,7 +96,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             <Link className="ov-btn ov-btn-dark" href="/account/children">Add a child</Link>
           </div>
         </section>
-      ) : !latest ? (
+      ) : !latest && !visibleCards.length ? (
         <section className="ov-panel">
           <div className="ov-empty">
             <i className="fa-solid fa-file-lines" aria-hidden="true" />
@@ -107,6 +108,35 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </section>
       ) : (
         <>
+          {visibleCards.length ? (
+            <section className="ov-panel rp-group">
+              <header className="rp-group-head">
+                <div>
+                  <h2>Term reports</h2>
+                  <p>Published by the school from this term&apos;s marks and attendance.</p>
+                </div>
+              </header>
+              <div className="rp-grid">
+                {visibleCards.map((card) => (
+                  <article className="rp-card" key={card.id}>
+                    <div className="rp-card-top">
+                      <span className="rp-card-icon"><i className="fa-solid fa-file-lines" aria-hidden="true" /></span>
+                      <span className="rp-term">{card.term}</span>
+                    </div>
+                    <h3>{card.pupil_name}</h3>
+                    <p className="rp-card-summary">{card.class_label}</p>
+                    <footer className="rp-card-foot">
+                      <time dateTime={card.published_at || undefined}>{card.published_at ? longDate(card.published_at) : card.term}</time>
+                      <Link className="rp-open" href={`/account/reports/${card.id}`}>
+                        Open report <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                      </Link>
+                    </footer>
+                  </article>
+                ))}
+              </div>
+            </section>
+          ) : null}
+          {latest ? (
           <article className="rp-feature">
             <div className="rp-paper" aria-hidden="true">
               <span className="rp-paper-ribbon">{latestType.label}</span>
@@ -142,6 +172,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </div>
             </div>
           </article>
+          ) : null}
 
           {groups.map(({ child, items }) => (
             <section className="ov-panel rp-group" key={child.id}>

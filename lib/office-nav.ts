@@ -11,6 +11,8 @@ export const ROLE_LABELS: Record<string, string> = {
   admin: "Administrator",
   admissions: "Admissions officer",
   accounts: "Accounts officer",
+  academics: "Academics officer",
+  staff: "Teacher",
 };
 
 export type OfficeBadge = "applications" | "visits" | "quality";

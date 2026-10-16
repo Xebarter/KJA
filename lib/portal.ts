@@ -10,9 +10,11 @@ import type {
   ProfileRow,
   ReceiptRow,
   ReportRow,
+  PublishedReport,
   SignupRow,
 } from "@/lib/account";
 import { methodInfo } from "@/lib/accounts-format";
+import { classLabel } from "@/lib/academics";
 import { className } from "@/lib/students";
 import type { Article } from "@/lib/types";
 
@@ -53,6 +55,7 @@ export async function getPortal() {
       children: [] as ChildRow[],
       applications: [] as ApplicationRow[],
       reports: [] as ReportRow[],
+      cards: [] as PublishedReport[],
       fees: [] as FeeRow[],
       receipts: [] as ReceiptRow[],
       pupils: [] as ChildRow[],
@@ -83,11 +86,28 @@ export async function getPortal() {
   ]);
 
   const childIds = children.map((child) => child.id);
+  const studentIds = students.map((student) => student.id);
   const reports = childIds.length
     ? await rows<ReportRow>(supabase.from("student_reports").select("*").in("child_id", childIds).order("issued_on", { ascending: false }))
     : [];
+  const cardRows = studentIds.length
+    ? await rows<{ id: string; student_id: string; class_code: string | null; stream: string | null; published_at: string | null; fee_terms: { label: string } | { label: string }[] | null }>(
+        supabase.from("report_cards").select("id, student_id, class_code, stream, published_at, fee_terms(label)").eq("status", "published").in("student_id", studentIds).order("published_at", { ascending: false }),
+      )
+    : [];
+  const pupilName = new Map(students.map((student) => [student.id, student.full_name]));
+  const cards: PublishedReport[] = cardRows.map((card) => {
+    const term = Array.isArray(card.fee_terms) ? card.fee_terms[0]?.label : card.fee_terms?.label;
+    return {
+      id: card.id,
+      student_id: card.student_id,
+      pupil_name: pupilName.get(card.student_id) || "Pupil",
+      term: term || "Term",
+      class_label: classLabel(card.class_code, card.stream),
+      published_at: card.published_at,
+    };
+  });
 
-  const studentIds = students.map((student) => student.id);
   const [terms, balances, payments] = studentIds.length
     ? await Promise.all([
         rows<{ id: string; label: string }>(supabase.from("fee_terms").select("id, label")),
@@ -151,6 +171,7 @@ export async function getPortal() {
     children,
     applications,
     reports,
+    cards,
     fees,
     receipts,
     pupils,

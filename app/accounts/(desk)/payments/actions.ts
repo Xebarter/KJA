@@ -3,7 +3,8 @@
 import { ACCOUNTS_BASE, logAccounts, refreshAccounts, requireAccounts } from "@/lib/accounts";
 import { isPaymentMethod, kampalaToday, methodInfo, parseAmount, ugx } from "@/lib/accounts-format";
 import { dateField, field, type ActionResult } from "@/lib/office-forms";
-import { everyWord, isUuid, searchNeedle, searchWords } from "@/lib/students";
+import type { SidebarHit } from "@/lib/sidebar-search";
+import { className, everyWord, isUuid, searchNeedle, searchWords } from "@/lib/students";
 
 const PAYMENTS = `${ACCOUNTS_BASE}/payments`;
 
@@ -42,6 +43,25 @@ export async function searchPupils(raw: string): Promise<{ error?: string; rows:
   const rows = ((data || []) as PupilHit[]).map((row) => ({ ...row, balance: Number(row.balance) }));
   rows.sort((a, b) => Number(b.status === "active") - Number(a.status === "active"));
   return { rows };
+}
+
+/** The same pupil search, shaped for the accounts sidebar. */
+export async function searchFeeAccounts(raw: string): Promise<{ error?: string; hits: SidebarHit[] }> {
+  const result = await searchPupils(raw);
+  return {
+    error: result.error,
+    hits: result.rows.slice(0, 8).map((row) => {
+      const owing = row.balance > 0 ? ` · Owes ${ugx(row.balance)}` : row.balance < 0 ? " · In credit" : "";
+      const status = row.status === "active" ? "" : ` · ${row.status}`;
+      return {
+        id: row.student_id,
+        href: `${ACCOUNTS_BASE}/students/${row.student_id}`,
+        title: row.full_name,
+        meta: `${row.student_number} · ${className(row.class_code)}${row.stream ? ` ${row.stream}` : ""}${owing}${status}`,
+        icon: "fa-user",
+      };
+    }),
+  };
 }
 
 export async function loadPupilHit(studentId: string): Promise<PupilHit | null> {

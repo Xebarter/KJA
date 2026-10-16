@@ -8,7 +8,7 @@ import { ROLE_LABELS } from "@/lib/office-nav";
 
 type ActionResult = { error?: string; ok?: string };
 
-const TEAM_ROLES = ["admin", "admissions", "accounts"] as const;
+const TEAM_ROLES = ["admin", "admissions", "accounts", "academics"] as const;
 
 function refresh() {
   forgetPrefix("admin-badges");
@@ -16,6 +16,7 @@ function refresh() {
   revalidatePath("/admin", "layout");
   revalidatePath("/admissions_office", "layout");
   revalidatePath("/accounts", "layout");
+  revalidatePath("/academics_office", "layout");
 }
 
 export async function addAdmin(formData: FormData): Promise<ActionResult> {
@@ -46,7 +47,9 @@ export async function addAdmin(formData: FormData): Promise<ActionResult> {
       ? `${name} can now sign in to the admin dashboard.`
       : role === "accounts"
         ? `${name} can now sign in to the accounts office at /accounts.`
-        : `${name} can now sign in to the admissions office at /admissions_office.`,
+        : role === "academics"
+          ? `${name} can now sign in to the academics office at /academics_office.`
+          : `${name} can now sign in to the admissions office at /admissions_office.`,
   };
 }
 
@@ -64,7 +67,13 @@ export async function removeAdmin(id: string): Promise<ActionResult> {
   refresh();
   if (id === auth.user.id) return { ok: "You are no longer an admin." };
   return {
-    ok: target.role === "admin" ? "Admin access removed." : target.role === "accounts" ? "Accounts office access removed." : "Admissions office access removed.",
+    ok: target.role === "admin"
+      ? "Admin access removed."
+      : target.role === "accounts"
+        ? "Accounts office access removed."
+        : target.role === "academics"
+          ? "Academics office access removed."
+          : "Admissions office access removed.",
   };
 }
 
