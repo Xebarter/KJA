@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { StoryCard } from "@/components/site/StoryCard";
 import { STORY_SOURCES, type Story, type StorySource } from "@/lib/newsroom";
@@ -14,7 +14,38 @@ function asSource(value: string | null): SourceFilter {
   return value && value in STORY_SOURCES ? (value as StorySource) : "all";
 }
 
+function ExplorerFallback({ stories, leadKey }: { stories: Story[]; leadKey?: string }) {
+  const rest = stories.filter((story) => story.key !== leadKey).slice(0, PAGE_SIZE);
+  if (!rest.length) {
+    return (
+      <div className="kja-explorer-empty">
+        <i className="fas fa-newspaper" aria-hidden="true" />
+        <h3>That's everything for now</h3>
+        <p>New stories from our campuses will appear here.</p>
+      </div>
+    );
+  }
+  return (
+    <div className="kja-explorer">
+      <div className="kja-explorer-summary">
+        <h2>More stories</h2>
+      </div>
+      <div className="kja-explorer-results">
+        {rest.map((story) => <StoryCard story={story} key={story.key} />)}
+      </div>
+    </div>
+  );
+}
+
 export function NewsroomExplorer({ stories, leadKey }: { stories: Story[]; leadKey?: string }) {
+  return (
+    <Suspense fallback={<ExplorerFallback stories={stories} leadKey={leadKey} />}>
+      <NewsroomExplorerFilters stories={stories} leadKey={leadKey} />
+    </Suspense>
+  );
+}
+
+function NewsroomExplorerFilters({ stories, leadKey }: { stories: Story[]; leadKey?: string }) {
   const params = useSearchParams();
   const [source, setSource] = useState<SourceFilter>(() => asSource(params.get("type")));
   const [query, setQuery] = useState(() => params.get("q") ?? "");
