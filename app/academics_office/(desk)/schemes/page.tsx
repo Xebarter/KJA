@@ -69,7 +69,7 @@ export default async function SchemesPage() {
   const subjectName = new Map(subjects.map((subject) => [subject.id, subject.name]));
   const staffName = new Map(staff.map((member) => [member.id, member.full_name]));
   const groups = groupPupils(pupils);
-  const order = new Map(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
+  const order = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
   const rows = (schemesQuery.data || []) as Scheme[];
   const schemes: SchemeCard[] = rows
     .map((scheme) => {

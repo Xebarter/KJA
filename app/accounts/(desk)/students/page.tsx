@@ -50,7 +50,7 @@ export default async function FeeAccountsPage({ searchParams }: { searchParams: 
       if (balance === "credit") return pupil.balance < 0;
       return true;
     });
-    const classOrder = new Map(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
+    const classOrder = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
     matched.sort((a, b) => {
       if (sort === "name") return a.full_name.localeCompare(b.full_name);
       if (sort === "owing") return b.balance - a.balance || a.full_name.localeCompare(b.full_name);

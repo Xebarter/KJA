@@ -237,7 +237,7 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   let base: Omit<DebtorRow, "last_reminded">[];
   let total: number;
   if (book) {
-    const classOrder = new Map(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
+    const classOrder = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
     const matched = book
       .filter((pupil) => debtorScope(pupil, filters))
       .filter((pupil) => !filters.aging || agingOf(pupil.oldest_due, today) === filters.aging)

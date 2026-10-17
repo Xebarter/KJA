@@ -130,7 +130,7 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
   ]);
 
   const led = new Set(classRows.map((row) => keyOf(row.class_code, row.stream)));
-  const order = new Map(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
+  const order = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
   const gaps = [...new Set(pupils.filter((row) => row.class_code).map((row) => keyOf(row.class_code || "", row.stream || "")))]
     .filter((key) => !led.has(key))
     .map((key) => {
