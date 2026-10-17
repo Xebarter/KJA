@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   }
 
   if (kind === "interventions") {
-    const picture = await loadAcademicPicture(auth.supabase, term, kampalaToday());
+    const picture = await loadAcademicPicture(auth.supabase, term, kampalaToday(), auth.user.id);
     return csvResponse("interventions", ["Pupil", "Class", "Reason", "Note", "Follow-up", "Status"], picture.interventions.map((row) => [row.name, row.classLabel, row.reason, row.note, row.follow_up_on || "", row.status]));
   }
 
