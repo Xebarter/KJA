@@ -53,9 +53,8 @@ export function AcademicsShell({
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
-    // Dynamic office pages otherwise prefetch only the loading skeleton, so the click still waits on the server.
     for (const item of academicsNav) {
-      if (office || !item.office) router.prefetch(item.href, { kind: "full" as const } as Parameters<typeof router.prefetch>[1]);
+      if (office || !item.office) router.prefetch(item.href);
     }
   }, [router, office]);
 
@@ -135,7 +134,7 @@ export function AcademicsShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} prefetch={true} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -144,7 +143,7 @@ export function AcademicsShell({
             );
           })}
           <hr className="admin-nav-rule" />
-          <Link href={`${ACADEMICS_BASE}/attendance`} prefetch={true} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}>
+          <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}>
             <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
             <span>Take a register</span>
           </Link>

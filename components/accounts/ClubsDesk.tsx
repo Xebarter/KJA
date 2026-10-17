@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
-import { recordClubPayment, saveClub } from "@/app/accounts/(desk)/clubs/actions";
+import { createClub, recordClubPayment, saveClub } from "@/app/accounts/(desk)/clubs/actions";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
 import { Empty } from "@/components/office/ui";
 import { StudentFace } from "@/components/StudentFace";
@@ -19,6 +19,8 @@ export type CatalogueClub = {
   description: string | null;
   active: boolean;
 };
+
+export type ClubStripItem = CatalogueClub & { audience: string; icon: string };
 
 export function ClubEdit({ club }: { club: CatalogueClub }) {
   const [open, setOpen] = useState(false);
@@ -73,6 +75,132 @@ export function ClubEdit({ club }: { club: CatalogueClub }) {
           </div>
         </form>
       </Dialog>
+    </>
+  );
+}
+
+export function ClubCreate() {
+  const [open, setOpen] = useState(false);
+  const { result, setResult, pending, run } = useOfficeAction();
+
+  return (
+    <>
+      <button type="button" className="clb-new" onClick={() => { setResult(null); setOpen(true); }}>
+        <i className="fa-solid fa-plus" aria-hidden="true" /> New club
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="New club" description="Parents see this name, fee and who the club is for.">
+        <form
+          className="ofc-form is-compact"
+          onSubmit={(event) => {
+            event.preventDefault();
+            run(() => createClub(new FormData(event.currentTarget)), () => setOpen(false));
+          }}
+        >
+          <label className="ofc-field">
+            <span>Name</span>
+            <input name="title" required maxLength={80} autoFocus placeholder="Club name" />
+          </label>
+          <label className="ofc-field">
+            <span>Category</span>
+            <select name="category" defaultValue={CLUB_CATEGORIES[0]} required>
+              {CLUB_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+            </select>
+          </label>
+          <label className="ofc-field">
+            <span>Fee for the current term (UGX)</span>
+            <input name="fee_amount" inputMode="numeric" required placeholder="40000" />
+          </label>
+          <label className="ofc-field">
+            <span>Who it is for</span>
+            <select name="section" defaultValue="both">
+              {CLUB_SECTIONS.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
+            </select>
+          </label>
+          <label className="ofc-field">
+            <span>Note</span>
+            <textarea name="description" rows={2} maxLength={400} />
+          </label>
+          <label className="ofc-check">
+            <input type="checkbox" name="active" defaultChecked /> Open for parents to join
+          </label>
+          <Feedback result={result} />
+          <div className="acc-dialog-foot">
+            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
+            <button type="submit" className="admin-btn" disabled={pending}>{pending ? "Adding…" : "Add club"}</button>
+          </div>
+        </form>
+      </Dialog>
+    </>
+  );
+}
+
+export function ClubStrip({ clubs }: { clubs: ClubStripItem[] }) {
+  const [query, setQuery] = useState("");
+  const deferred = useDeferredValue(query);
+  const needle = deferred.trim().toLowerCase();
+  const visible = useMemo(() => {
+    const words = needle.split(/\s+/).filter(Boolean);
+    if (!words.length) return clubs;
+    return clubs.filter((club) => {
+      const hay = `${club.title} ${club.category} ${club.audience} ${club.description || ""}`.toLowerCase();
+      return words.every((word) => hay.includes(word));
+    });
+  }, [clubs, needle]);
+
+  return (
+    <>
+      <label className="clb-find">
+        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+        <span className="visually-hidden">Search clubs</span>
+        <input
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Escape" && query) {
+              event.preventDefault();
+              setQuery("");
+            }
+          }}
+          placeholder="Find a club"
+          autoComplete="off"
+          aria-controls="club-strip"
+        />
+      </label>
+      <p className="clb-find-count" aria-live="polite">
+        {needle
+          ? `${visible.length} of ${clubs.length} ${clubs.length === 1 ? "club" : "clubs"}`
+          : `${clubs.length} ${clubs.length === 1 ? "club" : "clubs"}. Each fee is for this term.`}
+      </p>
+      {visible.length ? (
+        <ul className="clb-strip" id="club-strip">
+          {visible.map((club) => (
+            <li key={club.id}>
+              <article className={`clb-card${club.active ? "" : " is-closed"}`} title={club.description || undefined}>
+                <header>
+                  <h4>{club.title}</h4>
+                  <span className={`clb-state${club.active ? " is-open" : ""}`}>{club.active ? "Open" : "Closed"}</span>
+                </header>
+                <p className="clb-aud">
+                  <i className={`fa-solid ${club.icon}`} aria-hidden="true" />
+                  <span>{club.category}</span>
+                  <span className="clb-aud-sep" aria-hidden="true">·</span>
+                  <span>{club.audience}</span>
+                </p>
+                <footer>
+                  <p className="clb-price">
+                    <strong>{amount(club.fee)}</strong>
+                    <span>UGX</span>
+                  </p>
+                  <ClubEdit club={club} />
+                </footer>
+              </article>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="clb-find-empty">No clubs match “{query.trim()}”.</p>
+      )}
     </>
   );
 }
@@ -366,15 +494,20 @@ export function ClubRegister({
             {needle ? ` matching “${needle}”` : ""}
           </p>
         </div>
-        <ul className="clb-tabs">
-          {tabs.map((tab) => (
-            <li key={tab.label}>
-              <button type="button" className={filters.pay === tab.value ? "is-on" : ""} onClick={() => apply({ ...filters, pay: tab.value })}>
-                {tab.label} <span>{tab.count}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        <div className="clb-results-tools">
+          <a className="clb-print" href={`${ACCOUNTS_BASE}/clubs/roll/pdf`} target="_blank" rel="noreferrer" title="Print consented learners, one club to a page">
+            <i className="fa-solid fa-print" aria-hidden="true" /> Print
+          </a>
+          <ul className="clb-tabs">
+            {tabs.map((tab) => (
+              <li key={tab.label}>
+                <button type="button" className={filters.pay === tab.value ? "is-on" : ""} onClick={() => apply({ ...filters, pay: tab.value })}>
+                  {tab.label} <span>{tab.count}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
       <form
         className="ofc-finder"

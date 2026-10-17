@@ -147,15 +147,47 @@
 
 /* ---------------------------------------------------------------- catalogue */
 
+.clb-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(16rem, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
 .clb-catalogue {
   display: grid;
   gap: 1rem;
+  min-width: 0;
   padding: 1rem 1.05rem 1.1rem;
   border: 1px solid rgba(25, 35, 43, .06);
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 18px 40px -28px rgba(25, 35, 43, .35);
 }
+.clb-catalogue > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+}
+.clb-new {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: .35rem;
+  height: 32px;
+  padding: 0 .8rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--admin-navy);
+  color: #fff;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.clb-new:hover { background: #24303a; }
+.clb-new:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
+.clb-new i { font-size: .68rem; }
 .clb-catalogue > header h2,
 .clb-results h2 {
   margin: 0;
@@ -165,65 +197,55 @@
   font-weight: 700;
   letter-spacing: -.01em;
 }
+.clb-catalogue > header h2 { letter-spacing: .08em; }
 .clb-catalogue > header p,
 .clb-results p { margin: .15rem 0 0; color: var(--admin-muted); font-size: .82rem; }
-
-.clb-cat { display: grid; gap: .45rem; }
-.clb-cat + .clb-cat { padding-top: .15rem; }
-.clb-cat h3 {
+.clb-find {
   display: flex;
   align-items: center;
-  gap: .45rem;
-  margin: 0;
-  color: #6d655b;
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .08em;
-  text-transform: uppercase;
-}
-.clb-cat h3::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: #efeae2;
-}
-.clb-cat h3 i {
-  display: grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  background: #f6f1e6;
-  color: #8a5a12;
-  font-size: .68rem;
-}
-.clb-cat h3 span {
-  color: var(--admin-muted);
-  font-size: .72rem;
-  font-weight: 700;
-  letter-spacing: 0;
-  font-variant-numeric: tabular-nums;
-}
-
-.clb-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
   gap: .5rem;
+  min-height: 38px;
+  padding: 0 .7rem;
+  border: 1px solid #ebe4d8;
+  border-radius: 12px;
+  background: #faf8f4;
+}
+.clb-find:focus-within { border-color: #d7cdb8; background: #fff; box-shadow: 0 0 0 3px rgba(253, 163, 27, .2); }
+.clb-find > i { flex: none; color: #8a5a12; font-size: .78rem; }
+.clb-find input {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 0;
+  background: transparent;
+  color: var(--admin-navy);
+  font: inherit;
+  font-size: .86rem;
+}
+.clb-find input::placeholder { color: #9a9184; }
+.clb-find input:focus { outline: none; }
+.clb-find input::-webkit-search-cancel-button { appearance: none; }
+.clb-find-count { margin: -.45rem 0 0; color: var(--admin-muted); font-size: .78rem; }
+.clb-find-empty { margin: 0; color: var(--admin-muted); font-size: .86rem; }
+
+.clb-strip {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.clb-grid > li { display: flex; min-width: 0; }
+.clb-strip > li { display: block; min-width: 0; }
 .clb-card {
   display: grid;
-  flex: 1;
-  grid-template-rows: auto auto 1fr;
-  align-content: start;
-  gap: .15rem;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: .65rem;
+  row-gap: .05rem;
   width: 100%;
   min-width: 0;
-  padding: .55rem .7rem .5rem;
+  padding: .45rem .65rem;
   border: 1px solid #ebe4d8;
   border-radius: 12px;
   background: #fff;
@@ -234,15 +256,11 @@
 .clb-card.is-closed h4 { color: #6d655b; }
 .clb-card header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
+  align-items: center;
   gap: .45rem;
   min-width: 0;
 }
 .clb-card h4 {
-  display: -webkit-box;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
   min-width: 0;
   margin: 0;
   overflow: hidden;
@@ -251,26 +269,34 @@
   font-size: .92rem;
   font-weight: 700;
   line-height: 1.25;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .clb-aud {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  grid-column: 1;
   margin: 0;
+  min-width: 0;
   overflow: hidden;
   color: var(--admin-muted);
   font-size: .74rem;
   font-weight: 500;
-  text-overflow: ellipsis;
   white-space: nowrap;
 }
+.clb-aud > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.clb-aud-sep { flex: none; color: #c4bbaa; }
+.clb-aud i { flex: none; width: .85rem; color: #8a5a12; font-size: .68rem; text-align: center; }
 .clb-card footer {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: .45rem;
-  align-self: end;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  gap: .2rem;
+  grid-column: 2;
+  grid-row: 1 / span 2;
   min-width: 0;
-  margin-top: .35rem;
-  padding-top: .4rem;
-  border-top: 1px solid #f3eee6;
 }
 .clb-price {
   display: flex;
@@ -327,6 +353,7 @@
 
 .kja-accounts .clb-page .ofc-register {
   overflow: hidden;
+  min-width: 0;
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 18px 40px -28px rgba(25, 35, 43, .35);
@@ -358,6 +385,30 @@
   padding: 1rem 1.25rem 0;
   border-bottom: 1px solid #f1ece2;
 }
+.clb-results-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: .35rem 1rem;
+}
+.clb-print {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  margin-bottom: .55rem;
+  padding: .42rem .85rem;
+  border-radius: 999px;
+  background: var(--admin-navy);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.clb-print i { font-size: .72rem; }
+.clb-print:hover { background: #24303a; color: #fff; }
+.clb-print:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
 .clb-tabs { display: flex; flex-wrap: wrap; gap: 0 1.15rem; margin: 0; padding: 0; list-style: none; }
 .clb-tabs button {
   margin: 0;
@@ -475,6 +526,7 @@
 @media (max-width: 1100px) {
   .clb-board-main { grid-template-columns: 1fr; gap: 1rem; }
   .clb-figs { padding: 1rem 0 0; border-left: 0; border-top: 1px solid #f1ece2; }
+  .clb-pair { grid-template-columns: 1fr; }
 }
 @media (max-width: 760px) {
   .kja-accounts .clb-page .clb-table thead { display: none; }

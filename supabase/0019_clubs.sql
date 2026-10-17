@@ -219,7 +219,7 @@ create policy club_payments_accounts on public.club_payments for all to authenti
   using ((select public.is_accounts_staff()))
   with check ((select public.is_accounts_staff()));
 
-grant select, update on public.clubs to authenticated;
+grant select, insert, update on public.clubs to authenticated;
 grant select, insert, update on public.club_consents to authenticated;
 grant select on public.club_collections to authenticated;
 grant select, insert on public.club_payments to authenticated;

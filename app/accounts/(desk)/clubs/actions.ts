@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { refreshAccounts, requireAccounts } from "@/lib/accounts";
 import { isPaymentMethod, kampalaToday, methodInfo, parseAmount, ugx } from "@/lib/accounts-format";
-import { isClubSection } from "@/lib/clubs";
+import { CLUB_CATEGORIES, isClubSection } from "@/lib/clubs";
 import { field } from "@/lib/office-forms";
 import { isUuid } from "@/lib/students";
 import type { ActionResult } from "@/lib/office-forms";
@@ -39,6 +39,52 @@ export async function saveClub(form: FormData): Promise<ActionResult> {
   refreshAccounts("/accounts/clubs");
   revalidatePath("/account/clubs");
   return { ok: `${title} saved.` };
+}
+
+export async function createClub(form: FormData): Promise<ActionResult> {
+  const auth = await requireAccounts();
+  if ("error" in auth) return { error: auth.error };
+  const title = field(form, "title", 80);
+  const category = field(form, "category", 80);
+  const section = String(form.get("section") || "");
+  const description = field(form, "description", 400);
+  const fee = parseAmount(form.get("fee_amount"));
+  if (!title) return { error: "Enter the club name." };
+  if (!category || !(CLUB_CATEGORIES as readonly string[]).includes(category)) return { error: "Choose a category." };
+  if (!isClubSection(section)) return { error: "Choose who the club is for." };
+  if (fee === null || fee < 0) return { error: "Enter the fee in shillings." };
+  const open = form.get("active") === "on";
+
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const [{ data: numbered, error: numberError }, { data: ordered, error: orderError }] = await Promise.all([
+      auth.supabase.from("clubs").select("guide_no").not("guide_no", "is", null).order("guide_no", { ascending: false }).limit(1).maybeSingle(),
+      auth.supabase.from("clubs").select("sort_order").order("sort_order", { ascending: false }).limit(1).maybeSingle(),
+    ]);
+    if (numberError || orderError) return { error: "The club could not be added." };
+    const guideNo = (Number(numbered?.guide_no) || 0) + 1;
+    const sortOrder = Math.max(guideNo, (Number(ordered?.sort_order) || 0) + 1);
+    const { error } = await auth.supabase.from("clubs").insert({
+      title,
+      category,
+      section,
+      description,
+      fee_amount: fee,
+      active: open,
+      published: open,
+      guide_no: guideNo,
+      sort_order: sortOrder,
+    });
+    if (!error) {
+      refreshAccounts("/accounts/clubs");
+      revalidatePath("/account/clubs");
+      return { ok: `${title} added.` };
+    }
+    if (error.code === "23505" && /title/i.test(error.message)) return { error: "Another club already uses that name." };
+    if (error.code === "23505" && attempt === 0) continue;
+    if (error.code === "42501") return { error: "Clubs cannot be added until the latest database update is applied." };
+    return { error: "The club could not be added." };
+  }
+  return { error: "The club could not be added. Try again." };
 }
 
 export async function recordClubPayment(form: FormData): Promise<ActionResult> {

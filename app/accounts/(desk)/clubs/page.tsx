@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { ClubEdit, ClubPayLink, ClubRegister, type ClubConsentRow } from "@/components/accounts/ClubsDesk";
+import { ClubCreate, ClubPayLink, ClubRegister, ClubStrip, type ClubConsentRow } from "@/components/accounts/ClubsDesk";
 import { notReady } from "@/components/accounts/ui";
 import { Empty } from "@/components/office/ui";
-import { loadTerms, requireAccounts } from "@/lib/accounts";
-import { amount, percent, ugx, ugxShort } from "@/lib/accounts-format";
+import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
+import { percent, ugx, ugxShort } from "@/lib/accounts-format";
 import { CLUB_CATEGORIES, clubListHref, type ClubListFilters } from "@/lib/clubs";
 import { classLabel } from "@/lib/academics";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./clubs.css";
 
 export const metadata = { title: "Clubs" };
-
-const CLUB_FALLBACK = "Games and Sports";
 
 function audienceLabel(section: string | null) {
   if (section === "nursery") return "Nursery";
@@ -155,6 +153,7 @@ export default async function ClubsOfficePage({ searchParams }: { searchParams: 
         icon="fa-puzzle-piece"
         title="Clubs"
         description={current ? <>Parents consent on the portal, then pay the fee for <strong>{current.label}</strong>. A paid amount stays on the receipt even if the fee changes later.</> : "Set the current term before parents can pay."}
+        actions={<Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/clubs/report`}><i className="fa-solid fa-chart-column" aria-hidden="true" /> Club report</Link>}
       />
 
       <section className="clb-board" aria-label={current ? `${current.label} club fees` : "Club fees"}>
@@ -218,55 +217,33 @@ export default async function ClubsOfficePage({ searchParams }: { searchParams: 
         {terms.length && !current ? <div className="clb-due"><i className="fa-regular fa-calendar" aria-hidden="true" /><p>Choose a current term under Fee setup before recording payments.</p></div> : null}
       </section>
 
-      <section className="clb-catalogue" id="catalogue">
-        <header>
-          <h2>Clubs for pupils</h2>
-          <p>{clubs.length} {clubs.length === 1 ? "club" : "clubs"}, grouped by interest. Each fee is for this term.</p>
-        </header>
-        {groups.length ? groups.map((group) => (
-          <div className="clb-cat" key={group.category}>
-            <h3>
-              <i className={`fa-solid ${CATEGORY_ICONS[group.category] || "fa-puzzle-piece"}`} aria-hidden="true" />
-              {group.category}
-              <span>{group.clubs.length}</span>
-            </h3>
-            <ul className="clb-grid">
-              {group.clubs.map((club) => (
-                <li key={club.id}>
-                  <article className={`clb-card${club.active ? "" : " is-closed"}`} title={club.description || undefined}>
-                    <header>
-                      <h4>{club.title}</h4>
-                      <span className={`clb-state${club.active ? " is-open" : ""}`}>{club.active ? "Open" : "Closed"}</span>
-                    </header>
-                    <p className="clb-aud">{audienceLabel(club.section)}</p>
-                    <footer>
-                      <p className="clb-price">
-                        <strong>{amount(Number(club.fee_amount) || 0)}</strong>
-                        <span>UGX</span>
-                      </p>
-                      <ClubEdit club={{
-                        id: club.id,
-                        title: club.title,
-                        category: club.category || CLUB_FALLBACK,
-                        fee: Number(club.fee_amount) || 0,
-                        section: club.section || "both",
-                        description: club.description,
-                        active: Boolean(club.active),
-                      }} />
-                    </footer>
-                  </article>
-                </li>
-              ))}
-            </ul>
-          </div>
-        )) : (
-          <Empty icon="fa-folder-open" title="No clubs yet">Run the clubs migration to load the guide.</Empty>
-        )}
-      </section>
+      <div className="clb-pair">
+        <section className="ofc-register clb-learners" id="register" aria-label="Learners who have consented or paid">
+          <ClubRegister rows={rows} termLabel={current ? current.label : "This term"} canRecord={Boolean(current)} filters={filters} />
+        </section>
 
-      <section className="ofc-register" id="register">
-        <ClubRegister rows={rows} termLabel={current ? current.label : "This term"} canRecord={Boolean(current)} filters={filters} />
-      </section>
+        <section className="clb-catalogue" id="catalogue">
+          <header>
+            <h2>CLUBS</h2>
+            <ClubCreate />
+          </header>
+          {groups.length ? (
+            <ClubStrip clubs={groups.flatMap((group) => group.clubs.map((club) => ({
+              id: club.id,
+              title: club.title,
+              category: group.category,
+              fee: Number(club.fee_amount) || 0,
+              section: club.section || "both",
+              description: club.description,
+              active: Boolean(club.active),
+              audience: audienceLabel(club.section),
+              icon: CATEGORY_ICONS[group.category] || "fa-puzzle-piece",
+            })))} />
+          ) : (
+            <Empty icon="fa-folder-open" title="No clubs yet">Run the clubs migration to load the guide.</Empty>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
