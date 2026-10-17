@@ -1,6 +1,8 @@
 import { AccountsOverview } from "@/components/accounts/Overview";
 import { notReady } from "@/components/accounts/ui";
+import { groupOf, sumOf } from "@/lib/accounts-agg";
 import { loadTerms, requireAccounts } from "@/lib/accounts";
+import { loadFeeBook } from "@/lib/accounts-roll";
 import {
   AGING,
   addDays,
@@ -21,7 +23,6 @@ import "./overview.css";
 
 export const metadata = { title: "Overview" };
 
-type TermBal = { student_id: string; term_id: string; invoiced: number; paid: number; balance: number; due_on: string | null };
 type Debtor = { student_id: string; full_name: string; class_code: string | null; balance: number; oldest_due: string | null };
 type PayRow = Payment & { students: { full_name: string; class_code: string | null } | null };
 
@@ -37,19 +38,11 @@ export default async function AccountsHome() {
   const from30 = addDays(today, -29);
   const termId = current?.id;
 
-  const [todayPays, termPays, termBals, debtors, pendingExp, recentPays, activityRows, monthExp] = await Promise.all([
-    supabase.from("payments").select("amount").eq("paid_on", today).is("voided_at", null),
-    termId
-      ? fetchAll<{ amount: number }>((a, b) => supabase.from("payments").select("id, amount").eq("term_id", termId).is("voided_at", null).order("id").range(a, b)).catch(() => [])
-      : Promise.resolve([] as { amount: number }[]),
-    termId
-      ? fetchAll<TermBal>((a, b) =>
-          supabase.from("student_term_balances").select("student_id, term_id, invoiced, paid, balance, due_on").eq("term_id", termId).order("student_id").range(a, b),
-        ).catch(() => [] as TermBal[])
-      : Promise.resolve([] as TermBal[]),
-    fetchAll<Debtor>((a, b) =>
-      supabase.from("student_balances").select("student_id, full_name, class_code, balance, oldest_due").eq("status", "active").gt("balance", 0).order("balance", { ascending: false }).range(a, b),
-    ).catch(() => [] as Debtor[]),
+  const [collectedToday, collectedTerm, billedTerm, feeBook, pendingExp, recentPays, activityRows, payByDayRaw, expByDayRaw, billedByClassRaw, paidByClassRaw] = await Promise.all([
+    sumOf(supabase.from("payments").select("amount.sum()").eq("paid_on", today).is("voided_at", null)),
+    termId ? sumOf(supabase.from("payments").select("amount.sum()").eq("term_id", termId).is("voided_at", null)) : Promise.resolve(0),
+    termId ? sumOf(supabase.from("invoices").select("total.sum()").eq("status", "issued").eq("term_id", termId)) : Promise.resolve(0),
+    loadFeeBook(supabase).catch(() => []),
     supabase.from("expenses").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(8),
     supabase
       .from("payments")
@@ -58,16 +51,36 @@ export default async function AccountsHome() {
       .order("created_at", { ascending: false })
       .limit(8),
     supabase.from("account_activity").select("*").order("created_at", { ascending: false }).limit(10),
-    fetchAll<{ spent_on: string; amount: number; status: string }>((a, b) =>
-      supabase.from("expenses").select("id, spent_on, amount, status").in("status", ["approved", "paid"]).gte("spent_on", from30).lte("spent_on", today).order("id").range(a, b),
-    ).catch(() => []),
+    groupOf(supabase.from("payments").select("paid_on, amount.sum()").is("voided_at", null).gte("paid_on", from30).lte("paid_on", today), "paid_on"),
+    groupOf(supabase.from("expenses").select("spent_on, amount.sum()").in("status", ["approved", "paid"]).gte("spent_on", from30).lte("spent_on", today), "spent_on"),
+    termId ? groupOf(supabase.from("invoices").select("class_code, total.sum()").eq("status", "issued").eq("term_id", termId), "class_code") : Promise.resolve(new Map<string, number>()),
+    termId ? groupOf(supabase.from("payments").select("amount.sum(), students!inner(class_code)").eq("term_id", termId).is("voided_at", null), "class_code") : Promise.resolve(new Map<string, number>()),
   ]);
-
-  const collectedToday = (todayPays.data || []).reduce((sum, row) => sum + Number(row.amount), 0);
-  const collectedTerm = termPays.reduce((sum, row) => sum + Number(row.amount), 0);
-  const billedTerm = termBals.reduce((sum, row) => sum + Number(row.invoiced), 0);
-  const outstanding = debtors.reduce((sum, row) => sum + Number(row.balance), 0);
-  const rate = percent(collectedTerm, billedTerm);
+  let todayTotal = collectedToday;
+  let termTotal = collectedTerm;
+  let billedTotal = billedTerm;
+  if (todayTotal == null || termTotal == null || billedTotal == null) {
+    const [todayRows, termRows, billRows] = await Promise.all([
+      todayTotal == null ? supabase.from("payments").select("amount").eq("paid_on", today).is("voided_at", null) : Promise.resolve({ data: [] }),
+      termTotal == null && termId ? fetchAll<{ amount: number }>((a, b) => supabase.from("payments").select("id, amount").eq("term_id", termId).is("voided_at", null).order("id").range(a, b)).catch(() => []) : Promise.resolve([] as { amount: number }[]),
+      billedTotal == null && termId ? fetchAll<{ total: number }>((a, b) => supabase.from("invoices").select("id, total").eq("status", "issued").eq("term_id", termId).order("id").range(a, b)).catch(() => []) : Promise.resolve([] as { total: number }[]),
+    ]);
+    if (todayTotal == null) todayTotal = (todayRows && "data" in todayRows ? todayRows.data || [] : []).reduce((sum, row) => sum + Number(row.amount), 0);
+    if (termTotal == null) termTotal = (Array.isArray(termRows) ? termRows : []).reduce((sum, row) => sum + Number(row.amount), 0);
+    if (billedTotal == null) billedTotal = (Array.isArray(billRows) ? billRows : []).reduce((sum, row) => sum + Number(row.total), 0);
+  }
+  const rate = percent(termTotal ?? 0, billedTotal ?? 0);
+  const debtors: Debtor[] = feeBook
+    .filter((row) => row.status === "active" && row.balance > 0)
+    .sort((a, b) => b.balance - a.balance)
+    .map((row) => ({
+      student_id: row.id,
+      full_name: row.full_name,
+      class_code: row.class_code,
+      balance: row.balance,
+      oldest_due: row.oldest_due,
+    }));
+  const outstanding = debtors.reduce((sum, row) => sum + row.balance, 0);
   const pending = (pendingExp.data || []) as Expense[];
   const payments = (recentPays.data || []) as unknown as PayRow[];
   const activity = (activityRows.data || []) as AccountActivity[];
@@ -80,13 +93,8 @@ export default async function AccountsHome() {
     bucket.total += Number(row.balance);
   }
 
-  const dayPays = await fetchAll<{ paid_on: string; amount: number }>((a, b) =>
-    supabase.from("payments").select("id, paid_on, amount").is("voided_at", null).gte("paid_on", from30).lte("paid_on", today).order("id").range(a, b),
-  ).catch(() => [] as { paid_on: string; amount: number }[]);
-  const payByDay = new Map<string, number>();
-  const expByDay = new Map<string, number>();
-  for (const row of dayPays) payByDay.set(row.paid_on, (payByDay.get(row.paid_on) ?? 0) + Number(row.amount));
-  for (const row of monthExp) expByDay.set(row.spent_on, (expByDay.get(row.spent_on) ?? 0) + Number(row.amount));
+  const payByDay = payByDayRaw ?? new Map<string, number>();
+  const expByDay = expByDayRaw ?? new Map<string, number>();
   const columns = Array.from({ length: 30 }, (_, index) => {
     const date = addDays(from30, index);
     return {
@@ -99,19 +107,8 @@ export default async function AccountsHome() {
     };
   }).filter((_, index, list) => index % 2 === 0 || index === list.length - 1);
 
-  const billedByClass = new Map<string, number>();
-  const paidByClass = new Map<string, number>();
-  const classIds = [...new Set(termBals.map((row) => row.student_id))];
-  const classOf = new Map<string, string | null>();
-  if (classIds.length) {
-    const { data: classRowsData } = await supabase.from("students").select("id, class_code").in("id", classIds.slice(0, 1000));
-    for (const row of classRowsData || []) classOf.set(row.id, row.class_code);
-  }
-  for (const row of termBals) {
-    const code = classOf.get(row.student_id) ?? "";
-    billedByClass.set(code, (billedByClass.get(code) ?? 0) + Number(row.invoiced));
-    paidByClass.set(code, (paidByClass.get(code) ?? 0) + Number(row.paid));
-  }
+  const billedByClass = billedByClassRaw ?? new Map<string, number>();
+  const paidByClass = paidByClassRaw ?? new Map<string, number>();
 
   const classRows = SCHOOL_CLASSES.map((entry) => ({
     code: entry.code,
@@ -122,7 +119,6 @@ export default async function AccountsHome() {
   })).filter((row) => row.billed || row.paid);
 
   const now = new Date();
-  const firstName = (auth.profile.full_name || auth.user.email || "").split(/[\s@]/)[0];
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: "Africa/Kampala" }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const todayLabel = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: "Africa/Kampala" });
@@ -131,14 +127,14 @@ export default async function AccountsHome() {
 
   return (
     <AccountsOverview
-      title={`${greeting}${firstName ? `, ${firstName}` : ""}`}
+      title={greeting}
       todayLabel={todayLabel}
       today={day(today)}
       termLabel={current?.label ?? null}
       needsSetup={!current}
-      collectedToday={collectedToday}
-      collectedTerm={collectedTerm}
-      billedTerm={billedTerm}
+      collectedToday={todayTotal ?? 0}
+      collectedTerm={termTotal ?? 0}
+      billedTerm={billedTotal ?? 0}
       rate={rate}
       outstanding={outstanding}
       debtorCount={debtors.length}

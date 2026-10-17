@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, kampalaToday, mapTerm, openAcademics } from "@/lib/academics";
+import { ACADEMICS_BASE, kampalaToday, loadCurrentTerm, openAcademics } from "@/lib/academics";
 
 export const metadata = { title: "Activity" };
 
@@ -44,8 +44,9 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
   const kind = KINDS.some((item) => item.value === query.kind) ? query.kind as Kind : "";
   const page = Math.max(1, Number.parseInt(query.page || "1", 10) || 1);
   const today = kampalaToday();
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Activity" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const since = sinceIso(span, term?.starts_on ?? null, today);
   const showReminders = !kind || kind === "reminder";
 

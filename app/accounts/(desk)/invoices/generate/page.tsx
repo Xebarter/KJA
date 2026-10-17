@@ -2,8 +2,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { InvoiceWizard } from "@/components/accounts/InvoiceWizard";
 import { notReady } from "@/components/accounts/ui";
+import { groupOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
-import { fetchAll, pick } from "@/lib/students";
+import { pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Generate term invoices" };
@@ -23,15 +24,13 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
 
   const [rates, billed, pupils] = await Promise.all([
     supabase.from("fee_rates").select("term_id, class_code").gt("amount", 0).limit(10000),
-    supabase.from("invoices").select("term_id").eq("kind", "term").neq("status", "void").limit(20000),
-    fetchAll<{ class_code: string | null }>((from, to) => supabase.from("students").select("class_code").eq("status", "active").order("id").range(from, to)),
+    groupOf(supabase.from("invoices").select("term_id, id.count()").eq("kind", "term").neq("status", "void"), "term_id", "count"),
+    groupOf(supabase.from("students").select("class_code, id.count()").eq("status", "active"), "class_code", "count"),
   ]);
   const ratedClasses: Record<string, string[]> = {};
   for (const row of rates.data || []) (ratedClasses[row.term_id] ??= []).push(row.class_code);
-  const billedByTerm: Record<string, number> = {};
-  for (const row of billed.data || []) billedByTerm[row.term_id] = (billedByTerm[row.term_id] ?? 0) + 1;
-  const activeByClass: Record<string, number> = {};
-  for (const row of pupils) if (row.class_code) activeByClass[row.class_code] = (activeByClass[row.class_code] ?? 0) + 1;
+  const billedByTerm = Object.fromEntries(billed ?? []);
+  const activeByClass = Object.fromEntries([...(pupils ?? [])].filter(([code]) => code));
 
   return (
     <div className="app-page ofc-page acc-page ofc-narrow">

@@ -3,7 +3,7 @@ import { remindTeachers } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, dateKindLabel, kampalaToday, mapTerm, openAcademics, reasonLabel } from "@/lib/academics";
+import { ACADEMICS_BASE, dateKindLabel, kampalaToday, loadCurrentTerm, openAcademics, reasonLabel } from "@/lib/academics";
 import { loadAcademicPicture } from "@/lib/academics-insights";
 import { emailSetupProblem } from "@/lib/email/send";
 
@@ -13,13 +13,14 @@ export default async function InsightsPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Insights" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Insights" />;
-  const { supabase } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const { supabase, user } = opened.auth;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Insights" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   if (!term) return <div className="app-page ofc-page"><PageHeader kicker="Office" icon="fa-chart-column" title="Insights" description="Performance for the current term." /><Empty title="No current term" /></div>;
   let picture;
   try {
-    picture = await loadAcademicPicture(supabase, term, kampalaToday());
+    picture = await loadAcademicPicture(supabase, term, kampalaToday(), user.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Insights could not be loaded.";
     return <AcademicsGate title="Insights" state={{ notice: "schema", message }} />;

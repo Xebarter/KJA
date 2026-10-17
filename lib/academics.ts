@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { cache } from "react";
 import { ACADEMICS_BASE, isAcademicsRole } from "@/lib/academics-nav";
-import { forgetPrefix } from "@/lib/remember";
+import { forgetPrefix, remember } from "@/lib/remember";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
@@ -33,13 +33,20 @@ export async function openAcademics(): Promise<
   if (!supabaseConfigured()) return { notice: "config" as const };
   const auth = await requireAcademics();
   if ("error" in auth) return { notice: "auth" as const, message: auth.error };
-  const probe = await auth.supabase.from("subjects").select("id").limit(1);
-  if (probe.error) return { notice: "schema" as const, message: probe.error.message };
+  try {
+    await remember("academics-schema", 120_000, async () => {
+      const probe = await auth.supabase.from("subjects").select("id").limit(1);
+      if (probe.error) throw new Error(probe.error.message);
+      return true;
+    });
+  } catch (error) {
+    return { notice: "schema" as const, message: error instanceof Error ? error.message : "Academics tables are missing." };
+  }
   return { auth };
 }
 
 export function refreshAcademics(...paths: string[]) {
-  forgetPrefix("academics-badges");
+  forgetPrefix("academics-");
   revalidatePath(ACADEMICS_BASE, "layout");
   for (const path of paths) revalidatePath(path);
   revalidatePath("/account/reports");
@@ -326,6 +333,20 @@ export function mapTerm(row: Record<string, unknown>): TermRow {
     ends_on: (row.ends_on as string | null) ?? null,
     is_current: Boolean(row.is_current),
   };
+}
+
+/** The term marked current. A successful read is reused across the next page clicks. */
+export async function loadCurrentTerm(supabase: SupabaseClient): Promise<{ term: TermRow | null; error: string | null }> {
+  try {
+    const term = await remember("academics-term", 45_000, async () => {
+      const { data, error } = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? mapTerm(data as Record<string, unknown>) : null;
+    });
+    return { term, error: null };
+  } catch (error) {
+    return { term: null, error: error instanceof Error ? error.message : "Could not load the term." };
+  }
 }
 
 export type ClassGroup<T> = { code: string; name: string; section: "nursery" | "primary"; order: number; stream: string; pupils: T[] };

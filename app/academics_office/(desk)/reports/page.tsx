@@ -3,8 +3,8 @@ import { approveReports, prepareReports, publishReports, reopenReports } from "@
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, classLabel, groupPupils, mapTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
-import { fetchAll } from "@/lib/students";
+import { ACADEMICS_BASE, classLabel, groupPupils, loadCurrentTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Report cards" };
 
@@ -15,14 +15,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Report cards" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Report cards" />;
-  const { supabase } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const { supabase, user } = opened.auth;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Report cards" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const stream = streamFromQuery(query.stream);
   const [pupils, cardsQuery] = await Promise.all([
-    fetchAll<{ id: string; full_name: string; class_code: string | null; stream: string | null }>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, class_code, stream").eq("status", "active").order("full_name").range(from, to),
-    ),
+    loadRoll(supabase, user.id),
     term
       ? supabase.from("report_cards").select("id, student_id, status, class_code, stream, overall_score").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),

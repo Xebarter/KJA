@@ -14,7 +14,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   const query = await searchParams;
   let data;
   try {
-    data = await loadStaffDesk(opened.auth.supabase);
+    data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load the staff list.";
     return <AcademicsGate title="Staff" state={{ notice: "schema", message }} />;
@@ -37,24 +37,20 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
       />
       <section className="stf-strip" aria-label="This term">
         <div>
-          <span>On the roll</span>
-          <strong>{nf(active.length)}</strong>
-          <small>{data.members.length - active.length ? `${nf(data.members.length - active.length)} hidden` : "None hidden"}</small>
+          <span className="stf-stat-icon" aria-hidden="true"><i className="fa-solid fa-chalkboard-user" /></span>
+          <span className="stf-stat-copy"><span>On the roll</span><strong>{nf(active.length)}</strong><small>{data.members.length - active.length ? `${nf(data.members.length - active.length)} hidden` : "None hidden"}</small></span>
         </div>
         <div className={classTeachers ? "is-ok" : ""}>
-          <span>Class teachers</span>
-          <strong>{nf(classTeachers)}</strong>
-          <small>Leading a class</small>
+          <span className="stf-stat-icon" aria-hidden="true"><i className="fa-solid fa-users" /></span>
+          <span className="stf-stat-copy"><span>Class teachers</span><strong>{nf(classTeachers)}</strong><small>Leading a class</small></span>
         </div>
         <div>
-          <span>Subject posts</span>
-          <strong>{nf(posts)}</strong>
-          <small>Class and subject pairs</small>
+          <span className="stf-stat-icon" aria-hidden="true"><i className="fa-solid fa-book-open" /></span>
+          <span className="stf-stat-copy"><span>Subject posts</span><strong>{nf(posts)}</strong><small>Class and subject pairs</small></span>
         </div>
         <div className={data.gaps.length ? "is-warn" : "is-ok"}>
-          <span>Classes open</span>
-          <strong>{nf(data.gaps.length)}</strong>
-          <small>No class teacher yet</small>
+          <span className="stf-stat-icon" aria-hidden="true"><i className="fa-solid fa-door-open" /></span>
+          <span className="stf-stat-copy"><span>Classes open</span><strong>{nf(data.gaps.length)}</strong><small>No class teacher yet</small></span>
         </div>
       </section>
       <StaffDesk members={data.members} gaps={data.gaps} termLabel={data.term?.label ?? null} initialId={initialId} save={saveStaff} />

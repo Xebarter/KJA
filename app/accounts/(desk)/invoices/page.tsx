@@ -6,6 +6,7 @@ import { ActionButton } from "@/components/office/client";
 import { Empty, Pager } from "@/components/office/ui";
 import { StudentFace } from "@/components/StudentFace";
 import { issueAllDrafts } from "./actions";
+import { aggRows, num, sumOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { amount, day, daysBetween, hrefWith, kampalaToday, overdueText, percent, ugx, ugxShort, type TermBalance } from "@/lib/accounts-format";
 import { SCHOOL_CLASSES, className, fetchAll, isClassCode, pick, searchNeedle } from "@/lib/students";
@@ -31,8 +32,6 @@ type Row = {
   students: { full_name: string; student_number: string } | null;
   fee_terms: { label: string } | null;
 };
-
-type Book = { invoiced: number; paid: number; balance: number };
 
 export default async function InvoicesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!supabaseConfigured()) return notReady("Invoices", { kind: "config" });
@@ -62,16 +61,11 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   if (cls) query = query.eq("class_code", cls);
   if (q) query = /^(inv|\d)/i.test(q) && /\d/.test(q) ? query.ilike("invoice_no", `%${q}%`) : query.ilike("students.full_name", `%${q}%`);
 
-  const [list, summary, books] = await Promise.all([
+  const [list, summaryRows, collectedSum, owingSum] = await Promise.all([
     query.order("issued_on", { ascending: false }).order("invoice_no", { ascending: false }).range(from, from + SIZE - 1),
-    term
-      ? fetchAll<{ status: string; total: number }>((a, b) => supabase.from("invoices").select("status, total").eq("term_id", term.id).order("id").range(a, b))
-      : Promise.resolve([] as { status: string; total: number }[]),
-    term
-      ? fetchAll<Book>((a, b) =>
-          supabase.from("student_term_balances").select("student_id, invoiced, paid, balance").eq("term_id", term.id).order("student_id").range(a, b),
-        ).catch(() => null)
-      : Promise.resolve(null),
+    term ? aggRows(supabase.from("invoices").select("status, total.sum(), id.count()").eq("term_id", term.id)) : Promise.resolve([]),
+    term ? sumOf(supabase.from("student_term_balances").select("paid.sum()").eq("term_id", term.id)) : Promise.resolve(null),
+    term ? sumOf(supabase.from("student_term_balances").select("balance.sum()").eq("term_id", term.id).gt("balance", 0)) : Promise.resolve(null),
   ]);
   if (list.error) return notReady("Invoices", { kind: "schema", message: list.error.message });
   const rows = (list.data || []) as unknown as Row[];
@@ -87,13 +81,25 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
     for (const row of (data || []) as TermBalance[]) balances.set(`${row.student_id}:${row.term_id}`, row);
   }
 
-  const issued = summary.filter((row) => row.status === "issued");
-  const drafts = summary.filter((row) => row.status === "draft");
-  const voided = summary.filter((row) => row.status === "void");
-  const billed = issued.reduce((sum, row) => sum + Number(row.total), 0);
-  const draftTotal = drafts.reduce((sum, row) => sum + Number(row.total), 0);
-  const collected = books ? books.reduce((sum, row) => sum + Number(row.paid), 0) : null;
-  const owing = books ? books.reduce((sum, row) => sum + Math.max(0, Number(row.balance)), 0) : null;
+  let summary = (summaryRows ?? []).map((row) => ({ status: String(row.status ?? ""), total: num(row, "sum"), count: num(row, "count") }));
+  if (term && !summaryRows) {
+    const fetched = await fetchAll<{ status: string; total: number }>((a, b) => supabase.from("invoices").select("status, total").eq("term_id", term.id).order("id").range(a, b));
+    const rolled = new Map<string, { total: number; count: number }>();
+    for (const row of fetched) {
+      const cur = rolled.get(row.status) ?? { total: 0, count: 0 };
+      cur.total += Number(row.total);
+      cur.count += 1;
+      rolled.set(row.status, cur);
+    }
+    summary = [...rolled.entries()].map(([status, value]) => ({ status, ...value }));
+  }
+  const issued = summary.find((row) => row.status === "issued") ?? { total: 0, count: 0 };
+  const drafts = summary.find((row) => row.status === "draft") ?? { total: 0, count: 0 };
+  const voided = summary.find((row) => row.status === "void") ?? { total: 0, count: 0 };
+  const billed = issued.total;
+  const draftTotal = drafts.total;
+  const collected = collectedSum;
+  const owing = owingSum;
   const rate = collected === null ? null : percent(collected, billed);
   const href = (changes: Record<string, string | number | null>) => hrefWith(BASE, filters, changes);
   const n = (value: number) => value.toLocaleString("en-GB");
@@ -157,8 +163,8 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                     )
                   ) : (
                     <>
-                      {n(issued.length)} issued
-                      {drafts.length ? <>, {n(drafts.length)} in draft</> : null}
+                      {n(issued.count)} issued
+                      {drafts.count ? <>, {n(drafts.count)} in draft</> : null}
                     </>
                   )}
                 </p>
@@ -168,31 +174,31 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
               <li>
                 <Link className={status === "issued" ? "is-on" : ""} href={href({ status: status === "issued" ? "" : "issued" })} scroll={false} aria-current={status === "issued" ? "true" : undefined}>
                   <span>Issued</span>
-                  <strong>{n(issued.length)}</strong>
-                  <small>{issued.length ? ugxShort(billed) : "None issued"}</small>
+                  <strong>{n(issued.count)}</strong>
+                  <small>{issued.count ? ugxShort(billed) : "None issued"}</small>
                 </Link>
               </li>
               <li>
-                <Link className={`${status === "draft" ? "is-on" : ""}${drafts.length ? " is-warn" : ""}`} href={href({ status: status === "draft" ? "" : "draft" })} scroll={false} aria-current={status === "draft" ? "true" : undefined}>
+                <Link className={`${status === "draft" ? "is-on" : ""}${drafts.count ? " is-warn" : ""}`} href={href({ status: status === "draft" ? "" : "draft" })} scroll={false} aria-current={status === "draft" ? "true" : undefined}>
                   <span>Drafts</span>
-                  <strong>{n(drafts.length)}</strong>
-                  <small>{drafts.length ? `${ugxShort(draftTotal)} waiting` : "None waiting"}</small>
+                  <strong>{n(drafts.count)}</strong>
+                  <small>{drafts.count ? `${ugxShort(draftTotal)} waiting` : "None waiting"}</small>
                 </Link>
               </li>
               <li>
                 <Link className={status === "void" ? "is-on" : ""} href={href({ status: status === "void" ? "" : "void" })} scroll={false} aria-current={status === "void" ? "true" : undefined}>
                   <span>Void</span>
-                  <strong>{n(voided.length)}</strong>
-                  <small>{voided.length ? "Cancelled" : "None cancelled"}</small>
+                  <strong>{n(voided.count)}</strong>
+                  <small>{voided.count ? "Cancelled" : "None cancelled"}</small>
                 </Link>
               </li>
             </ul>
           </div>
-          {drafts.length ? (
+          {drafts.count ? (
             <div className="inv-draft">
               <i className="fa-regular fa-file" aria-hidden="true" />
               <p>
-                <strong>{n(drafts.length)} draft{drafts.length === 1 ? "" : "s"}</strong> for {term.label}, totalling {ugx(draftTotal)}.
+                <strong>{n(drafts.count)} draft{drafts.count === 1 ? "" : "s"}</strong> for {term.label}, totalling {ugx(draftTotal)}.
                 Issue them to put them on balances and in the parent portal.
               </p>
               <div className="inv-draft-actions">
@@ -203,7 +209,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                   busyLabel="Issuing…"
                   icon="fa-paper-plane"
                   className="inv-issue"
-                  confirm={`Issue all ${drafts.length} drafts for ${term.label}? Parents will see them in the portal.`}
+                  confirm={`Issue all ${drafts.count} drafts for ${term.label}? Parents will see them in the portal.`}
                 />
               </div>
             </div>
@@ -271,9 +277,9 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
             label="Invoice status"
             items={[
               { href: href({ status: "" }), label: "All", count: showCounts ? summary.length : undefined, on: !status },
-              { href: href({ status: "issued" }), label: "Issued", count: showCounts ? issued.length : undefined, on: status === "issued" },
-              { href: href({ status: "draft" }), label: "Drafts", count: showCounts ? drafts.length : undefined, on: status === "draft" },
-              { href: href({ status: "void" }), label: "Void", count: showCounts ? voided.length : undefined, on: status === "void" },
+              { href: href({ status: "issued" }), label: "Issued", count: showCounts ? issued.count : undefined, on: status === "issued" },
+              { href: href({ status: "draft" }), label: "Drafts", count: showCounts ? drafts.count : undefined, on: status === "draft" },
+              { href: href({ status: "void" }), label: "Void", count: showCounts ? voided.count : undefined, on: status === "void" },
             ]}
           />
         </header>

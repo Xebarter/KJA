@@ -1,0 +1,20 @@
+import type { Metadata } from "next";
+import { ClubPage } from "@/components/site/ClubPage";
+import { composeClubPage } from "@/lib/club-pages";
+import { getContent } from "@/lib/content";
+import { SITE_URL } from "@/lib/newsroom";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const { page, title, lede, hero } = composeClubPage(await getContent(), "religion");
+  const description = page?.seo_description || lede;
+  return {
+    title,
+    description,
+    alternates: { canonical: `${SITE_URL}/religion` },
+    openGraph: { title: `${title} | Kampala Junior Academy`, description, type: "website", images: hero ? [{ url: hero }] : undefined },
+  };
+}
+
+export default async function ReligionPage() {
+  return <ClubPage balanced data={composeClubPage(await getContent(), "religion")} />;
+}

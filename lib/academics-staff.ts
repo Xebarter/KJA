@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ACADEMICS_BASE, classLabel, kampalaToday, mapStaff, mapTerm, missingAcademicsSchema, streamOf, streamQuery, type StaffRow } from "@/lib/academics";
-import { fetchAll, SCHOOL_CLASSES } from "@/lib/students";
+import { ACADEMICS_BASE, classLabel, kampalaToday, loadCurrentTerm, mapStaff, missingAcademicsSchema, streamOf, streamQuery, type StaffRow } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
+import { SCHOOL_CLASSES } from "@/lib/students";
+import { remember } from "@/lib/remember";
 
 export type StaffScheme = {
   href: string;
@@ -82,15 +84,19 @@ async function rowsOf<T>(run: PromiseLike<{ data: T[] | null; error: { message: 
   return data || [];
 }
 
-export async function loadStaffDesk(supabase: SupabaseClient): Promise<StaffDeskData> {
-  const [staffQuery, termQuery] = await Promise.all([
+export function loadStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
+  return remember(`academics-staff:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
+}
+
+async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
+  const [staffQuery, termPack] = await Promise.all([
     supabase.from("teaching_staff").select("*").order("full_name"),
-    supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle(),
+    loadCurrentTerm(supabase),
   ]);
   if (staffQuery.error) throw new Error(staffQuery.error.message);
-  if (termQuery.error) throw new Error(termQuery.error.message);
+  if (termPack.error) throw new Error(termPack.error);
   const people = ((staffQuery.data || []) as Record<string, unknown>[]).map(mapStaff);
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const term = termPack.term;
   if (!term) {
     return {
       term: null,
@@ -116,9 +122,7 @@ export async function loadStaffDesk(supabase: SupabaseClient): Promise<StaffDesk
     rowsOf<{ id: string; staff_id: string | null; weekday: number; period: number; room: string | null; class_code: string; stream: string; subjects: Named }>(
       supabase.from("timetable_slots").select("id, staff_id, weekday, period, room, class_code, stream, subjects(name)").eq("term_id", term.id),
     ),
-    fetchAll<{ class_code: string | null; stream: string | null }>((from, to) =>
-      supabase.from("students").select("class_code, stream").eq("status", "active").order("id").range(from, to),
-    ).catch((error: unknown) => {
+    loadRoll(supabase, userId).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "";
       if (missingAcademicsSchema(message) || /students/i.test(message)) return [];
       throw error;

@@ -2,9 +2,10 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ExpenseForm } from "@/components/accounts/ExpenseForm";
 import { notReady } from "@/components/accounts/ui";
+import { groupOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, requireAccounts } from "@/lib/accounts";
 import { kampalaToday, type Expense, type ExpenseCategory } from "@/lib/accounts-format";
-import { fetchAll, isUuid, pick } from "@/lib/students";
+import { isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Add an expense" };
@@ -23,15 +24,15 @@ export default async function NewExpensePage({ searchParams }: { searchParams: P
     supabase.from("expense_categories").select("*").order("name"),
     loadCampuses(supabase),
     isUuid(editId) ? supabase.from("expenses").select("*").eq("id", editId).maybeSingle<Expense>() : Promise.resolve({ data: null }),
-    fetchAll<{ category_id: string | null; amount: number }>((from, to) =>
-      supabase.from("expenses").select("id, category_id, amount").in("status", ["approved", "paid"]).gte("spent_on", `${budgetMonth}-01`).lte("spent_on", monthEnd).order("id").range(from, to),
-    ).catch(() => []),
+    groupOf(
+      supabase.from("expenses").select("category_id, amount.sum()").in("status", ["approved", "paid"]).gte("spent_on", `${budgetMonth}-01`).lte("spent_on", monthEnd),
+      "category_id",
+    ),
   ]);
   if (error) return notReady("Add an expense", { kind: "schema", message: error.message });
   const expense = editing.data && editing.data.status === "pending" && (editing.data.requested_by === user.id || profile.role === "admin") ? editing.data : null;
   const categories = (categoryRows || []) as ExpenseCategory[];
-  const spentBy: Record<string, number> = {};
-  for (const row of spentRows) if (row.category_id) spentBy[row.category_id] = (spentBy[row.category_id] ?? 0) + Number(row.amount);
+  const spentBy = Object.fromEntries([...(spentRows ?? [])].filter(([id]) => id));
 
   return (
     <div className="app-page ofc-page acc-page enr-page">

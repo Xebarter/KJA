@@ -2,8 +2,9 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassesDesk, type ClassRow, type ClassesTotals } from "@/components/academics/ClassesDesk";
 import { AcademicsGate } from "@/components/academics/ui";
-import { ACADEMICS_BASE, groupPupils, kampalaToday, mapTerm, openAcademics, streamQuery } from "@/lib/academics";
-import { fetchAll, pick } from "@/lib/students";
+import { ACADEMICS_BASE, groupPupils, kampalaToday, loadCurrentTerm, openAcademics, streamQuery } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
+import { pick } from "@/lib/students";
 
 export const metadata = { title: "Classes" };
 
@@ -12,21 +13,20 @@ type Pupil = { id: string; class_code: string | null; stream: string | null; sex
 export default async function ClassesPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Classes" state={opened} />;
-  const { supabase } = opened.auth;
+  const { supabase, user } = opened.auth;
   const params = await searchParams;
   const sectionParam = pick(params, "section");
   const section = sectionParam === "nursery" || sectionParam === "primary" ? sectionParam : "";
   const need = pick(params, "need") === "teacher" ? "teacher" : "";
 
-  const [pupils, termQuery, teachers] = await Promise.all([
-    fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, class_code, stream, sex").eq("status", "active").order("id").range(from, to),
-    ),
-    supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle(),
+  const [pupils, termPack, teachers] = await Promise.all([
+    loadRoll(supabase, user.id),
+    loadCurrentTerm(supabase),
     supabase.from("class_teachers").select("term_id, class_code, stream, teaching_staff(full_name)"),
   ]);
   if (teachers.error) return <AcademicsGate title="Classes" state={{ notice: "schema", message: teachers.error.message }} />;
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  if (termPack.error) return <AcademicsGate title="Classes" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const teacherName = new Map<string, string>();
   for (const row of teachers.data || []) {
     if (term && row.term_id !== term.id) continue;

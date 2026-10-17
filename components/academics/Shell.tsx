@@ -54,6 +54,12 @@ export function AcademicsShell({
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
+    for (const item of academicsNav) {
+      if (office || !item.office) router.prefetch(item.href);
+    }
+  }, [router, office]);
+
+  useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -146,30 +152,6 @@ export function AcademicsShell({
         </nav>
 
         <div className="admin-side-foot">
-          {person.role === "Administrator" ? (
-            <>
-              <a className="admin-side-link" href="/admin">
-                <i className="fa-solid fa-gauge-high" aria-hidden="true" />
-                <span>Admin dashboard</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-              <a className="admin-side-link" href="/admissions_office">
-                <i className="fa-solid fa-building-user" aria-hidden="true" />
-                <span>Admissions office</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-              <a className="admin-side-link" href="/accounts">
-                <i className="fa-solid fa-calculator" aria-hidden="true" />
-                <span>Accounts office</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-            </>
-          ) : null}
-          <a className="admin-side-link" href="/" target="_blank" rel="noopener noreferrer">
-            <i className="fa-solid fa-globe" aria-hidden="true" />
-            <span>View website</span>
-            <i className="fa-solid fa-arrow-up-right-from-square admin-side-link-out" aria-hidden="true" />
-          </a>
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">

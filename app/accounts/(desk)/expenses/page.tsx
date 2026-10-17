@@ -3,6 +3,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ExpenseFinder, ExpenseTable, type ExpenseFinderFilters, type ExpenseListRow } from "@/components/accounts/ExpenseRegister";
 import { Progress, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
+import { groupOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, requireAccounts } from "@/lib/accounts";
 import { EXPENSE_STATUSES, amount, day, expenseStatusInfo, hrefWith, kampalaToday, ugx, type Expense, type ExpenseCategory } from "@/lib/accounts-format";
 import { loadPeople } from "@/lib/admin-applications";
@@ -79,17 +80,18 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     tally({ status: "rejected" }),
     tally({ mine: true }),
     tally({ status: "pending", others: true }),
-    fetchAll<{ status: string; amount: number }>((a, b) => {
-      let open = supabase.from("expenses").select("id, status, amount").in("status", month ? ["pending", "approved", "paid", "rejected"] : ["pending", "approved"]);
+    groupOf((() => {
+      let open = supabase.from("expenses").select("status, amount.sum()").in("status", month ? ["pending", "approved", "paid", "rejected"] : ["pending", "approved"]);
       if (category) open = open.eq("category_id", category);
       if (campus) open = open.eq("campus", campus);
       if (month) open = open.gte("spent_on", `${month}-01`).lte("spent_on", monthEnd(month));
       if (q) open = open.or(`payee.ilike.%${q}%,description.ilike.%${q}%,ref_no.ilike.%${q}%`);
-      return open.order("id").range(a, b);
-    }).catch(() => []),
-    fetchAll<{ category_id: string | null; status: string; amount: number }>((a, b) =>
-      supabase.from("expenses").select("id, category_id, status, amount").in("status", ["approved", "paid"]).gte("spent_on", `${budgetMonth}-01`).lte("spent_on", monthEnd(budgetMonth)).order("id").range(a, b),
-    ).catch(() => []),
+      return open;
+    })(), "status"),
+    groupOf(
+      supabase.from("expenses").select("category_id, amount.sum()").in("status", ["approved", "paid"]).gte("spent_on", `${budgetMonth}-01`).lte("spent_on", monthEnd(budgetMonth)),
+      "category_id",
+    ),
     loadCampuses(supabase),
   ]);
   if (list.error) return notReady("Expenses", { kind: "schema", message: list.error.message });
@@ -99,7 +101,20 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
   const categoryById = new Map(categories.map((entry) => [entry.id, entry]));
   const people = await loadPeople(supabase, rows.map((row) => row.requested_by));
 
-  const sumOf = (value: string) => openAmounts.filter((row) => row.status === value).reduce((sum, row) => sum + Number(row.amount), 0);
+  let statusTotals = openAmounts;
+  if (!statusTotals) {
+    const fetched = await fetchAll<{ status: string; amount: number }>((a, b) => {
+      let open = supabase.from("expenses").select("id, status, amount").in("status", month ? ["pending", "approved", "paid", "rejected"] : ["pending", "approved"]);
+      if (category) open = open.eq("category_id", category);
+      if (campus) open = open.eq("campus", campus);
+      if (month) open = open.gte("spent_on", `${month}-01`).lte("spent_on", monthEnd(month));
+      if (q) open = open.or(`payee.ilike.%${q}%,description.ilike.%${q}%,ref_no.ilike.%${q}%`);
+      return open.order("id").range(a, b);
+    }).catch(() => []);
+    statusTotals = new Map<string, number>();
+    for (const row of fetched) statusTotals.set(row.status, (statusTotals.get(row.status) ?? 0) + Number(row.amount));
+  }
+  const sumOf = (value: string) => statusTotals?.get(value) ?? 0;
   const pending = { count: pendingCount.count ?? 0, total: sumOf("pending") };
   const approved = { count: approvedCount.count ?? 0, total: sumOf("approved") };
   const paid = { count: paidCount.count ?? 0, total: sumOf("paid") };
@@ -110,9 +125,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     if (!entry.count) return empty;
     return month || entry.total ? ugx(entry.total) : share(entry.count);
   };
-  const spentMonth = monthRows.reduce((sum, row) => sum + Number(row.amount), 0);
-  const spentBy = new Map<string, number>();
-  for (const row of monthRows) if (row.category_id) spentBy.set(row.category_id, (spentBy.get(row.category_id) ?? 0) + Number(row.amount));
+  const spentBy = monthRows ?? new Map<string, number>();
+  const spentMonth = [...spentBy.values()].reduce((sum, value) => sum + value, 0);
   const budgets = categories.filter((entry) => entry.monthly_budget && entry.active);
   const needsYou = profile.role === "admin" ? pending.count : (needsCount.count ?? 0);
   const categoryName = category ? categoryById.get(category)?.name ?? "" : "";

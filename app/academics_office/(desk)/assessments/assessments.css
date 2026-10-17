@@ -1,0 +1,232 @@
+/* Academics assessments. Papers and mark progress for the current term. */
+
+.asm-page { display: grid; gap: 1.15rem; }
+.asm-page > .admin-hero { margin: 0; }
+.asm-page .admin-hero-lede strong { color: #fff; }
+.asm-page h1, .asm-page h2, .asm-strip strong {
+  font-family: Yantramanav, Roboto, sans-serif;
+}
+
+.asm-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e6e1d6;
+  border-radius: 16px;
+  background: #fff;
+}
+.asm-strip > div {
+  display: flex;
+  align-items: flex-start;
+  gap: .8rem;
+  min-width: 0;
+  padding: 1.05rem 1.1rem 1rem;
+  border-left: 1px solid #efeae2;
+}
+.asm-strip > div:first-child { border-left: 0; }
+.asm-stat-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #f3efe8;
+  color: #19232b;
+  font-size: .82rem;
+}
+.asm-strip .is-ok .asm-stat-icon { background: #e7f3ea; color: #127238; }
+.asm-strip .is-warn .asm-stat-icon { background: #fbf3e4; color: #8a5a12; }
+.asm-stat-copy { display: grid; gap: .12rem; min-width: 0; }
+.asm-stat-copy > span { color: #8a8174; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.asm-stat-copy strong { color: #19232b; font-size: 1.55rem; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1; }
+.asm-stat-copy small { color: #8a8174; font-size: .75rem; }
+.asm-strip .is-warn .asm-stat-copy strong { color: #8a5a12; }
+.asm-strip .is-ok .asm-stat-copy strong { color: #127238; }
+
+.asm-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(18rem, .75fr);
+  gap: 1.15rem;
+  align-items: flex-start;
+}
+
+.asm-card {
+  overflow: hidden;
+  border: 1px solid #e6e1d6;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+}
+.asm-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid #efeae2;
+  background:
+    linear-gradient(#c9a227, #c9a227) top / 100% 3px no-repeat,
+    #fff;
+}
+.asm-card-title { display: flex; align-items: flex-start; gap: .75rem; min-width: 0; }
+.asm-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #f3efe8;
+  color: #19232b;
+  font-size: .85rem;
+}
+.asm-card-head h2 { margin: 0; color: #19232b; font-size: 1.15rem; font-weight: 700; letter-spacing: -.02em; }
+.asm-card-head p { margin: .15rem 0 0; color: #8a8174; font-size: .82rem; line-height: 1.4; }
+.asm-quiet { margin: 0; padding: .9rem 1.15rem 1.1rem; color: #6d6458; font-size: .9rem; }
+
+.asm-tools { display: grid; gap: .7rem; padding: .9rem 1.05rem .35rem; }
+.asm-search {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  height: 38px;
+  padding: 0 .75rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+}
+.asm-search i { color: #b7ad9e; font-size: .75rem; }
+.asm-search input { width: 100%; border: 0; background: transparent; color: #19232b; font: inherit; font-size: .88rem; }
+.asm-search input:focus { outline: none; }
+.asm-search:focus-within { border-color: #19232b; }
+.asm-statuses { display: flex; flex-wrap: wrap; gap: .35rem; }
+.asm-statuses button {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  height: 30px;
+  padding: 0 .65rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 999px;
+  background: #fff;
+  color: #6d6458;
+  font: inherit;
+  font-size: .75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asm-statuses button em { color: #8a8174; font-style: normal; font-variant-numeric: tabular-nums; font-weight: 700; }
+.asm-statuses button.is-on { border-color: #19232b; background: #19232b; color: #fff; }
+.asm-statuses button.is-on em { color: #efe6c8; }
+
+.asm-list { display: grid; margin: .55rem 0 0; padding: 0; list-style: none; border-top: 1px solid #efeae2; }
+.asm-list li { border-bottom: 1px solid #f3efe8; }
+.asm-list li:last-child { border-bottom: 0; }
+.asm-list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: .2rem .85rem;
+  padding: .9rem 1.05rem .95rem 1.15rem;
+  color: #19232b;
+  text-decoration: none;
+  transition: background-color .16s ease;
+}
+.asm-list a:hover { background: #faf8f5; }
+.asm-list strong { overflow: hidden; font-size: .95rem; font-weight: 700; letter-spacing: -.01em; text-overflow: ellipsis; white-space: nowrap; }
+.asm-list small { grid-column: 1; overflow: hidden; color: #8a8174; font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
+.asm-track {
+  grid-column: 1 / -1;
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #f3efe8;
+}
+.asm-track i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #19232b, #c9a227); }
+.asm-pill {
+  grid-row: 1;
+  grid-column: 2;
+  justify-self: flex-end;
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 .55rem;
+  border-radius: 999px;
+  background: #fbf3e4;
+  color: #8a5a12;
+  font-size: .7rem;
+  font-style: normal;
+  font-weight: 700;
+}
+.asm-pill.is-submitted { background: #e7f3ea; color: #127238; }
+.asm-marks {
+  grid-row: 2;
+  grid-column: 2;
+  justify-self: flex-end;
+  color: #8a8174;
+  font-size: .72rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.asm-form { display: grid; gap: .75rem; padding: 1rem 1.15rem 1.15rem; }
+.asm-form fieldset { display: grid; gap: .75rem; }
+.asm-pair { display: grid; grid-template-columns: 1fr 1fr; gap: .75rem; }
+.asm-form .ofc-field { color: #6d6458; font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.asm-form .ofc-field input,
+.asm-form .ofc-field select {
+  width: 100%;
+  height: 40px;
+  padding: 0 .75rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+  background: #fff;
+  color: #19232b;
+  font: inherit;
+  font-size: .92rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.asm-form .ofc-field input:focus,
+.asm-form .ofc-field select:focus { border-color: #19232b; outline: none; }
+.asm-commit {
+  justify-self: flex-start;
+  height: 40px;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 8px;
+  background: #19232b;
+  color: #fff;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.asm-commit:hover { background: #2b3844; }
+.asm-note { margin: 0; color: #8a8174; font-size: .78rem; font-weight: 500; letter-spacing: 0; line-height: 1.5; text-transform: none; }
+.asm-form .acd-feedback { margin: 0; }
+.asm-page a:focus-visible,
+.asm-page button:focus-visible,
+.asm-page input:focus-visible,
+.asm-page select:focus-visible { outline: 2px solid #c9a227; outline-offset: 2px; }
+
+@media (max-width: 980px) {
+  .asm-strip { grid-template-columns: 1fr 1fr; }
+  .asm-strip > div:nth-child(3) { border-left: 0; }
+  .asm-strip > div:nth-child(n + 3) { border-top: 1px solid #efeae2; }
+  .asm-layout { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .asm-strip { grid-template-columns: 1fr; }
+  .asm-strip > div { border-top: 1px solid #efeae2; border-left: 0; }
+  .asm-strip > div:first-child { border-top: 0; }
+  .asm-pair { grid-template-columns: 1fr; }
+  .asm-pill, .asm-marks { grid-column: 1; justify-self: flex-start; }
+  .asm-list small { grid-column: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asm-list a { transition: none; }
+}

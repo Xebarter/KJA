@@ -9,18 +9,18 @@ import {
   groupPupils,
   kampalaLong,
   kampalaToday,
-  mapTerm,
+  loadCurrentTerm,
   missingAcademicsSchema,
   streamOf,
-  type TermRow,
 } from "@/lib/academics";
 import { loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
+import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
 import type { requireAcademics } from "@/lib/academics";
-import { className, fetchAll } from "@/lib/students";
+import { className } from "@/lib/students";
 
 type Session = Exclude<Awaited<ReturnType<typeof requireAcademics>>, { error: string }>;
 
-type Pupil = { id: string; full_name: string; sex: string | null; class_code: string | null; stream: string | null; section: string | null };
+type Pupil = { id: string; full_name: string; sex: string | null; class_code: string | null; stream: string | null };
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
@@ -258,40 +258,21 @@ export function OfficeHome({
 
 export async function Overview({ supabase, profile, office }: Session) {
   const today = kampalaToday();
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  if (termQuery.error) {
-    return <AcademicsNotice title="Overview" heading="Could not load the term"><p>{termQuery.error.message}</p></AcademicsNotice>;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) {
+    return <AcademicsNotice title="Overview" heading="Could not load the term"><p>{termPack.error}</p></AcademicsNotice>;
   }
-  const term: TermRow | null = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const term = termPack.term;
 
-  let pupils: Pupil[] = [];
-  try {
-    pupils = await fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, sex, class_code, stream, section").eq("status", "active").order("id").range(from, to),
-    );
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "The register could not be loaded.";
-    return <AcademicsNotice title="Overview" heading="Could not load pupils"><p>{message}</p></AcademicsNotice>;
-  }
-
-  let picture: AcademicPicture | null = null;
-  let pictureError = "";
-  if (term) {
-    try {
-      picture = await loadAcademicPicture(supabase, term, today);
-    } catch (error) {
-      pictureError = error instanceof Error ? error.message : "The academic picture could not be loaded.";
-      if (missingAcademicsSchema(pictureError)) {
-        return <AcademicsNotice title="Overview" heading="Academics office needs an update"><p>{pictureError}</p><p>Run <code>supabase/0016_academics_work.sql</code> in the Supabase SQL editor.</p></AcademicsNotice>;
-      }
-    }
-  }
-
-  const groups = groupPupils(pupils);
-  const [markedToday, presentCount, markedCount, cardsResult, teachersResult] = await Promise.all([
-    fetchAll<{ student_id: string }>((from, to) =>
-      supabase.from("attendance").select("student_id").eq("attended_on", today).order("student_id").range(from, to),
-    ),
+  const [roll, marks, pictureResult, presentCount, markedCount, cardsResult, teachersResult] = await Promise.all([
+    loadRoll(supabase, profile.id).catch((error: unknown) => error),
+    loadDayMarks(supabase, profile.id, today).catch(() => [] as { student_id: string }[]),
+    term
+      ? loadAcademicPicture(supabase, term, today, profile.id).then(
+          (value) => ({ picture: value as AcademicPicture | null, error: "" }),
+          (error: unknown) => ({ picture: null as AcademicPicture | null, error: error instanceof Error ? error.message : "The academic picture could not be loaded." }),
+        )
+      : Promise.resolve({ picture: null as AcademicPicture | null, error: "" }),
     term
       ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id).in("status", ["present", "late"])
       : Promise.resolve({ count: 0, error: null }),
@@ -305,6 +286,19 @@ export async function Overview({ supabase, profile, office }: Session) {
       ? supabase.from("class_teachers").select("class_code, stream").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
   ]);
+  if (!Array.isArray(roll)) {
+    const message = roll instanceof Error ? roll.message : "The register could not be loaded.";
+    return <AcademicsNotice title="Overview" heading="Could not load pupils"><p>{message}</p></AcademicsNotice>;
+  }
+  const pupils: Pupil[] = roll;
+  const markedToday = marks;
+  const picture = pictureResult.picture;
+  const pictureError = pictureResult.error;
+  if (pictureError && missingAcademicsSchema(pictureError)) {
+    return <AcademicsNotice title="Overview" heading="Academics office needs an update"><p>{pictureError}</p><p>Run <code>supabase/0016_academics_work.sql</code> in the Supabase SQL editor.</p></AcademicsNotice>;
+  }
+
+  const groups = groupPupils(pupils);
 
   const failed = [cardsResult.error, teachersResult.error, presentCount.error, markedCount.error].find(Boolean);
   if (failed) return <AcademicsNotice title="Overview" heading="Could not load the office"><p>{failed.message}</p></AcademicsNotice>;

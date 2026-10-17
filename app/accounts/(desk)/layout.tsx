@@ -1,4 +1,5 @@
 import { AccountsShell } from "@/components/accounts/Shell";
+import { requireAccounts } from "@/lib/accounts";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { createClient } from "@/lib/supabase/server";
 
@@ -10,8 +11,8 @@ export default async function AccountsLayout({ children }: { children: React.Rea
   let term: string | null = null;
   let person = { name: "Accounts office", email: "", role: "Accounts officer" };
   if (supabase) {
-    const [{ data }, expenses, drafts, current] = await Promise.all([
-      supabase.auth.getUser(),
+    const [auth, expenses, drafts, current] = await Promise.all([
+      requireAccounts(),
       supabase.from("expenses").select("id", { count: "exact", head: true }).eq("status", "pending"),
       supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "draft"),
       supabase.from("fee_terms").select("label").eq("is_current", true).maybeSingle(),
@@ -19,13 +20,12 @@ export default async function AccountsLayout({ children }: { children: React.Rea
     badges.expenses = expenses.count ?? 0;
     badges.drafts = drafts.count ?? 0;
     term = (current.data?.label as string | undefined) ?? null;
-    if (data.user) {
-      const { data: profile } = await supabase.from("profiles").select("full_name, role").eq("id", data.user.id).maybeSingle();
-      const email = data.user.email ?? "";
+    if (!("error" in auth)) {
+      const email = auth.user.email ?? "";
       person = {
-        name: profile?.full_name?.trim() || data.user.user_metadata?.full_name || email || person.name,
+        name: auth.profile.full_name?.trim() || auth.user.user_metadata?.full_name || email || person.name,
         email,
-        role: ROLE_LABELS[profile?.role ?? ""] ?? person.role,
+        role: ROLE_LABELS[auth.profile.role ?? ""] ?? person.role,
       };
     }
   }

@@ -1,5 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { groupOf } from "@/lib/accounts-agg";
 import { classLabel, num, streamOf, type TermRow } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
+import { remember } from "@/lib/remember";
 import { fetchAll } from "@/lib/students";
 
 type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null; campus: string | null };
@@ -64,27 +67,79 @@ function lessonsOf(value: Scheme["scheme_lessons"]) {
   return Array.isArray(value) ? value : [value];
 }
 
-export async function loadAcademicPicture(supabase: SupabaseClient, term: TermRow, today: string): Promise<AcademicPicture> {
+export function loadAcademicPicture(supabase: SupabaseClient, term: TermRow, today: string, userId: string): Promise<AcademicPicture> {
+  return remember(`academics-picture:${userId}:${term.id}:${today}`, 45_000, () => buildPicture(supabase, term, today, userId));
+}
+
+async function subjectMeans(supabase: SupabaseClient, termId: string) {
+  const { data, error } = await supabase.from("report_lines").select("subject_name, score.avg(), report_cards!inner(term_id)").eq("report_cards.term_id", termId);
+  if (!error && data) {
+    const parsed = (data as { subject_name?: string; avg?: number | string | null; score?: number | string | null }[])
+      .map((row) => ({ label: String(row.subject_name || ""), value: num(row.avg ?? row.score) }))
+      .filter((row): row is { label: string; value: number } => Boolean(row.label) && row.value !== null);
+    if (parsed.length || data.length === 0) return parsed;
+  }
+  const lines = await fetchAll<Line>((from, to) =>
+    supabase.from("report_lines").select("report_card_id, subject_name, score, report_cards!inner(term_id)").eq("report_cards.term_id", termId).order("report_card_id").range(from, to),
+  );
+  const groups = new Map<string, number[]>();
+  for (const line of lines) {
+    const score = num(line.score);
+    if (score === null) continue;
+    groups.set(line.subject_name, [...(groups.get(line.subject_name) || []), score]);
+  }
+  return [...groups.entries()].map(([label, values]) => ({ label, value: average(values) }));
+}
+
+async function absenceCounts(supabase: SupabaseClient, termId: string) {
+  const grouped = await groupOf(
+    supabase.from("attendance").select("student_id, id.count()").eq("term_id", termId).eq("status", "absent"),
+    "student_id",
+    "count",
+  );
+  if (grouped) return grouped;
+  const rows = await fetchAll<{ student_id: string }>((from, to) =>
+    supabase.from("attendance").select("student_id").eq("term_id", termId).eq("status", "absent").order("student_id").range(from, to),
+  );
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(row.student_id, (counts.get(row.student_id) || 0) + 1);
+  return counts;
+}
+
+async function filledCounts(supabase: SupabaseClient, termId: string) {
+  const grouped = await groupOf(
+    supabase.from("assessment_scores").select("assessment_id, id.count(), assessments!inner(term_id)").eq("assessments.term_id", termId).or("missed.eq.true,score.not.is.null"),
+    "assessment_id",
+    "count",
+  );
+  if (grouped) return grouped;
+  const rows = await fetchAll<Score>((from, to) =>
+    supabase.from("assessment_scores").select("assessment_id, student_id, score, missed, assessments!inner(term_id)").eq("assessments.term_id", termId).order("assessment_id").range(from, to),
+  );
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    if (!(row.missed || row.score !== null)) continue;
+    counts.set(row.assessment_id, (counts.get(row.assessment_id) || 0) + 1);
+  }
+  return counts;
+}
+
+async function buildPicture(supabase: SupabaseClient, term: TermRow, today: string, userId: string): Promise<AcademicPicture> {
   const terms = await supabase.from("fee_terms").select("id, year, term").order("year", { ascending: false }).order("term", { ascending: false });
   if (terms.error) throw new Error(terms.error.message);
   const ordered = terms.data || [];
   const index = ordered.findIndex((row) => row.id === term.id);
   const previousId = index >= 0 ? ordered[index + 1]?.id : null;
 
-  const [pupils, papers, subjects, schemes, cards, lines, attendance, interventions, dates, activity, previous, assignments] = await Promise.all([
-    fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, class_code, stream, campus").eq("status", "active").order("id").range(from, to),
-    ),
+  const [pupils, papers, subjects, schemes, cards, bySubject, absences, filled, interventions, dates, activity, previous, assignments] = await Promise.all([
+    loadRoll(supabase, userId),
     supabase.from("assessments").select("id, class_code, stream, subject_id, name, status").eq("term_id", term.id),
     supabase.from("subjects").select("id, name"),
     supabase.from("schemes").select("id, class_code, stream, subject_id, staff_id, title, status, scheme_lessons(due_on, taught_on), teaching_staff(full_name, email)").eq("term_id", term.id),
     supabase.from("report_cards").select("id, student_id, class_code, stream, overall_score, status").eq("term_id", term.id),
-    fetchAll<Line>((from, to) =>
-      supabase.from("report_lines").select("report_card_id, subject_name, score, report_cards!inner(term_id)").eq("report_cards.term_id", term.id).order("report_card_id").range(from, to),
-    ),
-    fetchAll<{ student_id: string; status: string }>((from, to) =>
-      supabase.from("attendance").select("student_id, status").eq("term_id", term.id).order("student_id").range(from, to),
-    ),
+    subjectMeans(supabase, term.id),
+    absenceCounts(supabase, term.id),
+    filledCounts(supabase, term.id),
     supabase.from("learner_interventions").select("id, student_id, reason, note, follow_up_on, status").eq("term_id", term.id).order("created_at", { ascending: false }),
     supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus").eq("term_id", term.id).order("starts_on"),
     supabase.from("academic_activity").select("id, kind, body, created_at").order("created_at", { ascending: false }).limit(12),
@@ -100,28 +155,18 @@ export async function loadAcademicPicture(supabase: SupabaseClient, term: TermRo
   const names = new Map(pupils.map((pupil) => [pupil.id, pupil.full_name]));
   const pupilById = new Map(pupils.map((pupil) => [pupil.id, pupil]));
   const paperRows = (papers.data || []) as Paper[];
-  const scoreRows = paperRows.length
-    ? await fetchAll<Score>((from, to) =>
-        supabase
-          .from("assessment_scores")
-          .select("assessment_id, student_id, score, missed")
-          .in("assessment_id", paperRows.map((paper) => paper.id))
-          .order("assessment_id")
-          .range(from, to),
-      )
-    : [];
   const classSize = (code: string, stream: string) => pupils.filter((pupil) => pupil.class_code === code && streamOf(pupil.stream) === stream).length;
   const openMarkbooks: PicturePaper[] = paperRows
     .map((paper) => {
       const stream = streamOf(paper.stream);
       const size = classSize(paper.class_code, stream);
-      const filled = scoreRows.filter((score) => score.assessment_id === paper.id && (score.missed || score.score !== null)).length;
+      const filledCount = filled.get(paper.id) ?? 0;
       return {
         id: paper.id,
         name: paper.name,
         classLabel: classLabel(paper.class_code, stream),
         status: paper.status || "open",
-        missing: Math.max(0, size - filled),
+        missing: Math.max(0, size - filledCount),
       };
     })
     .filter((paper) => paper.status !== "submitted" || paper.missing > 0);
@@ -160,22 +205,12 @@ export async function loadAcademicPicture(supabase: SupabaseClient, term: TermRo
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.label.localeCompare(b.label));
   };
 
-  const subjectScores = new Map<string, number[]>();
-  for (const line of lines) {
-    const score = num(line.score);
-    if (score === null) continue;
-    subjectScores.set(line.subject_name, [...(subjectScores.get(line.subject_name) || []), score]);
-  }
-
   const previousScore = new Map<string, number>();
   for (const row of previous.data || []) {
     const score = num(row.overall_score);
     if (score !== null) previousScore.set(String(row.student_id), score);
   }
   const currentScore = new Map(cardRows.map((card) => [card.student_id, num(card.overall_score)]));
-  const absences = new Map<string, number>();
-  for (const row of attendance) if (row.status === "absent") absences.set(row.student_id, (absences.get(row.student_id) || 0) + 1);
-
   const watch = new Map<string, PicturePerson>();
   const note = (id: string, text: string) => {
     const pupil = pupilById.get(id);
@@ -232,7 +267,7 @@ export async function loadAcademicPicture(supabase: SupabaseClient, term: TermRo
     calendar: upcoming,
     byCampus: byKey((pupil) => pupil.campus || "Campus not set"),
     byClass: byKey((pupil, card) => classLabel(card.class_code || pupil.class_code, card.stream || pupil.stream)),
-    bySubject: [...subjectScores.entries()].map(([label, values]) => ({ label, value: average(values) })).sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
+    bySubject: bySubject.sort((a, b) => (b.value ?? 0) - (a.value ?? 0) || a.label.localeCompare(b.label)),
     watch: [...watch.values()].sort((a, b) => a.name.localeCompare(b.name)),
     teachers: [...teacherMap.values()].sort((a, b) => a.name.localeCompare(b.name)),
     activity: (activity.data || []) as PictureActivity[],

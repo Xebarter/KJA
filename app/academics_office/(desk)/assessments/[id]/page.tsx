@@ -14,7 +14,8 @@ import {
   num,
   openAcademics,
 } from "@/lib/academics";
-import { fetchAll, isUuid } from "@/lib/students";
+import { loadRoll } from "@/lib/academics-roll";
+import { isUuid } from "@/lib/students";
 
 export const metadata = { title: "Markbook" };
 
@@ -26,16 +27,14 @@ export default async function MarkbookPage({ params }: { params: Promise<{ id: s
   if (!isUuid(id)) notFound();
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Markbook" state={opened} />;
-  const { supabase, office } = opened.auth;
+  const { supabase, office, user } = opened.auth;
   const { data: paper, error } = await supabase.from("assessments").select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, term_id, status").eq("id", id).maybeSingle();
   if (error) return <AcademicsGate title="Markbook" state={{ notice: "schema", message: error.message }} />;
   if (!paper) notFound();
   const nursery = classSection(paper.class_code) === "nursery";
   const maxScore = num(paper.max_score) ?? 100;
   const [pupils, scores, subject, bandsQuery] = await Promise.all([
-    fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, student_number, class_code, stream").eq("status", "active").eq("class_code", paper.class_code).order("full_name").range(from, to),
-    ),
+    loadRoll(supabase, user.id).then((rows) => rows.filter((pupil) => pupil.class_code === paper.class_code)),
     supabase.from("assessment_scores").select("student_id, score, missed").eq("assessment_id", id),
     supabase.from("subjects").select("name").eq("id", paper.subject_id).maybeSingle(),
     nursery ? supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order") : Promise.resolve({ data: [], error: null }),

@@ -5,6 +5,7 @@ import { SetupNav, type SetupTile } from "@/components/accounts/SetupNav";
 import { CategoriesManager, DiscountsManager, ItemsManager, TermsManager } from "@/components/accounts/SetupForms";
 import { notReady } from "@/components/accounts/ui";
 import { Empty } from "@/components/office/ui";
+import { groupOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, missingAccountsSchema, requireAccounts } from "@/lib/accounts";
 import { kampalaToday, ugxShort, type DiscountRule, type ExpenseCategory, type FeeItem, type FeeRate } from "@/lib/accounts-format";
 import { getContent } from "@/lib/content";
@@ -63,10 +64,10 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
     supabase.from("fee_items").select("id, name, kind, description, active, sort_order").order("sort_order").order("name"),
     term ? supabase.from("fee_rates").select("id, term_id, item_id, class_code, campus, amount").eq("term_id", term.id) : Promise.resolve({ data: [] }),
     supabase.from("discount_rules").select("id, name, kind, method, value, sibling_from, active").order("kind").order("name"),
-    supabase.from("student_discounts").select("rule_id").not("rule_id", "is", null).limit(5000),
+    groupOf(supabase.from("student_discounts").select("rule_id, id.count()").not("rule_id", "is", null), "rule_id", "count"),
     supabase.from("expense_categories").select("id, name, icon, monthly_budget, active").order("name"),
-    supabase.from("expenses").select("category_id, amount").gte("spent_on", monthStart).neq("status", "rejected").limit(5000),
-    supabase.from("invoices").select("term_id").neq("status", "void").limit(20000),
+    groupOf(supabase.from("expenses").select("category_id, amount.sum()").gte("spent_on", monthStart).neq("status", "rejected"), "category_id"),
+    groupOf(supabase.from("invoices").select("term_id, id.count()").neq("status", "void"), "term_id", "count"),
     loadCampuses(supabase),
     websiteTuition(),
   ]);
@@ -77,12 +78,9 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
   const campuses = [...new Set([...registerCampuses, ...website.campuses])].sort((a, b) => a.localeCompare(b));
   const wantedCampus = pick(params, "campus");
   const campus = campuses.find((name) => name === wantedCampus) ?? "";
-  const ruleUse: Record<string, number> = {};
-  for (const row of given.data || []) if (row.rule_id) ruleUse[row.rule_id] = (ruleUse[row.rule_id] ?? 0) + 1;
-  const spent: Record<string, number> = {};
-  for (const row of spending.data || []) if (row.category_id) spent[row.category_id] = (spent[row.category_id] ?? 0) + Number(row.amount);
-  const termUse: Record<string, number> = {};
-  for (const row of invoiceTerms.data || []) termUse[row.term_id] = (termUse[row.term_id] ?? 0) + 1;
+  const ruleUse = Object.fromEntries(given ?? []);
+  const spent = Object.fromEntries([...(spending ?? [])].filter(([id]) => id));
+  const termUse = Object.fromEntries(invoiceTerms ?? []);
   const rateRows = (rates.data || []) as FeeRate[];
   const ratedClasses = new Set(rateRows.map((rate) => rate.class_code));
   const discountRules = (rules.data || []) as DiscountRule[];

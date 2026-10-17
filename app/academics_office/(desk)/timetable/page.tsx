@@ -11,7 +11,7 @@ import {
   groupPupils,
   mapStaff,
   mapSubject,
-  mapTerm,
+  loadCurrentTerm,
   openAcademics,
   streamFromQuery,
   streamOf,
@@ -19,7 +19,7 @@ import {
   subjectFits,
   type ClassGroup,
 } from "@/lib/academics";
-import { fetchAll } from "@/lib/students";
+import { loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Timetable" };
 
@@ -44,16 +44,15 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Timetable" state={opened} />;
-  const { supabase, office, staffId } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const { supabase, office, staffId, user } = opened.auth;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Timetable" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const [slotsQuery, subjectsQuery, staffQuery, pupils] = await Promise.all([
     term ? supabase.from("timetable_slots").select("*").eq("term_id", term.id).order("period") : Promise.resolve({ data: [], error: null }),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
-    fetchAll<{ class_code: string | null; stream: string | null }>((from, to) =>
-      supabase.from("students").select("class_code, stream").eq("status", "active").order("id").range(from, to),
-    ),
+    loadRoll(supabase, user.id),
   ]);
   if (slotsQuery.error) return <AcademicsGate title="Timetable" state={{ notice: "schema", message: slotsQuery.error.message }} />;
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);

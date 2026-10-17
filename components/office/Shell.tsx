@@ -159,11 +159,6 @@ export function OfficeShell({
               <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
             </a>
           ) : null}
-          <a className="admin-side-link" href="/" target="_blank" rel="noopener noreferrer">
-            <i className="fa-solid fa-globe" aria-hidden="true" />
-            <span>View website</span>
-            <i className="fa-solid fa-arrow-up-right-from-square admin-side-link-out" aria-hidden="true" />
-          </a>
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">

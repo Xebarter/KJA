@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DeskForm } from "@/components/academics/Form";
+import { StudentFace } from "@/components/StudentFace";
 
 type Status = "present" | "late" | "absent" | "excused";
 type Mark = { status: Status | ""; note: string };
@@ -16,6 +17,7 @@ export type RegisterPupil = {
   status: Status | "";
   note: string;
   sex: "M" | "F" | null;
+  photoPath: string | null;
 };
 
 export type RegisterClass = {
@@ -150,6 +152,11 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
     `${nf(counts.absent)} absent`,
     counts.unmarked ? `${nf(counts.unmarked)} unmarked` : "Complete",
   ].join("  ·  ");
+  const parts = dateParts(date);
+  const schoolShare = roll ? Math.round((markedPupils / roll) * 100) : 0;
+  const classShare = current?.pupils.length ? Math.round(((current.pupils.length - counts.unmarked) / current.pupils.length) * 100) : 0;
+  const share = current ? classShare : schoolShare;
+  const openClasses = groups.filter((group) => group.done < group.pupils).length;
 
   const sections = (["nursery", "primary"] as const)
     .map((section) => ({ section, label: section === "nursery" ? "Nursery" : "Primary", rows: shown.filter((group) => group.section === section) }))
@@ -160,65 +167,79 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
       <section className="reg-strip" aria-label={current ? current.name : "This day"}>
         {current ? (
           <>
-            <div className={counts.present ? "is-ok" : ""}><span>Present</span><strong>{nf(counts.present)}</strong><small>Of {nf(current.pupils.length)}</small></div>
-            <div className={counts.late ? "is-warn" : ""}><span>Late</span><strong>{nf(counts.late)}</strong><small>After the bell</small></div>
-            <div className={counts.absent ? "is-warn" : "is-ok"}><span>Absent</span><strong>{nf(counts.absent)}</strong><small>{counts.excused ? `${nf(counts.excused)} excused` : "None excused"}</small></div>
-            <div className={counts.unmarked ? "is-warn" : "is-ok"}><span>Unmarked</span><strong>{nf(counts.unmarked)}</strong><small>{dirty ? "Not saved yet" : "Saved"}</small></div>
+            <Stat icon="fa-check" label="Present" value={nf(counts.present)} note={`Of ${nf(current.pupils.length)}`} tone={counts.present ? "ok" : undefined} />
+            <Stat icon="fa-clock" label="Late" value={nf(counts.late)} note="After the bell" tone={counts.late ? "warn" : undefined} />
+            <Stat icon="fa-user-xmark" label="Absent" value={nf(counts.absent)} note={counts.excused ? `${nf(counts.excused)} excused` : "None excused"} tone={counts.absent ? "warn" : "ok"} />
+            <Stat icon="fa-pen" label="Unmarked" value={nf(counts.unmarked)} note={dirty ? "Not saved yet" : "Saved"} tone={counts.unmarked ? "warn" : "ok"} />
           </>
         ) : (
           <>
-            <div className={groups.length && doneClasses === groups.length ? "is-ok" : ""}><span>Complete</span><strong>{nf(doneClasses)}</strong><small>Of {nf(groups.length)} classes</small></div>
-            <div className={groups.length - doneClasses ? "is-warn" : "is-ok"}><span>Still open</span><strong>{nf(Math.max(0, groups.length - doneClasses))}</strong><small>Registers to finish</small></div>
-            <div><span>On the roll</span><strong>{nf(roll)}</strong><small>{nf(markedPupils)} marked</small></div>
-            <div className={dayAbsent ? "is-warn" : "is-ok"}><span>Absent</span><strong>{nf(dayAbsent)}</strong><small>Across the day</small></div>
+            <Stat icon="fa-circle-check" label="Complete" value={nf(doneClasses)} note={`Of ${nf(groups.length)} classes`} tone={groups.length && doneClasses === groups.length ? "ok" : undefined} />
+            <Stat icon="fa-hourglass-half" label="Still open" value={nf(Math.max(0, groups.length - doneClasses))} note="Registers to finish" tone={groups.length - doneClasses ? "warn" : "ok"} />
+            <Stat icon="fa-user-group" label="On the roll" value={nf(roll)} note={`${nf(markedPupils)} marked`} />
+            <Stat icon="fa-user-xmark" label="Absent" value={nf(dayAbsent)} note="Across the day" tone={dayAbsent ? "warn" : "ok"} />
           </>
         )}
+        <div className="reg-meter">
+          <span className="reg-meter-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
+          <p>{current ? `${nf(current.pupils.length - counts.unmarked)} of ${nf(current.pupils.length)} marked on this register` : `${nf(markedPupils)} of ${nf(roll)} pupils marked today`}</p>
+        </div>
       </section>
       <section className="reg-sheet" aria-label={current ? current.name : "Classes"}>
         <header className="reg-sheet-head">
           <div className="reg-nav">
             <button type="button" onClick={() => go(shift(date, -1))} aria-label="Previous day"><i className="fa-solid fa-chevron-left" aria-hidden="true" /></button>
-            <label className="reg-date">
-              <span>{longDate(date)}</span>
-              <input type="date" key={date} defaultValue={date} suppressHydrationWarning aria-label="Date" onChange={(event) => { if (event.target.value) go(event.target.value); }} />
+            <label className="reg-dateplate">
+              <strong>{parts.day}</strong>
+              <span>
+                <em>{parts.weekday}</em>
+                <small>{parts.rest}{termLabel ? ` · ${termLabel}` : ""}</small>
+              </span>
+              <input type="date" key={date} defaultValue={date} suppressHydrationWarning aria-label={longDate(date)} onChange={(event) => { if (event.target.value) go(event.target.value); }} />
             </label>
             <button type="button" onClick={() => go(shift(date, 1))} aria-label="Next day"><i className="fa-solid fa-chevron-right" aria-hidden="true" /></button>
-            {date !== today ? <button type="button" className="reg-today" onClick={() => go(today)}>Today</button> : null}
+            {date !== today ? <button type="button" className="reg-today" onClick={() => go(today)}>Today</button> : <span className="reg-today is-here">Today</span>}
           </div>
-          <p>{current ? summary : termLabel || "Choose a class"}</p>
+          <p>{current ? summary : "Choose a class to take the register"}</p>
         </header>
 
         {!current ? (
           <>
             <div className="reg-tabs" role="tablist" aria-label="Which classes">
-              {(["open", "all", "done"] as const).map((value) => (
+              {([
+                ["open", "Open", openClasses],
+                ["all", "All classes", groups.length],
+                ["done", "Complete", doneClasses],
+              ] as const).map(([value, label, count]) => (
                 <button key={value} type="button" role="tab" aria-selected={which === value} className={which === value ? "is-on" : ""} onClick={() => setWhich(value)}>
-                  {value === "open" ? "Open" : value === "done" ? "Complete" : "All classes"}
+                  {label}<em>{nf(count)}</em>
                 </button>
               ))}
             </div>
             {shown.length ? (
               <div className="reg-directory">
-                <div className="reg-dir-head" aria-hidden="true"><span>Class</span><span>Roll</span><span>Marked</span><span /></div>
                 {sections.map((section) => (
                   <div key={section.section}>
-                    <h2 className="reg-section">{section.label}</h2>
+                    <h2 className="reg-section"><span>{section.label}</span><em>{nf(section.rows.length)}</em></h2>
                     <ul>
                       {section.rows.map((group) => {
                         const complete = group.pupils > 0 && group.done === group.pupils;
                         const width = group.pupils ? Math.round((group.done / group.pupils) * 100) : 0;
                         return (
                           <li key={group.key}>
-                            <Link href={group.href} className={complete ? "is-done" : ""}>
+                            <Link href={group.href} className={complete ? "is-done" : "is-open"}>
+                              <span className="reg-mark" aria-hidden="true">{group.code}</span>
                               <span className="reg-class-name">
                                 <strong>{group.name}</strong>
-                                <small className={group.absent ? "is-absent" : ""}>{group.absent ? `${nf(group.absent)} absent` : group.code}</small>
+                                <small className={group.absent ? "is-absent" : ""}>
+                                  {nf(group.pupils)} on roll{group.absent ? ` · ${nf(group.absent)} absent` : ""}
+                                </small>
                               </span>
-                              <span className="reg-num">{nf(group.pupils)}</span>
                               <span className="reg-marked">
                                 <span className="reg-bar" aria-hidden="true"><span style={{ width: `${width}%` }} /></span>
                                 <em>{group.done}/{group.pupils}</em>
                               </span>
+                              <span className="reg-pill">{complete ? "Complete" : `${nf(group.pupils - group.done)} to mark`}</span>
                               <i className="fa-solid fa-chevron-right" aria-hidden="true" />
                             </Link>
                           </li>
@@ -272,7 +293,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
                         {mark.status ? <input type="hidden" name={`status:${pupil.id}`} value={mark.status} /> : null}
                         {mark.status ? <input type="hidden" name={`note:${pupil.id}`} value={mark.note} /> : null}
                         <span className="reg-who">
-                          <span className="reg-face" aria-hidden="true">{initials(pupil.name)}</span>
+                          <StudentFace id={pupil.id} name={pupil.name} photoPath={pupil.photoPath} className="reg-face" />
                           <span>
                             <Link href={pupil.href}>{pupil.name}</Link>
                             <small>{[String(index + 1).padStart(2, "0"), pupil.number, sex].filter(Boolean).join(" · ")}</small>
@@ -324,9 +345,23 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
   );
 }
 
-function initials(name: string) {
-  const parts = name.split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] || "") + (parts[1]?.[0] || "")).toUpperCase() || "?";
+function Stat({ icon, label, value, note, tone }: { icon: string; label: string; value: string; note: string; tone?: "ok" | "warn" }) {
+  return (
+    <div className={tone ? `is-${tone}` : ""}>
+      <span className="reg-stat-icon" aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>
+      <span className="reg-stat-copy">
+        <span>{label}</span>
+        <strong>{value}</strong>
+        <small>{note}</small>
+      </span>
+    </div>
+  );
+}
+
+function dateParts(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
+  return { weekday: WEEKDAYS[date.getUTCDay()], day: String(day).padStart(2, "0"), rest: `${MONTHS[(month || 1) - 1]} ${year}` };
 }
 
 function shift(iso: string, days: number) {

@@ -1,6 +1,7 @@
 import { AcademicsShell } from "@/components/academics/Shell";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { kampalaToday, streamOf } from "@/lib/academics";
+import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
 import { remember } from "@/lib/remember";
 import { SCHOOL_CLASSES } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
@@ -24,14 +25,14 @@ export default async function AcademicsLayout({ children }: { children: React.Re
         const probe = await supabase.from("subjects").select("id").limit(1);
         if (probe.error) return { registers: 0, drafts: 0, schemes: 0 };
         const [pupils, attendance, term, drafts, schemes] = await Promise.all([
-          supabase.from("students").select("id, class_code, stream").eq("status", "active"),
-          supabase.from("attendance").select("student_id").eq("attended_on", today),
+          user ? loadRoll(supabase, user.id).catch(() => []) : Promise.resolve([]),
+          user ? loadDayMarks(supabase, user.id, today).catch(() => []) : Promise.resolve([]),
           supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle(),
           supabase.from("report_cards").select("id", { count: "exact", head: true }).eq("status", "draft"),
           supabase.from("schemes").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         ]);
-        const marked = new Set((attendance.data || []).map((row) => row.student_id as string));
-        const rows = pupils.data || [];
+        const marked = new Set(attendance.map((row) => row.student_id));
+        const rows = pupils;
         let open = 0;
         for (const entry of SCHOOL_CLASSES) {
           const mine = rows.filter((row) => row.class_code === entry.code);

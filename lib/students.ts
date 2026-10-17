@@ -482,13 +482,17 @@ export function studentsQuery(
 
 /** Fetches every row of a query in pages, for exports and statistics on the whole register. */
 export async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, limit = 10000) {
-  const rows: T[] = [];
-  for (let from = 0; from < limit; from += 1000) {
-    const { data, error } = await build(from, from + 999);
+  const size = 1000;
+  const take = async (from: number) => {
+    const { data, error } = await build(from, from + size - 1);
     if (error) throw new Error(error.message);
-    const page = (data || []) as T[];
+    return (data || []) as T[];
+  };
+  const rows: T[] = [];
+  for (let from = 0; from < limit; from += size) {
+    const page = await take(from);
     rows.push(...page);
-    if (page.length < 1000) break;
+    if (page.length < size) break;
   }
   return rows;
 }

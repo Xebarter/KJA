@@ -8,17 +8,17 @@ import {
   classLabel,
   groupPupils,
   kampalaToday,
-  mapTerm,
+  loadCurrentTerm,
   openAcademics,
   streamFromQuery,
   streamQuery,
   type AttendanceStatus,
 } from "@/lib/academics";
-import { fetchAll } from "@/lib/students";
+import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Attendance" };
 
-type Pupil = { id: string; full_name: string; student_number: string; sex: string | null; class_code: string | null; stream: string | null };
+type Pupil = { id: string; full_name: string; student_number: string; sex: string | null; class_code: string | null; stream: string | null; photo_path: string | null };
 type Mark = { student_id: string; status: AttendanceStatus; note: string | null };
 
 function shift(iso: string, days: number) {
@@ -32,21 +32,18 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Attendance" state={opened} />;
-  const { supabase, office, staffId } = opened.auth;
+  const { supabase, office, staffId, user } = opened.auth;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : kampalaToday();
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
 
-  const [pupils, termQuery, marks] = await Promise.all([
-    fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, student_number, sex, class_code, stream").eq("status", "active").order("full_name").range(from, to),
-    ),
-    supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle(),
-    fetchAll<Mark>((from, to) =>
-      supabase.from("attendance").select("student_id, status, note").eq("attended_on", date).order("student_id").range(from, to),
-    ),
+  const [pupils, termPack, marks] = await Promise.all([
+    loadRoll(supabase, user.id),
+    loadCurrentTerm(supabase),
+    loadDayMarks(supabase, user.id, date),
   ]);
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  if (termPack.error) return <AcademicsGate title="Attendance" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const marked = new Map(marks.map((mark) => [mark.student_id, mark]));
   const groups = groupPupils(pupils).map((group) => ({
     key: `${group.code}-${group.stream}`,
@@ -120,6 +117,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
               status: mark?.status || "",
               note: mark?.note || "",
               sex: pupil.sex === "M" || pupil.sex === "F" ? pupil.sex : null,
+              photoPath: pupil.photo_path,
             };
           }),
         } : null}

@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import { cache } from "react";
 import { ACCOUNTS_BASE, isAccountsRole } from "@/lib/accounts-nav";
+import { forgetAccountsRoll } from "@/lib/accounts-roll";
 import { pickCurrentTerm, sortTerms, type Term } from "@/lib/accounts-format";
 import { everyWord, searchNeedle, searchWords } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
@@ -9,7 +11,7 @@ export { ACCOUNTS_BASE, ACCOUNTS_ROLES, accountsNav, isAccountsRole } from "@/li
 
 export const EXPENSE_RECEIPTS = "expense-receipts";
 
-export async function requireAccounts() {
+export const requireAccounts = cache(async function requireAccounts() {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
   const { data: { user } } = await supabase.auth.getUser();
@@ -17,19 +19,20 @@ export async function requireAccounts() {
   const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
   if (!profile || !isAccountsRole(profile.role)) return { error: "This account doesn't have access to the accounts office." } as const;
   return { supabase, user, profile } as const;
-}
+});
 
 export function refreshAccounts(...paths: string[]) {
+  forgetAccountsRoll();
   revalidatePath(ACCOUNTS_BASE, "layout");
   for (const path of paths) revalidatePath(path);
 }
 
 /** Every term, newest first, plus the one to work in. Errors come back so pages can show setup hints. */
-export async function loadTerms(supabase: SupabaseClient) {
+export const loadTerms = cache(async function loadTerms(supabase: SupabaseClient) {
   const { data, error } = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, due_on, is_current");
   const terms = sortTerms((data || []) as Term[]);
   return { terms, current: pickCurrentTerm(terms), error: error?.message ?? null };
-}
+});
 
 /** Adds an entry to the accounts audit trail. Failures are ignored: the change itself already saved. */
 export async function logAccounts(
@@ -48,10 +51,15 @@ export async function logAccounts(
 }
 
 /** The campuses pupils are registered at, for filters and the fee grid. */
-export async function loadCampuses(supabase: SupabaseClient) {
+let campusCache: { at: number; values: string[] } | null = null;
+
+export const loadCampuses = cache(async function loadCampuses(supabase: SupabaseClient) {
+  if (campusCache && Date.now() - campusCache.at < 60_000) return campusCache.values;
   const { data } = await supabase.from("students").select("campus").not("campus", "is", null).eq("status", "active").limit(5000);
-  return [...new Set((data || []).map((row) => String(row.campus).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-}
+  const values = [...new Set((data || []).map((row) => String(row.campus).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  campusCache = { at: Date.now(), values };
+  return values;
+});
 
 /** A PostgREST or() filter over student_balances: names in any word order, numbers and phones as typed. */
 export function balanceSearch(raw: string) {

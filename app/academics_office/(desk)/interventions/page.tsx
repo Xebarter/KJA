@@ -3,8 +3,8 @@ import { saveIntervention } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, INTERVENTION_REASONS, mapTerm, openAcademics, reasonLabel } from "@/lib/academics";
-import { fetchAll } from "@/lib/students";
+import { ACADEMICS_BASE, INTERVENTION_REASONS, loadCurrentTerm, openAcademics, reasonLabel } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Interventions" };
 
@@ -14,14 +14,13 @@ export default async function InterventionsPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Interventions" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Interventions" />;
-  const { supabase } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const { supabase, user } = opened.auth;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const [rowsQuery, pupils] = await Promise.all([
     term ? supabase.from("learner_interventions").select("id, student_id, reason, note, follow_up_on, status").eq("term_id", term.id).order("status").order("follow_up_on") : Promise.resolve({ data: [], error: null }),
-    fetchAll<{ id: string; full_name: string; class_code: string | null }>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, class_code").eq("status", "active").order("full_name").range(from, to),
-    ),
+    loadRoll(supabase, user.id),
   ]);
   if (rowsQuery.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: rowsQuery.error.message }} />;
   const names = new Map(pupils.map((pupil) => [pupil.id, pupil.full_name]));

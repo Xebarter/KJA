@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { Empty } from "@/components/academics/ui";
+import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE } from "@/lib/academics-nav";
 
 export type RosterPupil = {
@@ -10,12 +11,8 @@ export type RosterPupil = {
   full_name: string;
   student_number: string;
   sex: string | null;
+  photoPath?: string | null;
 };
-
-function initials(name: string) {
-  const parts = name.split(/\s+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
-}
 
 function sexLabel(sex: string | null) {
   if (sex === "M") return "Boy";
@@ -57,7 +54,7 @@ export function ClassRoster({ pupils }: { pupils: RosterPupil[] }) {
           {visible.map((pupil, index) => (
             <li key={pupil.id} style={{ "--i": Math.min(index, 14) } as React.CSSProperties}>
               <Link href={`${ACADEMICS_BASE}/students/${pupil.id}`}>
-                <span className={`acr-avatar${pupil.sex === "M" ? " is-boy" : pupil.sex === "F" ? " is-girl" : ""}`} aria-hidden="true">{initials(pupil.full_name)}</span>
+                <StudentFace id={pupil.id} name={pupil.full_name} photoPath={pupil.photoPath} className={`acr-avatar${pupil.sex === "M" ? " is-boy" : pupil.sex === "F" ? " is-girl" : ""}`} />
                 <span className="acr-person">
                   <strong>{pupil.full_name}</strong>
                   <small>{pupil.student_number}</small>

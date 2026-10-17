@@ -12,17 +12,18 @@ import {
   kampalaToday,
   mapStaff,
   mapSubject,
-  mapTerm,
+  loadCurrentTerm,
   openAcademics,
   streamFromQuery,
   streamQuery,
   subjectFits,
 } from "@/lib/academics";
-import { fetchAll, isClassCode } from "@/lib/students";
+import { loadRoll } from "@/lib/academics-roll";
+import { isClassCode } from "@/lib/students";
 
 export const metadata = { title: "Class" };
 
-type Pupil = { id: string; full_name: string; student_number: string; sex: string | null; class_code: string | null; stream: string | null };
+type Pupil = { id: string; full_name: string; student_number: string; sex: string | null; class_code: string | null; stream: string | null; photo_path: string | null };
 
 function initials(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
@@ -39,19 +40,19 @@ export default async function ClassPage({ params, searchParams }: {
   const stream = streamFromQuery(query.stream);
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title={code} state={opened} />;
-  const { supabase, office } = opened.auth;
+  const { supabase, office, user } = opened.auth;
 
-  const [pupils, termQuery, staffQuery, subjectQuery] = await Promise.all([
-    fetchAll<Pupil>((from, to) =>
-      supabase.from("student_directory").select("id, full_name, student_number, sex, class_code, stream").eq("status", "active").eq("class_code", code).order("full_name").range(from, to),
-    ),
-    supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle(),
+  const [roll, termPack, staffQuery, subjectQuery] = await Promise.all([
+    loadRoll(supabase, user.id),
+    loadCurrentTerm(supabase),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
   ]);
+  const pupils = roll.filter((pupil) => pupil.class_code === code);
   const streams = [...new Set(pupils.map((pupil) => pupil.stream || ""))].sort();
   const chosen = stream === null && streams.length === 1 ? streams[0] : stream;
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  if (termPack.error) return <AcademicsGate title={code} state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const staff = ((staffQuery.data || []) as Record<string, unknown>[]).map(mapStaff);
   const subjects = ((subjectQuery.data || []) as Record<string, unknown>[]).map(mapSubject).filter((subject) => subjectFits(subject, code));
   const section = classSection(code);
@@ -174,7 +175,7 @@ export default async function ClassPage({ params, searchParams }: {
                 <Link href={`${ACADEMICS_BASE}/classes`}>All classes</Link>
               </header>
               {visible.length ? (
-                <ClassRoster pupils={visible.map((pupil) => ({ id: pupil.id, full_name: pupil.full_name, student_number: pupil.student_number, sex: pupil.sex }))} />
+                <ClassRoster pupils={visible.map((pupil) => ({ id: pupil.id, full_name: pupil.full_name, student_number: pupil.student_number, sex: pupil.sex, photoPath: pupil.photo_path }))} />
               ) : <Empty title="No pupils in this stream" />}
             </section>
 

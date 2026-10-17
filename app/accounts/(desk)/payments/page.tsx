@@ -4,6 +4,7 @@ import { AutoSubmit } from "@/components/accounts/client";
 import { Chips, MethodTag, Money, Stat, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
 import { PAYMENT_RANGES, parsePaymentFilters, paymentDates, paymentsQuery } from "./filters";
+import { aggRows, num } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, requireAccounts } from "@/lib/accounts";
 import { PAYMENT_METHODS, amount, dateTime, day, hrefWith, ugx, type Payment } from "@/lib/accounts-format";
 import { loadPeople } from "@/lib/admin-applications";
@@ -44,7 +45,6 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const exportHref = hrefWith(`${BASE}/export`, state);
   const from = (filters.page - 1) * SIZE;
   const campuses = await loadCampuses(supabase);
-
   const tabs = (
     <Chips
       label="Payment type"
@@ -180,23 +180,38 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     );
   }
 
-  const [list, totals] = await Promise.all([
+  const [list, methodRows] = await Promise.all([
     paymentsQuery(supabase, filters, dates, "*", true).order("paid_on", { ascending: false }).order("created_at", { ascending: false }).range(from, from + SIZE - 1),
-    fetchAll<{ amount: number; method: string; voided_at: string | null }>((a, b) =>
-      paymentsQuery(supabase, filters, dates, "id, amount, method, voided_at").order("id").range(a, b),
-    ).catch(() => [] as { amount: number; method: string; voided_at: string | null }[]),
+    aggRows(paymentsQuery(supabase, filters, dates, "method, amount.sum(), id.count()")),
   ]);
   if (list.error) return notReady("Payments", { kind: "schema", message: list.error.message });
   const rows = (list.data || []) as unknown as Row[];
   const total = list.count ?? 0;
   const people = await loadPeople(supabase, rows.map((row) => row.received_by));
-  const valid = totals.filter((row) => !row.voided_at);
-  const collected = valid.reduce((sum, row) => sum + Number(row.amount), 0);
-  const byMethod = PAYMENT_METHODS.map((method) => ({
-    ...method,
-    total: valid.filter((row) => row.method === method.value).reduce((sum, row) => sum + Number(row.amount), 0),
-    count: valid.filter((row) => row.method === method.value).length,
-  })).filter((method) => method.count);
+  let collected = 0;
+  let receipts = 0;
+  let byMethod: { value: string; label: string; icon: string; total: number; count: number }[];
+  if (!methodRows) {
+    const totals = await fetchAll<{ amount: number; method: string; voided_at: string | null }>((a, b) =>
+      paymentsQuery(supabase, filters, dates, "id, amount, method, voided_at").order("id").range(a, b),
+    ).catch(() => [] as { amount: number; method: string; voided_at: string | null }[]);
+    const valid = totals.filter((row) => !row.voided_at);
+    receipts = valid.length;
+    collected = valid.reduce((sum, row) => sum + Number(row.amount), 0);
+    byMethod = PAYMENT_METHODS.map((method) => ({
+      ...method,
+      total: valid.filter((row) => row.method === method.value).reduce((sum, row) => sum + Number(row.amount), 0),
+      count: valid.filter((row) => row.method === method.value).length,
+    })).filter((method) => method.count);
+  } else {
+    byMethod = PAYMENT_METHODS.flatMap((method) => {
+      const row = methodRows.find((entry) => entry.method === method.value);
+      if (!row) return [];
+      return [{ ...method, total: num(row, "sum"), count: num(row, "count") }];
+    }).filter((method) => method.count || method.total);
+    collected = byMethod.reduce((sum, method) => sum + method.total, 0);
+    receipts = byMethod.reduce((sum, method) => sum + method.count, 0);
+  }
 
   return (
     <div className="app-page ofc-page acc-page">
@@ -213,8 +228,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         }
       />
       <div className="acc-hero-figures">
-        <Stat label={`Collected ${dates.label}`} value={<Money value={collected} short />} note={`${valid.length.toLocaleString("en-GB")} receipts`} tone="good" icon="fa-sack-dollar" />
-        <Stat label="Average payment" value={<Money value={valid.length ? collected / valid.length : 0} short />} icon="fa-calculator" />
+        <Stat label={`Collected ${dates.label}`} value={<Money value={collected} short />} note={`${receipts.toLocaleString("en-GB")} receipts`} tone="good" icon="fa-sack-dollar" />
+        <Stat label="Average payment" value={<Money value={receipts ? collected / receipts : 0} short />} icon="fa-calculator" />
       </div>
 
       <section className="admin-card ofc-register">

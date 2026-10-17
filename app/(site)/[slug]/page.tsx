@@ -10,7 +10,6 @@ type Params = { params: Promise<{ slug: string }> };
 const SIDEBAR_PAGES = new Set([
   "from-the-director", "admissions", "fees",
   "academics", "arts", "sport", "leadership",
-  "sports", "music", "language", "adventure", "religion", "talent",
 ]);
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {

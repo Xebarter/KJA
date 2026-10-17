@@ -49,6 +49,12 @@ export function AccountsShell({
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
+    for (const item of accountsNav) router.prefetch(item.href);
+    router.prefetch(`${ACCOUNTS_BASE}/payments/new`);
+    router.prefetch(`${ACCOUNTS_BASE}/expenses/new`);
+  }, [router]);
+
+  useEffect(() => {
     if (!open) return;
     const previous = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -174,11 +180,6 @@ export function AccountsShell({
               </a>
             </>
           ) : null}
-          <a className="admin-side-link" href="/" target="_blank" rel="noopener noreferrer">
-            <i className="fa-solid fa-globe" aria-hidden="true" />
-            <span>View website</span>
-            <i className="fa-solid fa-arrow-up-right-from-square admin-side-link-out" aria-hidden="true" />
-          </a>
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">

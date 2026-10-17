@@ -2,7 +2,9 @@ import { BudgetingView } from "@/components/accounts/BudgetScreen";
 import "../overview.css";
 import "./budgeting.css";
 import { notReady } from "@/components/accounts/ui";
+import { groupOf } from "@/lib/accounts-agg";
 import { requireAccounts } from "@/lib/accounts";
+import { loadFeeBook } from "@/lib/accounts-roll";
 import { kampalaToday } from "@/lib/accounts-format";
 import {
   budgetAlert,
@@ -35,33 +37,29 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   const yearStart = `${year}-01-01`;
   const yearEnd = `${year}-12-31`;
 
-  const [categoryResult, expenses, payments, invoices, owing] = await Promise.all([
+  const [categoryResult, expenses, payByDay, invoiceByDay, feeBook] = await Promise.all([
     supabase.from("expense_categories").select("id, name, icon, monthly_budget, active").order("name"),
     fetchAll<BudgetExpense>((from, to) =>
       supabase.from("expenses").select("id, ref_no, category_id, payee, description, amount, campus, spent_on, status")
         .gte("spent_on", yearStart).lte("spent_on", yearEnd).neq("status", "rejected").order("id").range(from, to),
     ).catch(() => null),
-    fetchAll<BudgetMoney>((from, to) =>
-      supabase.from("payments").select("id, amount, paid_on").is("voided_at", null).gte("paid_on", yearStart).lte("paid_on", yearEnd).order("id").range(from, to),
-    ).catch(() => [] as BudgetMoney[]),
-    fetchAll<{ total: number; issued_on: string }>((from, to) =>
-      supabase.from("invoices").select("id, total, issued_on").eq("status", "issued").gte("issued_on", yearStart).lte("issued_on", yearEnd).order("id").range(from, to),
-    ).catch(() => [] as { total: number; issued_on: string }[]),
-    fetchAll<{ balance: number }>((from, to) =>
-      supabase.from("student_balances").select("student_id, balance").eq("status", "active").gt("balance", 0).order("student_id").range(from, to),
-    ).catch(() => [] as { balance: number }[]),
+    groupOf(supabase.from("payments").select("paid_on, amount.sum()").is("voided_at", null).gte("paid_on", yearStart).lte("paid_on", yearEnd), "paid_on"),
+    groupOf(supabase.from("invoices").select("issued_on, total.sum()").eq("status", "issued").gte("issued_on", yearStart).lte("issued_on", yearEnd), "issued_on"),
+    loadFeeBook(supabase).catch(() => []),
   ]);
   if (categoryResult.error) return notReady("Budgeting", { kind: "schema", message: categoryResult.error.message });
   if (!expenses) return notReady("Budgeting", { kind: "schema", message: "Expenses could not be loaded." });
 
+  const payments: BudgetMoney[] = [...(payByDay ?? new Map<string, number>()).entries()].map(([paid_on, amount]) => ({ amount, paid_on }));
+  const invoices: BudgetMoney[] = [...(invoiceByDay ?? new Map<string, number>()).entries()].map(([issued_on, amount]) => ({ amount, issued_on }));
   const book = buildBudget({
     month,
     categories: (categoryResult.data || []) as BudgetCategory[],
     expenses,
     payments,
-    invoices: invoices.map((row) => ({ amount: Number(row.total), issued_on: row.issued_on })),
+    invoices,
   });
-  const outstanding = owing.reduce((total, row) => total + Number(row.balance), 0);
+  const outstanding = feeBook.filter((row) => row.status === "active" && row.balance > 0).reduce((sum, row) => sum + row.balance, 0);
   const needle = q.toLowerCase();
   const visible = book.rows.filter((row) => matchesFocus(row.tone, focus) && (!needle || row.name.toLowerCase().includes(needle)));
   const counts = {

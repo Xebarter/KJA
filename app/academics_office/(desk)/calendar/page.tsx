@@ -2,7 +2,7 @@ import { saveDate } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { DATE_KINDS, dateKindLabel, kampalaToday, mapTerm, openAcademics, type TermRow } from "@/lib/academics";
+import { DATE_KINDS, dateKindLabel, kampalaToday, loadCurrentTerm, openAcademics, type TermRow } from "@/lib/academics";
 import { loadCampuses } from "@/lib/accounts";
 
 export const metadata = { title: "Calendar" };
@@ -22,8 +22,9 @@ export default async function CalendarPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Calendar" state={opened} />;
   const { supabase, office } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Calendar" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const datesQuery = term
     ? await supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus, note").eq("term_id", term.id).order("starts_on")
     : { data: [], error: null };

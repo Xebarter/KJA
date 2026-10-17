@@ -10,12 +10,13 @@ import {
   kampalaToday,
   mapStaff,
   mapSubject,
-  mapTerm,
+  loadCurrentTerm,
   openAcademics,
   streamOf,
   subjectFits,
 } from "@/lib/academics";
-import { fetchAll, SCHOOL_CLASSES } from "@/lib/students";
+import { loadRoll } from "@/lib/academics-roll";
+import { SCHOOL_CLASSES } from "@/lib/students";
 
 export const metadata = { title: "Schemes" };
 
@@ -46,9 +47,10 @@ const RANK: Record<string, number> = { submitted: 0, draft: 1, approved: 2 };
 export default async function SchemesPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Schemes" state={opened} />;
-  const { supabase, office, staffId } = opened.auth;
-  const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
-  const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;
+  const { supabase, office, staffId, user } = opened.auth;
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) return <AcademicsGate title="Schemes" state={{ notice: "schema", message: termPack.error }} />;
+  const term = termPack.term;
   const today = kampalaToday();
   const [schemesQuery, subjectsQuery, staffQuery, pupils, postsQuery] = await Promise.all([
     term
@@ -56,9 +58,7 @@ export default async function SchemesPage() {
       : Promise.resolve({ data: [], error: null }),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
-    fetchAll<{ class_code: string | null; stream: string | null }>((from, to) =>
-      supabase.from("students").select("class_code, stream").eq("status", "active").order("id").range(from, to),
-    ),
+    loadRoll(supabase, user.id),
     term
       ? supabase.from("subject_teachers").select("class_code, stream, subject_id, staff_id").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),

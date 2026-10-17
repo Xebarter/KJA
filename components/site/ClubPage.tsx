@@ -12,14 +12,14 @@ const JOIN_STEPS = [
   { icon: "fa-circle-check", title: "Get confirmed", text: "The school confirms places and shares meeting times once they are set." },
 ];
 
-export function ClubPage({ data }: { data: ClubPageData }) {
+export function ClubPage({ data, balanced = false }: { data: ClubPageData; balanced?: boolean }) {
   const { meta, clubs } = data;
   const [heroMain, heroSide] = [data.hero || data.images[0], data.images[0] && data.hero ? data.images[0] : data.images[1]];
   const gallery = [...new Set([...data.images, data.hero].filter(Boolean))];
-  const odd = clubs.length % 2 === 1;
+  const odd = !balanced && clubs.length % 2 === 1;
 
   return (
-    <main id="main" className="kja-ip kja-lp kja-cb">
+    <main id="main" className={`kja-ip kja-lp kja-cb${balanced ? " is-balanced" : ""}`}>
       <header className="kja-ab-hero kja-ip-hero">
         <div className="container">
           <InfoCrumbs current={data.title} />
