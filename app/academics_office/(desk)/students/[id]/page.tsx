@@ -68,15 +68,17 @@ export default async function PupilPage({ params }: { params: Promise<{ id: stri
   if ("notice" in opened) return <AcademicsGate title="Pupil" state={opened} />;
   const { supabase, office } = opened.auth;
 
-  let { data: pupil, error } = await supabase.from("student_directory").select(RICH).eq("id", id).maybeSingle();
+  const rich = await supabase.from("student_directory").select(RICH).eq("id", id).maybeSingle();
+  let pupil = rich.data as Directory | null;
+  let error = rich.error;
   if (error) {
     const fallback = await supabase.from("student_directory").select(PLAIN).eq("id", id).maybeSingle();
-    pupil = fallback.data;
+    pupil = fallback.data as Directory | null;
     error = fallback.error;
   }
   if (error) return <AcademicsGate title="Pupil" state={{ notice: "schema", message: error.message }} />;
   if (!pupil) notFound();
-  const row = pupil as Directory;
+  const row = pupil;
 
   const termQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").eq("is_current", true).maybeSingle();
   const term = termQuery.data ? mapTerm(termQuery.data as Record<string, unknown>) : null;

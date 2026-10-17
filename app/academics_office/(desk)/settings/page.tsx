@@ -10,20 +10,28 @@ const SECTIONS = [
   {
     value: "primary" as const,
     title: "Primary",
+    kicker: "Primary leaving scale",
+    icon: "fa-graduation-cap",
     note: "D1 is the top grade. A percentage falls into the first band that contains it. Lower points are the stronger grade.",
     samples: [92, 72, 55, 36],
   },
   {
     value: "nursery" as const,
     title: "Nursery",
+    kicker: "Nursery attainment",
+    icon: "fa-seedling",
     note: "Teachers choose a band. The markbook stores the middle of that range.",
     samples: [88, 60, 30, 10],
   },
 ];
 
+const INK = ["#19232b", "#24323c", "#3d4c58", "#8a5a12", "#c9a227", "#d4bc6a", "#e6d7a4", "#efeae2"];
+
+const nf = (value: number) => value.toLocaleString("en-GB");
+
 function bandInk(index: number, count: number) {
-  const strength = 0.28 + ((count - 1 - index) / Math.max(1, count - 1)) * 0.72;
-  return { background: `rgba(25, 35, 43, ${strength.toFixed(3)})`, color: strength > 0.55 ? "#fff" : "#19232b" };
+  const slot = count <= 1 ? 0 : Math.round((index / (count - 1)) * (INK.length - 1));
+  return { background: INK[slot], color: slot <= 3 ? "#fff" : "#19232b" };
 }
 
 export default async function GradingPage() {
@@ -34,29 +42,37 @@ export default async function GradingPage() {
   if (error) return <AcademicsGate title="Grading" state={{ notice: "schema", message: error.message }} />;
   const bands = ((data || []) as Record<string, unknown>[]).map(mapBand);
   const reviews = SECTIONS.map((section) => ({ section, review: reviewScale(bands.filter((band) => band.section === section.value)) }));
-  const openIssues = reviews.filter((item) => item.review.issues.length).length;
+  const openIssues = reviews.reduce((sum, item) => sum + item.review.issues.length, 0);
+  const primaryCount = reviews.find((item) => item.section.value === "primary")?.review.ranked.length ?? 0;
+  const nurseryCount = reviews.find((item) => item.section.value === "nursery")?.review.ranked.length ?? 0;
 
   return (
-    <div className="app-page ofc-page acd-grd">
+    <div className="app-page ofc-page grd-page">
       <PageHeader
         kicker="Setup"
         icon="fa-sliders"
         title="Grading"
-        description="The grade policy for the next draft. Approved and published report cards keep the rules they were given."
+        description={<>The next draft uses this scale. <strong>{openIssues ? "Needs review" : "In force"}</strong>.</>}
       />
-      <div className="acd-grd-policy">
+      <section className="grd-strip" aria-label="Grade policy">
         <div>
-          <strong>Grade policy</strong>
-          <span>A percentage is read against the band that contains it. Lower points are the stronger grade.</span>
+          <span className="grd-stat-icon" aria-hidden="true"><i className="fa-solid fa-graduation-cap" /></span>
+          <span className="grd-stat-copy"><span>Primary</span><strong>{nf(primaryCount)}</strong><small>{primaryCount === 1 ? "Band" : "Bands"}</small></span>
         </div>
-        <div className="acd-grd-policy-meta">
-          {reviews.map(({ section, review }) => (
-            <span key={section.value}><b>{review.ranked.length}</b> {section.title}</span>
-          ))}
-          <em className={openIssues ? "is-watch" : "is-set"}>{openIssues ? "Needs review" : "In force"}</em>
+        <div>
+          <span className="grd-stat-icon" aria-hidden="true"><i className="fa-solid fa-seedling" /></span>
+          <span className="grd-stat-copy"><span>Nursery</span><strong>{nf(nurseryCount)}</strong><small>{nurseryCount === 1 ? "Band" : "Bands"}</small></span>
         </div>
-      </div>
-      <div className="acd-grd-sheets">
+        <div className={openIssues ? "is-warn" : "is-ok"}>
+          <span className="grd-stat-icon" aria-hidden="true"><i className="fa-solid fa-triangle-exclamation" /></span>
+          <span className="grd-stat-copy"><span>Gaps</span><strong>{nf(openIssues)}</strong><small>{openIssues ? "Need a look" : "Scale is covered"}</small></span>
+        </div>
+        <div className={openIssues ? "is-warn" : "is-ok"}>
+          <span className="grd-stat-icon" aria-hidden="true"><i className="fa-solid fa-scale-balanced" /></span>
+          <span className="grd-stat-copy"><span>Policy</span><strong>{openIssues ? "Review" : "Set"}</strong><small>Approved cards keep their rules</small></span>
+        </div>
+      </section>
+      <div className="grd-sheets">
         {SECTIONS.map((section) => (
           <Scale key={section.value} section={section} bands={bands.filter((band) => band.section === section.value)} />
         ))}
@@ -68,98 +84,95 @@ export default async function GradingPage() {
 function Scale({ section, bands }: { section: (typeof SECTIONS)[number]; bands: BandRow[] }) {
   const { ranked, issues } = reviewScale(bands);
   return (
-    <section className="acd-grd-sheet">
-      <header className="acd-grd-sheet-head">
-        <div>
-          <p>{section.value === "primary" ? "Primary leaving scale" : "Nursery attainment"}</p>
-          <h2>{section.title}</h2>
+    <section className="grd-card">
+      <header className="grd-card-head">
+        <div className="grd-card-title">
+          <span className="grd-card-icon" aria-hidden="true"><i className={`fa-solid ${section.icon}`} /></span>
+          <div>
+            <p>{section.kicker}</p>
+            <h2>{section.title}</h2>
+          </div>
         </div>
-        <span className={issues.length ? "is-watch" : "is-set"}>{issues.length ? "Needs review" : "In force"}</span>
+        <span className={issues.length ? "grd-pill is-watch" : "grd-pill is-set"}>{issues.length ? "Needs review" : "In force"}</span>
       </header>
-      <p className="acd-grd-note">{section.note}</p>
-      {ranked.length ? (
-        <>
-          <div className="acd-grd-ruler">
-            <div className="acd-grd-track" aria-hidden="true">
-              {ranked.map((band, index) => {
-                const left = clamp(band.min_score);
-                const width = Math.max(0, clamp(band.max_score) - left);
-                if (!width) return null;
+      <div className="grd-body">
+        <p className="grd-note">{section.note}</p>
+        {ranked.length ? (
+          <>
+            <div className="grd-ruler">
+              <div className="grd-track" aria-hidden="true">
+                {ranked.map((band, index) => {
+                  const left = clamp(band.min_score);
+                  const width = Math.max(0, clamp(band.max_score) - left);
+                  if (!width) return null;
+                  return (
+                    <i key={band.id} style={{ left: `${left}%`, width: `${width}%`, background: bandInk(index, ranked.length).background }} title={`${band.label}: ${mark(band.min_score)}–${mark(band.max_score)}`} />
+                  );
+                })}
+              </div>
+              <div className="grd-axis" aria-hidden="true">
+                {[0, 25, 50, 75, 100].map((tick) => <span key={tick} style={{ left: `${tick}%` }}>{tick}</span>)}
+              </div>
+              <ul className="grd-key">
+                {ranked.map((band, index) => (
+                  <li key={band.id}>
+                    <i style={bandInk(index, ranked.length)}>{band.label}</i>
+                    <span>{mark(band.min_score)}–{mark(band.max_score)}</span>
+                    <em>{band.points} {band.points === 1 ? "pt" : "pts"}</em>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div className="grd-readout">
+              {section.samples.map((score) => {
+                const band = gradeFor(bands, section.value, score);
                 return (
-                  <i key={band.id} style={{ left: `${left}%`, width: `${width}%`, ...bandInk(index, ranked.length) }} title={`${band.label}: ${mark(band.min_score)}–${mark(band.max_score)}`} />
+                  <div key={score} className={band ? "" : "is-open"}>
+                    <strong>{score}<small>%</small></strong>
+                    <span>{band ? band.label : "No grade"}</span>
+                    <em>{band ? `${band.points} ${band.points === 1 ? "pt" : "pts"}` : "Uncovered"}</em>
+                  </div>
                 );
               })}
             </div>
-            <div className="acd-grd-axis" aria-hidden="true">
-              {[0, 25, 50, 75, 100].map((tick) => <span key={tick}>{tick}</span>)}
-            </div>
-            <ul className="acd-grd-key">
-              {ranked.map((band, index) => (
-                <li key={band.id}>
-                  <i style={bandInk(index, ranked.length)} />
-                  <b>{band.label}</b>
-                  <span>{mark(band.min_score)}–{mark(band.max_score)}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="acd-grd-readout">
-            {section.samples.map((score) => {
-              const band = gradeFor(bands, section.value, score);
-              return (
-                <div key={score} className={band ? "" : "is-open"}>
-                  <strong>{score}<small>%</small></strong>
-                  <span>{band ? band.label : "No grade"}</span>
-                  <em>{band ? `${band.points} ${band.points === 1 ? "pt" : "pts"}` : "Uncovered"}</em>
-                </div>
-              );
-            })}
-          </div>
-          {issues.length ? (
-            <ul className="acd-grd-issues">
-              {issues.map((issue) => <li key={issue}>{issue}</li>)}
-            </ul>
-          ) : null}
-          <div className="acd-grd-ledger">
-            <div className="acd-grd-head" aria-hidden="true"><span>Grade</span><span>From</span><span>To</span><span>Points</span></div>
-            {ranked.map((band) => (
-              <DeskForm key={band.id} action={saveBand} className="acd-grd-form">
-                <input type="hidden" name="id" value={band.id} />
-                <input type="hidden" name="section" value={band.section} />
-                <label className="ofc-field"><span className="acd-grd-sr">Grade</span><input name="label" defaultValue={band.label} aria-label={`${section.title} grade`} required /></label>
-                <label className="ofc-field"><span className="acd-grd-sr">From</span><input name="min_score" type="number" step="0.1" defaultValue={band.min_score} aria-label={`${band.label} from`} required /></label>
-                <label className="ofc-field"><span className="acd-grd-sr">To</span><input name="max_score" type="number" step="0.1" defaultValue={band.max_score} aria-label={`${band.label} to`} required /></label>
-                <label className="ofc-field"><span className="acd-grd-sr">Points</span><input name="points" type="number" defaultValue={band.points} aria-label={`${band.label} points`} required /></label>
-                <button className="acd-grd-save" type="submit">Save</button>
-                <button className="acd-grd-remove" type="submit" name="intent" value="delete">Remove</button>
-              </DeskForm>
-            ))}
-            <DeskForm action={saveBand} className="acd-grd-form is-new">
-              <input type="hidden" name="section" value={section.value} />
-              <label className="ofc-field"><span className="acd-grd-sr">Grade</span><input name="label" required placeholder={section.value === "primary" ? "D1" : "Secure"} aria-label={`New ${section.title} grade`} /></label>
-              <label className="ofc-field"><span className="acd-grd-sr">From</span><input name="min_score" type="number" step="0.1" required placeholder="0" aria-label="From" /></label>
-              <label className="ofc-field"><span className="acd-grd-sr">To</span><input name="max_score" type="number" step="0.1" required placeholder="100" aria-label="To" /></label>
-              <label className="ofc-field"><span className="acd-grd-sr">Points</span><input name="points" type="number" required placeholder="1" aria-label="Points" /></label>
-              <button className="acd-grd-save" type="submit">Add band</button>
+            {issues.length ? (
+              <ul className="grd-issues">
+                {issues.map((issue) => <li key={issue}><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />{issue}</li>)}
+              </ul>
+            ) : null}
+          </>
+        ) : <p className="grd-quiet">No {section.title.toLowerCase()} bands yet. Add the first range below.</p>}
+        <div className="grd-ledger">
+          {ranked.length ? <div className="grd-head" aria-hidden="true"><span>Grade</span><span>From</span><span>To</span><span>Points</span></div> : null}
+          {ranked.map((band) => (
+            <DeskForm key={band.id} action={saveBand} className="grd-form">
+              <input type="hidden" name="id" value={band.id} />
+              <input type="hidden" name="section" value={band.section} />
+              <label className="ofc-field"><span className="grd-sr">Grade</span><input name="label" defaultValue={band.label} aria-label={`${section.title} grade`} required /></label>
+              <label className="ofc-field"><span className="grd-sr">From</span><input name="min_score" type="number" step="0.1" defaultValue={band.min_score} aria-label={`${band.label} from`} required /></label>
+              <label className="ofc-field"><span className="grd-sr">To</span><input name="max_score" type="number" step="0.1" defaultValue={band.max_score} aria-label={`${band.label} to`} required /></label>
+              <label className="ofc-field"><span className="grd-sr">Points</span><input name="points" type="number" defaultValue={band.points} aria-label={`${band.label} points`} required /></label>
+              <button className="grd-save" type="submit">Save</button>
+              <button className="grd-remove" type="submit" name="intent" value="delete">Remove</button>
             </DeskForm>
-          </div>
-        </>
-      ) : (
-        <>
-          <div className="acd-grd-empty"><p>No {section.title.toLowerCase()} bands yet.</p></div>
-          <div className="acd-grd-ledger">
-          <DeskForm action={saveBand} className="acd-grd-form is-new">
-            <input type="hidden" name="section" value={section.value} />
-            <label className="ofc-field"><span className="acd-grd-sr">Grade</span><input name="label" required placeholder={section.value === "primary" ? "D1" : "Secure"} aria-label={`New ${section.title} grade`} /></label>
-            <label className="ofc-field"><span className="acd-grd-sr">From</span><input name="min_score" type="number" step="0.1" required placeholder="0" aria-label="From" /></label>
-            <label className="ofc-field"><span className="acd-grd-sr">To</span><input name="max_score" type="number" step="0.1" required placeholder="100" aria-label="To" /></label>
-            <label className="ofc-field"><span className="acd-grd-sr">Points</span><input name="points" type="number" required placeholder="1" aria-label="Points" /></label>
-            <button className="acd-grd-save" type="submit">Add band</button>
-          </DeskForm>
-          </div>
-        </>
-      )}
+          ))}
+          <NewBand section={section} />
+        </div>
+      </div>
     </section>
+  );
+}
+
+function NewBand({ section }: { section: (typeof SECTIONS)[number] }) {
+  return (
+    <DeskForm action={saveBand} className="grd-form is-new">
+      <input type="hidden" name="section" value={section.value} />
+      <label className="ofc-field"><span className="grd-sr">Grade</span><input name="label" required placeholder={section.value === "primary" ? "D1" : "Secure"} aria-label={`New ${section.title} grade`} /></label>
+      <label className="ofc-field"><span className="grd-sr">From</span><input name="min_score" type="number" step="0.1" required placeholder="0" aria-label="From" /></label>
+      <label className="ofc-field"><span className="grd-sr">To</span><input name="max_score" type="number" step="0.1" required placeholder="100" aria-label="To" /></label>
+      <label className="ofc-field"><span className="grd-sr">Points</span><input name="points" type="number" required placeholder="1" aria-label="Points" /></label>
+      <button className="grd-save" type="submit">Add band</button>
+    </DeskForm>
   );
 }
 
