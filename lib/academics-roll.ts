@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { AttendanceStatus } from "@/lib/academics";
 import { remember } from "@/lib/remember";
 import { fetchAll } from "@/lib/students";
 
@@ -16,7 +17,7 @@ export type RollPupil = {
   photo_path: string | null;
 };
 
-export type DayMark = { student_id: string; status: string; note: string | null };
+export type DayMark = { student_id: string; status: AttendanceStatus; note: string | null };
 
 export function loadRoll(supabase: SupabaseClient, userId: string) {
   return remember(`academics-roll:${userId}`, ROLL_MS, async () => {
