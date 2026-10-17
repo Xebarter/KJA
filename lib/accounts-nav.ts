@@ -16,6 +16,7 @@ export const accountsNav: AccountsNavItem[] = [
   { href: `${ACCOUNTS_BASE}/students`, label: "Fee accounts", icon: "fa-children", group: "Billing" },
   { href: `${ACCOUNTS_BASE}/invoices`, label: "Invoices", icon: "fa-file-invoice", group: "Billing", badge: "drafts" },
   { href: `${ACCOUNTS_BASE}/payments`, label: "Payments", icon: "fa-money-bill-wave", group: "Billing" },
+  { href: `${ACCOUNTS_BASE}/clubs`, label: "Clubs", icon: "fa-puzzle-piece", group: "Billing" },
   { href: `${ACCOUNTS_BASE}/debtors`, label: "Debtors", icon: "fa-hand-holding-dollar", group: "Billing" },
   { href: `${ACCOUNTS_BASE}/expenses`, label: "Expenses", icon: "fa-receipt", group: "Spending", badge: "expenses" },
   { href: `${ACCOUNTS_BASE}/budgeting`, label: "Budgeting", icon: "fa-scale-balanced", group: "Spending" },

@@ -1,213 +1,240 @@
-import Link from "next/link";
-import type { ChildRow, ClubRow, SignupRow } from "@/lib/account";
+"use client";
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { ClubDialog } from "@/components/account/ClubDialog";
+import {
+  childSummary,
+  chosenClubs,
+  clubIcon,
+  clubStatus,
+  needsPayment,
+  isConfirmed,
+  type ClubChild,
+  type ClubPatch,
+} from "@/components/account/club-model";
+import { checkClubPayment } from "@/app/account/(portal)/clubs/actions";
+import type { ClubPaymentView } from "@/lib/payments/clubs";
 import { initials } from "@/lib/applications";
-import { ClubJoin, SignupWithdraw } from "@/components/account/ClubActions";
 
-export type ClubMedia = Record<string, { image?: string; href?: string }>;
+export type { ClubChoice, ClubChild, ClubPatch } from "@/components/account/club-model";
+export { needsPayment, isConfirmed } from "@/components/account/club-model";
 
-const ICONS: [RegExp, string][] = [
-  [/swim/i, "fa-person-swimming"],
-  [/music|choir/i, "fa-music"],
-  [/ballet|dance/i, "fa-shoe-prints"],
-  [/art|drama|perform/i, "fa-masks-theater"],
-  [/badminton|tennis/i, "fa-table-tennis-paddle-ball"],
-  [/sport|football|athlet|physical/i, "fa-futbol"],
-  [/faith|christian|bible|prayer/i, "fa-hands-praying"],
-  [/chess/i, "fa-chess-knight"],
-  [/language|speak|debate/i, "fa-language"],
-  [/academic|stem|science|reading|enrich/i, "fa-flask"],
-  [/leader|character|scout|life skill/i, "fa-award"],
-];
-
-function iconFor(title: string) {
-  return ICONS.find(([pattern]) => pattern.test(title))?.[1] || "fa-puzzle-piece";
-}
-
-function statusOf(value: string) {
-  const status = value.toLowerCase();
-  if (status === "pending") return { tone: "pending", label: "Awaiting confirmation", short: "Pending" };
-  if (["approved", "confirmed", "accepted", "active", "enrolled"].includes(status)) return { tone: "confirmed", label: "Confirmed", short: "Confirmed" };
-  if (["waitlist", "waitlisted", "waiting"].includes(status)) return { tone: "waitlist", label: "On the waitlist", short: "Waitlist" };
-  if (["declined", "rejected", "cancelled", "full"].includes(status)) return { tone: "declined", label: "Not confirmed", short: "Not confirmed" };
-  const label = value ? value[0].toUpperCase() + value.slice(1) : "Pending";
-  return { tone: "pending", label, short: label };
-}
-
-function schedule(meeting: string | null) {
-  if (!meeting || /to be announced|^tba$/i.test(meeting.trim())) return "Schedule to be announced";
-  return meeting;
-}
-
-const firstName = (name: string) => name.split(/\s+/)[0];
+const WAIT_MS = 150_000;
 
 export function ClubsView({
-  kids,
-  clubs,
-  signups,
-  media,
+  family,
+  phone,
+  online,
+  termLabel,
 }: {
-  kids: ChildRow[];
-  clubs: ClubRow[];
-  signups: SignupRow[];
-  media: ClubMedia;
+  family: ClubChild[];
+  phone: string;
+  online: boolean;
+  termLabel: string | null;
 }) {
-  const clubById = new Map(clubs.map((club) => [club.id, club]));
-  const kidById = new Map(kids.map((child) => [child.id, child]));
-  const confirmed = signups.filter((row) => statusOf(row.status).tone === "confirmed").length;
+  const router = useRouter();
+  const serverKey = family.map((child) => `${child.id}:${child.clubs.map((club) => [club.id, club.state, club.consentId, club.receiptNo, club.collectionId].join("~")).join(",")}`).join("|");
+  const [patches, setPatches] = useState<Record<string, ClubPatch>>({});
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [checking, setChecking] = useState(false);
+  const [notice, setNotice] = useState<{ childId: string; text: string } | null>(null);
+  const [clock, setClock] = useState(() => Date.now());
+  const starts = useRef(new Map<string, number>());
+  const familyRef = useRef(family);
+  familyRef.current = family;
+
+  useEffect(() => {
+    setPatches({});
+  }, [serverKey]);
+
+  const view = useMemo(() => family.map((child) => ({
+    ...child,
+    clubs: child.clubs.map((club) => {
+      const patch = patches[`${child.id}:${club.id}`];
+      return patch ? { ...club, ...patch } : club;
+    }),
+  })), [family, patches]);
+
+  const pendingIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const child of view) {
+      for (const club of child.clubs) {
+        if (club.state === "waiting" && club.collectionId) ids.add(club.collectionId);
+      }
+    }
+    return [...ids];
+  }, [view]);
+  const pendingKey = pendingIds.join("|");
+
+  for (const id of pendingIds) {
+    if (!starts.current.has(id)) starts.current.set(id, Date.now());
+  }
+
+  const applyRef = useRef<(payment: ClubPaymentView) => void>(() => undefined);
+  applyRef.current = (payment) => {
+    let childId = "";
+    setPatches((current) => {
+      const next = { ...current };
+      let changed = false;
+      for (const child of familyRef.current) {
+        const involved = child.clubs.some((club) => (current[`${child.id}:${club.id}`]?.collectionId ?? club.collectionId) === payment.id);
+        if (!involved) continue;
+        childId = child.id;
+        if (payment.status === "failed") {
+          for (const club of child.clubs) {
+            const key = `${child.id}:${club.id}`;
+            if ((current[key]?.collectionId ?? club.collectionId) !== payment.id) continue;
+            next[key] = { ...current[key], state: "consented", collectionId: null };
+            changed = true;
+          }
+        }
+        if (payment.status === "paid") {
+          for (const line of payment.lines) {
+            if (!child.clubs.some((club) => club.id === line.id)) continue;
+            next[`${child.id}:${line.id}`] = { state: "paid", receiptNo: line.receiptNo, collectionId: null };
+            changed = true;
+          }
+        }
+      }
+      return changed ? next : current;
+    });
+    if (payment.status === "failed" && childId) {
+      setNotice({ childId, text: "The request was declined or timed out. You have not been charged." });
+    }
+    if (payment.status === "paid") router.refresh();
+  };
+
+  useEffect(() => {
+    if (!pendingKey) return;
+    const ids = pendingKey.split("|");
+    const live = ids.filter((id) => Date.now() - (starts.current.get(id) || 0) <= WAIT_MS);
+    if (!live.length) return;
+    const timer = window.setTimeout(async () => {
+      for (const id of live) {
+        const result = await checkClubPayment(id).catch(() => null);
+        if (result && "payment" in result && result.payment.status !== "pending") applyRef.current(result.payment);
+      }
+      setClock(Date.now());
+    }, 4000);
+    return () => window.clearTimeout(timer);
+  }, [pendingKey, clock]);
+
+  const toPay = view.reduce((sum, child) => sum + child.clubs.filter(needsPayment).length, 0);
+  const confirmed = view.reduce((sum, child) => sum + child.clubs.filter(isConfirmed).length, 0);
+  const openChild = view.find((child) => child.id === openId) ?? null;
+
+  function patch(childId: string, clubId: string, next: ClubPatch) {
+    setPatches((current) => ({ ...current, [`${childId}:${clubId}`]: { ...current[`${childId}:${clubId}`], ...next } }));
+  }
+
+  async function checkNow(id: string) {
+    setChecking(true);
+    const result = await checkClubPayment(id).catch(() => null);
+    setChecking(false);
+    if (!result || !("payment" in result)) {
+      if (openChild) setNotice({ childId: openChild.id, text: "We couldn't check the payment just now. Try again in a moment." });
+      return;
+    }
+    if (result.payment.status === "pending") return;
+    applyRef.current(result.payment);
+  }
 
   return (
     <div className="ov cl">
       <section className="ch-hero cl-hero">
         <div className="ch-hero-copy">
           <p className="ch-kicker">Co-curricular</p>
-          <h1>Clubs &amp; activities</h1>
-          <p>Music, sport, faith, leadership and more. Request a place for your child and the school will confirm it.</p>
+          <h1>Clubs</h1>
+          <p>Each child is listed with the clubs you have chosen. Open a child to give consent and pay.</p>
+          <ol className="cl-steps">
+            <li><span>1</span> Consent</li>
+            <li><span>2</span> Pay</li>
+            <li><span>3</span> Confirmed</li>
+          </ol>
         </div>
-        {clubs.length ? (
+        {view.length ? (
           <dl className="ch-hero-stats">
             <div>
-              <dt>Clubs</dt>
-              <dd>{clubs.length}</dd>
+              <dt>Children</dt>
+              <dd>{view.length}</dd>
             </div>
-            {kids.length ? (
-              <div>
-                <dt>{confirmed ? "Confirmed" : "Sign-ups"}</dt>
-                <dd>{confirmed ? `${confirmed}/${signups.length}` : signups.length}</dd>
-              </div>
-            ) : null}
+            <div>
+              <dt>To pay</dt>
+              <dd>{toPay}</dd>
+            </div>
+            <div>
+              <dt>Confirmed</dt>
+              <dd>{confirmed}</dd>
+            </div>
           </dl>
         ) : null}
       </section>
 
-      {kids.length ? (
-        <section className="ov-panel cl-family">
-          <div className="ov-panel-head">
-            <h2>Your children&apos;s clubs</h2>
-            {signups.length ? <span className="cl-count">{signups.length} {signups.length === 1 ? "sign-up" : "sign-ups"}</span> : null}
-          </div>
-          <div className="cl-kids">
-            {kids.map((child) => {
-              const rows = signups.filter((row) => row.child_id === child.id);
-              return (
-                <div className="cl-kid" key={child.id}>
-                  <div className="cl-kid-who">
-                    <span className="ov-child-avatar" aria-hidden="true">{initials(child.full_name)}</span>
-                    <div>
-                      <strong>{child.full_name}</strong>
-                      <span>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "Student"}</span>
-                    </div>
-                  </div>
-                  {rows.length ? (
-                    <ul className="cl-chips">
-                      {rows.map((row) => {
-                        const title = clubById.get(row.club_id)?.title || "Club";
-                        const status = statusOf(row.status);
-                        return (
-                          <li className={`cl-chip is-${status.tone}`} key={row.id}>
-                            <span className="cl-chip-icon" aria-hidden="true"><i className={`fa-solid ${iconFor(title)}`} /></span>
-                            <span className="cl-chip-text">
-                              <strong>{title}</strong>
-                              <span className={`cl-status cl-status--${status.tone}`}>{status.label}</span>
-                            </span>
-                            <SignupWithdraw id={row.id} label={title} />
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <p className="cl-kid-empty">
-                      <i className="fa-regular fa-compass" aria-hidden="true" /> Not in a club yet. Explore the options below.
-                    </p>
-                  )}
-                </div>
-              );
-            })}
+      {view.length ? (
+        <div className="cl-family">
+          {view.map((child) => {
+            const chosen = chosenClubs(child);
+            const due = child.clubs.some(needsPayment);
+            const summary = childSummary(child);
+            return (
+              <button key={child.id} type="button" className="cl-child" onClick={() => { setNotice(null); setOpenId(child.id); }}>
+                <span className="cl-child-head">
+                  <span className="ov-child-avatar" aria-hidden="true">{initials(child.name)}</span>
+                  <span>
+                    <strong>{child.name}</strong>
+                    <small>{child.detail}</small>
+                  </span>
+                </span>
+                <span className={`cl-child-summary${due ? " is-due" : chosen.length ? " is-done" : ""}`}>{summary}</span>
+                {chosen.length ? (
+                  <ul className="cl-child-list">
+                    {chosen.map((club) => {
+                      const status = clubStatus(club);
+                      return (
+                        <li key={club.id}>
+                          <i className={`fa-solid ${clubIcon(club.title)}`} aria-hidden="true" />
+                          <span>{club.title}</span>
+                          <em className={`is-${status.tone}`}>{status.label}</em>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <span className="cl-child-none">No clubs yet</span>
+                )}
+                <span className="cl-child-go">
+                  {due ? "Pay and manage" : "Choose clubs"}
+                  <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : (
+        <section className="ov-panel">
+          <div className="ov-empty">
+            <i className="fa-solid fa-children" aria-hidden="true" />
+            <p>Clubs appear here once the admissions office enrols your children.</p>
           </div>
         </section>
+      )}
+
+      {openChild ? (
+        <ClubDialog
+          child={openChild}
+          phone={phone}
+          online={online}
+          termLabel={termLabel}
+          notice={notice?.childId === openChild.id ? notice.text : ""}
+          checking={checking}
+          stalled={openChild.clubs.some((club) => club.state === "waiting" && club.collectionId && Date.now() - (starts.current.get(club.collectionId) || clock) > WAIT_MS)}
+          onClose={() => setOpenId(null)}
+          onPatch={(clubId, next) => patch(openChild.id, clubId, next)}
+          onCheck={checkNow}
+          onNotice={(text) => setNotice(text ? { childId: openChild.id, text } : null)}
+        />
       ) : null}
-
-      <section className="cl-explore">
-        <div className="cl-section-head">
-          <div>
-            <h2>Explore clubs</h2>
-            <p>{clubs.length ? `${clubs.length} ${clubs.length === 1 ? "club" : "clubs"} open for sign-up` : "Nothing published yet"}</p>
-          </div>
-        </div>
-
-        {clubs.length ? (
-          <div className="cl-grid">
-            {clubs.map((club) => {
-              const icon = iconFor(club.title);
-              const { image, href } = media[club.id] || {};
-              const rows = signups.filter((row) => row.club_id === club.id && kidById.has(row.child_id));
-              const taken = new Set(rows.map((row) => row.child_id));
-              const available = kids.filter((child) => !taken.has(child.id)).map((child) => ({ id: child.id, name: firstName(child.full_name) }));
-              return (
-                <article className={`cl-card${rows.length ? " is-joined" : ""}`} key={club.id}>
-                  <div className="cl-media">
-                    <span className="cl-media-frame">
-                      {image ? (
-                        <img src={image} alt="" loading="lazy" decoding="async" />
-                      ) : (
-                        <span className="cl-media-fallback" aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>
-                      )}
-                    </span>
-                    {club.campus ? (
-                      <span className="cl-campus"><i className="fa-solid fa-location-dot" aria-hidden="true" /> {club.campus}</span>
-                    ) : null}
-                    {rows.length ? (
-                      <span className="cl-joined-badge"><i className="fa-solid fa-star" aria-hidden="true" /> Your family</span>
-                    ) : null}
-                    <span className="cl-icon" aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>
-                  </div>
-                  <div className="cl-body">
-                    <h3>{club.title}</h3>
-                    <p className="cl-meta"><i className="fa-regular fa-clock" aria-hidden="true" /> {schedule(club.meeting)}</p>
-                    {club.description ? <p className="cl-desc">{club.description}</p> : null}
-                    {rows.length ? (
-                      <ul className="cl-members" aria-label="Your children in this club">
-                        {rows.map((row) => {
-                          const child = kidById.get(row.child_id)!;
-                          const status = statusOf(row.status);
-                          return (
-                            <li key={row.id} className={`is-${status.tone}`} title={`${child.full_name}: ${status.label}`}>
-                              <span className="cl-member-avatar" aria-hidden="true">{initials(child.full_name)}</span>
-                              {firstName(child.full_name)}
-                              <span className="cl-member-status">{status.short}</span>
-                            </li>
-                          );
-                        })}
-                      </ul>
-                    ) : null}
-                    {href ? (
-                      <Link className="cl-more" href={href}>
-                        About this club <i className="fa-solid fa-arrow-right" aria-hidden="true" />
-                      </Link>
-                    ) : null}
-                  </div>
-                  <ClubJoin clubId={club.id} available={available} hasKids={kids.length > 0} />
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <section className="ov-panel">
-            <div className="ov-empty">
-              <i className="fa-solid fa-puzzle-piece" aria-hidden="true" />
-              <p>Clubs will appear here once the school publishes this term&apos;s co-curricular programme.</p>
-            </div>
-          </section>
-        )}
-      </section>
-
-      <aside className="rp-help">
-        <span className="rp-help-icon"><i className="fa-solid fa-people-group" aria-hidden="true" /></span>
-        <div>
-          <strong>How club places work</strong>
-          <p>Each request is reviewed by the co-curricular team. The status here changes once a place is confirmed, and you can withdraw a request at any time.</p>
-        </div>
-        <Link className="ov-btn ov-btn-dark" href="/account/messages">Message the school</Link>
-      </aside>
     </div>
   );
 }

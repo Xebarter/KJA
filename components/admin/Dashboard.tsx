@@ -15,7 +15,6 @@ export type DashboardMessage = { id: string; name: string; email: string; subjec
 
 export type DashboardProps = {
   now: Date;
-  firstName: string;
   configured: boolean;
   applications: DashboardApplication[];
   messages: DashboardMessage[];
@@ -41,7 +40,7 @@ function eventDay(day: string) {
   };
 }
 
-export function Dashboard({ now, firstName, configured, applications, messages, unreadMessages, subscribers, newSubscribers, stories, events, counts }: DashboardProps) {
+export function Dashboard({ now, configured, applications, messages, unreadMessages, subscribers, newSubscribers, stories, events, counts }: DashboardProps) {
   const today = now.toLocaleDateString("en-CA", { timeZone: ZONE });
 
   const statusCounts = new Map<string, number>();
@@ -95,7 +94,7 @@ export function Dashboard({ now, firstName, configured, applications, messages, 
         <div className="dash-hero-art" aria-hidden="true" />
         <div className="dash-hero-copy">
           <p className="dash-kicker">{now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: ZONE })}</p>
-          <h1>{firstName ? `${greeting(now)}, ${firstName}` : greeting(now)}</h1>
+          <h1>{greeting(now)}</h1>
           <p>
             {todo.length
               ? `Here's what needs your attention across the Kampala Junior Academy website today.`

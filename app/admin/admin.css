@@ -169,6 +169,13 @@ body:has(.kja-admin) {
   text-transform: uppercase;
   color: rgba(255, 255, 255, .36);
 }
+.admin-nav-rule {
+  height: 0;
+  margin: .7rem .8rem;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, .12);
+  opacity: 1;
+}
 .admin-nav > a,
 .admin-nav-group > summary {
   box-sizing: border-box;

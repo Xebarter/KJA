@@ -41,7 +41,7 @@ export function ProfileView({ name, email, phone, address, verified, google, cre
     { label: "Email address", done: Boolean(email), href: "#email" },
     { label: "Phone number", done: Boolean(phone), href: "#phone" },
     { label: "Home address", done: Boolean(address), href: "#address" },
-    { label: "Link a child", done: childList.length > 0, href: "/account/children" },
+    { label: "Children enrolled", done: childList.length > 0, href: "/account/children" },
   ];
   const done = checklist.filter((item) => item.done).length;
   const percent = Math.round((done / checklist.length) * 100);
@@ -125,7 +125,7 @@ export function ProfileView({ name, email, phone, address, verified, google, cre
           <section className="ov-panel">
             <header className="ov-panel-head">
               <h2>Your household</h2>
-              <Link href="/account/children">{childList.length ? "Manage" : "Add"}</Link>
+              <Link href="/account/children">View</Link>
             </header>
             {childList.length ? (
               <ul className="pf-household">
@@ -134,7 +134,7 @@ export function ProfileView({ name, email, phone, address, verified, google, cre
                     <span className="pf-household-avatar" aria-hidden="true">{initials(child.full_name)}</span>
                     <span className="pf-household-text">
                       <strong>{child.full_name}</strong>
-                      <small>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "Details to be completed"}</small>
+                      <small>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "On the school register"}</small>
                     </span>
                   </li>
                 ))}
@@ -142,8 +142,7 @@ export function ProfileView({ name, email, phone, address, verified, google, cre
             ) : (
               <div className="ov-empty">
                 <i className="fa-solid fa-children" aria-hidden="true" />
-                <p>Link your children to see their reports, fees and clubs in one place.</p>
-                <Link className="ov-btn ov-btn-dark" href="/account/children">Add a child</Link>
+                <p>Your children will appear here once the admissions office enrols them on your family.</p>
               </div>
             )}
           </section>

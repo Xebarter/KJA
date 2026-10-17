@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { signOutAccount } from "@/app/account/actions";
 import { accountNav } from "@/lib/account";
 
@@ -33,7 +33,6 @@ export function AccountShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  const groups = [...new Set(accountNav.map((item) => item.group))];
   const current = accountNav.find((item) => (item.href === "/account" ? pathname === "/account" : pathname.startsWith(item.href)));
 
   useEffect(() => {
@@ -64,21 +63,20 @@ export function AccountShell({
         </span>
       </Link>
       <nav className="account-nav" aria-label="Parent portal">
-        {groups.map((group) => (
-          <div key={group} className="account-nav-group">
-            <span className="account-nav-label">{group}</span>
-            {accountNav.filter((item) => item.group === group).map((item) => {
-              const active = item.href === "/account" ? pathname === "/account" : pathname.startsWith(item.href);
-              return (
-                <Link key={item.href} href={item.href} className={active ? "active" : ""}>
-                  <i className={`fa-solid ${item.icon}`} />
-                  <span>{item.label}</span>
-                  {item.href === "/account/notifications" && unread ? <em>{unread}</em> : null}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
+        {accountNav.map((item, index) => {
+          const active = item.href === "/account" ? pathname === "/account" : pathname.startsWith(item.href);
+          const divided = index > 0 && item.group !== accountNav[index - 1].group;
+          return (
+            <Fragment key={item.href}>
+              {divided ? <hr className="account-nav-rule" /> : null}
+              <Link href={item.href} className={active ? "active" : ""}>
+                <i className={`fa-solid ${item.icon}`} />
+                <span>{item.label}</span>
+                {item.href === "/account/notifications" && unread ? <em>{unread}</em> : null}
+              </Link>
+            </Fragment>
+          );
+        })}
       </nav>
       <div className="account-side-foot">
         {staffLink ? (

@@ -1,4 +1,5 @@
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
+import { serviceClient } from "@/lib/supabase/service";
 import { getContent } from "@/lib/content";
 import type {
   ApplicationRow,
@@ -15,7 +16,6 @@ import type {
 } from "@/lib/account";
 import { methodInfo } from "@/lib/accounts-format";
 import { classLabel } from "@/lib/academics";
-import { className } from "@/lib/students";
 import type { Article } from "@/lib/types";
 
 async function rows<T>(query: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
@@ -33,6 +33,71 @@ export async function getSessionUser() {
   if (!supabase) return { user: null, supabase: null };
   const { data: { user } } = await supabase.auth.getUser();
   return { user, supabase };
+}
+
+type LinkedStudent = {
+  id: string;
+  full_name: string;
+  class_code: string | null;
+  stream: string | null;
+  campus: string | null;
+  student_number: string;
+  date_of_birth: string | null;
+  status: string;
+  photo_path?: string | null;
+};
+
+const STUDENT_COLUMNS = "id, full_name, class_code, stream, campus, student_number, date_of_birth, status";
+
+function studentIds(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((row) => {
+    if (typeof row === "string") return row;
+    if (row && typeof row === "object" && "my_student_ids" in row) return String((row as { my_student_ids: unknown }).my_student_ids || "");
+    return "";
+  }).filter(Boolean);
+}
+
+async function loadLinkedStudents(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>) {
+  const linked = await supabase.rpc("my_student_ids");
+  const ids = studentIds(linked.data);
+  if (linked.error) {
+    const withPhoto = await supabase.from("students").select(`${STUDENT_COLUMNS}, photo_path`).order("full_name");
+    if (withPhoto.error && /photo_path/.test(withPhoto.error.message)) {
+      const plain = await supabase.from("students").select(STUDENT_COLUMNS).order("full_name");
+      return (plain.data ?? []) as LinkedStudent[];
+    }
+    return (withPhoto.data ?? []) as LinkedStudent[];
+  }
+  if (!ids.length) return [];
+  const withPhoto = await supabase.from("students").select(`${STUDENT_COLUMNS}, photo_path`).in("id", ids).order("full_name");
+  if (withPhoto.error && /photo_path/.test(withPhoto.error.message)) {
+    const plain = await supabase.from("students").select(STUDENT_COLUMNS).in("id", ids).order("full_name");
+    return (plain.data ?? []) as LinkedStudent[];
+  }
+  return (withPhoto.data ?? []) as LinkedStudent[];
+}
+
+/** Attaches earlier applications that belong to this parent, then the portal query can read them. */
+async function linkPastApplications(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  user: { id: string; email?: string | null; email_confirmed_at?: string | null },
+) {
+  const claimed = await Promise.resolve(supabase.rpc("claim_application_links")).catch(() => ({ error: { message: "unavailable" } }));
+  if (!claimed.error) return;
+
+  const db = serviceClient();
+  if (!db) return;
+  const email = user.email?.trim();
+  if (user.email_confirmed_at && email) {
+    const variants = [...new Set([email, email.toLowerCase()])];
+    await db.from("applications").update({ user_id: user.id }).is("user_id", null).in("email", variants);
+  }
+  const { data: payments } = await db.from("admission_payments").select("id, application_id").eq("user_id", user.id);
+  const applicationIds = [...new Set((payments ?? []).map((row) => row.application_id).filter((id): id is string => Boolean(id)))];
+  const paymentIds = (payments ?? []).map((row) => row.id).filter(Boolean);
+  if (applicationIds.length) await db.from("applications").update({ user_id: user.id }).is("user_id", null).in("id", applicationIds);
+  if (paymentIds.length) await db.from("applications").update({ user_id: user.id }).is("user_id", null).in("payment_id", paymentIds);
 }
 
 export async function ensureProfile(userId: string, email?: string | null, fullName?: string | null) {
@@ -61,6 +126,7 @@ export async function getPortal() {
       pupils: [] as ChildRow[],
       clubs: [] as ClubRow[],
       signups: [] as SignupRow[],
+      clubConsents: 0,
       messages: [] as MessageRow[],
       notifications: [] as NoticeRow[],
       events: [] as Article[],
@@ -70,6 +136,7 @@ export async function getPortal() {
 
   await ensureProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
   await Promise.resolve(supabase.rpc("claim_guardian_links")).catch(() => undefined);
+  await linkPastApplications(supabase, user);
 
   const [profileRes, children, applications, clubs, signups, messages, notifications, content, students] = await Promise.all([
     supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
@@ -80,13 +147,14 @@ export async function getPortal() {
     rows<MessageRow>(supabase.from("parent_messages").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     rows<NoticeRow>(supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     getContent(),
-    rows<{ id: string; full_name: string; class_code: string | null; campus: string | null; student_number: string }>(
-      supabase.from("students").select("id, full_name, class_code, campus, student_number").order("full_name"),
-    ),
+    loadLinkedStudents(supabase),
   ]);
 
   const childIds = children.map((child) => child.id);
   const studentIds = students.map((student) => student.id);
+  const openConsents = studentIds.length
+    ? await rows<{ id: string }>(supabase.from("club_consents").select("id").is("withdrawn_at", null).in("student_id", studentIds))
+    : [];
   const reports = childIds.length
     ? await rows<ReportRow>(supabase.from("student_reports").select("*").in("child_id", childIds).order("issued_on", { ascending: false }))
     : [];
@@ -125,6 +193,7 @@ export async function getPortal() {
     .map((row) => ({
       id: `${row.student_id}:${row.term_id}`,
       child_id: row.student_id,
+      term_id: row.term_id,
       term: termLabel.get(row.term_id) ?? "Term",
       description: null,
       amount_due: Number(row.invoiced),
@@ -139,15 +208,20 @@ export async function getPortal() {
     paid_on: payment.paid_on,
     method: methodInfo(payment.method).label,
   }));
-  const pupils: ChildRow[] = students.map((student) => ({
-    id: student.id,
-    user_id: user.id,
-    full_name: student.full_name,
-    campus: student.campus,
-    grade: className(student.class_code),
-    date_of_birth: null,
-    student_code: student.student_number,
-  }));
+  const pupils: ChildRow[] = [...students]
+    .sort((a, b) => Number(a.status !== "active") - Number(b.status !== "active") || a.full_name.localeCompare(b.full_name))
+    .map((student) => ({
+      id: student.id,
+      user_id: user.id,
+      full_name: student.full_name,
+      campus: student.campus,
+      class_code: student.class_code,
+      grade: student.class_code ? classLabel(student.class_code, student.stream) : null,
+      date_of_birth: student.date_of_birth,
+      student_code: student.student_number,
+      status: student.status,
+      photo_path: student.photo_path || null,
+    }));
   const fees = pupils.length
     ? accountFees
     : childIds.length
@@ -177,6 +251,7 @@ export async function getPortal() {
     pupils,
     clubs,
     signups,
+    clubConsents: openConsents.length,
     messages,
     notifications,
     events,

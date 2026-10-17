@@ -1,7 +1,13 @@
 import Link from "next/link";
-import { AddChild, ChildActions } from "@/components/account/ChildActions";
-import { initials } from "@/lib/applications";
-import type { ChildRow, FeeRow, ReportRow, SignupRow } from "@/lib/account";
+import { StudentFace } from "@/components/StudentFace";
+import type { ChildRow, FeeRow, PublishedReport, ReportRow, SignupRow } from "@/lib/account";
+
+const STATUS: Record<string, string> = {
+  graduated: "Graduated",
+  transferred: "Transferred",
+  withdrawn: "Withdrawn",
+  left: "Left",
+};
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
@@ -28,11 +34,13 @@ function plural(count: number, word: string) {
 export function ChildrenView({
   kids,
   reports,
+  cards = [],
   fees,
   signups,
 }: {
   kids: ChildRow[];
   reports: ReportRow[];
+  cards?: PublishedReport[];
   fees: FeeRow[];
   signups: SignupRow[];
 }) {
@@ -45,7 +53,11 @@ export function ChildrenView({
         <div className="ch-hero-copy">
           <p className="ch-kicker">My family</p>
           <h1>Children</h1>
-          <p>Keep each child&apos;s details current so reports, fees and clubs stay in the right place.</p>
+          <p>
+            {kids.length
+              ? "The children the admissions office has enrolled on your family."
+              : "Children appear here when the admissions office enrols them on your family."}
+          </p>
         </div>
         {kids.length ? (
           <dl className="ch-hero-stats">
@@ -67,18 +79,18 @@ export function ChildrenView({
             const born = birthday(child.date_of_birth, today);
             const childFees = fees.filter((row) => row.child_id === child.id);
             const balance = childFees.reduce((sum, row) => sum + Math.max(0, Number(row.amount_due) - Number(row.amount_paid)), 0);
-            const reportCount = reports.filter((row) => row.child_id === child.id).length;
+            const reportCount = reports.filter((row) => row.child_id === child.id).length + cards.filter((card) => card.student_id === child.id).length;
             const clubCount = signups.filter((row) => row.child_id === child.id).length;
-            const missing = [!child.grade && "class", !child.campus && "campus", !child.date_of_birth && "date of birth"].filter(Boolean);
-            const subtitle = [child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ");
+            const status = child.status && child.status !== "active" ? STATUS[child.status] || "" : "";
+            const subtitle = [child.grade, child.campus ? `${child.campus} campus` : "", status].filter(Boolean).join(" · ");
 
             return (
               <article className="ch-card" key={child.id}>
                 <header className="ch-card-head">
-                  <span className="ch-avatar" aria-hidden="true">{initials(child.full_name)}</span>
+                  <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path} className="ch-avatar" />
                   <div className="ch-card-name">
                     <h2>{child.full_name}</h2>
-                    <p>{subtitle || "Details to be completed"}</p>
+                    <p>{subtitle || "On the school register"}</p>
                   </div>
                   {child.student_code ? <span className="ch-code" title="Student number">#{child.student_code}</span> : null}
                 </header>
@@ -105,13 +117,6 @@ export function ChildrenView({
                   </div>
                 </dl>
 
-                {missing.length ? (
-                  <p className="ch-missing">
-                    <i className="fa-solid fa-circle-info" aria-hidden="true" />
-                    Add {missing.length > 1 ? `${missing.slice(0, -1).join(", ")} and ${missing[missing.length - 1]}` : missing[0]} so we can match their school records.
-                  </p>
-                ) : null}
-
                 <nav className="ch-links" aria-label={`${child.full_name}'s records`}>
                   <Link href="/account/reports">
                     <i className="fa-solid fa-file-lines" aria-hidden="true" />
@@ -130,16 +135,18 @@ export function ChildrenView({
                   </Link>
                 </nav>
 
-                <ChildActions child={child} />
               </article>
             );
           })}
         </div>
-      ) : null}
-
-      <section className={`ch-add${kids.length ? "" : " is-first"}`} id="add-child" aria-label="Add a child">
-        <AddChild startOpen={!kids.length} />
-      </section>
+      ) : (
+        <section className="ov-panel">
+          <div className="ov-empty">
+            <i className="fa-solid fa-children" aria-hidden="true" />
+            <p>No children are on your account yet. They appear here when the admissions office enrols them on your family.</p>
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -8,7 +8,8 @@ import { loadAccountsReport, rateText, reportSelection, type AccountsReport, typ
 import { StudentFace } from "@/components/StudentFace";
 import { isClassCode, pick, studentStatusInfo } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
-import { ReportNav } from "./nav";
+import { BillingBoard } from "./billing";
+import { ReportDesk } from "./nav";
 import "./reports.css";
 
 export const metadata = { title: "Reports" };
@@ -25,20 +26,16 @@ const NAV = [
 const n = (value: number) => value.toLocaleString("en-GB");
 const sum = (rows: ReportClass[], key: keyof ReportClass) => rows.reduce((total, row) => total + Number(row[key]), 0);
 
-function Section({ id, kicker, title, description, children }: {
+function Section({ id, title, description, children }: {
   id: string;
-  kicker: string;
   title: string;
   description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <section id={id} className="acr-section" aria-labelledby={`${id}-title`}>
+    <section id={id} className="acr-section" role="tabpanel" aria-labelledby={`acr-tab-${id}`} tabIndex={-1}>
       <header className="acr-section-head">
-        <div>
-          <span>{kicker}</span>
-          <h2 id={`${id}-title`}>{title}</h2>
-        </div>
+        <h2 id={`${id}-title`}>{title}</h2>
         {description ? <p>{description}</p> : null}
       </header>
       {children}
@@ -64,7 +61,7 @@ function Card({ title, description, csv, link, flush = false, children }: {
         {csv || link ? (
           <span className="acr-card-actions no-print">
             {link ? <Link className="acr-csv" href={link.href}>{link.label}</Link> : null}
-            {csv ? <a className="acr-csv" href={csv}><i className="fa-solid fa-download" aria-hidden="true" /> CSV</a> : null}
+            {csv ? <a className="acr-csv" href={csv}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a> : null}
           </span>
         ) : null}
       </header>
@@ -133,18 +130,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     credit: sum(report.classes, "credit"),
     receipts: sum(report.classes, "receipts"),
   };
-  const feeTotal = report.fees.reduce((total, row) => total + row.amount, 0);
   const periodCategories = report.categories.filter((row) => row.amount > 0);
   const budgets = report.categories.filter((row) => row.budget !== null);
   const categoryMax = Math.max(1, ...periodCategories.map((row) => row.amount));
   const topDebtors = report.debtors.filter((row) => row.status === "active").slice(0, 8);
   const records = [
-    { label: "Voided receipts", value: n(report.voidedReceipts), note: "Kept on the books", href: paymentsHref({ show: "void" }) },
-    { label: "Voided invoices", value: n(report.voidInvoices), note: report.voidInvoiceTotal ? ugx(report.voidInvoiceTotal) : "None voided", href: invoicesHref({ status: "void" }) },
-    { label: "Reminders sent", value: n(report.reminders), note: term?.starts_on ? "During this term" : "On record", href: "" },
-    { label: "Draft invoices", value: n(report.draftInvoices), note: report.draftTotal ? ugx(report.draftTotal) : "Nothing in draft", href: invoicesHref({ status: "draft" }) },
-    { label: "To approve", value: n(report.pendingCount), note: report.pendingSpend ? ugx(report.pendingSpend) : "Nothing waiting", href: `${ACCOUNTS_BASE}/expenses?status=pending` },
-  ];
+    { label: "Voided receipts", count: report.voidedReceipts, note: "Kept on the books", href: paymentsHref({ show: "void" }) },
+    { label: "Voided invoices", count: report.voidInvoices, note: report.voidInvoiceTotal ? ugx(report.voidInvoiceTotal) : "None voided", href: invoicesHref({ status: "void" }) },
+    { label: "Reminders sent", count: report.reminders, note: term?.starts_on ? "During this term" : "On record", href: "" },
+    { label: "Draft invoices", count: report.draftInvoices, note: report.draftTotal ? ugx(report.draftTotal) : "Nothing in draft", href: invoicesHref({ status: "draft" }) },
+    { label: "To approve", count: report.pendingCount, note: report.pendingSpend ? ugx(report.pendingSpend) : "Nothing waiting", href: `${ACCOUNTS_BASE}/expenses?status=pending` },
+  ].filter((item) => item.count > 0);
 
   const stats = [
     {
@@ -201,7 +197,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     { value: "", label: current?.label ?? "Current term" },
     ...terms.filter((entry) => entry.id !== current?.id).map((entry) => ({ value: entry.id, label: entry.label })),
     { value: "all", label: "All terms" },
-  ];
+  ].map((period) => ({ ...period, href: href({ term: period.value }) }));
 
   return (
     <div className="app-page ofc-page acc-page acr-page">
@@ -221,7 +217,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         kicker="Insights"
         icon="fa-chart-column"
         title="Reports"
-        description={<>Billing, collections, debtors and spending for <strong>{report.periodLabel}</strong>. Every table on this page downloads as a spreadsheet.</>}
+        description={<>Billing, collections, debtors and spending for <strong>{report.periodLabel}</strong>. The summary stays in view. Open a section for the detail, or print the full report.</>}
         actions={
           <>
             <PrintButton label="Print" />
@@ -230,28 +226,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         }
       />
 
-      <div className="acr-toolbar no-print">
-        <div className="acr-terms" role="group" aria-label="Report period">
-          <span>Period</span>
-          <div>
-            {periods.map((period) => (
-              <Link
-                key={period.value || "current"}
-                href={href({ term: period.value })}
-                className={filters.term === period.value ? "is-on" : ""}
-                aria-current={filters.term === period.value ? "true" : undefined}
-              >
-                {period.label}
-              </Link>
-            ))}
-          </div>
-        </div>
-        <p className="acr-asof"><i className="fa-regular fa-clock" aria-hidden="true" /> As of {day(report.today)}</p>
-      </div>
-
+      <ReportDesk
+        items={NAV}
+        periods={periods}
+        currentPeriod={filters.term}
+        asOf={day(report.today)}
+        summary={
+          <>
       <section className="acr-stats" aria-label="Report summary">
-        {stats.map((stat, index) => (
-          <a key={stat.label} href={stat.href} className={`acr-stat is-${stat.tone}`} style={{ animationDelay: `${index * 45}ms` }}>
+        {stats.map((stat) => (
+          <a key={stat.label} href={stat.href} className={`acr-stat is-${stat.tone}`}>
             <span className="acr-stat-top">
               <span className="acr-stat-icon" aria-hidden="true"><i className={`fa-solid ${stat.icon}`} /></span>
               {stat.label}
@@ -269,12 +253,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         ))}
       </section>
 
-      <ul className="acr-flags" aria-label="Records to check">
-        {records.map((item) => {
-          const body = (<><span>{item.label}</span><strong>{item.value}</strong><small>{item.note}</small></>);
-          return <li key={item.label}>{item.href ? <Link href={item.href}>{body}</Link> : <div>{body}</div>}</li>;
-        })}
-      </ul>
+      {records.length ? (
+        <ul className="acr-flags" aria-label="Records to check">
+          {records.map((item) => {
+            const body = (<><span>{item.label}</span><strong>{n(item.count)}</strong><small>{item.note}</small></>);
+            return <li key={item.label}>{item.href ? <Link href={item.href}>{body}</Link> : <div>{body}</div>}</li>;
+          })}
+        </ul>
+      ) : null}
 
       {report.truncated ? (
         <div className="acc-banner is-warn">
@@ -283,9 +269,10 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </div>
       ) : null}
 
-      <ReportNav items={NAV} />
-
-      <Section id="position" kicker="The books" title="Position" description={term ? `How ${term.label} stands, class by class.` : "Every term on the books, added together."}>
+          </>
+        }
+      >
+      <Section id="position" title="Position" description={term ? `How ${term.label} stands, class by class.` : "Every term on the books, added together."}>
         <div className="acr-grid">
           <Card title="How the money moves" csv={exportHref("position")}>
             <dl className="acr-books">
@@ -388,7 +375,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </Card>
       </Section>
 
-      <Section id="collections" kicker="Cash in" title="Collections" description={report.receipts ? `${n(report.receipts)} receipts, averaging ${ugx(report.averageReceipt)}.` : "Receipts written in this period."}>
+      <Section id="collections" title="Collections" description={report.receipts ? `${n(report.receipts)} receipts, averaging ${ugx(report.averageReceipt)}.` : "Receipts written in this period."}>
         <Card
           title={report.columnGrain === "week" ? "Collections by week" : "Collections by day"}
           description={[report.columnNote, report.busiestDay ? `Busiest day ${day(report.busiestDay.date)}, ${ugx(report.busiestDay.total)} across ${n(report.busiestDay.count)} receipts.` : ""].filter(Boolean).join(" ")}
@@ -479,95 +466,48 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         ) : null}
       </Section>
 
-      <Section id="billing" kicker="Invoices" title="Billing" description="Issued bills count towards balances. Drafts and voids stay out until they change.">
-        <ul className="acr-facts">
-          <li><Link href={invoicesHref({ status: "issued" })}><span>Issued</span><strong>{n(report.issuedInvoices)}</strong><small>{ugx(report.billed)}</small></Link></li>
-          <li><Link href={invoicesHref({ kind: "term", status: "issued" })}><span>Term bills</span><strong>{n(report.termBills)}</strong><small>{ugx(report.termBillTotal)}</small></Link></li>
-          <li><Link href={invoicesHref({ kind: "extra", status: "issued" })}><span>Extras</span><strong>{n(report.extraBills)}</strong><small>{ugx(report.extraBillTotal)}</small></Link></li>
-          <li><Link href={invoicesHref({ status: "draft" })}><span>Drafts</span><strong>{n(report.draftInvoices)}</strong><small>{ugx(report.draftTotal)}</small></Link></li>
-          <li><Link href={invoicesHref({ status: "void" })}><span>Void</span><strong>{n(report.voidInvoices)}</strong><small>{ugx(report.voidInvoiceTotal)}</small></Link></li>
-        </ul>
-
-        {term && report.pupilsNotBilled ? (
-          <div className="acc-banner is-warn">
-            <i className="fa-solid fa-file-invoice" aria-hidden="true" />
-            <p>
-              {n(report.pupilsNotBilled)} active {report.pupilsNotBilled === 1 ? "pupil has" : "pupils have"} no issued invoice for {report.periodLabel}.
-              {report.draftsWaiting ? ` ${n(report.draftsWaiting)} of them already ${report.draftsWaiting === 1 ? "has" : "have"} a draft.` : ""}
-            </p>
-            <Link className="admin-btn" href={`${ACCOUNTS_BASE}/invoices/generate`}>Generate invoices</Link>
-          </div>
-        ) : null}
-
-        <div className="acr-grid">
-          <Card title="What the bills are for" description="Charges on issued invoices." csv={exportHref("fees")} flush>
-            {report.fees.length ? (
-              <div className="acr-scroll">
-                <table className="acr-table">
-                  <thead>
-                    <tr><th scope="col">Item</th><th scope="col">Kind</th><th scope="col" className="is-num">Lines</th><th scope="col" className="is-num">Amount</th><th scope="col">Share</th></tr>
-                  </thead>
-                  <tbody>
-                    {report.fees.map((row) => (
-                      <tr key={row.name}>
-                        <td data-label="Item"><i className={`fa-solid ${row.icon}`} aria-hidden="true" /> <strong>{row.name}</strong></td>
-                        <td data-label="Kind">{row.kind}</td>
-                        <td data-label="Lines" className="is-num">{n(row.count)}</td>
-                        <td data-label="Amount" className="is-num">{amount(row.amount)}</td>
-                        <td data-label="Share">
-                          <span className="acr-rate">
-                            <Meter value={row.amount} max={feeTotal} label={`${row.name} share`} />
-                            <small>{percent(row.amount, feeTotal)}%</small>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr><td data-label="Item"><strong>All charges</strong></td><td data-label="Kind"></td><td className="is-num" data-label="Lines">{n(report.fees.reduce((total, row) => total + row.count, 0))}</td><td className="is-num" data-label="Amount">{amount(feeTotal)}</td><td data-label="Share"></td></tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <EmptyLine>{report.linesLoaded ? "No charges on issued invoices in this period." : "Fee lines could not be loaded."}</EmptyLine>
-            )}
-          </Card>
-
-          <Card title="Discounts given" description="Taken off issued invoices, mostly from tuition." csv={exportHref("discounts")} flush>
-            {report.discountLines.length ? (
-              <div className="acr-scroll">
-                <table className="acr-table">
-                  <thead>
-                    <tr><th scope="col">Discount</th><th scope="col" className="is-num">Lines</th><th scope="col" className="is-num">Amount</th><th scope="col">Share</th></tr>
-                  </thead>
-                  <tbody>
-                    {report.discountLines.map((row) => (
-                      <tr key={row.label}>
-                        <td data-label="Discount"><strong>{row.label}</strong></td>
-                        <td data-label="Lines" className="is-num">{n(row.count)}</td>
-                        <td data-label="Amount" className="is-num">{amount(row.amount)}</td>
-                        <td data-label="Share">
-                          <span className="acr-rate">
-                            <Meter value={row.amount} max={report.discounts} label={`${row.label} share`} />
-                            <small>{percent(row.amount, report.discounts)}%</small>
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                  <tfoot>
-                    <tr><td data-label="Discount"><strong>All discounts</strong></td><td className="is-num" data-label="Lines">{n(report.discountLines.reduce((total, row) => total + row.count, 0))}</td><td className="is-num" data-label="Amount">{amount(report.discounts)}</td><td data-label="Share"></td></tr>
-                  </tfoot>
-                </table>
-              </div>
-            ) : (
-              <EmptyLine>{report.linesLoaded ? "No discounts on issued invoices in this period." : "Fee lines could not be loaded."}</EmptyLine>
-            )}
-          </Card>
-        </div>
+      <Section id="billing" title="Billing" description="Issued invoices count. Drafts and voids stay out until they change.">
+        <BillingBoard
+          coverage={term ? {
+            periodLabel: report.periodLabel,
+            onRoll: report.pupilsOnRoll,
+            billedPupils: report.pupilsBilled,
+            notBilled: report.pupilsNotBilled,
+            draftsWaiting: report.draftsWaiting,
+            generateHref: `${ACCOUNTS_BASE}/invoices/generate`,
+            gaps: report.classes
+              .filter((row) => row.notBilled > 0)
+              .sort((a, b) => b.notBilled - a.notBilled || a.name.localeCompare(b.name))
+              .map((row) => ({
+                code: row.code,
+                name: row.name,
+                notBilled: row.notBilled,
+                onRoll: row.onRoll,
+                href: isClassCode(row.code) ? `${ACCOUNTS_BASE}/students?class=${row.code}` : "",
+              })),
+          } : null}
+          charges={report.fees}
+          discounts={report.discountLines}
+          discountTotal={report.discounts}
+          issuedTotal={report.billed}
+          linesLoaded={report.linesLoaded}
+          feesCsv={exportHref("fees")}
+          discountsCsv={exportHref("discounts")}
+          links={[
+            { href: invoicesHref({ status: "issued" }), label: "All issued", count: report.issuedInvoices, amount: report.billed },
+            ...(report.termBills > 0 && report.extraBills > 0
+              ? [
+                { href: invoicesHref({ kind: "term", status: "issued" }), label: "Term bills", count: report.termBills, amount: report.termBillTotal },
+                { href: invoicesHref({ kind: "extra", status: "issued" }), label: "Extras", count: report.extraBills, amount: report.extraBillTotal },
+              ]
+              : []),
+            { href: invoicesHref({ status: "draft" }), label: "Drafts", count: report.draftInvoices, amount: report.draftTotal, quiet: true },
+            { href: invoicesHref({ status: "void" }), label: "Void", count: report.voidInvoices, amount: report.voidInvoiceTotal, quiet: true },
+          ].filter((link) => link.count > 0)}
+        />
       </Section>
 
-      <Section id="debtors" kicker="Still to collect" title="Debtors" description={term ? `Balances for ${term.label}. The debtors list itself is every term added together.` : "Active pupils with a balance, aged from the oldest unpaid due date."}>
+      <Section id="debtors" title="Debtors" description={term ? `Balances for ${term.label}. The debtors list itself is every term added together.` : "Active pupils with a balance, aged from the oldest unpaid due date."}>
         <div className="acr-grid">
           <Card title="How old the debts are" csv={exportHref("aging")}>
             {report.owing ? (
@@ -637,7 +577,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         ) : null}
       </Section>
 
-      <Section id="spending" kicker="Cash out" title="Spending" description="Approved and paid expenses in this period. Pending items are listed and kept out of the totals.">
+      <Section id="spending" title="Spending" description="Approved and paid expenses in this period. Pending items are listed and kept out of the totals.">
         <div className="acr-grid">
           <Card title="By category" csv={exportHref("categories")}>
             {periodCategories.length ? (
@@ -736,7 +676,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         ) : null}
       </Section>
 
-      <Section id="terms" kicker="Comparison" title="Across terms" description={report.termId ? "The highlighted row is the period above. Spending follows each term's start and end dates." : "Spending follows each term's start and end dates."}>
+      <Section id="terms" title="Across terms" description={report.termId ? "The highlighted row is the period above. Spending follows each term's start and end dates." : "Spending follows each term's start and end dates."}>
         <Card title="Term summary" csv={exportHref("terms")} flush>
           {report.terms.length ? (
             <div className="acr-scroll">
@@ -756,7 +696,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   {report.terms.map((row) => (
                     <tr key={row.id} className={row.id === report.termId ? "is-on" : ""}>
                       <td data-label="Term">
-                        <Link href={href({ term: row.isCurrent ? "" : row.id })}><strong>{row.label}</strong></Link>
+                        <Link href={`${href({ term: row.isCurrent ? "" : row.id })}#terms`} scroll={false}><strong>{row.label}</strong></Link>
                         {row.isCurrent ? <small>Current</small> : null}
                       </td>
                       <td data-label="Billed" className="is-num">{amount(row.invoiced)}</td>
@@ -782,6 +722,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </p>
         </Card>
       </Section>
+      </ReportDesk>
     </div>
   );
 }

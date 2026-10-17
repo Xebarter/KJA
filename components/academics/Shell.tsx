@@ -48,14 +48,14 @@ export function AcademicsShell({
   const [open, setOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const nav = academicsNav.filter((item) => office || !item.office);
-  const groups = [...new Set(nav.map((item) => item.group))];
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
+    // Dynamic office pages otherwise prefetch only the loading skeleton, so the click still waits on the server.
     for (const item of academicsNav) {
-      if (office || !item.office) router.prefetch(item.href);
+      if (office || !item.office) router.prefetch(item.href, { kind: "full" as const } as Parameters<typeof router.prefetch>[1]);
     }
   }, [router, office]);
 
@@ -128,24 +128,23 @@ export function AcademicsShell({
         />
 
         <nav className="admin-nav" aria-label="Academics office">
-          {groups.map((group) => (
-            <Fragment key={group}>
-              {group !== "Office" ? <span className="admin-nav-label">{group}</span> : null}
-              {nav.filter((item) => item.group === group).map((item) => {
-                const active = isActive(pathname, item.href);
-                const badge = item.badge ? badges[item.badge] : 0;
-                return (
-                  <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
-                    <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-                    <span>{item.label}</span>
-                    {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
-                  </Link>
-                );
-              })}
-            </Fragment>
-          ))}
-          <span className="admin-nav-label">Today</span>
-          <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}>
+          {nav.map((item, index) => {
+            const active = isActive(pathname, item.href);
+            const badge = item.badge ? badges[item.badge] : 0;
+            const divided = index > 0 && item.group !== nav[index - 1].group;
+            return (
+              <Fragment key={item.href}>
+                {divided ? <hr className="admin-nav-rule" /> : null}
+                <Link href={item.href} prefetch={true} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
+                </Link>
+              </Fragment>
+            );
+          })}
+          <hr className="admin-nav-rule" />
+          <Link href={`${ACADEMICS_BASE}/attendance`} prefetch={true} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}>
             <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
             <span>Take a register</span>
           </Link>

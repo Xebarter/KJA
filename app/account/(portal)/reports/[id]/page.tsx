@@ -13,6 +13,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
   if (!isUuid(id)) notFound();
   const { supabase } = await getSessionUser();
   if (!supabase) notFound();
+  await Promise.resolve(supabase.rpc("claim_guardian_links")).catch(() => undefined);
   const { data: card } = await supabase
     .from("report_cards")
     .select("*, fee_terms(label)")
@@ -20,6 +21,11 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     .eq("status", "published")
     .maybeSingle();
   if (!card) notFound();
+  const linked = await supabase.rpc("my_student_ids");
+  const allowed = new Set(
+    (Array.isArray(linked.data) ? linked.data : []).map((row) => typeof row === "string" ? row : String((row as { my_student_ids?: string }).my_student_ids || "")),
+  );
+  if (!allowed.has(card.student_id)) notFound();
   const [{ data: pupil }, { data: lines }] = await Promise.all([
     supabase.from("students").select("full_name, student_number").eq("id", card.student_id).maybeSingle(),
     supabase.from("report_lines").select("*").eq("report_card_id", id),

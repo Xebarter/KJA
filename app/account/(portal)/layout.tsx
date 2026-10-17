@@ -8,9 +8,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const portal = await getPortal();
   const name = portal.profile?.full_name || portal.profile?.email || "Parent";
   const role = portal.profile?.role;
-  let staffLink = role === "admin"
-    ? { href: "/admin", label: "Admin dashboard" }
-    : role === "admissions" ? { href: "/admissions_office", label: "Admissions office" }
+  let staffLink = role === "admissions" ? { href: "/admissions_office", label: "Admissions office" }
     : role === "accounts" ? { href: "/accounts", label: "Accounts office" }
     : role === "academics" ? { href: "/academics_office", label: "Academics office" }
     : null;

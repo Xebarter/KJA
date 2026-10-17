@@ -15,6 +15,7 @@ import {
   dateTime,
   day,
   discountText,
+  methodInfo,
   overdueText,
   statementRows,
   ugx,
@@ -27,7 +28,7 @@ import {
   type TermBalance,
 } from "@/lib/accounts-format";
 import { loadPeople } from "@/lib/admin-applications";
-import { initials, whatsappLink } from "@/lib/applications";
+import { ageFrom, initials, whatsappLink } from "@/lib/applications";
 import { cap, className, displayPhone, isStudentStatus, isUuid, pick, studentStatusInfo, telHref } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
@@ -62,7 +63,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
   if (!row) notFound();
   const pupil = { ...(row as BalanceRow), balance: Number(row.balance), invoiced: Number(row.invoiced), paid: Number(row.paid) };
 
-  const [invoiceRes, paymentRes, termRes, discountRes, ruleRes, siblingRes, activityRes, guardianRes, reminderRes, faceRes] = await Promise.all([
+  const [invoiceRes, paymentRes, termRes, discountRes, ruleRes, siblingRes, activityRes, guardianRes, reminderRes, faceRes, clubRes, clubPayRes, clubWaitRes] = await Promise.all([
     supabase.from("invoices").select("*").eq("student_id", id).order("issued_on", { ascending: false }),
     supabase.from("payments").select("*").eq("student_id", id).order("paid_on", { ascending: false }),
     supabase.from("student_term_balances").select("student_id, term_id, invoiced, paid, balance, due_on, last_paid_on").eq("student_id", id),
@@ -76,7 +77,14 @@ export default async function FeeAccountPage({ params, searchParams }: {
       ? supabase.from("guardians").select("id, full_name, relationship, phone, email, is_primary").eq("family_id", pupil.family_id).order("is_primary", { ascending: false })
       : Promise.resolve({ data: [] }),
     supabase.from("fee_reminders").select("id, sent_to, amount, status, sent_at").eq("student_id", id).order("sent_at", { ascending: false }).limit(5),
-    supabase.from("students").select("photo_path, sex").eq("id", id).maybeSingle(),
+    supabase.from("students").select("photo_path, sex, date_of_birth, house, enrolled_on, preferred_name").eq("id", id).maybeSingle(),
+    supabase.from("club_consents").select("club_id, clubs(title, fee_amount)").eq("student_id", id).is("withdrawn_at", null),
+    current
+      ? supabase.from("club_payments").select("club_id, receipt_no").eq("student_id", id).eq("term_id", current.id).is("voided_at", null)
+      : Promise.resolve({ data: [], error: null }),
+    current
+      ? supabase.from("club_collections").select("id, club_id").eq("student_id", id).eq("term_id", current.id).eq("status", "pending")
+      : Promise.resolve({ data: [], error: null }),
   ]);
   const invoices = (invoiceRes.data || []) as Invoice[];
   const payments = (paymentRes.data || []) as Payment[];
@@ -87,17 +95,44 @@ export default async function FeeAccountPage({ params, searchParams }: {
   const activity = (activityRes.data || []) as AccountActivity[];
   const guardians = (guardianRes.data || []) as { id: string; full_name: string; relationship: string; phone: string | null; email: string | null; is_primary: boolean }[];
   const reminders = (reminderRes.data || []) as { id: string; sent_to: string; amount: number; status: string; sent_at: string }[];
-  let photoPath: string | null = null;
-  let sex: "M" | "F" | null = null;
+  type PupilProfile = { photo_path?: string | null; sex?: string | null; date_of_birth?: string | null; house?: string | null; enrolled_on?: string | null; preferred_name?: string | null };
+  let profile: PupilProfile = {};
   if (faceRes.error?.message && /photo_path/.test(faceRes.error.message)) {
-    const retry = await supabase.from("students").select("sex").eq("id", id).maybeSingle();
-    if (retry.data?.sex === "M" || retry.data?.sex === "F") sex = retry.data.sex;
-  } else {
-    const face = faceRes.data as { photo_path?: string | null; sex?: string | null } | null;
-    photoPath = typeof face?.photo_path === "string" && face.photo_path ? face.photo_path : null;
-    if (face?.sex === "M" || face?.sex === "F") sex = face.sex;
+    const retry = await supabase.from("students").select("sex, date_of_birth, house, enrolled_on, preferred_name").eq("id", id).maybeSingle();
+    profile = (retry.data || {}) as PupilProfile;
+  } else if (!faceRes.error) {
+    profile = (faceRes.data || {}) as PupilProfile;
   }
+  const photoPath = typeof profile.photo_path === "string" && profile.photo_path ? profile.photo_path : null;
+  const sex = profile.sex === "M" || profile.sex === "F" ? profile.sex : null;
   const tone = sex === "M" ? "boy" : sex === "F" ? "girl" : "none";
+  const age = ageFrom(profile.date_of_birth);
+  const house = profile.house?.trim() || "";
+  const called = profile.preferred_name?.trim() || "";
+  const showCalled = Boolean(called) && called.toLowerCase() !== pupil.full_name.trim().toLowerCase();
+
+  type ClubEmbed = { title?: string | null; fee_amount?: number | null };
+  const clubSeats: { id: string; title: string; fee: number }[] = [];
+  if (!clubRes.error) {
+    for (const seat of (clubRes.data || []) as { club_id: string; clubs: ClubEmbed | ClubEmbed[] | null }[]) {
+      const club = Array.isArray(seat.clubs) ? seat.clubs[0] : seat.clubs;
+      if (!club?.title) continue;
+      clubSeats.push({ id: seat.club_id, title: club.title, fee: Number(club.fee_amount) || 0 });
+    }
+    clubSeats.sort((a, b) => a.title.localeCompare(b.title));
+  }
+  const clubPaid = new Map(
+    (((clubPayRes.error ? [] : clubPayRes.data) || []) as { club_id: string; receipt_no: string | null }[]).map((row) => [row.club_id, row.receipt_no] as const),
+  );
+  const clubWaiting = new Set<string>();
+  if (!clubWaitRes.error) {
+    const waitingRows = (clubWaitRes.data || []) as { id: string; club_id: string | null }[];
+    for (const row of waitingRows) if (row.club_id) clubWaiting.add(row.club_id);
+    if (waitingRows.length) {
+      const items = await supabase.from("club_collection_items").select("club_id").in("collection_id", waitingRows.map((row) => row.id));
+      if (!items.error) for (const item of (items.data || []) as { club_id: string }[]) clubWaiting.add(item.club_id);
+    }
+  }
   const people = await loadPeople(supabase, activity.map((entry) => entry.actor_id));
 
   const termOrder = new Map(terms.map((term, index) => [term.id, index]));
@@ -129,6 +164,10 @@ export default async function FeeAccountPage({ params, searchParams }: {
   const payTerm = owingTerm?.term_id ?? current?.id ?? terms[0]?.id ?? "";
   const statementPdf = `${ACCOUNTS_BASE}/students/${id}/statement${termFilter ? `?term=${termFilter}` : ""}`;
   const base = `${ACCOUNTS_BASE}/students/${id}`;
+  const lastPayment = payments.find((payment) => !payment.voided_at) ?? null;
+  const familyBalance = pupil.family_id ? pupil.balance + siblings.reduce((sum, sibling) => sum + Number(sibling.balance), 0) : null;
+  const familyNote = familyBalance === null ? "" : familyBalance > 0 ? `Family still owes ${ugx(familyBalance)}` : familyBalance < 0 ? `Family is ${ugx(-familyBalance)} in credit` : "The family account is clear";
+  const primaryId = guardians.find((guardian) => guardian.is_primary)?.id ?? guardians[0]?.id ?? "";
   const collected = pupil.invoiced > 0 ? Math.max(0, Math.min(100, Math.round((Math.max(pupil.paid, 0) / pupil.invoiced) * 100))) : null;
   const balanceNote = pupil.balance > 0 && pupil.oldest_due
     ? overdueText(pupil.oldest_due)
@@ -158,6 +197,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
           <div className="fac-account-copy">
             <p className="fac-account-kicker">Fee account</p>
             <h1>{pupil.full_name}</h1>
+            {showCalled ? <p className="fac-called">Called {called}</p> : null}
             <p className="fac-account-meta">
               <span className="ofc-num">{pupil.student_number}</span>
               <span>{className(pupil.class_code)}{pupil.stream ? ` ${pupil.stream}` : ""}</span>
@@ -165,6 +205,20 @@ export default async function FeeAccountPage({ params, searchParams }: {
               {pupil.staff_child ? <em className="fac-tag is-staff">Staff child</em> : null}
               {pupil.status !== "active" ? <em className="fac-tag">{isStudentStatus(pupil.status) ? studentStatusInfo(pupil.status).label : pupil.status}</em> : null}
             </p>
+            {age || sex || house || profile.enrolled_on || pupil.family_id ? (
+              <ul className="fac-facts">
+                {age ? <li><span>Age</span><strong>{age}</strong></li> : null}
+                {sex ? <li><span>Sex</span><strong>{sex === "M" ? "Boy" : "Girl"}</strong></li> : null}
+                {house ? <li><span>House</span><strong>{house}</strong></li> : null}
+                {profile.enrolled_on ? <li><span>Joined</span><strong>{day(profile.enrolled_on)}</strong></li> : null}
+                {pupil.family_id ? (
+                  <li>
+                    <span>Family</span>
+                    <strong><Link href={`${ACCOUNTS_BASE}/families/${pupil.family_id}`}>{pupil.mailing_name || `Family ${pupil.family_code}`}</Link></strong>
+                  </li>
+                ) : null}
+              </ul>
+            ) : null}
             <div className="fac-account-actions">
               {terms.length ? <RecordPaymentButton className="fac-act is-primary" terms={termOptions} termId={payTerm} pupil={hit} /> : null}
               <a className="fac-act" href={statementPdf} target="_blank" rel="noreferrer"><i className="fa-solid fa-file-pdf" aria-hidden="true" /> Statement</a>
@@ -180,15 +234,32 @@ export default async function FeeAccountPage({ params, searchParams }: {
               <p>{balanceNote}</p>
             </div>
             <div>
-              <dt>Billed</dt>
-              <dd title={ugx(pupil.invoiced)}><small>UGX</small> {amount(pupil.invoiced)}</dd>
-              <p>Paid {ugx(pupil.paid)}</p>
+              <dt>Paid</dt>
+              <dd title={ugx(pupil.paid)}><small>UGX</small> {amount(pupil.paid)}</dd>
+              <p>of {ugx(pupil.invoiced)} billed</p>
+            </div>
+            <div>
+              <dt>Last payment</dt>
+              {lastPayment ? (
+                <>
+                  <dd title={ugx(lastPayment.amount)}><small>UGX</small> {amount(lastPayment.amount)}</dd>
+                  <p><Link href={`${ACCOUNTS_BASE}/payments/${lastPayment.id}`}>{day(lastPayment.paid_on)}</Link> · {methodInfo(lastPayment.method).label}</p>
+                </>
+              ) : (
+                <>
+                  <dd>—</dd>
+                  <p>Nothing received yet</p>
+                </>
+              )}
             </div>
           </dl>
           {collected !== null ? (
-            <div className="fac-account-bar" role="img" aria-label={`${collected}% of billed fees collected`}>
-              <span style={{ width: `${collected}%` }} />
-            </div>
+            <>
+              <p className="fac-account-rate"><strong>{collected}%</strong> of billed fees collected</p>
+              <div className="fac-account-bar" role="img" aria-label={`${collected}% of billed fees collected`}>
+                <span style={{ width: `${collected}%` }} />
+              </div>
+            </>
           ) : null}
         </div>
       </header>
@@ -224,7 +295,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
         <div className="dash-col">
           <Panel
             title="Statement"
-            description={accountTerms.length > 1 ? undefined : "Invoices and payments, oldest first"}
+            description="Charges and payments, oldest first. The balance at the bottom is what is still due."
             action={{ href: statementPdf, label: "Download PDF", file: true }}
           >
             {accountTerms.length > 1 ? (
@@ -285,8 +356,9 @@ export default async function FeeAccountPage({ params, searchParams }: {
               <ul className="fac-people">
                 {guardians.map((guardian) => {
                   const whatsapp = whatsappLink(guardian.phone);
+                  const main = guardian.id === primaryId;
                   return (
-                    <li key={guardian.id}>
+                    <li key={guardian.id} className={main ? "is-main" : ""}>
                       <span className="fac-person-mark" aria-hidden="true">{initials(guardian.full_name)}</span>
                       <div>
                         <strong>{guardian.full_name}</strong>
@@ -294,13 +366,19 @@ export default async function FeeAccountPage({ params, searchParams }: {
                           {cap(guardian.relationship)}
                           {guardian.is_primary ? <em>Main</em> : null}
                         </small>
-                        {guardian.phone || guardian.email ? (
+                        {main && (guardian.phone || whatsapp) ? (
+                          <span className="fac-person-actions">
+                            {guardian.phone ? <a className="fac-act" href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
+                            {whatsapp ? <a className="fac-act is-wa" href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a> : null}
+                          </span>
+                        ) : null}
+                        {(!main && (guardian.phone || whatsapp)) || guardian.email ? (
                           <span className="fac-person-links">
-                            {guardian.phone ? <a href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
-                            {whatsapp ? <a className="is-wa" href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a> : null}
+                            {!main && guardian.phone ? <a href={telHref(guardian.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(guardian.phone)}</a> : null}
+                            {!main && whatsapp ? <a className="is-wa" href={whatsapp} target="_blank" rel="noreferrer"><i className="fa-brands fa-whatsapp" aria-hidden="true" /> WhatsApp</a> : null}
                             {guardian.email ? <a href={`mailto:${guardian.email}`}><i className="fa-regular fa-envelope" aria-hidden="true" /> {guardian.email}</a> : null}
                           </span>
-                        ) : <span className="fac-person-none">No phone or email on file</span>}
+                        ) : !main || (!guardian.phone && !whatsapp) ? <span className="fac-person-none">No phone or email on file</span> : null}
                       </div>
                     </li>
                   );
@@ -314,6 +392,29 @@ export default async function FeeAccountPage({ params, searchParams }: {
               </p>
             ) : null}
           </Panel>
+
+          {clubSeats.length ? (
+            <Panel title="Clubs" description={current ? `Fees for ${current.label}` : "Clubs this child has joined"}>
+              <ul className="fac-seats">
+                {clubSeats.map((club) => {
+                  const receipt = clubPaid.get(club.id);
+                  const waiting = clubWaiting.has(club.id);
+                  const status = receipt !== undefined ? "paid" : waiting ? "waiting" : "unpaid";
+                  return (
+                    <li key={club.id}>
+                      <div>
+                        <strong>{club.title}</strong>
+                        <small>{ugx(club.fee)}{receipt ? ` · ${receipt}` : ""}</small>
+                      </div>
+                      <span className={`fac-seat is-${status}`}>
+                        {status === "paid" ? "Paid" : status === "waiting" ? "Waiting" : "Not paid"}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Panel>
+          ) : null}
 
           <Panel title="Discounts" description="Taken off tuition when the next term invoices are generated.">
             {discounts.length || pupil.staff_child ? (
@@ -348,12 +449,12 @@ export default async function FeeAccountPage({ params, searchParams }: {
           </Panel>
 
           {siblings.length ? (
-            <Panel title="Brothers and sisters" action={pupil.family_id ? { href: `${ACCOUNTS_BASE}/families/${pupil.family_id}`, label: "Family statement" } : undefined}>
+            <Panel title="Brothers and sisters" description={familyNote || undefined} action={pupil.family_id ? { href: `${ACCOUNTS_BASE}/families/${pupil.family_id}`, label: "Family statement" } : undefined}>
               <ul className="ofc-list acc-mini-list">
                 {siblings.map((sibling) => (
                   <li key={sibling.student_id}>
                     <Link href={`${ACCOUNTS_BASE}/students/${sibling.student_id}`}>{sibling.full_name}</Link>
-                    <span className="app-muted">{sibling.class_code ?? sibling.status}</span>
+                    <span className="app-muted">{sibling.class_code ? className(sibling.class_code) : sibling.status}</span>
                     <BalancePill balance={Number(sibling.balance)} />
                   </li>
                 ))}

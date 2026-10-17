@@ -81,7 +81,7 @@ function MiniMonth({ today, eventDays }: { today: string; eventDays: Map<string,
 }
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ campus?: string }> }) {
-  const [{ events: articles, children }, { campus: campusParam }] = await Promise.all([getPortal(), searchParams]);
+  const [{ events: articles, pupils }, { campus: campusParam }] = await Promise.all([getPortal(), searchParams]);
   const clock = kampalaClock();
   const { today, now } = clock;
   const locationOf = new Map(articles.map((article) => [article.slug, article.location?.trim() || ""]));
@@ -90,7 +90,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const campusNames = [...new Set([...locationOf.values()].filter(Boolean))].sort(
     (a, b) => (CAMPUS_ORDER.indexOf(a) + 1 || 99) - (CAMPUS_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b),
   );
-  const familyCampuses = new Set(children.map((child) => child.campus).filter(Boolean));
+  const familyCampuses = new Set(pupils.map((child) => child.campus).filter(Boolean));
   const campus = campusNames.find((name) => name.toLowerCase() === campusParam?.toLowerCase());
   const matches = (event: CalEvent) => !campus || !locationOf.get(event.slug) || locationOf.get(event.slug) === campus;
 

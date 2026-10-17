@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { saveSlot } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { DeskForm } from "@/components/academics/Form";
+import { ClassJump, TimetableDesk, type TimetableClash, type TimetableLesson } from "@/components/academics/TimetableDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
 import {
   ACADEMICS_BASE,
@@ -94,6 +94,7 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
           groups={groups}
           selected={selected}
           slots={slots}
+          clashes={allSlots.flatMap((slot) => slot.staff_id ? [{ id: slot.id, staffId: slot.staff_id, weekday: slot.weekday, period: slot.period, label: classLabel(slot.class_code, slot.stream) }] : [])}
           subjects={fitting}
           staff={staff}
           subjectName={subjectName}
@@ -184,12 +185,13 @@ function ClassBoard({ title, icon, groups, slots }: { title: string; icon: strin
 }
 
 function Week({
-  office, groups, selected, slots, subjects, staff, subjectName, staffName, termId, editing, focusDay, focusPeriod, today,
+  office, groups, selected, slots, clashes, subjects, staff, subjectName, staffName, termId, editing, focusDay, focusPeriod, today,
 }: {
   office: boolean;
   groups: Group[];
   selected: Group | null;
   slots: Slot[];
+  clashes: TimetableClash[];
   subjects: ReturnType<typeof mapSubject>[];
   staff: ReturnType<typeof mapStaff>[];
   subjectName: Map<string, string>;
@@ -204,25 +206,54 @@ function Week({
   const assigned = slots.filter((slot) => slot.staff_id).length;
   const open = Math.max(0, CAPACITY - slots.length);
   const classes = new Set(slots.map((slot) => `${slot.class_code}:${slot.stream}`)).size;
-  const taken = Boolean(focusDay && focusPeriod && slots.some((slot) => slot.weekday === focusDay && slot.period === focusPeriod && slot.id !== editing?.id));
-  const focusLabel = focusDay && focusPeriod ? `${WEEKDAYS.find((day) => day.value === focusDay)?.label} · Period ${focusPeriod}` : null;
   const unassigned = slots.length - assigned;
+  const siblings = selected ? groups.filter((group) => group.code === selected.code) : [];
+  const focusName = WEEKDAYS.find((day) => day.value === focusDay)?.label;
+  const focusLabel = focusName && focusPeriod ? `${focusName} · Period ${focusPeriod}` : "";
+  const taken = Boolean(focusLabel) && slots.some((slot) => slot.weekday === focusDay && slot.period === focusPeriod && slot.id !== editing?.id);
+  const lessons: TimetableLesson[] = slots.map((slot) => ({
+    id: slot.id,
+    weekday: slot.weekday,
+    period: slot.period,
+    subjectId: slot.subject_id,
+    subject: subjectName.get(slot.subject_id) || "Subject",
+    staffId: slot.staff_id,
+    teacher: office ? staffName.get(slot.staff_id || "") || "Teacher not set" : classLabel(slot.class_code, slot.stream),
+    starts: slot.starts_at?.slice(0, 5) || "",
+    ends: slot.ends_at?.slice(0, 5) || "",
+    room: slot.room || "",
+    tone: tone(slot.subject_id),
+  }));
 
   return (
     <>
       {office && selected ? (
         <div className="tt-nav">
-          <Link href={ACADEMICS_BASE + "/timetable"}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> All classes</Link>
-          <nav className="tt-rail" aria-label="Classes">
-            {groups.map((group) => {
-              const on = group.code === selected.code && group.stream === selected.stream;
-              return (
-                <Link key={`${group.code}-${group.stream}`} href={classHref(group.code, group.stream)} className={on ? "is-on" : ""} aria-current={on ? "page" : undefined}>
-                  {classLabel(group.code, group.stream)}
-                </Link>
-              );
-            })}
-          </nav>
+          <div className="tt-nav-line">
+            <Link href={ACADEMICS_BASE + "/timetable"}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> All classes</Link>
+            {siblings.length > 1 ? (
+              <nav className="tt-rail" aria-label="Streams">
+                <span className="tt-stream-label">Stream</span>
+                {siblings.map((group) => {
+                  const on = group.stream === selected.stream;
+                  return (
+                    <Link key={`${group.code}-${group.stream}`} href={classHref(group.code, group.stream)} className={on ? "is-on" : ""} aria-current={on ? "page" : undefined} aria-label={classLabel(group.code, group.stream)}>
+                      {group.stream || "Main"}
+                    </Link>
+                  );
+                })}
+              </nav>
+            ) : null}
+          </div>
+          <ClassJump
+            value={`${selected.code}|${selected.stream}`}
+            options={groups.map((group) => ({
+              value: `${group.code}|${group.stream}`,
+              href: classHref(group.code, group.stream),
+              label: classLabel(group.code, group.stream),
+              section: group.section === "nursery" ? "Nursery" : "Primary",
+            }))}
+          />
         </div>
       ) : null}
 
@@ -245,117 +276,75 @@ function Week({
         </div>
       </section>
 
-      <div className={`tt-layout${office && selected ? "" : " is-solo"}`}>
-        <section className="tt-card">
-          <header className="tt-card-head">
-            <div className="tt-card-title">
-              <span className="tt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
-              <div>
-                <h2>{office && selected ? "The week" : "Your week"}</h2>
-                <p>{office ? "An empty period can take a lesson. A teacher cannot be in two classes at once." : "Lessons assigned to you this term."}</p>
-              </div>
-            </div>
-          </header>
-          {slots.length || office ? (
-            <div className="tt-scroll">
-              <div className="tt-grid" role="grid" aria-label="Week">
-                <div className="tt-corner" />
-                {WEEKDAYS.map((day) => (
-                  <div key={day.value} className={`tt-day${day.value === today ? " is-today" : ""}`} role="columnheader">
-                    {day.label.slice(0, 3)}
-                    {day.value === today ? <small>Today</small> : null}
-                  </div>
-                ))}
-                {PERIODS.map((period) => (
-                  <div key={period} className="tt-row">
-                    <div className="tt-period" role="rowheader"><strong>{period}</strong><small>Period</small></div>
-                    {WEEKDAYS.map((day) => {
-                      const cell = slots.filter((slot) => slot.weekday === day.value && slot.period === period);
-                      const aimed = focusDay === day.value && focusPeriod === period;
-                      return (
-                        <div key={`${day.value}-${period}`} className={`tt-cell${day.value === today ? " is-today" : ""}${aimed ? " is-aim" : ""}`} role="gridcell">
-                          {cell.length ? cell.map((slot) => (
-                            <article key={slot.id} className={`tt-lesson is-${tone(slot.subject_id)}${editing?.id === slot.id ? " is-editing" : ""}`}>
-                              <strong>{subjectName.get(slot.subject_id) || "Subject"}</strong>
-                              <small>{office ? staffName.get(slot.staff_id || "") || "Teacher not set" : classLabel(slot.class_code, slot.stream)}</small>
-                              {clock(slot) || slot.room ? <small className="tt-when">{[clock(slot), slot.room].filter(Boolean).join(" · ")}</small> : null}
-                              {office && selected ? (
-                                <span className="tt-actions">
-                                  <Link href={classHref(selected.code, selected.stream, { edit: slot.id })}>Edit</Link>
-                                  <DeskForm action={saveSlot} className="tt-remove">
-                                    <input type="hidden" name="id" value={slot.id} />
-                                    <button type="submit" name="intent" value="delete">Remove</button>
-                                  </DeskForm>
-                                </span>
-                              ) : null}
-                            </article>
-                          )) : office && selected ? (
-                            <Link className={`tt-open${aimed ? " is-on" : ""}`} href={classHref(selected.code, selected.stream, { day: String(day.value), period: String(period) })}>
-                              Add
-                            </Link>
-                          ) : <span className="tt-blank" />}
-                        </div>
-                      );
-                    })}
-                  </div>
-                ))}
-              </div>
-            </div>
-          ) : <p className="tt-quiet"><i className="fa-regular fa-calendar" aria-hidden="true" /> Nothing is on your timetable yet.</p>}
-        </section>
-
-        {office && selected ? (
-          <section className="tt-card tt-side" id="schedule">
+      {office && selected ? (
+        <TimetableDesk
+          lessons={lessons}
+          subjects={subjects.map((subject) => ({ id: subject.id, name: subject.name }))}
+          staff={staff.map((member) => ({ id: member.id, name: member.full_name }))}
+          clashes={clashes}
+          days={WEEKDAYS.map((day) => ({ value: day.value, label: day.label }))}
+          periods={[...PERIODS]}
+          termId={termId}
+          classCode={selected.code}
+          stream={selected.stream}
+          save={saveSlot}
+          today={today}
+          initial={editing ? { id: editing.id } : focusDay && focusPeriod ? { weekday: focusDay, period: focusPeriod } : null}
+        />
+      ) : (
+        <div className="tt-layout is-solo">
+          <section className="tt-card">
             <header className="tt-card-head">
               <div className="tt-card-title">
-                <span className="tt-card-icon" aria-hidden="true"><i className={`fa-solid ${editing ? "fa-pen" : "fa-plus"}`} /></span>
+                <span className="tt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
                 <div>
-                  <h2>{editing ? "Update lesson" : "Add a lesson"}</h2>
-                  <p>{focusLabel ? focusLabel : `For ${classLabel(selected.code, selected.stream)}.`}</p>
+                  <h2>Your week</h2>
+                  <p>Lessons assigned to you this term.</p>
                 </div>
               </div>
             </header>
-            {taken ? <p className="tt-warn"><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" /> That period already has a lesson. Remove it first, or choose another period.</p> : null}
-            <DeskForm action={saveSlot} className="tt-form">
-              <input type="hidden" name="term_id" value={termId} />
-              <input type="hidden" name="class_code" value={selected.code} />
-              <input type="hidden" name="stream" value={selected.stream} />
-              {editing ? <input type="hidden" name="id" value={editing.id} /> : null}
-              <div className="ofc-fields">
-                <label className="ofc-field"><span>Day</span>
-                  <select name="weekday" defaultValue={editing?.weekday ?? focusDay ?? 1}>{WEEKDAYS.map((day) => <option key={day.value} value={day.value}>{day.label}</option>)}</select>
-                </label>
-                <label className="ofc-field"><span>Period</span>
-                  <select name="period" defaultValue={editing?.period ?? focusPeriod ?? 1}>{PERIODS.map((period) => <option key={period} value={period}>{period}</option>)}</select>
-                </label>
-                <label className="ofc-field tt-span"><span>Subject</span>
-                  <select name="subject_id" required defaultValue={editing?.subject_id || ""}><option value="" disabled>Choose a subject</option>{subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select>
-                </label>
-                <label className="ofc-field tt-span"><span>Teacher</span>
-                  <select name="staff_id" defaultValue={editing?.staff_id || ""}><option value="">Not assigned yet</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}</select>
-                </label>
-                <label className="ofc-field"><span>Starts</span><input name="starts_at" type="time" defaultValue={editing?.starts_at?.slice(0, 5) || ""} /></label>
-                <label className="ofc-field"><span>Ends</span><input name="ends_at" type="time" defaultValue={editing?.ends_at?.slice(0, 5) || ""} /></label>
-                <label className="ofc-field tt-span"><span>Room <em>optional</em></span><input name="room" defaultValue={editing?.room || ""} placeholder="Room or block" /></label>
+            {lessons.length ? (
+              <div className="tt-scroll">
+                <div className="tt-grid" role="grid" aria-label="Week">
+                  <div className="tt-corner" />
+                  {WEEKDAYS.map((day) => (
+                    <div key={day.value} className={`tt-day${day.value === today ? " is-today" : ""}`} role="columnheader">
+                      {day.label.slice(0, 3)}
+                      {day.value === today ? <small>Today</small> : null}
+                    </div>
+                  ))}
+                  {PERIODS.map((period) => (
+                    <div key={period} className="tt-row">
+                      <div className="tt-period" role="rowheader"><strong>{period}</strong><small>Period</small></div>
+                      {WEEKDAYS.map((day) => {
+                        const cell = lessons.filter((lesson) => lesson.weekday === day.value && lesson.period === period);
+                        return (
+                          <div key={`${day.value}-${period}`} className={`tt-cell${day.value === today ? " is-today" : ""}`} role="gridcell">
+                            {cell.length ? cell.map((lesson) => (
+                              <article key={lesson.id} className={`tt-lesson is-${lesson.tone}`}>
+                                <strong>{lesson.subject}</strong>
+                                <small>{lesson.teacher}</small>
+                                {lesson.starts || lesson.ends || lesson.room ? <small className="tt-when">{[lesson.starts && lesson.ends ? `${lesson.starts}–${lesson.ends}` : lesson.starts || lesson.ends, lesson.room].filter(Boolean).join(" · ")}</small> : null}
+                              </article>
+                            )) : <span className="tt-blank" />}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ))}
+                </div>
               </div>
-              <div className="tt-form-foot">
-                {editing || focusLabel ? <Link href={classHref(selected.code, selected.stream)}>Clear</Link> : <span />}
-                <button className="tt-commit" type="submit">{editing ? "Save changes" : "Add lesson"}</button>
-              </div>
-            </DeskForm>
+            ) : <p className="tt-quiet"><i className="fa-regular fa-calendar" aria-hidden="true" /> Nothing is on your timetable yet.</p>}
           </section>
-        ) : null}
-      </div>
+        </div>
+      )}
     </>
   );
 }
 
-function classHref(code: string, stream: string, focus?: { day?: string; period?: string; edit?: string }) {
+function classHref(code: string, stream: string) {
   const params = new URLSearchParams({ class: code, stream: streamQuery(stream) });
-  if (focus?.day) params.set("day", focus.day);
-  if (focus?.period) params.set("period", focus.period);
-  if (focus?.edit) params.set("edit", focus.edit);
-  return `${ACADEMICS_BASE}/timetable?${params}${focus ? "#schedule" : ""}`;
+  return `${ACADEMICS_BASE}/timetable?${params}`;
 }
 
 function sameClass(slot: Slot, group: Group) {
@@ -364,10 +353,6 @@ function sameClass(slot: Slot, group: Group) {
 
 function countFor(slots: Slot[], group: Group) {
   return slots.filter((slot) => sameClass(slot, group)).length;
-}
-
-function clock(slot: Slot) {
-  return [slot.starts_at?.slice(0, 5), slot.ends_at?.slice(0, 5)].filter(Boolean).join("–");
 }
 
 function tone(id: string) {

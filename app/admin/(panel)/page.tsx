@@ -11,7 +11,6 @@ export default async function DashboardPage() {
   const images = catalogImages(content, loadCampusData());
   const configured = supabaseConfigured();
 
-  let firstName = "";
   let applications: DashboardApplication[] = [];
   let messages: DashboardMessage[] = [];
   let unreadMessages = 0;
@@ -21,8 +20,7 @@ export default async function DashboardPage() {
     const supabase = await createClient();
     if (supabase) {
       const monthAgo = new Date(now.getTime() - 30 * DAY).toISOString();
-      const [{ data: auth }, apps, notes, unread, list, recentList] = await Promise.all([
-        supabase.auth.getUser(),
+      const [apps, notes, unread, list, recentList] = await Promise.all([
         supabase.from("applications").select("id, child_name, parent_name, grade, campus, status, visit_at, created_at").order("created_at", { ascending: false }),
         supabase.from("contact_messages").select("id, name, email, subject, message, read, created_at").order("created_at", { ascending: false }).limit(4),
         supabase.from("contact_messages").select("id", { count: "exact", head: true }).eq("read", false),
@@ -34,18 +32,12 @@ export default async function DashboardPage() {
       unreadMessages = unread.count ?? 0;
       subscribers = list.count ?? 0;
       newSubscribers = recentList.count ?? 0;
-      if (auth.user) {
-        const { data: profile } = await supabase.from("profiles").select("full_name").eq("id", auth.user.id).maybeSingle();
-        const name = profile?.full_name?.trim() || auth.user.user_metadata?.full_name || "";
-        firstName = String(name).split(/\s+/)[0] || "";
-      }
     }
   }
 
   return (
     <Dashboard
       now={now}
-      firstName={firstName}
       configured={configured}
       applications={applications}
       messages={messages}

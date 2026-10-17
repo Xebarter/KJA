@@ -96,7 +96,7 @@ function Quiet({ icon, children }: { icon: string; children: React.ReactNode }) 
 export type OfficeSession = Exclude<Awaited<ReturnType<typeof requireOffice>>, { error: string }>;
 
 /** The office home page for a signed-in member of staff. */
-export async function Overview({ supabase, user, profile }: OfficeSession) {
+export async function Overview({ supabase }: OfficeSession) {
   const now = new Date();
   const yearStart = `${now.getFullYear()}-01-01`;
 
@@ -208,7 +208,6 @@ export async function Overview({ supabase, user, profile }: OfficeSession) {
   }
 
   // Header
-  const firstName = (profile.full_name || user.email || "").split(/[\s@]/)[0];
   const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hour12: false, timeZone: TZ }).format(now));
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
   const today = now.toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: TZ });
@@ -266,7 +265,7 @@ export async function Overview({ supabase, user, profile }: OfficeSession) {
       <PageHeader
         kicker="Admissions office"
         icon="fa-building-user"
-        title={`${greeting}${firstName ? `, ${firstName}` : ""}`}
+        title={greeting}
         description={
           <>
             <span className="oov-today"><i className="fa-regular fa-calendar" aria-hidden="true" /> {today}</span>

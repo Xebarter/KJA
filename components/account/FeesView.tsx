@@ -1,9 +1,17 @@
 import Link from "next/link";
 import type { ChildRow, FeeRow, ReceiptRow } from "@/lib/account";
 import { StudentFace } from "@/components/StudentFace";
+import { FeePay } from "@/components/account/FeePay";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DAY = 86_400_000;
+
+const STATUS: Record<string, string> = {
+  graduated: "Graduated",
+  transferred: "Transferred",
+  withdrawn: "Withdrawn",
+  left: "Left",
+};
 
 function kampalaToday() {
   return new Date(Date.now() + 3 * 3_600_000).toISOString().slice(0, 10);
@@ -58,29 +66,51 @@ function newestFirst(a: FeeRow, b: FeeRow) {
   return String(b.due_on || "").localeCompare(String(a.due_on || ""));
 }
 
-export function FeesView({ kids, fees, receipts = [], childId }: { kids: ChildRow[]; fees: FeeRow[]; receipts?: ReceiptRow[]; childId?: string }) {
+function owingFirst(a: FeeRow, b: FeeRow) {
+  return String(a.due_on || "9999").localeCompare(String(b.due_on || "9999"));
+}
+
+function firstName(name: string) {
+  return name.split(/\s+/)[0] || name;
+}
+
+export function FeesView({
+  kids,
+  fees,
+  receipts = [],
+  childId,
+  payerPhone = "",
+  online = false,
+}: {
+  kids: ChildRow[];
+  fees: FeeRow[];
+  receipts?: ReceiptRow[];
+  childId?: string;
+  payerPhone?: string;
+  online?: boolean;
+}) {
   const today = kampalaToday();
   const selected = kids.find((child) => child.id === childId);
-  const visible = selected ? fees.filter((row) => row.child_id === selected.id) : fees;
-  const visibleReceipts = (selected ? receipts.filter((row) => row.child_id === selected.id) : receipts).slice(0, 12);
-  const sum = totals(visible);
-  const all = totals(fees);
-  const paidPercent = sum.due ? Math.min(100, Math.round((sum.paid / sum.due) * 100)) : 100;
-  const nextRow = visible
-    .filter((row) => money(row).balance > 0 && row.due_on)
-    .sort((a, b) => String(a.due_on).localeCompare(String(b.due_on)))[0];
-  const nextDays = nextRow?.due_on ? daysFrom(today, nextRow.due_on) : 0;
-  const overdue = visible.filter((row) => status(row, today).tone === "overdue").length;
+  const shown = selected ? [selected] : kids;
+  const cards = shown
+    .map((child) => {
+      const rows = fees.filter((row) => row.child_id === child.id).sort(newestFirst);
+      const sum = totals(rows);
+      const childReceipts = receipts.filter((row) => row.child_id === child.id);
+      const next = rows.filter((row) => money(row).balance > 0 && row.due_on).sort(owingFirst)[0];
+      const overdue = rows.filter((row) => status(row, today).tone === "overdue").length;
+      return { child, rows, sum, receipts: childReceipts, next, overdue };
+    })
+    .sort((a, b) => b.sum.balance - a.sum.balance || a.child.full_name.localeCompare(b.child.full_name));
 
-  const known = new Set(kids.map((child) => child.id));
-  const groups = [
-    ...(selected ? [selected] : kids).map((child) => ({ id: child.id, child, rows: visible.filter((row) => row.child_id === child.id) })),
-    ...(!selected && fees.some((row) => !known.has(row.child_id))
-      ? [{ id: "other", child: undefined, rows: fees.filter((row) => !known.has(row.child_id)) }]
-      : []),
-  ]
-    .map((group) => ({ ...group, rows: [...group.rows].sort(newestFirst) }))
-    .filter((group) => group.rows.length);
+  const visibleFees = shown.flatMap((child) => fees.filter((row) => row.child_id === child.id));
+  const sum = totals(visibleFees);
+  const paidPercent = sum.due ? Math.min(100, Math.round((sum.paid / sum.due) * 100)) : kids.length ? 100 : 0;
+  const owingChildren = cards.filter((card) => card.sum.balance > 0).length;
+  const clearedChildren = cards.filter((card) => card.rows.length > 0 && !card.sum.balance).length;
+  const nextRow = visibleFees.filter((row) => money(row).balance > 0 && row.due_on).sort(owingFirst)[0];
+  const nextDays = nextRow?.due_on ? daysFrom(today, nextRow.due_on) : 0;
+  const nextChild = nextRow ? kids.find((child) => child.id === nextRow.child_id) : undefined;
 
   return (
     <div className="ov fe">
@@ -88,217 +118,235 @@ export function FeesView({ kids, fees, receipts = [], childId }: { kids: ChildRo
         <div className="ch-hero-copy">
           <p className="ch-kicker">Finance</p>
           <h1>School fees</h1>
-          <p>Balances are updated by the school accounts office. Pay using the details on your term invoice.</p>
+          <p>
+            {kids.length
+              ? "Every child the admissions office has enrolled on your family, with what has been billed, what you have paid, and what is still owing."
+              : "Fee balances appear here once the admissions office enrols your children."}
+          </p>
         </div>
-        {fees.length ? (
+        {kids.length ? (
           <dl className="ch-hero-stats">
             <div>
-              <dt>Outstanding</dt>
-              <dd className="fe-hero-amount">{all.balance ? ugx(all.balance) : "Nil"}</dd>
+              <dt>Still owing</dt>
+              <dd className="fe-hero-amount">{sum.balance ? ugx(sum.balance) : "Nil"}</dd>
             </div>
             <div>
               <dt>Paid</dt>
-              <dd>{all.due ? Math.min(100, Math.round((all.paid / all.due) * 100)) : 100}%</dd>
+              <dd>{paidPercent}%</dd>
             </div>
           </dl>
         ) : null}
       </section>
 
-      {kids.length > 1 && fees.length ? (
-        <nav className="rp-tabs fe-tabs" aria-label="Filter fees by child">
-          <Link href="/account/fees" className={selected ? "" : "is-active"} aria-current={selected ? undefined : "page"}>
-            All children
-          </Link>
-          {kids.map((child) => {
-            const owed = totals(fees.filter((row) => row.child_id === child.id)).balance;
-            return (
-              <Link
-                key={child.id}
-                href={`/account/fees?child=${child.id}`}
-                className={selected?.id === child.id ? "is-active" : ""}
-                aria-current={selected?.id === child.id ? "page" : undefined}
-              >
-                {child.full_name.split(/\s+/)[0]}
-                <span className={owed ? "is-owed" : "is-clear"}>{owed ? ugx(owed).replace("UGX ", "") : <i className="fa-solid fa-check" aria-label="Cleared" />}</span>
-              </Link>
-            );
-          })}
-        </nav>
-      ) : null}
-
       {!kids.length ? (
         <section className="ov-panel">
           <div className="ov-empty">
             <i className="fa-solid fa-children" aria-hidden="true" />
-            <p>Add your children to your account and their fee balances will appear here once the accounts office links them.</p>
-            <Link className="ov-btn ov-btn-dark" href="/account/children">Add a child</Link>
-          </div>
-        </section>
-      ) : !visible.length ? (
-        <section className="ov-panel">
-          <div className="ov-empty">
-            <i className="fa-solid fa-receipt" aria-hidden="true" />
-            <p>
-              No fee records for {selected ? selected.full_name.split(/\s+/)[0] : "your children"} yet. They&apos;ll appear here once the
-              accounts office links them to your account.
-            </p>
-            <Link className="ov-btn ov-btn-outline" href="/fees">View the fee structure</Link>
+            <p>Children appear here when the admissions office enrols them on your family. Their fees show on each child once the accounts office issues them.</p>
           </div>
         </section>
       ) : (
         <>
-          <div className="fe-summary">
-            <section className={`fe-balance${sum.balance ? "" : " is-clear"}`}>
-              <p className="fe-label">{selected ? `${selected.full_name.split(/\s+/)[0]}'s balance` : "Outstanding balance"}</p>
-              <p className="fe-amount">{sum.balance ? ugx(sum.balance) : "All paid up"}</p>
-              <div className="fe-progress" role="progressbar" aria-valuenow={paidPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Fees paid">
+          {kids.length > 1 ? (
+            <nav className="rp-tabs fe-tabs" aria-label="Filter fees by child">
+              <Link href="/account/fees" className={selected ? "" : "is-active"} aria-current={selected ? undefined : "page"}>
+                All children
+              </Link>
+              {kids.map((child) => {
+                const owed = totals(fees.filter((row) => row.child_id === child.id)).balance;
+                return (
+                  <Link
+                    key={child.id}
+                    href={`/account/fees?child=${child.id}`}
+                    className={selected?.id === child.id ? "is-active" : ""}
+                    aria-current={selected?.id === child.id ? "page" : undefined}
+                  >
+                    {firstName(child.full_name)}
+                    <span className={owed ? "is-owed" : "is-clear"}>{owed ? ugx(owed).replace("UGX ", "") : <i className="fa-solid fa-check" aria-label="Cleared" />}</span>
+                  </Link>
+                );
+              })}
+            </nav>
+          ) : null}
+
+          <section className={`fe-meter${sum.balance ? "" : " is-clear"}`} aria-label="Fee progress">
+            <div className="fe-meter-copy">
+              <p className="fe-label">{selected ? `${firstName(selected.full_name)}'s fees` : "Family fees"}</p>
+              <p className="fe-amount">{sum.balance ? ugx(sum.balance) : sum.due ? "All paid up" : "Nothing billed yet"}</p>
+              <div className="fe-progress" role="progressbar" aria-valuenow={paidPercent} aria-valuemin={0} aria-valuemax={100} aria-label="Share of fees paid">
                 <span style={{ width: `${paidPercent}%` }} />
               </div>
               <p className="fe-progress-meta">
                 <span>{ugx(sum.paid)} paid of {ugx(sum.due)}</span>
                 <strong>{paidPercent}%</strong>
               </p>
-              {nextRow?.due_on ? (
-                <div className={`fe-next${nextDays < 0 ? " is-late" : nextDays <= 14 ? " is-soon" : ""}`}>
-                  <time className="fe-next-date" dateTime={nextRow.due_on.slice(0, 10)}>
-                    <span>{MONTHS[(ymd(nextRow.due_on)?.m || 1) - 1]}</span>
-                    <strong>{ymd(nextRow.due_on)?.d}</strong>
-                  </time>
-                  <div>
-                    <strong>
-                      {nextDays < 0
-                        ? `Overdue by ${-nextDays} ${-nextDays === 1 ? "day" : "days"}`
-                        : nextDays === 0
-                          ? "Due today"
-                          : `Due in ${nextDays} ${nextDays === 1 ? "day" : "days"}`}
-                    </strong>
-                    <span>{ugx(money(nextRow).balance)} · {nextRow.term}</span>
-                  </div>
-                </div>
-              ) : !sum.balance ? (
-                <p className="fe-cleared"><i className="fa-solid fa-circle-check" aria-hidden="true" /> Thank you, every term is fully paid.</p>
-              ) : null}
-              {overdue > 1 ? (
-                <p className="fe-warning"><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" /> {overdue} terms are past their due date.</p>
-              ) : null}
-            </section>
-
-            <section className="fe-pay">
-              <h2>How to pay</h2>
-              <ol>
-                <li>
-                  <span>1</span>
-                  <p><strong>Use your term invoice.</strong> Pay to the bank account shown on the invoice from the school.</p>
-                </li>
-                <li>
-                  <span>2</span>
-                  <p><strong>Add a reference.</strong> Quote your child&apos;s full name and student number.</p>
-                </li>
-                <li>
-                  <span>3</span>
-                  <p><strong>Keep your receipt.</strong> The accounts office records the payment and your balance updates here.</p>
-                </li>
-              </ol>
-              <div className="fe-pay-actions">
-                <Link className="ov-btn ov-btn-dark" href="/account/messages">
-                  <i className="fa-solid fa-comments" aria-hidden="true" /> Ask the accounts office
-                </Link>
-                <Link className="fe-pay-link" href="/fees">
-                  Fee structure <i className="fa-solid fa-arrow-right" aria-hidden="true" />
-                </Link>
-              </div>
-            </section>
-          </div>
-
-          {groups.map(({ id, child, rows }) => {
-            const groupSum = totals(rows);
-            return (
-              <section className="ov-panel fe-group" key={id}>
-                <header className="fe-group-head">
-                  {child ? (
-                    <StudentFace id={child.id} name={child.full_name} className="ov-child-avatar" />
-                  ) : (
-                    <span className="ov-child-avatar" aria-hidden="true"><i className="fa-solid fa-receipt" /></span>
-                  )}
-                  <div>
-                    <h2>{child ? child.full_name : "Other fee records"}</h2>
-                    <p>{child ? [child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "Fee statement" : "Not linked to a child on your account"}</p>
-                  </div>
-                  <span className={`fe-group-total${groupSum.balance ? "" : " is-clear"}`}>
-                    <small>{groupSum.balance ? "Balance" : "Status"}</small>
-                    {groupSum.balance ? ugx(groupSum.balance) : "Cleared"}
-                  </span>
-                </header>
-
-                <div className="fe-statement" role="table" aria-label={`Fee statement${child ? ` for ${child.full_name}` : ""}`}>
-                  <div className="fe-row fe-row-head" role="row">
-                    <span role="columnheader">Term</span>
-                    <span role="columnheader">Amount</span>
-                    <span role="columnheader">Paid</span>
-                    <span role="columnheader">Balance</span>
-                    <span className="fe-due" role="columnheader">Due date</span>
-                    <span className="fe-status" role="columnheader">Status</span>
-                  </div>
-                  {rows.map((row) => {
-                    const m = money(row);
-                    const s = status(row, today);
-                    return (
-                      <div className={`fe-row is-${s.tone}`} role="row" key={row.id}>
-                        <span className="fe-term" role="cell">
-                          <strong>{row.term}</strong>
-                          {row.description ? <small>{row.description}</small> : null}
-                          <span className="fe-mini" aria-hidden="true"><i style={{ width: `${m.percent}%` }} /></span>
-                        </span>
-                        <span className="fe-num" role="cell" data-label="Amount">{ugx(m.due)}</span>
-                        <span className="fe-num" role="cell" data-label="Paid">{ugx(m.paid)}</span>
-                        <span className="fe-num fe-num-balance" role="cell" data-label="Balance">{m.balance ? ugx(m.balance) : "—"}</span>
-                        <span className="fe-due" role="cell" data-label="Due date">{row.due_on ? shortDate(row.due_on) : "—"}</span>
-                        <span className="fe-status" role="cell">
-                          <span className={`fe-pill fe-pill--${s.tone}`}>
-                            <i className={`fa-solid ${s.icon}`} aria-hidden="true" /> {s.label}
-                          </span>
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
-            );
-          })}
-        </>
-      )}
-
-      {visibleReceipts.length ? (
-        <section className="ov-panel fe-receipts">
-          <header className="fe-group-head">
-            <span className="ov-child-avatar" aria-hidden="true"><i className="fa-solid fa-receipt" /></span>
-            <div>
-              <h2>Receipts</h2>
-              <p>Payments recorded by the accounts office. Open one to download the PDF.</p>
             </div>
-          </header>
-          <ul>
-            {visibleReceipts.map((receipt) => {
-              const child = kids.find((kid) => kid.id === receipt.child_id);
+            <dl>
+              <div>
+                <dt>Children</dt>
+                <dd>{shown.length}</dd>
+                <small>{owingChildren ? `${owingChildren} still owing` : clearedChildren ? "All cleared" : "No bills yet"}</small>
+              </div>
+              <div>
+                <dt>Billed</dt>
+                <dd>{ugx(sum.due)}</dd>
+                <small>Issued by the accounts office</small>
+              </div>
+              <div>
+                <dt>Paid</dt>
+                <dd>{ugx(sum.paid)}</dd>
+                <small>{paidPercent}% of what was billed</small>
+              </div>
+              <div>
+                <dt>Next due</dt>
+                <dd>{nextRow?.due_on ? shortDate(nextRow.due_on, false) : "—"}</dd>
+                <small>
+                  {nextRow?.due_on
+                    ? `${nextDays < 0 ? `${-nextDays}d overdue` : nextDays === 0 ? "Due today" : `In ${nextDays}d`}${nextChild && !selected ? ` · ${firstName(nextChild.full_name)}` : ""}`
+                    : "No date set"}
+                </small>
+              </div>
+            </dl>
+          </section>
+
+          <div className="fe-children">
+            {cards.map(({ child, rows, sum: childSum, receipts: childReceipts, next, overdue }) => {
+              const percent = childSum.due ? Math.min(100, Math.round((childSum.paid / childSum.due) * 100)) : 0;
+              const payable = rows
+                .filter((row) => row.term_id && money(row).balance > 0)
+                .sort(owingFirst)
+                .map((row) => ({ id: row.term_id as string, label: row.term, balance: money(row).balance, dueOn: row.due_on }));
+              const nextDaysForChild = next?.due_on ? daysFrom(today, next.due_on) : 0;
+              const enrolment = child.status && child.status !== "active" ? STATUS[child.status] || "" : "";
+              const subtitle = [child.grade, child.campus ? `${child.campus} campus` : "", child.student_code ? `#${child.student_code}` : "", enrolment].filter(Boolean).join(" · ");
+
               return (
-                <li key={receipt.id}>
-                  <a href={`/account/fees/receipt/${receipt.id}`}>
-                    <strong>{receipt.receipt_no}</strong>
-                    <span>{[child?.full_name.split(/\s+/)[0], receipt.method, shortDate(receipt.paid_on)].filter(Boolean).join(" · ")}</span>
-                  </a>
-                  <em>{ugx(receipt.amount)}</em>
-                </li>
+                <article className={`fe-child${childSum.balance ? "" : rows.length ? " is-clear" : ""}`} key={child.id} id={`child-${child.id}`}>
+                  <header className="fe-child-head">
+                    <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path} className="ch-avatar" />
+                    <div>
+                      <h2>{child.full_name}</h2>
+                      <p>{subtitle || "On the school register"}</p>
+                    </div>
+                    <span className={`fe-child-owing${childSum.balance ? "" : " is-clear"}`}>
+                      <small>{childSum.balance ? "Still owing" : rows.length ? "Status" : "Fees"}</small>
+                      {childSum.balance ? ugx(childSum.balance) : rows.length ? "Cleared" : "Not billed"}
+                    </span>
+                  </header>
+
+                  {rows.length ? (
+                    <>
+                      <div className="fe-progress" role="progressbar" aria-valuenow={percent} aria-valuemin={0} aria-valuemax={100} aria-label={`Fees paid for ${child.full_name}`}>
+                        <span style={{ width: `${percent}%` }} />
+                      </div>
+                      <p className="fe-progress-meta">
+                        <span>{ugx(childSum.paid)} paid of {ugx(childSum.due)}</span>
+                        <strong>{percent}%</strong>
+                      </p>
+
+                      <dl className="fe-split">
+                        <div>
+                          <dt>Billed</dt>
+                          <dd>{ugx(childSum.due)}</dd>
+                        </div>
+                        <div>
+                          <dt>Paid</dt>
+                          <dd>{ugx(childSum.paid)}</dd>
+                        </div>
+                        <div>
+                          <dt>Balance</dt>
+                          <dd>{childSum.balance ? ugx(childSum.balance) : "Nil"}</dd>
+                        </div>
+                        <div>
+                          <dt>Next due</dt>
+                          <dd className={nextDaysForChild < 0 ? "is-late" : ""}>
+                            {next?.due_on ? shortDate(next.due_on) : childSum.balance ? "Not set" : "—"}
+                          </dd>
+                        </div>
+                      </dl>
+
+                      {overdue ? (
+                        <p className="fe-warning"><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" /> {overdue === 1 ? "One term is" : `${overdue} terms are`} past the due date.</p>
+                      ) : null}
+
+                      <div className="fe-statement" role="table" aria-label={`Fee statement for ${child.full_name}`}>
+                        <div className="fe-row fe-row-head" role="row">
+                          <span role="columnheader">Term</span>
+                          <span role="columnheader">Amount</span>
+                          <span role="columnheader">Paid</span>
+                          <span role="columnheader">Balance</span>
+                          <span className="fe-due" role="columnheader">Due date</span>
+                          <span className="fe-status" role="columnheader">Status</span>
+                        </div>
+                        {rows.map((row) => {
+                          const m = money(row);
+                          const s = status(row, today);
+                          return (
+                            <div className={`fe-row is-${s.tone}`} role="row" key={row.id}>
+                              <span className="fe-term" role="cell">
+                                <strong>{row.term}</strong>
+                                {row.description ? <small>{row.description}</small> : null}
+                                <span className="fe-mini" aria-hidden="true"><i style={{ width: `${m.percent}%` }} /></span>
+                              </span>
+                              <span className="fe-num" role="cell" data-label="Amount">{ugx(m.due)}</span>
+                              <span className="fe-num" role="cell" data-label="Paid">{ugx(m.paid)}</span>
+                              <span className="fe-num fe-num-balance" role="cell" data-label="Balance">{m.balance ? ugx(m.balance) : "—"}</span>
+                              <span className="fe-due" role="cell" data-label="Due date">{row.due_on ? shortDate(row.due_on) : "—"}</span>
+                              <span className="fe-status" role="cell">
+                                <span className={`fe-pill fe-pill--${s.tone}`}>
+                                  <i className={`fa-solid ${s.icon}`} aria-hidden="true" /> {s.label}
+                                </span>
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {payable.length ? (
+                        <FeePay
+                          childId={child.id}
+                          childName={child.full_name}
+                          studentCode={child.student_code}
+                          terms={payable}
+                          phone={payerPhone}
+                          online={online}
+                        />
+                      ) : (
+                        <p className="fe-cleared"><i className="fa-solid fa-circle-check" aria-hidden="true" /> Every issued term is fully paid.</p>
+                      )}
+
+                      {childReceipts.length ? (
+                        <div className="fe-child-receipts">
+                          <h3>Recent receipts</h3>
+                          <ul>
+                            {childReceipts.slice(0, 4).map((receipt) => (
+                              <li key={receipt.id}>
+                                <a href={`/account/fees/receipt/${receipt.id}`}>
+                                  <strong>{receipt.receipt_no}</strong>
+                                  <span>{[receipt.method, shortDate(receipt.paid_on)].filter(Boolean).join(" · ")}</span>
+                                </a>
+                                <em>{ugx(receipt.amount)}</em>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <p className="fe-none">No fees have been issued for {firstName(child.full_name)} yet. They appear here when the accounts office bills this child.</p>
+                  )}
+                </article>
               );
             })}
-          </ul>
-        </section>
-      ) : null}
+          </div>
+        </>
+      )}
 
       <aside className="rp-help">
         <span className="rp-help-icon"><i className="fa-solid fa-headset" aria-hidden="true" /></span>
         <div>
-          <strong>Something doesn&apos;t look right?</strong>
-          <p>If a payment you made isn&apos;t showing yet, send the accounts office a message with a copy of your receipt.</p>
+          <strong>A payment is missing?</strong>
+          <p>Bank and SchoolPay payments show here after the accounts office records them. Send a copy of the receipt if one is not listed yet.</p>
         </div>
         <Link className="ov-btn ov-btn-dark" href="/account/messages">Message the school</Link>
       </aside>

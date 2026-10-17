@@ -167,10 +167,10 @@ export function AdminShell({
         <nav className="admin-nav" aria-label="Admin">
           <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink>
 
-          <span className="admin-nav-label">Newsroom</span>
+          <hr className="admin-nav-rule" />
           <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink>
 
-          <span className="admin-nav-label">Admissions</span>
+          <hr className="admin-nav-rule" />
           <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
           <a href="/admissions_office">
             <i className="fa-solid fa-building-user" aria-hidden="true" />
@@ -186,7 +186,7 @@ export function AdminShell({
           </a>
           <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
 
-          <span className="admin-nav-label">Inbox</span>
+          <hr className="admin-nav-rule" />
           {inboxLinks.map((link) => (
             <NavLink
               key={link.href}
@@ -198,11 +198,11 @@ export function AdminShell({
             </NavLink>
           ))}
 
-          <span className="admin-nav-label">Website</span>
+          <hr className="admin-nav-rule" />
           <NavLink href="/admin/images" icon="fa-images">Images</NavLink>
           <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink>
 
-          <span className="admin-nav-label">Content</span>
+          <hr className="admin-nav-rule" />
           {contentGroups.map((group) => {
             const inGroup = group.keys.some((key) => isActive(pathname, `/admin/content/${key}`));
             const groupBadge = group.keys.some((key) => key === "vacancies") ? newJobApplications : 0;

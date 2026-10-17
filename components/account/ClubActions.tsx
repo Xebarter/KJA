@@ -51,7 +51,7 @@ export function ClubJoin({
   if (!hasKids) {
     body = (
       <Link className="cl-add-link" href="/account/children">
-        <i className="fa-solid fa-plus" aria-hidden="true" /> Add a child to sign up
+        <i className="fa-solid fa-children" aria-hidden="true" /> Children are added by the admissions office
       </Link>
     );
   } else if (!available.length) {

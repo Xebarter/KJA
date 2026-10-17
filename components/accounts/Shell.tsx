@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
 import { searchFeeAccounts } from "@/app/accounts/(desk)/payments/actions";
 import { SidebarSearch } from "@/components/SidebarSearch";
@@ -43,7 +43,6 @@ export function AccountsShell({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
-  const groups = [...new Set(accountsNav.map((item) => item.group))];
   const current = [...accountsNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
@@ -133,23 +132,17 @@ export function AccountsShell({
         />
 
         <nav className="admin-nav" aria-label="Accounts office">
-          {groups.map((group) => (
-            <Fragment key={group}>
-              {group !== "Office" ? <span className="admin-nav-label">{group}</span> : null}
-              {accountsNav.filter((item) => item.group === group).map((item) => {
-                const active = isActive(pathname, item.href);
-                const badge = item.badge ? badges[item.badge] : 0;
-                return (
-                  <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
-                    <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-                    <span>{item.label}</span>
-                    {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
-                  </Link>
-                );
-              })}
-            </Fragment>
-          ))}
-          <span className="admin-nav-label">Quick add</span>
+          {accountsNav.map((item) => {
+            const active = isActive(pathname, item.href);
+            const badge = item.badge ? badges[item.badge] : 0;
+            return (
+              <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+                <span>{item.label}</span>
+                {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
+              </Link>
+            );
+          })}
           <Link href={`${ACCOUNTS_BASE}/payments/new`} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
             <i className="fa-solid fa-cash-register" aria-hidden="true" />
             <span>Record a payment</span>

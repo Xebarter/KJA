@@ -59,7 +59,7 @@ export default async function AccountHomePage() {
   const nextEvent = upcoming[0];
   const openApplications = portal.applications.filter((row) => OPEN_STATUSES.includes((row.status || "received") as ApplicationStatus));
   const unreadMessages = portal.messages.filter((message) => message.direction === "in" && !message.read).length;
-  const latestReport = portal.reports[0];
+  const latestReport = portal.cards[0];
 
   const pending = [
     portal.unread ? plural(portal.unread, "unread notice") : "",
@@ -71,11 +71,11 @@ export default async function AccountHomePage() {
     : "Everything is up to date. Here's what's happening at school.";
 
   const stats = [
-    { label: "Children", value: String(portal.children.length), note: portal.children.length ? "Linked to your account" : "Add your first child", href: "/account/children", icon: "fa-children" },
+    { label: "Children", value: String(portal.pupils.length), note: portal.pupils.length ? "Enrolled on your family" : "None enrolled yet", href: "/account/children", icon: "fa-children" },
     { label: "School fees", value: outstanding ? ugx(outstanding) : "Cleared", note: outstanding ? (nextDue ? `Next due ${shortDate(nextDue)}` : "Outstanding balance") : "All paid up", href: "/account/fees", icon: "fa-receipt", tone: outstanding ? "due" : "ok" },
-    { label: "Reports", value: String(portal.reports.length), note: latestReport ? `Latest ${shortDate(latestReport.issued_on) || latestReport.title}` : "None issued yet", href: "/account/reports", icon: "fa-file-lines" },
+    { label: "Reports", value: String(portal.cards.length), note: latestReport ? `Latest ${shortDate(latestReport.published_at) || latestReport.term}` : "None published yet", href: "/account/reports", icon: "fa-file-lines" },
     { label: "Applications", value: String(portal.applications.length), note: openApplications.length ? `${openApplications.length} in progress` : "None in progress", href: "/account/applications", icon: "fa-clipboard-list" },
-    { label: "Clubs", value: String(portal.signups.length), note: portal.signups.length ? "Active sign-ups" : "Browse clubs", href: "/account/clubs", icon: "fa-puzzle-piece" },
+    { label: "Clubs", value: String(portal.clubConsents), note: portal.clubConsents ? "Children consented" : "Choose clubs", href: "/account/clubs", icon: "fa-puzzle-piece" },
     { label: "Notices", value: String(portal.unread), note: portal.unread ? "Unread" : "You're up to date", href: "/account/notifications", icon: "fa-bell", tone: portal.unread ? "alert" : undefined },
   ];
 
@@ -135,16 +135,16 @@ export default async function AccountHomePage() {
           <section className="ov-panel">
             <header className="ov-panel-head">
               <h2>My children</h2>
-              <Link href="/account/children">Manage</Link>
+              <Link href="/account/children">View</Link>
             </header>
-            {portal.children.length ? (
+            {portal.pupils.length ? (
               <div className="ov-children">
-                {portal.children.map((child) => (
+                {portal.pupils.map((child) => (
                   <article className="ov-child" key={child.id}>
                     <span className="ov-child-avatar" aria-hidden="true">{initials(child.full_name)}</span>
                     <div className="ov-child-text">
                       <strong>{child.full_name}</strong>
-                      <span>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "Details to be completed"}</span>
+                      <span>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "On the school register"}</span>
                       {child.student_code ? <em>#{child.student_code}</em> : null}
                     </div>
                     <div className="ov-child-links">
@@ -157,8 +157,7 @@ export default async function AccountHomePage() {
             ) : (
               <div className="ov-empty">
                 <i className="fa-solid fa-children" aria-hidden="true" />
-                <p>Add your children to see their reports, fees and clubs in one place.</p>
-                <Link className="ov-btn ov-btn-dark" href="/account/children">Add a child</Link>
+                <p>Your children will appear here once the admissions office enrols them on your family.</p>
               </div>
             )}
           </section>

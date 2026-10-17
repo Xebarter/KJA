@@ -40,7 +40,6 @@ export function OfficeShell({
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
-  const groups = [...new Set(officeNav.map((item) => item.group))];
   const current = [...officeNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
@@ -114,23 +113,22 @@ export function OfficeShell({
         />
 
         <nav className="admin-nav" aria-label="Admissions office">
-          {groups.map((group) => (
-            <Fragment key={group}>
-              {group !== "Office" ? <span className="admin-nav-label">{group}</span> : null}
-              {officeNav.filter((item) => item.group === group).map((item) => {
-                const active = isActive(pathname, item.href);
-                const badge = item.badge ? badges[item.badge] : 0;
-                return (
-                  <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
-                    <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-                    <span>{item.label}</span>
-                    {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
-                  </Link>
-                );
-              })}
-            </Fragment>
-          ))}
-          <span className="admin-nav-label">Quick add</span>
+          {officeNav.map((item, index) => {
+            const active = isActive(pathname, item.href);
+            const badge = item.badge ? badges[item.badge] : 0;
+            const divided = index > 0 && item.group !== officeNav[index - 1].group;
+            return (
+              <Fragment key={item.href}>
+                {divided ? <hr className="admin-nav-rule" /> : null}
+                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+                  <span>{item.label}</span>
+                  {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
+                </Link>
+              </Fragment>
+            );
+          })}
+          <hr className="admin-nav-rule" />
           <Link href={`${OFFICE_BASE}/students/new`} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
             <i className="fa-solid fa-user-plus" aria-hidden="true" />
             <span>Enrol a student</span>
@@ -138,27 +136,6 @@ export function OfficeShell({
         </nav>
 
         <div className="admin-side-foot">
-          {person.role === "Administrator" ? (
-            <a className="admin-side-link" href="/admin">
-              <i className="fa-solid fa-gauge-high" aria-hidden="true" />
-              <span>Admin dashboard</span>
-              <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-            </a>
-          ) : null}
-          {person.role === "Administrator" ? (
-            <a className="admin-side-link" href="/accounts">
-              <i className="fa-solid fa-calculator" aria-hidden="true" />
-              <span>Accounts office</span>
-              <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-            </a>
-          ) : null}
-          {person.role === "Administrator" ? (
-            <a className="admin-side-link" href="/academics_office">
-              <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
-              <span>Academics office</span>
-              <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-            </a>
-          ) : null}
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">

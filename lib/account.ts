@@ -28,6 +28,9 @@ export type ChildRow = {
   grade: string | null;
   date_of_birth: string | null;
   student_code: string | null;
+  status?: string | null;
+  class_code?: string | null;
+  photo_path?: string | null;
 };
 
 export type ReportRow = {
@@ -52,6 +55,7 @@ export type PublishedReport = {
 export type FeeRow = {
   id: string;
   child_id: string;
+  term_id?: string;
   term: string;
   description: string | null;
   amount_due: number;

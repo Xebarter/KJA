@@ -1,57 +1,20 @@
-8. Development priorities
-A comprehensive system is best built in stages so that the core academic processes are reliable before advanced features are introduced.
-Phase 1: Essential academic operations
-
-Must have
-
-- [ ] Academic years, terms, campuses, classes and subjects
-- [ ] Learner and teacher academic profiles
-- [ ] Class and subject teacher allocation
-- [ ] Timetable management
-- [ ] Schemes of work and lesson plans
-- [ ] Assessment and examination setup
-- [ ] Marks entry and validation
-- [ ] Configurable grading and result processing
-- [ ] Result approvals and report cards
-- [ ] Role permissions and audit logs
-
-Phase 2: Academic control and analysis
-
-High value
-
-- [ ] Curriculum and syllabus coverage tracking
-- [ ] Performance analytics and campus comparisons
-- [ ] Missing marks and overdue task monitoring
-- [ ] Learner interventions and remedial tracking
-- [ ] Academic reports and bulk exports
-- [ ] Parent portal and result publication
-- [ ] Automated reminders and approval workflows
-- [ ] Academic calendar and meeting management
-
-Phase 3: Advanced capabilities
-
-Enhancement
-
-- [ ] AI-assisted lesson planning and academic summaries
-- [ ] Automated timetable generation
-- [ ] Advanced assessment and examination administration
-- [ ] Learning resource portal
-- [ ] Online assignments and digital assessments
-- [ ] Predictive academic risk indicators
-- [ ] Advanced curriculum competency analytics
-- [ ] Automated academic action summaries
-
-
-9. What the main dashboard should prioritize
-If I were defining the final /academics dashboard, I would make these its most prominent elements, in this order:
-1. Academic overview: learners, classes, assessments and current performance.
-2. Pending actions: marks awaiting submission, schemes awaiting approval and overdue lesson plans.
-3. Academic calendar: upcoming examinations, deadlines and reporting dates.
-4. Performance trends: results by campus, class and subject.
-5. Learners requiring attention: academic decline, repeated absence and intervention follow-up.
-6. Teacher accountability: teaching progress and completion of assigned academic duties.
-7. Quick actions: enter marks, create assessment, assign a teacher, review results and generate reports.
-8. Recent activity: important academic changes and approvals.
-
-One final architectural recommendation: make the system academic-period-aware from the beginning. Every relevant record should be linked to the correct academic year and term, and finalized results should preserve the grading rules used at the time. This is essential for trustworthy historical reports, promotions, multi-campus comparisons and audit trails.
-The result should be an academic command center that helps school leadership monitor the entire teaching and learning process, while allowing teachers to complete their daily work without unnecessary complexity.
+No.	Club Category	Club Details	Club Fee (UGX)
+1	Games and Sports	Badminton	50,000
+2	Games and Sports	Soccer - Talent Extra	70,000
+3	Games and Sports	Swimming	90,000
+4	Games and Sports	Chess Club	40,000
+5	Art and Entertainment	Piano	60,000
+6	Art and Entertainment	Guitar	60,000
+7	Art and Entertainment	Ballet	50,000
+8	Art and Entertainment	Dance for Fitness	40,000
+9	Art and Entertainment	Art Club	40,000
+10	Science and Technology	Home Management	40,000
+11	Science and Technology	Computer Club	40,000
+12	Travel and Adventure	Scouts and Girl Guides	40,000
+13	Information and Language	French Club	40,000
+14	Information and Language	Chinese	40,000
+15	Information and Language	Sanyu Readers (Nursery)	30,000
+16	Information and Language	Readers Quora (Primary)	30,000
+17	Religion	Religious Affairs Catholics	50,000
+18	Religion	Religious Affairs Anglicans	50,000
+19	Religion	Religious Affairs Islam	50,000

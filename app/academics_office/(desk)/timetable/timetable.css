@@ -118,8 +118,9 @@
 .tt-bar { display: block; height: 6px; overflow: hidden; border-radius: 999px; background: #efeae2; }
 .tt-bar > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #19232b, #c9a227); }
 
-.tt-nav { display: grid; gap: .65rem; }
-.tt-nav > a {
+.tt-nav { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem 1rem; }
+.tt-nav-line { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1rem; min-width: 0; }
+.tt-nav-line > a {
   justify-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -129,8 +130,25 @@
   font-weight: 700;
   text-decoration: none;
 }
-.tt-nav > a:hover { color: #19232b; }
-.tt-rail { display: flex; flex-wrap: wrap; gap: .35rem; }
+.tt-nav-line > a:hover { color: #19232b; }
+.tt-jump { display: flex; align-items: center; gap: .45rem; margin: 0; color: #8a8174; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.tt-jump select {
+  height: 34px;
+  max-width: 16rem;
+  padding: 0 .6rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+  background: #fff;
+  color: #19232b;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.tt-jump select:focus { border-color: #19232b; outline: none; }
+.tt-rail { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem; }
+.tt-stream-label { margin-right: .15rem; color: #8a8174; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .tt-rail a {
   display: inline-flex;
   align-items: center;
@@ -179,13 +197,17 @@
   align-items: center;
   justify-content: center;
   flex: 1;
+  width: 100%;
   min-height: 4.6rem;
   border: 1px dashed #e0d9cc;
   border-radius: 10px;
+  background: transparent;
   color: #b7ad9e;
+  font: inherit;
   font-size: .75rem;
   font-weight: 700;
   text-decoration: none;
+  cursor: pointer;
 }
 .tt-open:hover, .tt-open.is-on { border-color: #c9a227; background: #fff; color: #19232b; }
 .tt-lesson {
@@ -208,6 +230,19 @@
 .tt-lesson.is-editing { outline: 2px solid #c9a227; outline-offset: 1px; }
 .tt-lesson strong { color: #19232b; font-size: .84rem; font-weight: 700; line-height: 1.25; }
 .tt-lesson small { color: #6d6458; font-size: .72rem; line-height: 1.35; }
+.tt-lesson small.is-open { color: #8a5a12; }
+.tt-lesson-hit {
+  display: grid;
+  gap: .12rem;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
 .tt-when { color: #8a8174; }
 .tt-actions { display: flex; align-items: center; gap: .65rem; margin-top: .2rem; }
 .tt-actions a, .tt-remove button {
@@ -229,7 +264,10 @@
 .tt-remove button:hover { color: #a31824; }
 .tt-remove .acd-feedback { margin: .2rem 0 0; }
 
-.tt-side { scroll-margin-top: 1rem; }
+.tt-side { position: sticky; top: .85rem; scroll-margin-top: 1rem; }
+.tt-note, .tt-prompt { margin: 0; padding: .9rem 1.05rem 0; color: #6d6458; font-size: .86rem; line-height: 1.5; }
+.tt-prompt { padding-bottom: 1.1rem; }
+.tt-note { color: #127238; font-weight: 600; }
 .tt-warn {
   display: flex;
   align-items: flex-start;
@@ -268,8 +306,17 @@
 .tt-page .tt-form .ofc-field input:focus,
 .tt-page .tt-form .ofc-field select:focus { border-color: #19232b; outline: none; box-shadow: none; }
 .tt-form-foot { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
-.tt-form-foot > a { color: #6d6458; font-size: .82rem; font-weight: 700; text-decoration: none; }
-.tt-form-foot > a:hover { color: #19232b; }
+.tt-clear {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: #6d6458;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.tt-clear:hover { color: #19232b; }
 .tt-commit {
   height: 38px;
   padding: 0 .95rem;
@@ -283,6 +330,7 @@
   cursor: pointer;
 }
 .tt-commit:hover { background: #2b3844; }
+.tt-commit:disabled { background: #c5bdae; cursor: not-allowed; }
 .tt-form .acd-feedback { margin: 0; }
 .tt-page a:focus-visible,
 .tt-page button:focus-visible,

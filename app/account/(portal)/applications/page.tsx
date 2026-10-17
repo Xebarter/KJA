@@ -32,7 +32,7 @@ function nextStep(row: ApplicationRow) {
     case "offered":
       return { icon: "fa-award", text: `Congratulations! ${first} has been offered a place. Contact the admissions office to accept it and complete enrolment.` };
     case "enrolled":
-      return { icon: "fa-graduation-cap", text: `Welcome to KJA! Add ${first} under Children to follow their reports, fees and clubs.`, link: { href: "/account/children", label: "Go to Children" } };
+      return { icon: "fa-graduation-cap", text: `Welcome to KJA! ${first} will appear under Children once the admissions office completes enrolment.`, link: { href: "/account/children", label: "Go to Children" } };
     case "waitlisted":
       return { icon: "fa-hourglass-half", text: `The class is currently full, so ${first} is on the waiting list. We'll contact you as soon as a place opens.` };
     case "declined":
@@ -42,6 +42,50 @@ function nextStep(row: ApplicationRow) {
     default:
       return { icon: "fa-envelope-open-text", text: "We've received your application. The admissions team will review it and contact you within a few working days." };
   }
+}
+
+function ApplicationCard({ row }: { row: ApplicationRow }) {
+  const status = row.status || "received";
+  const info = statusInfo(status);
+  const closed = status === "declined" || status === "withdrawn";
+  const next = nextStep(row);
+  return (
+    <article className={`ap-card${closed ? " is-closed" : ""}`}>
+      <header className="ap-card-head">
+        <span className="ov-child-avatar" aria-hidden="true">{initials(row.child_name || "?")}</span>
+        <div>
+          <h2>{row.child_name || "Unnamed child"}</h2>
+          <p>{[row.grade, row.campus ? `${row.campus} campus` : ""].filter(Boolean).join(" · ") || "Class and campus to be confirmed"}</p>
+        </div>
+        <span className={`ov-pill ov-pill--${info.tone}`}>{status === "received" ? "Received" : info.label}</span>
+      </header>
+
+      {closed ? null : <Tracker status={status} />}
+
+      <div className={`ap-next ap-next--${info.tone}`}>
+        <i className={`fa-solid ${next.icon}`} aria-hidden="true" />
+        <p>
+          {next.text}
+          {next.link ? <> <Link href={next.link.href}>{next.link.label} <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link></> : null}
+        </p>
+      </div>
+
+      <footer className="ap-card-foot">
+        <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Submitted {formatDate(row.created_at)}</span>
+        {row.payment_status === "paid" ? (
+          <span><i className="fa-solid fa-circle-check" aria-hidden="true" /> Admission fee paid{row.admission_fee ? ` · UGX ${row.admission_fee.toLocaleString("en-US")}` : ""}</span>
+        ) : null}
+        <span className="ap-ref">Ref. {row.id.slice(0, 8).toUpperCase()}</span>
+      </footer>
+
+      {row.message ? (
+        <details className="ap-note">
+          <summary><i className="fa-solid fa-chevron-down" aria-hidden="true" /> Your note to the school</summary>
+          <p>{row.message}</p>
+        </details>
+      ) : null}
+    </article>
+  );
 }
 
 function Tracker({ status }: { status: string }) {
@@ -68,6 +112,7 @@ function Tracker({ status }: { status: string }) {
 export default async function ApplicationsPage() {
   const [{ applications, profile }, { settings }, fees] = await Promise.all([getPortal(), getContent(), admissionFees()]);
   const open = applications.filter((row) => OPEN_STATUSES.includes((row.status || "received") as ApplicationStatus));
+  const earlier = applications.filter((row) => !OPEN_STATUSES.includes((row.status || "received") as ApplicationStatus));
   const enrolled = applications.filter((row) => row.status === "enrolled").length;
 
   return (
@@ -76,7 +121,7 @@ export default async function ApplicationsPage() {
         <div className="ch-hero-copy">
           <p className="ch-kicker">Admissions</p>
           <h1>Applications</h1>
-          <p>Follow each application from submission to enrolment, and apply for a brother or sister in a couple of minutes.</p>
+          <p>Follow each application from submission to enrolment, including earlier ones sent from this account.</p>
         </div>
         {applications.length ? (
           <dl className="ch-hero-stats">
@@ -95,49 +140,27 @@ export default async function ApplicationsPage() {
       <div className="ap-layout">
         <div className="ap-list">
           {applications.length ? (
-            applications.map((row) => {
-              const status = row.status || "received";
-              const info = statusInfo(status);
-              const closed = status === "declined" || status === "withdrawn";
-              const next = nextStep(row);
-              return (
-                <article className={`ap-card${closed ? " is-closed" : ""}`} key={row.id}>
-                  <header className="ap-card-head">
-                    <span className="ov-child-avatar" aria-hidden="true">{initials(row.child_name || "?")}</span>
-                    <div>
-                      <h2>{row.child_name || "Unnamed child"}</h2>
-                      <p>{[row.grade, row.campus ? `${row.campus} campus` : ""].filter(Boolean).join(" · ") || "Class and campus to be confirmed"}</p>
-                    </div>
-                    <span className={`ov-pill ov-pill--${info.tone}`}>{status === "received" ? "Received" : info.label}</span>
-                  </header>
-
-                  {closed ? null : <Tracker status={status} />}
-
-                  <div className={`ap-next ap-next--${info.tone}`}>
-                    <i className={`fa-solid ${next.icon}`} aria-hidden="true" />
-                    <p>
-                      {next.text}
-                      {next.link ? <> <Link href={next.link.href}>{next.link.label} <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link></> : null}
-                    </p>
-                  </div>
-
-                  <footer className="ap-card-foot">
-                    <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Submitted {formatDate(row.created_at)}</span>
-                    {row.payment_status === "paid" ? (
-                      <span><i className="fa-solid fa-circle-check" aria-hidden="true" /> Admission fee paid{row.admission_fee ? ` · UGX ${row.admission_fee.toLocaleString("en-US")}` : ""}</span>
-                    ) : null}
-                    <span className="ap-ref">Ref. {row.id.slice(0, 8).toUpperCase()}</span>
-                  </footer>
-
-                  {row.message ? (
-                    <details className="ap-note">
-                      <summary><i className="fa-solid fa-chevron-down" aria-hidden="true" /> Your note to the school</summary>
-                      <p>{row.message}</p>
-                    </details>
+            <>
+              {open.length ? (
+                <section className="ap-group">
+                  {earlier.length ? (
+                    <header className="ap-group-head">
+                      <h2>In progress</h2>
+                    </header>
                   ) : null}
-                </article>
-              );
-            })
+                  {open.map((row) => <ApplicationCard key={row.id} row={row} />)}
+                </section>
+              ) : null}
+              {earlier.length ? (
+                <section className="ap-group">
+                  <header className="ap-group-head">
+                    <h2>Earlier applications</h2>
+                    <p>Submitted from this account.</p>
+                  </header>
+                  {earlier.map((row) => <ApplicationCard key={row.id} row={row} />)}
+                </section>
+              ) : null}
+            </>
           ) : (
             <section className="ov-panel ap-how">
               <header className="ov-panel-head">
