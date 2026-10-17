@@ -161,25 +161,6 @@ export function AccountsShell({
         </nav>
 
         <div className="admin-side-foot">
-          {person.role === "Administrator" ? (
-            <>
-              <a className="admin-side-link" href="/admin">
-                <i className="fa-solid fa-gauge-high" aria-hidden="true" />
-                <span>Admin dashboard</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-              <a className="admin-side-link" href="/admissions_office">
-                <i className="fa-solid fa-building-user" aria-hidden="true" />
-                <span>Admissions office</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-              <a className="admin-side-link" href="/academics_office">
-                <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
-                <span>Academics office</span>
-                <i className="fa-solid fa-arrow-right admin-side-link-out" aria-hidden="true" />
-              </a>
-            </>
-          ) : null}
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">
