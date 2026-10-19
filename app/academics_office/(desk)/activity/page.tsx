@@ -99,38 +99,49 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
       />
 
       <section className="acd-act-stats" aria-label="This period">
-        <article className="acd-act-stat">
-          <span>Recorded</span>
-          <strong>{total}</strong>
-          <small>{kindMeta ? kindMeta.label : "Entries"} in this period</small>
-        </article>
-        <article className="acd-act-stat">
-          <span>Today</span>
-          <strong>{todayCount}</strong>
-          <small>Since midnight in Kampala</small>
-        </article>
-        <article className="acd-act-stat">
-          <span>People</span>
-          <strong>{people}</strong>
-          <small>Who made a change</small>
-        </article>
+        <div>
+          <span className="acd-act-stat-icon" aria-hidden="true"><i className="fa-solid fa-clock-rotate-left" /></span>
+          <span className="acd-act-stat-copy">
+            <span>Recorded</span>
+            <strong>{total.toLocaleString("en-GB")}</strong>
+            <small>{kindMeta ? kindMeta.label : "Entries"} in this period</small>
+          </span>
+        </div>
+        <div>
+          <span className="acd-act-stat-icon" aria-hidden="true"><i className="fa-solid fa-sun" /></span>
+          <span className="acd-act-stat-copy">
+            <span>Today</span>
+            <strong>{todayCount.toLocaleString("en-GB")}</strong>
+            <small>Since midnight in Kampala</small>
+          </span>
+        </div>
+        <div>
+          <span className="acd-act-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-group" /></span>
+          <span className="acd-act-stat-copy">
+            <span>People</span>
+            <strong>{people.toLocaleString("en-GB")}</strong>
+            <small>Who made a change</small>
+          </span>
+        </div>
       </section>
 
-      <div className="acd-act-bar">
-        <nav className="acd-act-chips" aria-label="Period">
+      <div className="acd-act-tools">
+        <nav className="acd-act-span" aria-label="Period">
           {SPANS.map((item) => (
             <Link key={item.value} href={activityHref(item.value, kind)} className={span === item.value ? "is-on" : ""} aria-current={span === item.value ? "page" : undefined}>
               {item.label}
             </Link>
           ))}
         </nav>
-        <nav className="acd-act-chips" aria-label="Kind of change">
+        <nav className="acd-act-kinds" aria-label="Kind of change">
           <Link href={activityHref(span, "")} className={kind ? "" : "is-on"} aria-current={kind ? undefined : "page"}>
-            All <span>{scanned.length}</span>
+            All <span>{scanned.length.toLocaleString("en-GB")}</span>
           </Link>
           {KINDS.map((item) => (
             <Link key={item.value} href={activityHref(span, item.value)} className={kind === item.value ? "is-on" : ""} aria-current={kind === item.value ? "page" : undefined}>
-              {item.label} <span>{counts.get(item.value) || 0}</span>
+              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+              {item.label}
+              <span>{(counts.get(item.value) || 0).toLocaleString("en-GB")}</span>
             </Link>
           ))}
         </nav>
@@ -155,14 +166,14 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
                     return (
                       <li key={row.id} className={`acd-act-item is-${row.kind}`}>
                         <span className={`acd-act-icon is-${row.kind}`} aria-hidden="true"><i className={`fa-solid ${meta?.icon || "fa-clock"}`} /></span>
-                        <div>
+                        <div className="acd-act-copy">
                           <p className="acd-act-body">{row.body}</p>
                           <p className="acd-act-meta">
                             {meta ? <Link className={`acd-act-kind is-${row.kind}`} href={meta.href}>{meta.label}</Link> : <span className="acd-act-kind">{row.kind}</span>}
                             <span>{actor}</span>
-                            <time dateTime={row.created_at}>{timeFormat.format(new Date(row.created_at))}</time>
                           </p>
                         </div>
+                        <time dateTime={row.created_at}>{timeFormat.format(new Date(row.created_at))}</time>
                       </li>
                     );
                   })}
@@ -199,17 +210,18 @@ export default async function ActivityPage({ searchParams }: { searchParams: Pro
           {deliveries.length ? (
             <ol className="acd-act-list">
               {deliveries.map((row) => (
-                <li key={row.id} className="acd-act-item is-reminder">
-                  <span className={`acd-act-status is-${row.status}`}>{row.status === "failed" ? "Failed" : "Sent"}</span>
-                  <div>
+                <li key={row.id} className={`acd-act-item is-reminder${row.status === "failed" ? " is-failed" : ""}`}>
+                  <span className={`acd-act-icon ${row.status === "failed" ? "is-failed" : "is-reminder"}`} aria-hidden="true"><i className={`fa-solid ${row.status === "failed" ? "fa-triangle-exclamation" : "fa-bell"}`} /></span>
+                  <div className="acd-act-copy">
                     <p className="acd-act-body">{(row.staff_id && staffNames.get(row.staff_id)) || row.sent_to}</p>
                     <p className="acd-act-meta">
                       <span className="acd-act-kind is-reminder">{row.topic === "lessons" ? "Lesson plans" : row.topic === "marks" ? "Markbooks" : row.topic}</span>
                       <span>{row.sent_to}</span>
-                      <time dateTime={row.sent_at}>{dayHeading(dayKey(row.sent_at), today)} · {timeFormat.format(new Date(row.sent_at))}</time>
+                      <span className={`acd-act-status is-${row.status}`}>{row.status === "failed" ? "Failed" : "Sent"}</span>
                     </p>
                     {row.error ? <p className="acd-act-error">{row.error}</p> : null}
                   </div>
+                  <time dateTime={row.sent_at}>{dayHeading(dayKey(row.sent_at), today)} · {timeFormat.format(new Date(row.sent_at))}</time>
                 </li>
               ))}
             </ol>
@@ -230,10 +242,10 @@ function activityHref(span: string, kind: string, page = 1) {
 }
 
 function windowCopy(span: string, termLabel: string | null) {
-  if (span === "week") return "Marks, schemes, report cards, the calendar, interventions, reminders and timetable changes from the last 7 days.";
-  if (span === "month") return "Marks, schemes, report cards, the calendar, interventions, reminders and timetable changes from the last 30 days.";
-  if (span === "all") return "The full record of marks, schemes, report cards, the calendar, interventions, reminders, the timetable and setup.";
-  return `Marks, schemes, report cards, the calendar, interventions, reminders and timetable changes${termLabel ? ` during ${termLabel}` : " this term"}.`;
+  if (span === "week") return "Changes recorded in the last 7 days.";
+  if (span === "month") return "Changes recorded in the last 30 days.";
+  if (span === "all") return "The full record of changes made by the office.";
+  return `Changes recorded${termLabel ? ` during ${termLabel}` : " this term"}.`;
 }
 
 function sinceIso(span: string, termStart: string | null, today: string) {

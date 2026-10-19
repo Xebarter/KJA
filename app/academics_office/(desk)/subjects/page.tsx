@@ -21,7 +21,7 @@ export default async function SubjectsPage() {
         kicker="Teaching"
         icon="fa-book-open"
         title="Subjects"
-        description="Choose a subject to rename it, change where it applies, or hide it. Core subjects print on every report. Optional subjects print only when a pupil has a mark."
+        description="Choose a subject to rename it, set the sections it is taught in, hide it, or delete it."
       />
       <SubjectsDesk
         subjects={subjects}

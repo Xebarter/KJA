@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { saveAttendance } from "@/app/academics_office/(desk)/actions";
+import { cancelRegister, saveAttendance } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { OpenRegisters } from "@/components/academics/OpenRegisters";
 import { RegisterDesk } from "@/components/academics/RegisterDesk";
 import { AcademicsGate } from "@/components/academics/ui";
 import {
@@ -12,9 +13,10 @@ import {
   openAcademics,
   streamFromQuery,
   streamQuery,
+  streamOf,
   type AttendanceStatus,
 } from "@/lib/academics";
-import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
+import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Attendance" };
 
@@ -33,18 +35,21 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Attendance" state={opened} />;
   const { supabase, office, staffId, user } = opened.auth;
-  const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : kampalaToday();
+  const today = kampalaToday();
+  const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : today;
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
 
-  const [pupils, termPack, marks] = await Promise.all([
+  const [pupils, termPack, marks, closures] = await Promise.all([
     loadRoll(supabase, user.id),
     loadCurrentTerm(supabase),
     loadDayMarks(supabase, user.id, date),
+    loadClosures(supabase, date),
   ]);
   if (termPack.error) return <AcademicsGate title="Attendance" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const marked = new Map(marks.map((mark) => [mark.student_id, mark]));
+  const closed = new Set(closures.map((row) => `${row.class_code}|${streamOf(row.stream)}`));
   const groups = groupPupils(pupils).map((group) => ({
     key: `${group.code}-${group.stream}`,
     code: group.code,
@@ -55,8 +60,12 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     absent: group.pupils.filter((pupil) => marked.get(pupil.id)?.status === "absent").length,
     pupils: group.pupils.length,
     stream: group.stream,
+    closed: closed.has(`${group.code}|${streamOf(group.stream)}`),
     rows: group.pupils,
   }));
+  const openGroups = date === today
+    ? groups.filter((group) => group.pupils > 0 && group.done < group.pupils && !group.closed)
+    : [];
   const current = groups.find((group) => group.code === classCode && (stream === null || group.stream === stream)) || null;
   let classTeacherId = "";
   if (term && current) {
@@ -65,8 +74,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   }
   const canMark = office || (Boolean(staffId) && staffId === classTeacherId);
   const index = current ? groups.findIndex((group) => group.key === current.key) : -1;
+  const stillOpen = (group: (typeof groups)[number]) => group.pupils > 0 && group.done < group.pupils && !group.closed;
   const next = current
-    ? groups.slice(index + 1).find((group) => group.done < group.pupils) || groups.slice(0, index).find((group) => group.done < group.pupils) || null
+    ? groups.slice(index + 1).find(stillOpen) || groups.slice(0, index).find(stillOpen) || null
     : null;
   const dayHref = `${ACADEMICS_BASE}/attendance?date=${date}`;
 
@@ -79,9 +89,11 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         description={
           current
             ? <>{term ? `${term.label} · ` : ""}<strong>{current.rows.length.toLocaleString("en-GB")}</strong> on this register.</>
-            : groups.length
-              ? <>{term ? `${term.label} · ` : ""}<strong>{groups.filter((group) => group.done === group.pupils).length}</strong> of <strong>{groups.length}</strong> classes marked.</>
-              : "No active pupils on the register yet."
+            : openGroups.length
+              ? <>{term ? `${term.label} · ` : ""}<strong>{openGroups.length.toLocaleString("en-GB")}</strong> {openGroups.length === 1 ? "register is" : "registers are"} still open.</>
+              : groups.length
+                ? <>{term ? `${term.label} · ` : ""}<strong>{groups.filter((group) => group.done === group.pupils).length}</strong> of <strong>{groups.length}</strong> classes marked.</>
+                : "No active pupils on the register yet."
         }
         actions={current ? (
           <>
@@ -90,10 +102,25 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           </>
         ) : null}
       />
+      {!current && openGroups.length ? (
+        <OpenRegisters
+          date={date}
+          termId={term?.id || ""}
+          rows={openGroups.map((group) => ({
+            key: group.key,
+            name: group.name,
+            href: group.href,
+            unmarked: group.pupils - group.done,
+            classCode: group.code,
+            stream: group.stream,
+          }))}
+          cancel={cancelRegister}
+        />
+      ) : null}
       <RegisterDesk
         key={`${date}-${current?.key || "day"}`}
         date={date}
-        today={kampalaToday()}
+        today={today}
         termLabel={term?.label ?? null}
         path={`${ACADEMICS_BASE}/attendance`}
         classCode={current?.code || ""}
@@ -107,6 +134,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           canMark,
           nextHref: next?.href ?? null,
           nextLabel: next?.name ?? null,
+          cancelled: current.closed,
           pupils: current.rows.map((pupil) => {
             const mark = marked.get(pupil.id);
             return {
@@ -122,6 +150,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
           }),
         } : null}
         save={saveAttendance}
+        cancel={cancelRegister}
       />
     </div>
   );

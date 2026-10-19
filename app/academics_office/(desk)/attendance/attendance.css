@@ -258,6 +258,121 @@
   white-space: nowrap;
 }
 .reg-directory a.is-done .reg-pill { background: #e7f3ea; color: #127238; }
+.reg-directory a.is-open .reg-pill { background: #fdecee; color: #a31824; }
+.reg-directory a.is-closed .reg-pill { background: #f3efe8; color: #8a8174; }
+
+.reg-alert {
+  display: grid;
+  gap: .8rem;
+  padding: 1rem 1.15rem 1.05rem;
+  border: 1px solid #f3c5cb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 3px 0 0 #e42435;
+}
+.reg-alert-head { display: flex; align-items: flex-start; gap: .8rem; }
+.reg-alert-head > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #fdecee;
+  color: #e42435;
+  font-size: .85rem;
+}
+.reg-alert-head strong {
+  display: block;
+  color: #e42435;
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+.reg-alert-head p { margin: .2rem 0 0; color: #6d6458; font-size: .84rem; line-height: 1.4; }
+.reg-alert-list { display: grid; gap: .4rem; margin: 0; padding: 0; list-style: none; }
+.reg-alert-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .6rem;
+}
+.reg-alert-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  height: 32px;
+  padding: 0 .45rem 0 .75rem;
+  border: 1px solid #efeae2;
+  border-radius: 999px;
+  background: #fff;
+  color: #19232b;
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.reg-alert-list a:hover { border-color: #19232b; }
+.reg-alert-list em {
+  min-width: 1.35rem;
+  padding: 0 .4rem;
+  border-radius: 999px;
+  background: #e42435;
+  color: #fff;
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+.reg-alert-list > li > button {
+  height: 30px;
+  padding: 0 .15rem;
+  border: 0;
+  background: none;
+  color: #8a8174;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reg-alert-list > li > button:hover { color: #a31824; }
+.reg-class-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .55rem .8rem;
+  padding: .8rem 1.15rem;
+  border-bottom: 1px solid #f3c5cb;
+  background: #fff6f7;
+}
+.reg-class-alert p { margin: 0; color: #19232b; font-size: .84rem; }
+.reg-cancel { margin: 0; }
+.reg-cancel fieldset { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+.reg-cancel .acd-feedback { flex-basis: 100%; margin: 0; }
+.reg-cancel button {
+  height: 30px;
+  padding: 0 .7rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: #8a8174;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.reg-cancel button:hover { color: #a31824; }
+.reg-cancel-ask { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; }
+.reg-cancel-ask p { flex: 1 1 12rem; margin: 0; color: #6d6458; font-size: .78rem; line-height: 1.35; }
+.reg-cancel-ask button[type="submit"] { background: #fdecee; color: #a31824; }
+.reg-cancel-ask button[type="submit"]:hover { background: #f8dfe2; }
+.reg-cancel.is-restore button[type="submit"] { background: #19232b; color: #fff; }
+.reg-cancel.is-restore button[type="submit"]:hover { background: #2b3844; color: #fff; }
+.reg-cancel button:focus-visible,
+.reg-alert-list button:focus-visible { outline: 2px solid #c9a227; outline-offset: 2px; }
 .reg-directory a > i { grid-area: go; color: #c4bbae; font-size: .65rem; }
 
 .reg-form { display: grid; }

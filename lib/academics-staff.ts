@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { ACADEMICS_BASE, classLabel, kampalaToday, loadCurrentTerm, mapStaff, missingAcademicsSchema, streamOf, streamQuery, type StaffRow } from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, kampalaToday, loadCurrentTerm, mapStaff, mapSubject, markbookClosed, missingAcademicsSchema, streamOf, streamQuery, type StaffRow, type SubjectRow } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 import { SCHOOL_CLASSES } from "@/lib/students";
 import { remember } from "@/lib/remember";
@@ -15,6 +15,9 @@ export type StaffScheme = {
 
 export type StaffSubject = {
   key: string;
+  subjectId: string;
+  classCode: string;
+  stream: string;
   subject: string;
   label: string;
   href: string;
@@ -46,10 +49,32 @@ export type StaffMember = StaffRow & {
 
 export type StaffGap = { label: string; href: string };
 
+export type StaffGroup = { code: string; stream: string; label: string; pupils: number };
+
+export type StaffPost = {
+  classCode: string;
+  stream: string;
+  subjectId: string;
+  subject: string;
+  staffId: string;
+  staffName: string;
+};
+
+export type StaffLead = {
+  classCode: string;
+  stream: string;
+  staffId: string;
+  staffName: string;
+};
+
 export type StaffDeskData = {
   term: { id: string; label: string } | null;
   members: StaffMember[];
   gaps: StaffGap[];
+  groups: StaffGroup[];
+  subjects: SubjectRow[];
+  posts: StaffPost[];
+  leads: StaffLead[];
 };
 
 const DAYS = ["", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
@@ -85,22 +110,29 @@ async function rowsOf<T>(run: PromiseLike<{ data: T[] | null; error: { message: 
 }
 
 export function loadStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
-  return remember(`academics-staff:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
+  return remember(`academics-staff:v2:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
 }
 
 async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
-  const [staffQuery, termPack] = await Promise.all([
+  const [staffQuery, termPack, subjectQuery] = await Promise.all([
     supabase.from("teaching_staff").select("*").order("full_name"),
     loadCurrentTerm(supabase),
+    supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
   ]);
   if (staffQuery.error) throw new Error(staffQuery.error.message);
   if (termPack.error) throw new Error(termPack.error);
+  if (subjectQuery.error) throw new Error(subjectQuery.error.message);
   const people = ((staffQuery.data || []) as Record<string, unknown>[]).map(mapStaff);
+  const subjects = ((subjectQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
   const term = termPack.term;
   if (!term) {
     return {
       term: null,
       gaps: [],
+      groups: [],
+      subjects,
+      posts: [],
+      leads: [],
       members: people.map((person) => ({ ...person, classes: [], subjects: [], periods: [], lessonsPlanned: 0, lessonsTaught: 0, lessonsOverdue: 0 })),
     };
   }
@@ -145,15 +177,16 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
     const key = keyOf(paper.class_code, paper.stream, paper.subject_id);
     const current = papers.get(key) || { papers: 0, submitted: 0 };
     current.papers += 1;
-    if (paper.status === "submitted") current.submitted += 1;
+    if (markbookClosed(paper.status)) current.submitted += 1;
     papers.set(key, current);
   }
 
-  const schemes = new Map<string, StaffScheme & { staffId: string | null; subject: string; label: string; classHref: string }>();
+  const schemes = new Map<string, StaffScheme & { staffId: string | null; subjectId: string; classCode: string; stream: string; subject: string; label: string; classHref: string }>();
   for (const scheme of schemeRows) {
     const lessons = many(scheme.scheme_lessons);
     const subject = one(scheme.subjects)?.name || "Subject";
-    schemes.set(keyOf(scheme.class_code, scheme.stream, scheme.subject_id), {
+    const stream = streamOf(scheme.stream);
+    schemes.set(keyOf(scheme.class_code, stream, scheme.subject_id), {
       href: `${ACADEMICS_BASE}/schemes/${scheme.id}`,
       title: scheme.title,
       status: scheme.status,
@@ -161,11 +194,40 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
       taught: lessons.filter((lesson) => lesson.taught_on).length,
       overdue: lessons.filter((lesson) => lesson.due_on && lesson.due_on < today && !lesson.taught_on).length,
       staffId: scheme.staff_id,
+      subjectId: scheme.subject_id,
+      classCode: scheme.class_code,
+      stream,
       subject,
-      label: classLabel(scheme.class_code, scheme.stream),
-      classHref: classHref(scheme.class_code, scheme.stream),
+      label: classLabel(scheme.class_code, stream),
+      classHref: classHref(scheme.class_code, stream),
     });
   }
+
+  const nameOf = new Map(people.map((person) => [person.id, person.full_name]));
+  const posts: StaffPost[] = subjectRows.map((row) => ({
+    classCode: row.class_code,
+    stream: streamOf(row.stream),
+    subjectId: row.subject_id,
+    subject: one(row.subjects)?.name || "Subject",
+    staffId: row.staff_id,
+    staffName: nameOf.get(row.staff_id) || "Teacher",
+  }));
+  const leads: StaffLead[] = classRows.map((row) => ({
+    classCode: row.class_code,
+    stream: streamOf(row.stream),
+    staffId: row.staff_id,
+    staffName: nameOf.get(row.staff_id) || "Teacher",
+  }));
+  const groups = new Map<string, StaffGroup>();
+  for (const pupil of pupils) {
+    if (!pupil.class_code) continue;
+    const stream = streamOf(pupil.stream);
+    const key = keyOf(pupil.class_code, stream);
+    const current = groups.get(key);
+    if (current) current.pupils += 1;
+    else groups.set(key, { code: pupil.class_code, stream, label: classLabel(pupil.class_code, stream), pupils: 1 });
+  }
+  const groupList = [...groups.values()].sort((a, b) => (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.label.localeCompare(b.label));
 
   const members: StaffMember[] = people.map((person) => {
     const classes = classRows
@@ -182,6 +244,9 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
         const mark = papers.get(match) || { papers: 0, submitted: 0 };
         return {
           key: match,
+          subjectId: row.subject_id,
+          classCode: row.class_code,
+          stream: streamOf(row.stream),
           subject: one(row.subjects)?.name || "Subject",
           label: classLabel(row.class_code, row.stream),
           href: classHref(row.class_code, row.stream),
@@ -194,6 +259,9 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
       if (scheme.staffId !== person.id || owned.has(match)) continue;
       subjects.push({
         key: match,
+        subjectId: scheme.subjectId,
+        classCode: scheme.classCode,
+        stream: scheme.stream,
         subject: scheme.subject,
         label: scheme.label,
         href: scheme.classHref,
@@ -226,5 +294,5 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
     };
   });
 
-  return { term: { id: term.id, label: term.label }, members, gaps };
+  return { term: { id: term.id, label: term.label }, members, gaps, groups: groupList, subjects, posts, leads };
 }

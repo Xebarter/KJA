@@ -1,14 +1,17 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { DeskForm } from "@/components/academics/Form";
 import { CAMPUS_OPTIONS } from "@/lib/applications";
-import type { StaffGap, StaffMember } from "@/lib/academics-staff";
-import { displayPhone, telHref } from "@/lib/students";
+import type { SubjectRow } from "@/lib/academics";
+import { subjectFits } from "@/lib/subject-bands";
+import type { StaffGap, StaffGroup, StaffLead, StaffMember, StaffPost } from "@/lib/academics-staff";
+import { className, displayPhone, SCHOOL_CLASSES, telHref } from "@/lib/students";
 
 type SaveStaff = (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
+type PostAction = SaveStaff;
 type Duty = "all" | "class" | "subject" | "open" | "hidden";
 
 const DUTIES: { id: Duty; label: string }[] = [
@@ -33,15 +36,29 @@ function loadOf(member: StaffMember) {
 export function StaffDesk({
   members,
   gaps = [],
+  groups,
+  subjects,
+  posts,
+  leads,
+  termId,
   termLabel,
   initialId,
   save,
+  assign,
+  release,
 }: {
   members: StaffMember[];
   gaps: StaffGap[];
+  groups: StaffGroup[];
+  subjects: SubjectRow[];
+  posts: StaffPost[];
+  leads: StaffLead[];
+  termId: string | null;
   termLabel: string | null;
   initialId: string;
   save: SaveStaff;
+  assign: PostAction;
+  release: PostAction;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -55,6 +72,10 @@ export function StaffDesk({
   const [duty, setDuty] = useState<Duty>("all");
   const [sort, setSort] = useState<"name" | "load">("name");
   const [gapsOpen, setGapsOpen] = useState(false);
+
+  useEffect(() => {
+    if (initialId === "new" || members.some((member) => member.id === initialId)) setMemberId(initialId);
+  }, [initialId, members]);
 
   const campuses = useMemo(() => {
     const values = new Set<string>(CAMPUS_OPTIONS);
@@ -101,6 +122,8 @@ export function StaffDesk({
   const shownGaps = gapsOpen ? gaps : gaps.slice(0, 8);
 
   return (
+    <>
+    <Coverage groups={groups} subjects={subjects} posts={posts} leads={leads} termLabel={termLabel} />
     <div className="stf-layout">
       <section className="stf-card stf-directory" aria-label="Teachers">
         <header className="stf-card-head">
@@ -172,13 +195,38 @@ export function StaffDesk({
       {adding ? (
         <TeacherForm save={save} campuses={campuses} />
       ) : selected ? (
-        <TeacherFile key={selected.id} member={selected} save={save} campuses={campuses} termLabel={termLabel} />
+        <TeacherFile key={selected.id} member={selected} save={save} campuses={campuses} termLabel={termLabel} groups={groups} subjects={subjects} posts={posts} leads={leads} termId={termId} assign={assign} release={release} />
       ) : null}
     </div>
+    </>
   );
 }
 
-function TeacherFile({ member, save, campuses, termLabel }: { member: StaffMember; save: SaveStaff; campuses: string[]; termLabel: string | null }) {
+function TeacherFile({
+  member,
+  save,
+  campuses,
+  termLabel,
+  groups,
+  subjects,
+  posts,
+  leads,
+  termId,
+  assign,
+  release,
+}: {
+  member: StaffMember;
+  save: SaveStaff;
+  campuses: string[];
+  termLabel: string | null;
+  groups: StaffGroup[];
+  subjects: SubjectRow[];
+  posts: StaffPost[];
+  leads: StaffLead[];
+  termId: string | null;
+  assign: PostAction;
+  release: PostAction;
+}) {
   const papers = member.subjects.reduce((sum, row) => sum + row.papers, 0);
   const submitted = member.subjects.reduce((sum, row) => sum + row.submitted, 0);
   const days = DAYS.map((day, index) => ({ day, rows: member.periods.filter((row) => row.weekday === index + 1) })).filter((day) => day.rows.length);
@@ -212,6 +260,8 @@ function TeacherFile({ member, save, campuses, termLabel }: { member: StaffMembe
           <div><span>Lessons</span><strong>{member.lessonsTaught}/{member.lessonsPlanned}</strong></div>
         </div>
       </section>
+
+      <Assignments member={member} groups={groups} subjects={subjects} posts={posts} leads={leads} termId={termId} termLabel={termLabel} assign={assign} release={release} />
 
       <section className="stf-card" aria-label="Classes">
         <CardHead icon="fa-users" title="Classes led" text="Class teacher for this term." />
@@ -317,6 +367,247 @@ function TeacherForm({ save, campuses }: { save: SaveStaff; campuses: string[] }
         <label className="stf-check"><input type="checkbox" name="link_me" value="1" /> Link this teacher to my sign-in</label>
         <button className="stf-commit" type="submit">Add teacher</button>
       </DeskForm>
+    </section>
+  );
+}
+
+const CLASS_ORDER = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
+
+function streamName(stream: string) {
+  return stream ? `Stream ${stream}` : "No stream";
+}
+
+function classCodes(groups: StaffGroup[]) {
+  return [...new Set(groups.map((group) => group.code))].sort((a, b) => (CLASS_ORDER.get(a) ?? 99) - (CLASS_ORDER.get(b) ?? 99) || a.localeCompare(b));
+}
+
+function Coverage({
+  groups,
+  subjects,
+  posts,
+  leads,
+  termLabel,
+}: {
+  groups: StaffGroup[];
+  subjects: SubjectRow[];
+  posts: StaffPost[];
+  leads: StaffLead[];
+  termLabel: string | null;
+}) {
+  const codes = classCodes(groups);
+  const [code, setCode] = useState(codes[0] || "");
+  const streams = groups.filter((group) => group.code === code);
+  const [stream, setStream] = useState(streams[0]?.stream ?? "");
+  const chosen = streams.some((group) => group.stream === stream) ? stream : (streams[0]?.stream ?? "");
+  const fitting = subjects.filter((subject) => subjectFits(subject, code));
+  const lead = leads.find((row) => row.classCode === code && row.stream === chosen) || null;
+  const rows = fitting.map((subject) => {
+    const post = posts.find((row) => row.classCode === code && row.stream === chosen && row.subjectId === subject.id) || null;
+    return { id: subject.id, name: subject.name, teacher: post?.staffName || "" };
+  });
+  const openSubjects = rows.filter((row) => !row.teacher).length;
+  const openLead = lead ? 0 : 1;
+
+  function chooseClass(next: string) {
+    setCode(next);
+    setStream(groups.find((group) => group.code === next)?.stream ?? "");
+  }
+
+  return (
+    <section className="stf-card stf-cover" aria-label="Stream coverage">
+      <CardHead icon="fa-table-list" title="Stream coverage" text={termLabel ? `Who teaches each subject in ${termLabel}. One teacher per subject.` : "Set a current term to see who teaches each subject."} />
+      {!termLabel ? <p className="stf-quiet">Assignments start once a term is current.</p> : null}
+      {termLabel && !groups.length ? <p className="stf-quiet">No class has pupils yet.</p> : null}
+      {termLabel && groups.length ? (
+        <>
+          <div className="stf-cover-tools">
+            <label className="stf-select">
+              <span>Class</span>
+              <select value={code} onChange={(event) => chooseClass(event.target.value)} aria-label="Class">
+                {codes.map((entry) => <option key={entry} value={entry}>{className(entry)}</option>)}
+              </select>
+            </label>
+            <label className="stf-select">
+              <span>Stream</span>
+              <select value={chosen} onChange={(event) => setStream(event.target.value)} aria-label="Stream">
+                {streams.map((group) => <option key={group.stream || "-"} value={group.stream}>{streamName(group.stream)} · {group.pupils}</option>)}
+              </select>
+            </label>
+            <p>{openSubjects + openLead === 0 ? "Every post is filled." : `${openSubjects + openLead} ${openSubjects + openLead === 1 ? "post is" : "posts are"} open.`}</p>
+          </div>
+          <table className="stf-board">
+            <thead>
+              <tr>
+                <th scope="col">Post</th>
+                <th scope="col">Teacher</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr className={lead ? "" : "is-open"}>
+                <th scope="row">Class teacher</th>
+                <td>{lead?.staffName || "Open"}</td>
+              </tr>
+              {rows.map((row) => (
+                <tr key={row.id} className={row.teacher ? "" : "is-open"}>
+                  <th scope="row">{row.name}</th>
+                  <td>{row.teacher || "Open"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!fitting.length ? <p className="stf-quiet">No subjects apply to this class.</p> : null}
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+function Assignments({
+  member,
+  groups,
+  subjects,
+  posts,
+  leads,
+  termId,
+  termLabel,
+  assign,
+  release,
+}: {
+  member: StaffMember;
+  groups: StaffGroup[];
+  subjects: SubjectRow[];
+  posts: StaffPost[];
+  leads: StaffLead[];
+  termId: string | null;
+  termLabel: string | null;
+  assign: PostAction;
+  release: PostAction;
+}) {
+  const codes = classCodes(groups);
+  const [code, setCode] = useState(codes[0] || "");
+  const streams = groups.filter((group) => group.code === code);
+  const [stream, setStream] = useState(streams[0]?.stream ?? "");
+  const chosen = streams.some((group) => group.stream === stream) ? stream : (streams[0]?.stream ?? "");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [leadOn, setLeadOn] = useState(false);
+  const [replace, setReplace] = useState(false);
+  const fitting = subjects.filter((subject) => subjectFits(subject, code));
+  const classHolder = leads.find((row) => row.classCode === code && row.stream === chosen) || null;
+  const mine = posts.filter((row) => row.staffId === member.id).sort((a, b) => (CLASS_ORDER.get(a.classCode) ?? 99) - (CLASS_ORDER.get(b.classCode) ?? 99) || a.subject.localeCompare(b.subject));
+  const mineLeads = leads.filter((row) => row.staffId === member.id).sort((a, b) => (CLASS_ORDER.get(a.classCode) ?? 99) - (CLASS_ORDER.get(b.classCode) ?? 99) || a.stream.localeCompare(b.stream));
+
+  useEffect(() => {
+    setPicked(posts.filter((row) => row.staffId === member.id && row.classCode === code && row.stream === chosen).map((row) => row.subjectId));
+    setLeadOn(leads.some((row) => row.staffId === member.id && row.classCode === code && row.stream === chosen));
+    setReplace(false);
+  }, [member.id, code, chosen, posts, leads]);
+
+  function chooseClass(next: string) {
+    setCode(next);
+    setStream(groups.find((group) => group.code === next)?.stream ?? "");
+  }
+
+  function holder(subjectId: string) {
+    return posts.find((row) => row.classCode === code && row.stream === chosen && row.subjectId === subjectId) || null;
+  }
+
+  return (
+    <section className="stf-card" aria-label="Assignments">
+      <CardHead icon="fa-list-check" title="Assignments" text={termLabel ? `Subjects and class teacher for ${termLabel}. Save one stream at a time.` : "Set a current term before assigning classes and subjects."} />
+      {mineLeads.length || mine.length ? (
+        <ul className="stf-posts">
+          {mineLeads.map((row) => (
+            <li key={`class-${row.classCode}-${row.stream}`}>
+              <span><strong>{groups.find((group) => group.code === row.classCode && group.stream === row.stream)?.label || row.classCode}</strong><small>Class teacher</small></span>
+              {termId ? (
+                <DeskForm action={release} className="stf-drop">
+                  <input type="hidden" name="staff_id" value={member.id} />
+                  <input type="hidden" name="term_id" value={termId} />
+                  <input type="hidden" name="class_code" value={row.classCode} />
+                  <input type="hidden" name="stream" value={row.stream} />
+                  <input type="hidden" name="kind" value="class" />
+                  <button type="submit">Remove</button>
+                </DeskForm>
+              ) : null}
+            </li>
+          ))}
+          {mine.map((row) => (
+            <li key={`${row.classCode}-${row.stream}-${row.subjectId}`}>
+              <span><strong>{row.subject}</strong><small>{groups.find((group) => group.code === row.classCode && group.stream === row.stream)?.label || row.classCode}</small></span>
+              {termId ? (
+                <DeskForm action={release} className="stf-drop">
+                  <input type="hidden" name="staff_id" value={member.id} />
+                  <input type="hidden" name="term_id" value={termId} />
+                  <input type="hidden" name="class_code" value={row.classCode} />
+                  <input type="hidden" name="stream" value={row.stream} />
+                  <input type="hidden" name="subject_id" value={row.subjectId} />
+                  <input type="hidden" name="kind" value="subject" />
+                  <button type="submit">Remove</button>
+                </DeskForm>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      ) : <p className="stf-quiet">No class or subject this term.</p>}
+      {termId && groups.length ? (
+        <DeskForm action={assign} className="stf-form stf-assign">
+          <input type="hidden" name="staff_id" value={member.id} />
+          <input type="hidden" name="term_id" value={termId} />
+          <input type="hidden" name="class_code" value={code} />
+          <input type="hidden" name="stream" value={chosen} />
+          <label className="ofc-field">
+            <span>Class</span>
+            <select value={code} onChange={(event) => chooseClass(event.target.value)} aria-label="Class to assign">
+              {codes.map((entry) => <option key={entry} value={entry}>{className(entry)}</option>)}
+            </select>
+          </label>
+          <label className="ofc-field">
+            <span>Stream</span>
+            <select value={chosen} onChange={(event) => setStream(event.target.value)} aria-label="Stream to assign">
+              {streams.map((group) => <option key={group.stream || "-"} value={group.stream}>{streamName(group.stream)} · {group.pupils} {group.pupils === 1 ? "pupil" : "pupils"}</option>)}
+            </select>
+          </label>
+          <div className="stf-picks" role="group" aria-label="Subjects">
+            <p>Subjects</p>
+            {fitting.length ? fitting.map((subject) => {
+              const current = holder(subject.id);
+              const blocked = Boolean(current && current.staffId !== member.id && !replace);
+              const checked = picked.includes(subject.id) && !blocked;
+              return (
+                <label key={subject.id} className={blocked ? "is-blocked" : ""}>
+                  <input
+                    type="checkbox"
+                    name="subject_id"
+                    value={subject.id}
+                    checked={checked}
+                    disabled={blocked}
+                    onChange={(event) => setPicked((currentIds) => event.target.checked ? [...currentIds, subject.id] : currentIds.filter((id) => id !== subject.id))}
+                  />
+                  <span>{subject.name}</span>
+                  <small>{current ? (current.staffId === member.id ? "This teacher" : current.staffName) : "Open"}</small>
+                </label>
+              );
+            }) : <p className="stf-picks-empty">No subjects apply to this class.</p>}
+          </div>
+          <label className={`stf-check${classHolder && classHolder.staffId !== member.id && !replace ? " is-blocked" : ""}`}>
+            <input
+              type="checkbox"
+              name="class_teacher"
+              value="1"
+              checked={leadOn && !(classHolder && classHolder.staffId !== member.id && !replace)}
+              disabled={Boolean(classHolder && classHolder.staffId !== member.id && !replace)}
+              onChange={(event) => setLeadOn(event.target.checked)}
+            />
+            Class teacher of this stream
+            <small>{classHolder ? (classHolder.staffId === member.id ? "This teacher" : classHolder.staffName) : "Open"}</small>
+          </label>
+          <label className="stf-check">
+            <input type="checkbox" name="replace" value="1" checked={replace} onChange={(event) => setReplace(event.target.checked)} />
+            Replace the current teacher
+          </label>
+          <button className="stf-commit" type="submit">Save assignments</button>
+        </DeskForm>
+      ) : null}
     </section>
   );
 }

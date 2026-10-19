@@ -1,15 +1,20 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  assessmentSetKey,
   classSection,
   gradeFor,
   mapBand,
   mapSubject,
   num,
+  planAssessmentSets,
   ranks,
+  setsFromParts,
   streamOf,
   subjectFits,
   weightedPercent,
   type BandRow,
+  type ReportPart,
+  type ReportSet,
   type SubjectRow,
 } from "@/lib/academics";
 import { fetchAll } from "@/lib/students";
@@ -19,8 +24,20 @@ type Pupil = { id: string; full_name: string; class_code: string | null; stream:
 type Assessment = {
   id: string;
   subject_id: string;
+  name: string;
+  kind: string;
   max_score: number;
   weight: number;
+};
+
+type StoredPart = {
+  report_card_id: string;
+  subject_id: string;
+  set_key: string;
+  label: string;
+  share: number | string | null;
+  score: number | string | null;
+  sort_order: number | string | null;
 };
 
 type Score = { assessment_id: string; student_id: string; score: number | null; missed: boolean };
@@ -63,7 +80,7 @@ export async function prepareClassReports(
     supabase.from("grade_bands").select("*").order("sort_order"),
     supabase
       .from("assessments")
-      .select("id, subject_id, max_score, weight")
+      .select("id, subject_id, name, kind, max_score, weight")
       .eq("term_id", input.termId)
       .eq("class_code", input.classCode)
       .eq("stream", stream),
@@ -95,9 +112,12 @@ export async function prepareClassReports(
   const papers = ((assessments.data || []) as Record<string, unknown>[]).map((row) => ({
     id: String(row.id),
     subject_id: String(row.subject_id),
+    name: String(row.name || "Assessment"),
+    kind: String(row.kind || ""),
     max_score: num(row.max_score) ?? 100,
     weight: num(row.weight) ?? 1,
   })) satisfies Assessment[];
+  const plan = planAssessmentSets(papers);
 
   const paperIds = papers.map((paper) => paper.id);
   const pupilIds = roster.map((pupil) => pupil.id);
@@ -149,17 +169,19 @@ export async function prepareClassReports(
   const results = roster.map((pupil) => {
     const lines = fitting.map((subject) => {
       const mine = papers.filter((paper) => paper.subject_id === subject.id);
-      const percent = weightedPercent(
-        mine.map((paper) => {
-          const mark = scores.find((score) => score.assessment_id === paper.id && score.student_id === pupil.id);
-          return { score: mark?.score ?? null, max: paper.max_score, weight: paper.weight, missed: mark?.missed ?? false };
-        }),
-      );
-      const include = subject.kind === "core" || percent !== null;
-      if (!include) return null;
+      const parts = plan.flatMap((set) => {
+        const sitting = mine.filter((paper) => assessmentSetKey(paper.kind, paper.name) === set.key);
+        if (!sitting.length) return [];
+        const score = weightedPercent(sitting.map((paper) => {
+          const mark = scores.find((row) => row.assessment_id === paper.id && row.student_id === pupil.id);
+          return { score: mark?.score ?? null, max: paper.max_score, weight: 1, missed: mark?.missed ?? false };
+        }));
+        return [{ key: set.key, label: set.label, share: set.share, score, sort: set.sort, weight: set.weight }];
+      });
+      const percent = weightedPercent(parts.map((part) => ({ score: part.score, max: 100, weight: part.weight, missed: false })));
       const grade = gradeFor(bandRows, section, percent);
-      return { subject, percent, grade };
-    }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null } => Boolean(line));
+      return { subject, percent, grade, parts };
+    }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null; parts: { key: string; label: string; share: number; score: number | null; sort: number; weight: number }[] } => Boolean(line));
 
     const present = attendanceRows.filter(
       (row) => row.student_id === pupil.id && (row.status === "present" || row.status === "late"),
@@ -214,6 +236,7 @@ export async function prepareClassReports(
     if (updateError) throw new Error(updateError.message);
 
     const keep = new Set<string>();
+    const parts: { report_card_id: string; subject_id: string; set_key: string; label: string; share: number; score: number | null; sort_order: number }[] = [];
     for (const line of row.lines) {
       keep.add(line.subject.id);
       const { error } = await supabase.from("report_lines").upsert(
@@ -231,6 +254,17 @@ export async function prepareClassReports(
         { onConflict: "report_card_id,subject_id" },
       );
       if (error) throw new Error(error.message);
+      for (const part of line.parts) {
+        parts.push({
+          report_card_id: saved.id,
+          subject_id: line.subject.id,
+          set_key: part.key,
+          label: part.label,
+          share: part.share,
+          score: part.score,
+          sort_order: part.sort,
+        });
+      }
     }
     const stale = lineRows
       .filter((line) => line.report_card_id === saved.id && !keep.has(line.subject_id))
@@ -239,12 +273,18 @@ export async function prepareClassReports(
       const { error } = await supabase.from("report_lines").delete().eq("report_card_id", saved.id).in("subject_id", stale);
       if (error) throw new Error(error.message);
     }
+    const cleared = await supabase.from("report_line_parts").delete().eq("report_card_id", saved.id);
+    if (cleared.error) throw new Error(partsSchemaMessage(cleared.error.message));
+    if (parts.length) {
+      const savedParts = await supabase.from("report_line_parts").insert(parts);
+      if (savedParts.error) throw new Error(partsSchemaMessage(savedParts.error.message));
+    }
   }
 
   return { prepared };
 }
 
-/** Why a class cannot be approved yet, or null when every core paper is submitted and complete. */
+/** Why a class cannot be approved yet, or null when every paper is submitted and complete. */
 export async function classMarkbooksReady(
   supabase: SupabaseClient,
   input: { termId: string; classCode: string; stream: string },
@@ -267,7 +307,7 @@ export async function classMarkbooksReady(
   if (papers.error) throw new Error(papers.error.message);
   const roster = pupils.filter((pupil) => streamOf(pupil.stream) === stream);
   if (!roster.length) return "No active pupils in this class.";
-  const core = ((subjects.data || []) as Record<string, unknown>[]).map(mapSubject).filter((subject) => subject.kind === "core" && subjectFits(subject, input.classCode));
+  const needed = ((subjects.data || []) as Record<string, unknown>[]).map(mapSubject).filter((subject) => subjectFits(subject, input.classCode));
   const assessments = (papers.data || []) as { id: string; subject_id: string; status: string }[];
   const scores = assessments.length
     ? await fetchAll<Score>((from, to) =>
@@ -279,10 +319,11 @@ export async function classMarkbooksReady(
           .range(from, to),
       )
     : [];
-  for (const subject of core) {
+  for (const subject of needed) {
     const mine = assessments.filter((paper) => paper.subject_id === subject.id);
     if (!mine.length) return `Add a paper for ${subject.name} before approving.`;
-    if (mine.some((paper) => paper.status !== "submitted")) return `${subject.name} still has an open markbook.`;
+    if (mine.some((paper) => paper.status !== "submitted" && paper.status !== "approved")) return `${subject.name} still has an open markbook.`;
+    if (mine.some((paper) => paper.status !== "approved")) return `Approve ${subject.name} on the class marksheet before report cards.`;
     const missing = roster.some((pupil) =>
       mine.some((paper) => {
         const mark = scores.find((score) => score.assessment_id === paper.id && score.student_id === pupil.id);
@@ -292,6 +333,55 @@ export async function classMarkbooksReady(
     if (missing) return `Marks are still missing for ${subject.name}.`;
   }
   return null;
+}
+
+/** Parts saved on report cards, keyed by card id and subject id. An unmigrated database returns none. */
+export async function loadReportParts(supabase: SupabaseClient, cardIds: string[]) {
+  const grouped = new Map<string, ReportPart[]>();
+  if (!cardIds.length) return grouped;
+  const rows: StoredPart[] = [];
+  try {
+    for (let index = 0; index < cardIds.length; index += 80) {
+      const slice = cardIds.slice(index, index + 80);
+      rows.push(...await fetchAll<StoredPart>((from, to) =>
+        supabase
+          .from("report_line_parts")
+          .select("report_card_id, subject_id, set_key, label, share, score, sort_order")
+          .in("report_card_id", slice)
+          .order("report_card_id")
+          .range(from, to),
+      ));
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (/report_line_parts|schema cache|does not exist/i.test(message)) return grouped;
+    throw error;
+  }
+  for (const row of rows) {
+    const key = `${row.report_card_id}:${row.subject_id}`;
+    const list = grouped.get(key) ?? [];
+    list.push({
+      key: row.set_key,
+      label: row.label,
+      share: num(row.share) ?? 0,
+      score: num(row.score),
+      sort: num(row.sort_order) ?? 0,
+    });
+    grouped.set(key, list);
+  }
+  for (const list of grouped.values()) list.sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
+  return grouped;
+}
+
+export function cardSets(cardId: string, lines: { subject_id: string }[], parts: Map<string, ReportPart[]>): ReportSet[] {
+  return setsFromParts(lines.flatMap((line) => parts.get(`${cardId}:${line.subject_id}`) ?? []));
+}
+
+function partsSchemaMessage(message: string) {
+  if (/report_line_parts|schema cache|does not exist/i.test(message)) {
+    return "Run supabase/0024_report_line_parts.sql in the Supabase SQL editor, then prepare the reports again.";
+  }
+  return message;
 }
 
 async function insertCard(supabase: SupabaseClient, row: { student_id: string; term_id: string }): Promise<ExistingCard> {
@@ -309,4 +399,32 @@ function staffName(value: unknown) {
   const row = Array.isArray(value) ? value[0] : value;
   if (row && typeof row === "object" && "full_name" in row && typeof row.full_name === "string") return row.full_name;
   return null;
+}
+
+/** Subject-teacher initials for one class, keyed by subject. Empty when the reader cannot see staff. */
+export async function loadSubjectInitials(
+  supabase: SupabaseClient,
+  input: { termId: string; classCode: string; stream: string },
+) {
+  const marks = new Map<string, string>();
+  const { data, error } = await supabase
+    .from("subject_teachers")
+    .select("subject_id, teaching_staff(full_name)")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", input.stream);
+  if (error || !data) return marks;
+  for (const row of data) {
+    const name = staffName(row.teaching_staff);
+    const mark = name ? teacherInitials(name) : "";
+    if (mark && row.subject_id) marks.set(String(row.subject_id), mark);
+  }
+  return marks;
+}
+
+function teacherInitials(name: string) {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
 }

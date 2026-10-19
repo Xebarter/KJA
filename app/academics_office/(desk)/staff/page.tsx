@@ -1,4 +1,4 @@
-import { saveStaff } from "@/app/academics_office/(desk)/actions";
+import { assignTeacherPosts, releaseTeacherPost, saveStaff } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StaffDesk } from "@/components/academics/StaffDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
@@ -53,7 +53,20 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
           <span className="stf-stat-copy"><span>Classes open</span><strong>{nf(data.gaps.length)}</strong><small>No class teacher yet</small></span>
         </div>
       </section>
-      <StaffDesk members={data.members} gaps={data.gaps} termLabel={data.term?.label ?? null} initialId={initialId} save={saveStaff} />
+      <StaffDesk
+        members={data.members}
+        gaps={data.gaps}
+        groups={data.groups}
+        subjects={data.subjects}
+        posts={data.posts}
+        leads={data.leads}
+        termId={data.term?.id ?? null}
+        termLabel={data.term?.label ?? null}
+        initialId={initialId}
+        save={saveStaff}
+        assign={assignTeacherPosts}
+        release={releaseTeacherPost}
+      />
     </div>
   );
 }

@@ -131,6 +131,80 @@
 .rpt-directory strong { display: block; overflow: hidden; font-size: .88rem; font-weight: 700; text-overflow: ellipsis; white-space: nowrap; }
 .rpt-directory small { color: #8a8174; font-size: .72rem; }
 .rpt-mini { color: #8a8174; font-size: .72rem; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.rpt-drafts {
+  min-width: 22px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #e42435;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 800;
+  line-height: 20px;
+  text-align: center;
+}
+.rpt-directory a.is-draft { background: #fff6f7; }
+.rpt-directory a.is-draft:hover,
+.rpt-directory a.is-draft.is-on { background: #fff0f2; }
+
+.rpt-alert {
+  display: grid;
+  gap: .8rem;
+  padding: 1rem 1.15rem 1.05rem;
+  border: 1px solid #f3c5cb;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 3px 0 0 #e42435;
+}
+.rpt-alert-head { display: flex; align-items: flex-start; gap: .8rem; }
+.rpt-alert-head > span {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #fdecee;
+  color: #e42435;
+  font-size: .85rem;
+}
+.rpt-alert-head strong {
+  display: block;
+  color: #e42435;
+  font-size: 1.35rem;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  line-height: 1.1;
+}
+.rpt-alert-head p { margin: .2rem 0 0; color: #6d6458; font-size: .84rem; line-height: 1.4; }
+.rpt-alert-list { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.rpt-alert-list a {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  height: 32px;
+  padding: 0 .45rem 0 .75rem;
+  border: 1px solid #efeae2;
+  border-radius: 999px;
+  background: #fff;
+  color: #19232b;
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+.rpt-alert-list a:hover { border-color: #19232b; }
+.rpt-alert-list em {
+  min-width: 1.35rem;
+  padding: 0 .4rem;
+  border-radius: 999px;
+  background: #e42435;
+  color: #fff;
+  font-size: .68rem;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 18px;
+  text-align: center;
+}
+.rpt-alert-note { margin: 0; color: #8a8174; font-size: .78rem; }
 
 .rpt-actions {
   display: flex;
@@ -158,6 +232,38 @@
 .rpt-btn.is-gold:hover { background: #d4b04a; }
 .rpt-btn.is-ghost { border: 1px solid #e6e1d6; background: #fff; color: #19232b; }
 .rpt-btn.is-ghost:hover { border-color: #19232b; background: #fff; }
+a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
+.rpt-actions-secondary { display: flex; flex-wrap: wrap; gap: .45rem; align-items: center; margin-left: auto; }
+.rpt-preview { display: grid; gap: 1.25rem; padding: 1.15rem; }
+.rpt-preview .acd-sheet + .acd-sheet { break-before: page; page-break-before: always; }
+@media print {
+  .rpt-preview-page .admin-hero,
+  .rpt-preview-page .rpt-preview-bar { display: none !important; }
+  .rpt-preview-page .rpt-preview { padding: 0; }
+  .rpt-preview-page .acd-sheet { max-width: none; margin: 0; }
+}
+.rpt-cancel { margin: 0; }
+.rpt-cancel fieldset { display: flex; margin: 0; padding: 0; border: 0; min-inline-size: 0; }
+.rpt-cancel > .acd-feedback { margin: .35rem 0 0; }
+.rpt-cancel button {
+  height: 32px;
+  padding: 0 .75rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+  background: #fff;
+  color: #8a8174;
+  font: inherit;
+  font-size: .78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.rpt-cancel button:hover { border-color: #e42435; color: #a31824; }
+.rpt-cancel-ask { display: flex; flex-wrap: wrap; align-items: center; gap: .35rem .5rem; }
+.rpt-cancel-ask p { flex: 1 1 12rem; margin: 0; color: #6d6458; font-size: .78rem; line-height: 1.35; }
+.rpt-cancel-ask button[type="button"] { border-color: transparent; background: none; }
+.rpt-cancel-ask button[type="submit"] { border-color: transparent; background: #fdecee; color: #a31824; }
+.rpt-cancel-ask button[type="submit"]:hover { background: #f8dfe2; }
+.rpt-cancel button:focus-visible { outline: 2px solid #c9a227; outline-offset: 2px; }
 
 .rpt-roll { margin: 0; padding: 0; list-style: none; }
 .rpt-roll li {
@@ -244,6 +350,145 @@
   .rpt-roll li { grid-template-columns: auto minmax(0, 1fr) auto; }
   .rpt-pill { grid-column: 2 / -1; justify-self: flex-start; min-width: 0; }
 }
+.rpt-detail-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18.5rem, 23rem);
+  gap: 1.15rem;
+  align-items: start;
+}
+.rpt-detail article.acd-sheet { max-width: none; margin: 0; }
+.rpt-detail button.admin-hero-btn {
+  font: inherit;
+  font-size: .92rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.rpt-detail .rpt-strip .is-word .rpt-stat-copy strong {
+  font-size: 1.2rem;
+  line-height: 1.15;
+}
+.rpt-detail-layout > .rpt-editor {
+  align-self: start;
+  height: calc(100dvh - 2rem);
+  min-height: 0;
+}
+.rpt-editor {
+  position: sticky;
+  top: 1rem;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - 2rem);
+  max-height: calc(100dvh - 2rem);
+  overflow: hidden;
+}
+.rpt-editor-form {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+.rpt-editor-form fieldset {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.rpt-editor-scroll {
+  display: grid;
+  flex: 1 1 auto;
+  gap: .8rem;
+  align-content: start;
+  min-height: 0;
+  padding: 1rem 1.15rem 1.05rem;
+  overflow: auto;
+}
+.rpt-editor-scroll .ofc-field > span { color: #8a8174; }
+.rpt-editor-scroll .ofc-field textarea { min-height: 0; line-height: 1.45; }
+.rpt-remarks { display: grid; gap: .55rem; }
+.rpt-remarks h3 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .75rem;
+  margin: .35rem 0 0;
+  padding-top: .85rem;
+  border-top: 1px solid #efeae2;
+  color: #8a8174;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+.rpt-remarks h3 em { color: #b7ad9e; font-style: normal; font-variant-numeric: tabular-nums; letter-spacing: 0; text-transform: none; }
+.rpt-remark { display: grid; gap: .28rem; margin: 0; }
+.rpt-remark-label { display: flex; align-items: baseline; justify-content: space-between; gap: .6rem; min-width: 0; }
+.rpt-remark-label strong {
+  overflow: hidden;
+  color: #19232b;
+  font-size: .84rem;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+}
+.rpt-remark-label em {
+  flex: none;
+  color: #8a8174;
+  font-size: .72rem;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.rpt-editor-scroll :is(input, select, textarea),
+.rpt-remark input {
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.rpt-remark input {
+  width: 100%;
+  height: 38px;
+  padding: 0 .7rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 10px;
+  background: #fff;
+  color: #19232b;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.rpt-remark input::placeholder { color: #b7ad9e; }
+.rpt-remark input:hover { border-color: #c5bdae; }
+.rpt-remark input:focus { outline: none; border-color: #c9a227; box-shadow: 0 0 0 3px rgba(201, 162, 39, .18); }
+.rpt-editor > header,
+.rpt-editor-actions { flex: none; }
+.rpt-editor-scroll { scrollbar-width: thin; scrollbar-color: #e6e1d6 transparent; }
+.rpt-editor-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  padding: .85rem 1.15rem;
+  border-top: 1px solid #efeae2;
+  background: #fcfbf8;
+}
+.rpt-editor .acd-feedback { margin: 0; padding: 0 1.15rem .9rem; }
+
+@media (max-width: 980px) {
+  .rpt-detail-layout { grid-template-columns: 1fr; }
+  .rpt-detail-layout > .rpt-editor,
+  .rpt-editor { position: static; height: auto; max-height: none; }
+  .rpt-editor-form fieldset,
+  .rpt-editor-scroll { overflow: visible; }
+}
+@media print {
+  .rpt-detail .admin-hero,
+  .rpt-detail .rpt-strip,
+  .rpt-detail .rpt-editor { display: none !important; }
+}
 @media (prefers-reduced-motion: reduce) {
-  .rpt-roll li, .rpt-directory a { transition: none; }
+  .rpt-roll li, .rpt-directory a, .rpt-remark input { transition: none; }
 }

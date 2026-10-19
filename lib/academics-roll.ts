@@ -33,6 +33,17 @@ export function loadRoll(supabase: SupabaseClient, userId: string) {
   });
 }
 
+export type RegisterClosure = { class_code: string; stream: string };
+
+/** Classes taken off the open-register count for one day. Missing table counts as none. */
+export function loadClosures(supabase: SupabaseClient, date: string) {
+  return remember(`academics-closures:${date}`, 20_000, async () => {
+    const { data, error } = await supabase.from("attendance_closures").select("class_code, stream").eq("attended_on", date);
+    if (error) return [] as RegisterClosure[];
+    return (data || []) as RegisterClosure[];
+  });
+}
+
 /** One day's register marks, reused by the sidebar badge, the overview and the attendance page. */
 export function loadDayMarks(supabase: SupabaseClient, userId: string, date: string) {
   return remember(`academics-today:${userId}:${date}`, 20_000, () =>

@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { DeskForm } from "@/components/academics/Form";
+import { RegisterClosure } from "@/components/academics/OpenRegisters";
 import { StudentFace } from "@/components/StudentFace";
 
 type Status = "present" | "late" | "absent" | "excused";
@@ -29,6 +30,7 @@ export type RegisterClass = {
   done: number;
   pupils: number;
   absent: number;
+  closed: boolean;
 };
 
 export type RegisterDeskProps = {
@@ -48,8 +50,10 @@ export type RegisterDeskProps = {
     pupils: RegisterPupil[];
     nextHref: string | null;
     nextLabel: string | null;
+    cancelled: boolean;
   } | null;
   save: (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
+  cancel: (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
 };
 
 const STATUSES: { value: Status; label: string }[] = [
@@ -74,11 +78,11 @@ function seed(pupils: RegisterPupil[]) {
   return Object.fromEntries(pupils.map((pupil) => [pupil.id, { status: pupil.status, note: pupil.note }])) as Record<string, Mark>;
 }
 
-export function RegisterDesk({ date, today, termLabel, path, classCode, streamValue, groups, current, save }: RegisterDeskProps) {
+export function RegisterDesk({ date, today, termLabel, path, classCode, streamValue, groups, current, save, cancel }: RegisterDeskProps) {
   const router = useRouter();
   const [marks, setMarks] = useState<Record<string, Mark>>(() => seed(current?.pupils || []));
   const [search, setSearch] = useState("");
-  const [which, setWhich] = useState<"open" | "all" | "done">(() => (groups.some((group) => group.done < group.pupils) ? "open" : "all"));
+  const [which, setWhich] = useState<"open" | "all" | "done">(() => (groups.some((group) => group.done < group.pupils && !group.closed) ? "open" : "all"));
   const [focus, setFocus] = useState<"all" | "open" | "absent" | "late">("all");
 
   function go(nextDate: string) {
@@ -95,7 +99,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
   const markedPupils = groups.reduce((sum, group) => sum + group.done, 0);
   const dayAbsent = groups.reduce((sum, group) => sum + group.absent, 0);
   const shown = groups.filter((group) => {
-    if (which === "open") return group.done < group.pupils;
+    if (which === "open") return group.done < group.pupils && !group.closed;
     if (which === "done") return group.pupils > 0 && group.done === group.pupils;
     return true;
   });
@@ -156,7 +160,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
   const schoolShare = roll ? Math.round((markedPupils / roll) * 100) : 0;
   const classShare = current?.pupils.length ? Math.round(((current.pupils.length - counts.unmarked) / current.pupils.length) * 100) : 0;
   const share = current ? classShare : schoolShare;
-  const openClasses = groups.filter((group) => group.done < group.pupils).length;
+  const openClasses = groups.filter((group) => group.done < group.pupils && !group.closed).length;
 
   const sections = (["nursery", "primary"] as const)
     .map((section) => ({ section, label: section === "nursery" ? "Nursery" : "Primary", rows: shown.filter((group) => group.section === section) }))
@@ -175,7 +179,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
         ) : (
           <>
             <Stat icon="fa-circle-check" label="Complete" value={nf(doneClasses)} note={`Of ${nf(groups.length)} classes`} tone={groups.length && doneClasses === groups.length ? "ok" : undefined} />
-            <Stat icon="fa-hourglass-half" label="Still open" value={nf(Math.max(0, groups.length - doneClasses))} note="Registers to finish" tone={groups.length - doneClasses ? "warn" : "ok"} />
+            <Stat icon="fa-hourglass-half" label="Still open" value={nf(openClasses)} note="Counted beside Attendance" tone={openClasses ? "warn" : "ok"} />
             <Stat icon="fa-user-group" label="On the roll" value={nf(roll)} note={`${nf(markedPupils)} marked`} />
             <Stat icon="fa-user-xmark" label="Absent" value={nf(dayAbsent)} note="Across the day" tone={dayAbsent ? "warn" : "ok"} />
           </>
@@ -227,7 +231,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
                         const width = group.pupils ? Math.round((group.done / group.pupils) * 100) : 0;
                         return (
                           <li key={group.key}>
-                            <Link href={group.href} className={complete ? "is-done" : "is-open"}>
+                            <Link href={group.href} className={complete ? "is-done" : group.closed ? "is-closed" : "is-open"}>
                               <span className="reg-mark" aria-hidden="true">{group.code}</span>
                               <span className="reg-class-name">
                                 <strong>{group.name}</strong>
@@ -239,7 +243,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
                                 <span className="reg-bar" aria-hidden="true"><span style={{ width: `${width}%` }} /></span>
                                 <em>{group.done}/{group.pupils}</em>
                               </span>
-                              <span className="reg-pill">{complete ? "Complete" : `${nf(group.pupils - group.done)} to mark`}</span>
+                              <span className="reg-pill">{complete ? "Complete" : group.closed ? "Cancelled" : `${nf(group.pupils - group.done)} to mark`}</span>
                               <i className="fa-solid fa-chevron-right" aria-hidden="true" />
                             </Link>
                           </li>
@@ -252,6 +256,23 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
             ) : <p className="reg-quiet">{which === "open" ? "Every class is marked for this day." : "Nothing in this view."}</p>}
           </>
         ) : (
+          <>
+          {date === today && counts.unmarked ? (
+            <div className="reg-class-alert">
+              <p>{current.cancelled ? `${current.name} is off today's Attendance count.` : `${nf(counts.unmarked)} still unmarked. This class is on the Attendance count.`}</p>
+              {current.canMark ? (
+                <RegisterClosure
+                  action={cancel}
+                  date={date}
+                  termId={current.termId}
+                  classCode={current.code}
+                  stream={current.stream}
+                  name={current.name}
+                  restoring={current.cancelled}
+                />
+              ) : null}
+            </div>
+          ) : null}
           <DeskForm action={save} className="reg-form">
             <input type="hidden" name="date" value={date} />
             <input type="hidden" name="term_id" value={current.termId} />
@@ -339,6 +360,7 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
               </footer>
             ) : <p className="reg-quiet">Only the class teacher can save this register.</p>}
           </DeskForm>
+          </>
         )}
       </section>
     </div>

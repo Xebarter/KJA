@@ -9,10 +9,13 @@ export function DeskForm({
   action,
   children,
   className = "ofc-form",
+  refresh = true,
 }: {
   action: (formData: FormData) => Promise<Outcome>;
   children: React.ReactNode;
   className?: string;
+  /** Skip the full page reload when the caller already applied the result. */
+  refresh?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -34,7 +37,7 @@ export function DeskForm({
             return;
           }
           setResult(outcome);
-          if (outcome.ok) router.refresh();
+          if (outcome.ok && refresh) router.refresh();
         });
       }}
     >
@@ -47,8 +50,11 @@ export function DeskForm({
   );
 }
 
-export function PrintButton({ label = "Print" }: { label?: string }) {
+export function PrintButton({ label = "Print", className = "admin-btn admin-btn-ghost", icon = false }: { label?: string; className?: string; icon?: boolean }) {
   return (
-    <button className="admin-btn admin-btn-ghost" type="button" onClick={() => window.print()}>{label}</button>
+    <button className={className} type="button" onClick={() => window.print()}>
+      {icon ? <i className="fa-solid fa-print" aria-hidden="true" /> : null}
+      {label}
+    </button>
   );
 }

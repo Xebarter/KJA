@@ -1,7 +1,7 @@
 import { AcademicsShell } from "@/components/academics/Shell";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { kampalaToday, streamOf } from "@/lib/academics";
-import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
+import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
 import { remember } from "@/lib/remember";
 import { SCHOOL_CLASSES } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
@@ -24,27 +24,33 @@ export default async function AcademicsLayout({ children }: { children: React.Re
         const today = kampalaToday();
         const probe = await supabase.from("subjects").select("id").limit(1);
         if (probe.error) return { registers: 0, drafts: 0, schemes: 0 };
-        const [pupils, attendance, term, drafts, schemes] = await Promise.all([
+        const term = await supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle();
+        const termId = term.data?.id;
+        const [pupils, attendance, closures, drafts, schemes] = await Promise.all([
           user ? loadRoll(supabase, user.id).catch(() => []) : Promise.resolve([]),
           user ? loadDayMarks(supabase, user.id, today).catch(() => []) : Promise.resolve([]),
-          supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle(),
-          supabase.from("report_cards").select("id", { count: "exact", head: true }).eq("status", "draft"),
+          loadClosures(supabase, today).catch(() => []),
+          termId
+            ? supabase.from("report_cards").select("id", { count: "exact", head: true }).eq("term_id", termId).eq("status", "draft")
+            : Promise.resolve({ count: 0, error: null }),
           supabase.from("schemes").select("id", { count: "exact", head: true }).eq("status", "submitted"),
         ]);
         const marked = new Set(attendance.map((row) => row.student_id));
+        const closed = new Set(closures.map((row) => `${row.class_code}|${streamOf(row.stream)}`));
         const rows = pupils;
         let open = 0;
         for (const entry of SCHOOL_CLASSES) {
           const mine = rows.filter((row) => row.class_code === entry.code);
           const streams = [...new Set(mine.map((row) => streamOf(row.stream as string | null)))];
           for (const stream of streams) {
+            if (closed.has(`${entry.code}|${stream}`)) continue;
             const group = mine.filter((row) => streamOf(row.stream as string | null) === stream);
             if (group.length && group.some((row) => !marked.has(row.id as string))) open += 1;
           }
         }
         return {
           registers: open,
-          drafts: term.data ? (drafts.count ?? 0) : 0,
+          drafts: termId ? (drafts.count ?? 0) : 0,
           schemes: schemes.error ? 0 : schemes.count ?? 0,
         };
       }),

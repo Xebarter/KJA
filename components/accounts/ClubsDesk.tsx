@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { createClub, recordClubPayment, saveClub } from "@/app/accounts/(desk)/clubs/actions";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
 import { Empty } from "@/components/office/ui";
 import { StudentFace } from "@/components/StudentFace";
-import { CLUB_CATEGORIES, CLUB_SECTIONS, clubListHref, type ClubListFilters } from "@/lib/clubs";
-import { ACCOUNTS_BASE, PAYMENT_METHODS, amount, day, methodInfo, ugx } from "@/lib/accounts-format";
+import { CLUB_CATEGORIES, clubListHref, type ClubListFilters } from "@/lib/clubs";
+import { ACCOUNTS_BASE, PAYMENT_METHODS, amount, day, methodInfo, parseAmount, ugx } from "@/lib/accounts-format";
+import type { ActionResult } from "@/lib/office-forms";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
 
 export type CatalogueClub = {
@@ -22,58 +23,187 @@ export type CatalogueClub = {
 
 export type ClubStripItem = CatalogueClub & { audience: string; icon: string };
 
+const CATEGORY_ICONS: Record<string, string> = {
+  "Games and Sports": "fa-futbol",
+  "Art and Entertainment": "fa-palette",
+  "Science and Technology": "fa-flask",
+  "Travel and Adventure": "fa-compass",
+  "Information and Language": "fa-language",
+  Religion: "fa-book-open",
+};
+
+const WHO = [
+  { value: "nursery", label: "Nursery", hint: "Only nursery classes can join." },
+  { value: "primary", label: "Primary", hint: "Only primary classes can join." },
+  { value: "both", label: "All classes", hint: "Every class can join." },
+] as const;
+
+function categoryChoices(current?: string | null) {
+  if (current && !(CLUB_CATEGORIES as readonly string[]).includes(current)) return [current, ...CLUB_CATEGORIES];
+  return [...CLUB_CATEGORIES];
+}
+
+function feeDraft(raw: string) {
+  return raw.replace(/[^\d.,kKmM]/g, "").slice(0, 14);
+}
+
+function ClubForm({
+  club,
+  pending,
+  result,
+  submitLabel,
+  pendingLabel,
+  onCancel,
+  onSubmit,
+}: {
+  club?: CatalogueClub | null;
+  pending: boolean;
+  result: ActionResult | null;
+  submitLabel: string;
+  pendingLabel: string;
+  onCancel: () => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const nameRef = useRef<HTMLInputElement>(null);
+  const choices = categoryChoices(club?.category);
+  const [category, setCategory] = useState(club && choices.includes(club.category) ? club.category : choices[0]);
+  const [section, setSection] = useState<string>(WHO.some((item) => item.value === club?.section) ? club!.section : "both");
+  const [fee, setFee] = useState(club ? amount(club.fee) : "");
+  const [note, setNote] = useState(club?.description ?? "");
+  const [openJoin, setOpenJoin] = useState(club ? club.active : true);
+  const who = WHO.find((item) => item.value === section) ?? WHO[2];
+
+  useEffect(() => {
+    const field = nameRef.current;
+    if (!field) return;
+    const frame = window.requestAnimationFrame(() => field.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  return (
+    <form className="clb-form" onSubmit={onSubmit} aria-busy={pending}>
+      {club ? <input type="hidden" name="id" value={club.id} /> : null}
+      <div className="clb-form-scroll">
+      <label className="clb-form-name">
+        <span>Club name</span>
+        <input ref={nameRef} name="title" defaultValue={club?.title ?? ""} required maxLength={80} autoComplete="off" placeholder="Chess" />
+      </label>
+
+      <fieldset className="clb-form-group">
+        <legend>Category</legend>
+        <div className="clb-form-cats">
+          {choices.map((name) => (
+            <label className="clb-form-cat" key={name}>
+              <input type="radio" name="category" value={name} checked={category === name} required onChange={() => setCategory(name)} />
+              <span>
+                <i className={`fa-solid ${CATEGORY_ICONS[name] || "fa-puzzle-piece"}`} aria-hidden="true" />
+                {name}
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="clb-form-split">
+        <fieldset className="clb-form-group">
+          <legend>Who can join</legend>
+          <div className="clb-form-who">
+            {WHO.map((item) => (
+              <label key={item.value}>
+                <input type="radio" name="section" value={item.value} checked={section === item.value} onChange={() => setSection(item.value)} />
+                <span>{item.label}</span>
+              </label>
+            ))}
+          </div>
+          <p>{who.hint}</p>
+        </fieldset>
+
+        <label className="clb-form-fee">
+          <span>Term fee</span>
+          <span className="clb-form-money">
+            <b>UGX</b>
+            <input
+              name="fee_amount"
+              inputMode="decimal"
+              autoComplete="off"
+              required
+              placeholder="40,000"
+              value={fee}
+              onChange={(event) => setFee(feeDraft(event.target.value))}
+              onBlur={() => {
+                const parsed = parseAmount(fee);
+                if (parsed !== null) setFee(amount(parsed));
+              }}
+            />
+          </span>
+          <small>Charged once this term</small>
+        </label>
+      </div>
+
+      <label className="clb-form-note">
+        <span>Note for parents <em>{note.trim() ? `${note.length}/400` : "Optional"}</em></span>
+        <textarea
+          name="description"
+          rows={3}
+          maxLength={400}
+          value={note}
+          placeholder="A short line parents see when they choose this club."
+          onChange={(event) => setNote(event.target.value)}
+        />
+      </label>
+
+      <label className="clb-form-open">
+        <input type="checkbox" name="active" checked={openJoin} onChange={(event) => setOpenJoin(event.target.checked)} />
+        <span>
+          <strong>{openJoin ? "Open for parents" : "Closed"}</strong>
+          <small>{openJoin ? "Parents can see this club and consent this term." : "Parents will not see it. Consents already given stay on record."}</small>
+        </span>
+        <span className="clb-switch" aria-hidden="true" />
+      </label>
+
+      <Feedback result={result} />
+      </div>
+      <div className="acc-dialog-foot">
+        <button type="button" className="admin-btn admin-btn-ghost" onClick={onCancel}>Cancel</button>
+        <button type="submit" className="admin-btn" disabled={pending}>{pending ? pendingLabel : submitLabel}</button>
+      </div>
+    </form>
+  );
+}
+
+function submitClub(
+  event: FormEvent<HTMLFormElement>,
+  setResult: (result: ActionResult | null) => void,
+  run: (task: () => Promise<ActionResult>, after?: (outcome: ActionResult) => void) => void,
+  action: (form: FormData) => Promise<ActionResult>,
+  done: () => void,
+) {
+  event.preventDefault();
+  const data = new FormData(event.currentTarget);
+  if (parseAmount(data.get("fee_amount")) === null) {
+    setResult({ error: "Enter the fee in shillings." });
+    return;
+  }
+  run(() => action(data), done);
+}
+
 export function ClubEdit({ club }: { club: CatalogueClub }) {
   const [open, setOpen] = useState(false);
   const { result, setResult, pending, run } = useOfficeAction();
-  const categories = CLUB_CATEGORIES.includes(club.category as (typeof CLUB_CATEGORIES)[number])
-    ? CLUB_CATEGORIES
-    : [club.category, ...CLUB_CATEGORIES];
 
   return (
     <>
       <button type="button" className="admin-btn admin-btn-ghost" onClick={() => { setResult(null); setOpen(true); }}>Edit</button>
-      <Dialog open={open} onClose={() => setOpen(false)} title={club.title} description="Parents see this name, fee and who the club is for.">
-        <form
-          className="ofc-form is-compact"
-          onSubmit={(event) => {
-            event.preventDefault();
-            run(() => saveClub(new FormData(event.currentTarget)), () => setOpen(false));
-          }}
-        >
-          <input type="hidden" name="id" value={club.id} />
-          <label className="ofc-field">
-            <span>Name</span>
-            <input name="title" defaultValue={club.title} required maxLength={80} autoFocus />
-          </label>
-          <label className="ofc-field">
-            <span>Category</span>
-            <select name="category" defaultValue={club.category} required>
-              {categories.map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-          </label>
-          <label className="ofc-field">
-            <span>Fee for the current term (UGX)</span>
-            <input name="fee_amount" inputMode="numeric" defaultValue={String(club.fee)} required />
-          </label>
-          <label className="ofc-field">
-            <span>Who it is for</span>
-            <select name="section" defaultValue={club.section}>
-              {CLUB_SECTIONS.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
-            </select>
-          </label>
-          <label className="ofc-field">
-            <span>Note</span>
-            <textarea name="description" rows={2} maxLength={400} defaultValue={club.description ?? ""} />
-          </label>
-          <label className="ofc-check">
-            <input type="checkbox" name="active" defaultChecked={club.active} /> Open for parents to join
-          </label>
-          <Feedback result={result} />
-          <div className="acc-dialog-foot">
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="submit" className="admin-btn" disabled={pending}>{pending ? "Saving…" : "Save club"}</button>
-          </div>
-        </form>
+      <Dialog open={open} onClose={() => setOpen(false)} title={club.title} description="Parents see this on the portal when they choose clubs.">
+        <ClubForm
+          club={club}
+          pending={pending}
+          result={result}
+          submitLabel="Save club"
+          pendingLabel="Saving…"
+          onCancel={() => setOpen(false)}
+          onSubmit={(event) => submitClub(event, setResult, run, saveClub, () => setOpen(false))}
+        />
       </Dialog>
     </>
   );
@@ -88,47 +218,15 @@ export function ClubCreate() {
       <button type="button" className="clb-new" onClick={() => { setResult(null); setOpen(true); }}>
         <i className="fa-solid fa-plus" aria-hidden="true" /> New club
       </button>
-      <Dialog open={open} onClose={() => setOpen(false)} title="New club" description="Parents see this name, fee and who the club is for.">
-        <form
-          className="ofc-form is-compact"
-          onSubmit={(event) => {
-            event.preventDefault();
-            run(() => createClub(new FormData(event.currentTarget)), () => setOpen(false));
-          }}
-        >
-          <label className="ofc-field">
-            <span>Name</span>
-            <input name="title" required maxLength={80} autoFocus placeholder="Club name" />
-          </label>
-          <label className="ofc-field">
-            <span>Category</span>
-            <select name="category" defaultValue={CLUB_CATEGORIES[0]} required>
-              {CLUB_CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
-            </select>
-          </label>
-          <label className="ofc-field">
-            <span>Fee for the current term (UGX)</span>
-            <input name="fee_amount" inputMode="numeric" required placeholder="40000" />
-          </label>
-          <label className="ofc-field">
-            <span>Who it is for</span>
-            <select name="section" defaultValue="both">
-              {CLUB_SECTIONS.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
-            </select>
-          </label>
-          <label className="ofc-field">
-            <span>Note</span>
-            <textarea name="description" rows={2} maxLength={400} />
-          </label>
-          <label className="ofc-check">
-            <input type="checkbox" name="active" defaultChecked /> Open for parents to join
-          </label>
-          <Feedback result={result} />
-          <div className="acc-dialog-foot">
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setOpen(false)}>Cancel</button>
-            <button type="submit" className="admin-btn" disabled={pending}>{pending ? "Adding…" : "Add club"}</button>
-          </div>
-        </form>
+      <Dialog open={open} onClose={() => setOpen(false)} title="New club" description="Parents see this on the portal when they choose clubs.">
+        <ClubForm
+          pending={pending}
+          result={result}
+          submitLabel="Add club"
+          pendingLabel="Adding…"
+          onCancel={() => setOpen(false)}
+          onSubmit={(event) => submitClub(event, setResult, run, createClub, () => setOpen(false))}
+        />
       </Dialog>
     </>
   );
@@ -369,6 +467,173 @@ export function ClubPayLink({
   );
 }
 
+type PrintClub = { id: string; title: string; count: number };
+
+function rollHref(ids: string[], all: boolean) {
+  if (all) return `${ACCOUNTS_BASE}/clubs/roll/pdf`;
+  const params = new URLSearchParams();
+  for (const id of ids) params.append("clubs", id);
+  return `${ACCOUNTS_BASE}/clubs/roll/pdf?${params.toString()}`;
+}
+
+function ClubRollPrint({ clubs }: { clubs: PrintClub[] }) {
+  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<"all" | "choose">("all");
+  const [picked, setPicked] = useState<string[]>([]);
+  const [query, setQuery] = useState("");
+  const searchRef = useRef<HTMLInputElement>(null);
+  const needle = query.trim().toLowerCase();
+  const visible = needle ? clubs.filter((club) => club.title.toLowerCase().includes(needle)) : clubs;
+  const chosen = mode === "all" ? clubs : clubs.filter((club) => picked.includes(club.id));
+  const learners = chosen.reduce((sum, club) => sum + club.count, 0);
+  const canPrint = chosen.length > 0;
+  const showSearch = clubs.length > 6;
+
+  useEffect(() => {
+    if (open && mode === "choose") searchRef.current?.focus();
+  }, [open, mode]);
+
+  if (clubs.length < 2) {
+    return (
+      <a className="clb-print" href={`${ACCOUNTS_BASE}/clubs/roll/pdf`} target="_blank" rel="noreferrer" title="Print consented learners, one club to a page">
+        <i className="fa-solid fa-print" aria-hidden="true" /> Print
+      </a>
+    );
+  }
+
+  const shownIds = visible.map((club) => club.id);
+  const shownOn = shownIds.length > 0 && shownIds.every((id) => picked.includes(id));
+  const selectLabel = needle ? (shownOn ? "Clear shown" : "Select shown") : picked.length === clubs.length ? "Clear" : "Select all";
+  const printLabel = mode === "all" || chosen.length === clubs.length
+    ? "Print all"
+    : chosen.length === 1
+      ? "Print 1 club"
+      : `Print ${chosen.length} clubs`;
+
+  const toggleShown = () => {
+    const hide = new Set(shownIds);
+    setPicked((current) => {
+      if (shownOn) return current.filter((id) => !hide.has(id));
+      return [...new Set([...current, ...shownIds])];
+    });
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        className="clb-print"
+        title="Print consented learners, one club to a page"
+        onClick={() => {
+          setMode("all");
+          setPicked([]);
+          setQuery("");
+          setOpen(true);
+        }}
+      >
+        <i className="fa-solid fa-print" aria-hidden="true" /> Print
+      </button>
+      <Dialog open={open} onClose={() => setOpen(false)} title="Print club roll" description="Each club starts on its own page.">
+        <div className="clb-print-pick">
+          <div className="clb-print-switch" role="group" aria-label="Which clubs to print">
+            <button type="button" aria-pressed={mode === "all"} onClick={() => setMode("all")}>All clubs</button>
+            <button type="button" aria-pressed={mode === "choose"} onClick={() => setMode("choose")}>Choose clubs</button>
+          </div>
+          {showSearch || mode === "choose" ? (
+            <div className="clb-print-tools">
+              {showSearch ? (
+                <label className="clb-find">
+                  <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                  <span className="visually-hidden">Find a club</span>
+                  <input
+                    ref={searchRef}
+                    type="search"
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Escape" && query) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setQuery("");
+                      }
+                    }}
+                    placeholder="Find a club"
+                    autoComplete="off"
+                  />
+                </label>
+              ) : null}
+              {mode === "choose" ? (
+                <button type="button" className="clb-print-link" onClick={toggleShown} disabled={!visible.length}>{selectLabel}</button>
+              ) : null}
+            </div>
+          ) : null}
+          {visible.length ? (
+            <div className="clb-print-scroll">
+              <div className={`clb-print-cols${mode === "choose" ? " is-choice" : ""}`} aria-hidden="true">
+                {mode === "choose" ? <span /> : null}
+                <span>Club</span>
+                <span>Learners</span>
+              </div>
+              <ul className="clb-print-list" aria-label={mode === "choose" ? "Clubs to include" : "Clubs on this roll"}>
+                {visible.map((club) => {
+                  const on = mode === "choose" && picked.includes(club.id);
+                  return (
+                    <li key={club.id}>
+                      {mode === "choose" ? (
+                        <label className={`clb-print-row is-choice${on ? " is-on" : ""}`}>
+                          <input
+                            type="checkbox"
+                            checked={on}
+                            onChange={() => setPicked((current) => current.includes(club.id) ? current.filter((id) => id !== club.id) : [...current, club.id])}
+                          />
+                          <span className="clb-print-box" aria-hidden="true" />
+                          <span className="clb-print-name">{club.title}</span>
+                          <span className="clb-print-count">{club.count}</span>
+                        </label>
+                      ) : (
+                        <div className="clb-print-row">
+                          <span className="clb-print-name">{club.title}</span>
+                          <span className="clb-print-count">{club.count}</span>
+                        </div>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : (
+            <p className="clb-print-none">No club matches “{query.trim()}”.</p>
+          )}
+          <div className="clb-print-foot">
+            <p className="clb-print-sum">
+              {chosen.length ? (
+                <>
+                  <strong>{chosen.length}</strong> {chosen.length === 1 ? "club" : "clubs"}
+                  <span aria-hidden="true">·</span>
+                  <strong>{learners}</strong> {learners === 1 ? "learner" : "learners"}
+                </>
+              ) : "None selected"}
+            </p>
+            <button type="button" className="clb-print-cancel" onClick={() => setOpen(false)}>Cancel</button>
+            <button
+              type="button"
+              className="clb-print-go"
+              disabled={!canPrint}
+              onClick={() => {
+                if (!canPrint) return;
+                window.open(rollHref(picked, mode === "all" || chosen.length === clubs.length), "_blank", "noopener,noreferrer");
+                setOpen(false);
+              }}
+            >
+              {printLabel}
+            </button>
+          </div>
+        </div>
+      </Dialog>
+    </>
+  );
+}
+
 function classMatches(row: ClubConsentRow, classCode: string) {
   if (!classCode) return true;
   if (classCode === "none") return !row.classCode;
@@ -429,6 +694,15 @@ export function ClubRegister({
     return [...titles.entries()]
       .map(([id, title]) => ({ id, title }))
       .sort((a, b) => a.title.localeCompare(b.title));
+  }, [rows]);
+  const printClubs = useMemo(() => {
+    const counts = new Map<string, PrintClub>();
+    for (const row of rows) {
+      const current = counts.get(row.clubId);
+      if (current) current.count += 1;
+      else counts.set(row.clubId, { id: row.clubId, title: row.clubTitle, count: 1 });
+    }
+    return [...counts.values()].sort((a, b) => a.title.localeCompare(b.title));
   }, [rows]);
 
   const classes = useMemo(() => {
@@ -495,9 +769,7 @@ export function ClubRegister({
           </p>
         </div>
         <div className="clb-results-tools">
-          <a className="clb-print" href={`${ACCOUNTS_BASE}/clubs/roll/pdf`} target="_blank" rel="noreferrer" title="Print consented learners, one club to a page">
-            <i className="fa-solid fa-print" aria-hidden="true" /> Print
-          </a>
+          <ClubRollPrint clubs={printClubs} />
           <ul className="clb-tabs">
             {tabs.map((tab) => (
               <li key={tab.label}>

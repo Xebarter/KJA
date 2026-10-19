@@ -10,17 +10,24 @@ import {
   bandMidpoint,
   classLabel,
   classSection,
+  groupPupils,
   kindWeight,
   kampalaToday,
   logAcademics,
+  markbookClosed,
   mapBand,
+  mapSubject,
   num,
   refreshAcademics,
+  refreshSubjectCatalogue,
   requireAcademics,
   streamOf,
+  streamQuery,
+  subjectFits,
   type AssessmentKind,
   type AttendanceStatus,
 } from "@/lib/academics";
+import { loadRoll } from "@/lib/academics-roll";
 import { classMarkbooksReady, prepareClassReports } from "@/lib/academics-reports";
 import { renderAlertEmail } from "@/lib/email/layout";
 import { emailSetupProblem, sendEmail } from "@/lib/email/send";
@@ -28,9 +35,10 @@ import { getContent } from "@/lib/content";
 import { SITE_URL } from "@/lib/newsroom";
 import { EMAIL } from "@/lib/office-forms";
 import type { SidebarHit } from "@/lib/sidebar-search";
-import { className, everyWord, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
+import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
+import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
 
-type Result = { error?: string; ok?: string; href?: string };
+type Result = { error?: string; ok?: string; href?: string; subject?: ReturnType<typeof mapSubject>; removedId?: string };
 
 const KINDS = new Set(["bot", "midterm", "endterm", "test"]);
 const STATUSES = new Set(ATTENDANCE_STATUSES.map((entry) => entry.value));
@@ -141,13 +149,141 @@ export async function saveStaff(formData: FormData): Promise<Result> {
     active: formData.get("active") !== "0",
     profile_id: formData.get("link_me") === "1" ? opened.auth.user.id : formData.get("clear_link") === "1" ? null : text(formData, "profile_id", 40) || null,
   };
-  const query = id
-    ? opened.auth.supabase.from("teaching_staff").update(row).eq("id", id)
-    : opened.auth.supabase.from("teaching_staff").insert(row);
-  const { error } = await query;
-  if (error) return { error: error.message };
+  if (id) {
+    const { error } = await opened.auth.supabase.from("teaching_staff").update(row).eq("id", id);
+    if (error) return { error: error.message };
+    refreshAcademics(`${ACADEMICS_BASE}/staff`);
+    return { ok: "Teacher updated." };
+  }
+  const { data, error } = await opened.auth.supabase.from("teaching_staff").insert(row).select("id").single();
+  if (error || !data) return { error: error?.message || "The teacher could not be added." };
   refreshAcademics(`${ACADEMICS_BASE}/staff`);
-  return { ok: id ? "Teacher updated." : `${fullName} added.` };
+  return { ok: `${fullName} added.`, href: `${ACADEMICS_BASE}/staff?member=${data.id}` };
+}
+
+function holderName(value: { full_name?: string } | { full_name?: string }[] | null) {
+  const row = Array.isArray(value) ? value[0] : value;
+  return row?.full_name || "another teacher";
+}
+
+export async function assignTeacherPosts(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const staffId = text(formData, "staff_id", 40);
+  const { classCode, stream, termId } = group(formData);
+  const replace = formData.get("replace") === "1";
+  const lead = formData.get("class_teacher") === "1";
+  const wanted = [...new Set(formData.getAll("subject_id").map(String))].filter(isUuid);
+  if (!isUuid(staffId)) return { error: "Choose a teacher." };
+  if (!isUuid(termId) || !isClassCode(classCode)) return { error: "Choose a class and a stream." };
+
+  const { supabase } = opened.auth;
+  const [staffQuery, termQuery, subjectQuery, pupilQuery, heldQuery, leadQuery] = await Promise.all([
+    supabase.from("teaching_staff").select("id, full_name, active").eq("id", staffId).maybeSingle(),
+    supabase.from("fee_terms").select("id").eq("id", termId).eq("is_current", true).maybeSingle(),
+    supabase.from("subjects").select("*").eq("active", true),
+    supabase.from("students").select("stream").eq("class_code", classCode).eq("status", "active").limit(2000),
+    supabase.from("subject_teachers").select("subject_id, staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("class_code", classCode).eq("stream", stream),
+    supabase.from("class_teachers").select("staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).maybeSingle(),
+  ]);
+  if (staffQuery.error || termQuery.error || subjectQuery.error || pupilQuery.error || heldQuery.error || leadQuery.error) {
+    return { error: "The assignment could not be checked." };
+  }
+  const staff = staffQuery.data;
+  if (!staff?.active) return { error: "That teacher is not on the roll." };
+  if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
+  if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream)) return { error: "That stream has no pupils." };
+
+  const fitting = ((subjectQuery.data || []) as Record<string, unknown>[]).map(mapSubject).filter((subject) => subjectFits(subject, classCode));
+  const fittingIds = new Set(fitting.map((subject) => subject.id));
+  if (wanted.some((id) => !fittingIds.has(id))) return { error: "One of those subjects does not apply to this class." };
+  const picked = new Set(wanted);
+
+  const held = new Map<string, { staffId: string; name: string }>();
+  for (const row of heldQuery.data || []) {
+    held.set(String(row.subject_id), {
+      staffId: String(row.staff_id),
+      name: holderName(row.teaching_staff as { full_name?: string } | { full_name?: string }[] | null),
+    });
+  }
+  const classHolder = leadQuery.data
+    ? { staffId: String(leadQuery.data.staff_id), name: holderName(leadQuery.data.teaching_staff as { full_name?: string } | { full_name?: string }[] | null) }
+    : null;
+
+  const clashes: string[] = [];
+  for (const subject of fitting) {
+    const current = held.get(subject.id);
+    if (!picked.has(subject.id) || !current || current.staffId === staffId || replace) continue;
+    clashes.push(`${subject.name} is already taught by ${current.name}.`);
+  }
+  if (lead && classHolder && classHolder.staffId !== staffId && !replace) {
+    clashes.push(`${classLabel(classCode, stream)} already has ${classHolder.name} as class teacher.`);
+  }
+  if (clashes.length === 1) return { error: clashes[0] };
+  if (clashes.length > 1) return { error: `${clashes[0]} ${clashes.length - 1} more ${clashes.length === 2 ? "post is" : "posts are"} already filled. Tick replace to take them over.` };
+
+  const releasingSubject = fitting.some((subject) => !picked.has(subject.id) && held.get(subject.id)?.staffId === staffId);
+  const releasingLead = !lead && classHolder?.staffId === staffId;
+  if (!picked.size && !lead && !releasingSubject && !releasingLead) {
+    return { error: "Choose a subject, or make this teacher the class teacher." };
+  }
+
+  for (const subject of fitting) {
+    const current = held.get(subject.id);
+    if (picked.has(subject.id)) {
+      if (current?.staffId === staffId) continue;
+      const { error } = await supabase.from("subject_teachers").upsert(
+        { term_id: termId, class_code: classCode, stream, subject_id: subject.id, staff_id: staffId },
+        { onConflict: "term_id,class_code,stream,subject_id" },
+      );
+      if (error) return { error: "The subjects could not be saved." };
+    } else if (current?.staffId === staffId) {
+      const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subject.id).eq("staff_id", staffId);
+      if (error) return { error: "A subject could not be removed." };
+    }
+  }
+
+  if (lead) {
+    if (classHolder?.staffId !== staffId) {
+      const { error } = await supabase.from("class_teachers").upsert(
+        { term_id: termId, class_code: classCode, stream, staff_id: staffId },
+        { onConflict: "term_id,class_code,stream" },
+      );
+      if (error) return { error: "The class teacher could not be saved." };
+    }
+  } else if (classHolder?.staffId === staffId) {
+    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
+    if (error) return { error: "The class teacher role could not be removed." };
+  }
+
+  refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
+  return { ok: `${staff.full_name} assigned to ${classLabel(classCode, stream)}.` };
+}
+
+export async function releaseTeacherPost(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const staffId = text(formData, "staff_id", 40);
+  const { classCode, stream, termId } = group(formData);
+  const kind = text(formData, "kind", 20);
+  const subjectId = text(formData, "subject_id", 40);
+  if (!isUuid(staffId) || !isUuid(termId) || !isClassCode(classCode)) return { error: "Choose the post to remove." };
+  const { supabase } = opened.auth;
+  if (kind === "class") {
+    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
+    if (error) return { error: "The class teacher role could not be removed." };
+  } else if (kind === "subject" && isUuid(subjectId)) {
+    const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subjectId).eq("staff_id", staffId);
+    if (error) return { error: "The subject could not be removed." };
+  } else {
+    return { error: "Choose the post to remove." };
+  }
+  refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
+  return { ok: "Assignment removed." };
 }
 
 export async function saveSubject(formData: FormData): Promise<Result> {
@@ -156,29 +292,41 @@ export async function saveSubject(formData: FormData): Promise<Result> {
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
   const id = text(formData, "id", 40);
+  if (formData.get("intent") === "delete") return removeSubject(opened.auth, id);
   const name = text(formData, "name", 80);
   const code = text(formData, "code", 20).toUpperCase().replace(/[^A-Z0-9-]/g, "");
   if (!id && code.length < 2) return { error: "Enter a short code, such as ENG." };
   if (name.length < 2) return { error: "Enter the subject name." };
-  const section = text(formData, "section", 20);
-  if (section !== "nursery" && section !== "primary" && section !== "both") return { error: "Choose nursery or primary." };
-  const from = text(formData, "applies_from", 4);
-  const to = text(formData, "applies_to", 4);
+  const span = spanForBands(formData.getAll("band").map(String).filter(isSubjectBand));
+  if (!span) return { error: "Choose at least one section." };
   const row = {
     name,
-    section,
-    kind: formData.get("kind") === "other" ? "other" : "core",
-    applies_from: from ? Number(from) : null,
-    applies_to: to ? Number(to) : null,
+    section: span.section,
+    kind: "core",
+    applies_from: span.applies_from,
+    applies_to: span.applies_to,
     active: formData.get("active") !== "0",
   };
   const query = id
-    ? opened.auth.supabase.from("subjects").update(row).eq("id", id)
-    : opened.auth.supabase.from("subjects").insert({ ...row, code, sort_order: Number(text(formData, "sort_order", 6) || "50") });
-  const { error } = await query;
-  if (error) return { error: error.message.includes("duplicate") ? "That subject code is already in use." : error.message };
-  refreshAcademics(`${ACADEMICS_BASE}/subjects`);
-  return { ok: id ? "Subject updated." : `${name} added.` };
+    ? opened.auth.supabase.from("subjects").update(row).eq("id", id).select("*").single()
+    : opened.auth.supabase.from("subjects").insert({ ...row, code, sort_order: Number(text(formData, "sort_order", 6) || "50") }).select("*").single();
+  const { data, error } = await query;
+  if (error || !data) return { error: error?.message.includes("duplicate") ? "That subject code is already in use." : error?.message || "The subject could not be saved." };
+  refreshSubjectCatalogue();
+  return { ok: id ? "Subject updated." : `${name} added.`, subject: mapSubject(data as Record<string, unknown>) };
+}
+
+async function removeSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>, id: string): Promise<Result> {
+  if (!isUuid(id)) return { error: "Choose a subject to delete." };
+  const { data, error: lookupError } = await auth.supabase.from("subjects").select("name").eq("id", id).maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  const name = String(data?.name || "").trim();
+  if (!name) return { error: "That subject is already gone." };
+  const { error } = await auth.supabase.from("subjects").delete().eq("id", id);
+  if (error) return { error: /foreign key|violates/i.test(error.message) ? `${name} is already in use. Hide it instead of deleting it.` : error.message };
+  await logAcademics(auth.supabase, auth.user.id, { kind: "setup", body: `Deleted the subject ${name}.` });
+  refreshSubjectCatalogue();
+  return { ok: `${name} deleted.`, removedId: id };
 }
 
 export async function saveClassTeacher(formData: FormData): Promise<Result> {
@@ -268,50 +416,189 @@ export async function saveAttendance(formData: FormData): Promise<Result> {
   return { ok: `Register saved for ${rows.length} ${rows.length === 1 ? "pupil" : "pupils"}.` };
 }
 
-export async function createAssessment(formData: FormData): Promise<Result> {
+export async function cancelRegister(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const date = text(formData, "date", 10);
+  const termId = text(formData, "term_id", 40);
+  const classCode = text(formData, "class_code", 10);
+  const stream = streamOf(text(formData, "stream", 20));
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Choose the date of the register." };
+  if (!classCode) return { error: "Choose a class." };
+  if (!opened.auth.office) {
+    const allowed = await teachesClass(opened.auth, { termId, classCode, stream });
+    if (!allowed) return { error: "Only the class teacher can cancel this register." };
+  }
+  const restoring = formData.get("intent") === "restore";
+  const query = restoring
+    ? opened.auth.supabase.from("attendance_closures").delete().eq("attended_on", date).eq("class_code", classCode).eq("stream", stream)
+    : opened.auth.supabase.from("attendance_closures").upsert(
+        { attended_on: date, class_code: classCode, stream, closed_by: opened.auth.user.id, closed_at: new Date().toISOString() },
+        { onConflict: "attended_on,class_code,stream" },
+      );
+  const { error } = await query;
+  if (error) {
+    return { error: /attendance_closures|schema cache|does not exist/i.test(error.message) ? "Run supabase/0022_attendance_closures.sql, then cancel the register again." : error.message };
+  }
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "setup",
+    body: restoring ? `Restored the register for ${classLabel(classCode, stream)}.` : `Cancelled the register for ${classLabel(classCode, stream)}.`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/attendance`);
+  return { ok: restoring ? `${classLabel(classCode, stream)} is on the open list again.` : `${classLabel(classCode, stream)} is off today's Attendance count. Marks already saved stay.` };
+}
+
+export async function setAssessments(formData: FormData): Promise<Result> {
   const opened = await gate();
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
-  let classCode = text(formData, "class_code", 40);
-  let stream = streamOf(text(formData, "stream", 20));
-  if (classCode.includes("|")) {
-    const [code, extra = ""] = classCode.split("|");
-    classCode = code.slice(0, 10);
-    stream = streamOf(extra);
-  }
   const termId = text(formData, "term_id", 40);
-  const subjectId = text(formData, "subject_id", 40);
+  const scope = text(formData, "scope", 10);
   const kind = text(formData, "kind", 20);
   const name = text(formData, "name", 120);
-  if (!termId || !classCode || !subjectId) return { error: "Choose a term, class and subject." };
+  const heldOn = text(formData, "held_on", 10);
+  if (!termId) return { error: "Set a current term before adding papers." };
+  if (scope !== "all" && scope !== "one") return { error: "Choose all classes or one class." };
   if (!KINDS.has(kind)) return { error: "Choose the kind of paper." };
-  if (name.length < 2) return { error: "Name this paper." };
-  const nursery = classSection(classCode) === "nursery";
-  const maxScore = nursery ? 100 : num(text(formData, "max_score", 8));
+  if (name.length < 2) return { error: "Name this assessment." };
+  if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Enter a valid date." };
+
+  const pupils = await loadRoll(opened.auth.supabase, opened.auth.user.id);
+  let groups = groupPupils(pupils);
+  if (scope === "one") {
+    const classCode = text(formData, "class_code", 10);
+    groups = groups.filter((entry) => entry.code === classCode);
+    if (!groups.length) return { error: "Choose a class that has pupils on the roll." };
+  }
+  if (!groups.length) return { error: "No classes are on the roll." };
+
+  const { data: subjectRows, error: subjectError } = await opened.auth.supabase.from("subjects").select("*").eq("active", true);
+  if (subjectError) return { error: subjectError.message };
+  const subjects = ((subjectRows || []) as Record<string, unknown>[]).map(mapSubject);
   const weight = num(text(formData, "weight", 8)) ?? kindWeight(kind);
-  if (!maxScore || maxScore <= 0) return { error: "Enter the marks the paper is out of." };
-  if (weight < 0) return { error: "Weight cannot be negative." };
-  const { data, error } = await opened.auth.supabase
-    .from("assessments")
-    .insert({
+  const requestedMax = num(text(formData, "max_score", 8));
+  const primaryMax = requestedMax && requestedMax > 0 ? requestedMax : 0;
+  if (weight <= 0 || weight > 100) return { error: "Enter the share as a percentage from 1 to 100." };
+  if (groups.some((entry) => entry.section !== "nursery") && !primaryMax) {
+    return { error: "Enter the marks the paper is out of." };
+  }
+
+  const rows = groups.flatMap((entry) => {
+    const maxScore = entry.section === "nursery" ? 100 : primaryMax;
+    return subjects.filter((subject) => subjectFits(subject, entry.code)).map((subject) => ({
       term_id: termId,
-      class_code: classCode,
-      stream,
-      subject_id: subjectId,
+      class_code: entry.code,
+      stream: entry.stream,
+      subject_id: subject.id,
       name,
       kind: kind as AssessmentKind,
       max_score: maxScore,
       weight,
-      held_on: text(formData, "held_on", 10) || null,
+      held_on: heldOn || null,
       created_by: opened.auth.user.id,
-    })
-    .select("id")
-    .single();
-  if (error || !data) return { error: error?.message || "The paper could not be created." };
-  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "marks", body: `Created ${name} for ${classLabel(classCode, stream)}.` });
+    }));
+  });
+  if (!rows.length) return { error: "No subjects apply to the chosen classes." };
+
+  let existing: { class_code: string; stream: string | null; subject_id: string; name: string }[];
+  try {
+    existing = await fetchAll<{ class_code: string; stream: string | null; subject_id: string; name: string }>((from, to) =>
+      opened.auth.supabase
+        .from("assessments")
+        .select("class_code, stream, subject_id, name")
+        .eq("term_id", termId)
+        .order("id")
+        .range(from, to),
+    );
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "The existing papers could not be checked." };
+  }
+  const taken = new Set(existing.map((row) => `${row.class_code}|${streamOf(row.stream)}|${row.subject_id}|${row.name.trim().toLowerCase()}`));
+  const fresh = rows.filter((row) => !taken.has(`${row.class_code}|${row.stream}|${row.subject_id}|${name.toLowerCase()}`));
+  if (fresh.length) {
+    const { error } = await opened.auth.supabase.from("assessments").insert(fresh);
+    if (error) return { error: error.message };
+    const touched = new Set(fresh.map((row) => row.class_code));
+    const where = scope === "one" ? className(groups[0].code) : `${touched.size} ${touched.size === 1 ? "class" : "classes"}`;
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "marks",
+      body: `Set ${name} for ${where} (${fresh.length} ${fresh.length === 1 ? "paper" : "papers"}).`,
+    });
+  }
   refreshAcademics(`${ACADEMICS_BASE}/assessments`);
-  return { ok: "Paper created.", href: `${ACADEMICS_BASE}/assessments/${data.id}` };
+  const skipped = rows.length - fresh.length;
+  if (!fresh.length) return { ok: skipped === 1 ? "That markbook is already set." : "Those markbooks are already set." };
+  const createdClasses = new Set(fresh.map((row) => row.class_code)).size;
+  const streamCount = new Set(groups.map((entry) => entry.stream)).size;
+  const created = `${fresh.length.toLocaleString("en-GB")} ${fresh.length === 1 ? "markbook" : "markbooks"}`;
+  const where = scope === "one"
+    ? `for ${className(groups[0].code)}${streamCount > 1 ? `, across ${streamCount} streams` : ""}`
+    : `across ${createdClasses.toLocaleString("en-GB")} ${createdClasses === 1 ? "class" : "classes"}`;
+  const already = skipped ? ` ${skipped.toLocaleString("en-GB")} ${skipped === 1 ? "was" : "were"} already set.` : "";
+  return { ok: `Set ${created} ${where}.${already}` };
+}
+
+export async function deleteAssessmentSet(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const termId = text(formData, "term_id", 40);
+  const name = text(formData, "name", 120);
+  const kind = text(formData, "kind", 20);
+  const heldOn = text(formData, "held_on", 10);
+  if (!isUuid(termId) || name.length < 2 || !KINDS.has(kind)) return { error: "Choose the assessment to delete." };
+  if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Choose the assessment to delete." };
+
+  let query = opened.auth.supabase.from("assessments").select("id").eq("term_id", termId).eq("name", name).eq("kind", kind);
+  query = heldOn ? query.eq("held_on", heldOn) : query.is("held_on", null);
+  const { data, error } = await query;
+  if (error) return { error: "The assessment could not be deleted." };
+  const ids = (data || []).map((row) => String(row.id)).filter(isUuid);
+  if (!ids.length) return { error: "That assessment is no longer on the list." };
+
+  for (let index = 0; index < ids.length; index += 100) {
+    const slice = ids.slice(index, index + 100);
+    const scores = await opened.auth.supabase.from("assessment_scores").delete().in("assessment_id", slice);
+    if (scores.error) return { error: "The marks could not be removed." };
+    const papers = await opened.auth.supabase.from("assessments").delete().in("id", slice);
+    if (papers.error) return { error: "The assessment could not be deleted." };
+  }
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "marks",
+    body: `Deleted ${name} (${ids.length} ${ids.length === 1 ? "markbook" : "markbooks"}).`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  return { ok: `${name} deleted.` };
+}
+
+export async function setAssessmentShare(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const termId = text(formData, "term_id", 40);
+  const name = text(formData, "name", 120);
+  const kind = text(formData, "kind", 20);
+  const heldOn = text(formData, "held_on", 10);
+  const share = num(text(formData, "weight", 8));
+  if (!isUuid(termId) || name.length < 2 || !KINDS.has(kind)) return { error: "Choose the assessment to update." };
+  if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Choose the assessment to update." };
+  if (share === null || share <= 0 || share > 100) return { error: "Enter the share as a percentage from 1 to 100." };
+
+  let query = opened.auth.supabase.from("assessments").update({ weight: share }).eq("term_id", termId).eq("name", name).eq("kind", kind);
+  query = heldOn ? query.eq("held_on", heldOn) : query.is("held_on", null);
+  const { data, error } = await query.select("id");
+  if (error) return { error: "The share could not be saved." };
+  const count = data?.length ?? 0;
+  if (!count) return { error: "That assessment is no longer on the list." };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "marks",
+    body: `Set ${name} to ${share}% of the subject total.`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  return { ok: `${name} is now ${share}% of the subject total. Prepare the report cards again to show it.` };
 }
 
 export async function saveScores(formData: FormData): Promise<Result> {
@@ -328,7 +615,7 @@ export async function saveScores(formData: FormData): Promise<Result> {
     .maybeSingle();
   if (paperError) return { error: paperError.message };
   if (!paper) return { error: "This markbook could not be found." };
-  if (paper.status === "submitted") return { error: "This markbook is submitted. The office can reopen it before marks change." };
+  if (markbookClosed(paper.status)) return { error: "This markbook is locked. Unlock it on the class marksheet before marks change." };
   const allowed = await teachesSubject(opened.auth, {
     termId: String(paper.term_id),
     classCode: String(paper.class_code),
@@ -382,7 +669,7 @@ export async function saveScores(formData: FormData): Promise<Result> {
     await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "marks", body: `Submitted marks for ${paper.name}.` });
   }
   refreshAcademics(`${ACADEMICS_BASE}/assessments/${assessmentId}`);
-  return { ok: submitting ? "Markbook submitted." : "Marks saved." };
+  return { ok: submitting ? "Markbook submitted. Approve it on the class marksheet to lock it for report cards." : "Marks saved." };
 }
 
 export async function reopenAssessment(formData: FormData): Promise<Result> {
@@ -396,7 +683,135 @@ export async function reopenAssessment(formData: FormData): Promise<Result> {
   if (error) return { error: error.message };
   await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "marks", body: "Reopened a markbook." });
   refreshAcademics(`${ACADEMICS_BASE}/assessments/${assessmentId}`);
-  return { ok: "Markbook reopened. Approved report cards stay as they are until you return them to draft and prepare again." };
+  return { ok: "Markbook unlocked. Approved report cards stay as they are until you return them to draft and prepare again." };
+}
+
+function named(value: unknown) {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (row && typeof row === "object" && "name" in row && typeof row.name === "string" && row.name.trim()) return row.name.trim();
+  return "Subject";
+}
+
+function joinNames(names: string[]) {
+  const shown = names.slice(0, 4);
+  const extra = names.length - shown.length;
+  const body = shown.length <= 1
+    ? shown[0] || "Subject"
+    : shown.length === 2
+      ? `${shown[0]} and ${shown[1]}`
+      : `${shown.slice(0, -1).join(", ")} and ${shown[shown.length - 1]}`;
+  return extra > 0 ? `${body} and ${extra} more` : body;
+}
+
+export async function setMarksheetLocks(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const termId = text(formData, "term_id", 40);
+  const name = text(formData, "name", 200);
+  const kind = text(formData, "kind", 20);
+  const heldOn = text(formData, "held_on", 10);
+  const classCode = text(formData, "class_code", 10);
+  const stream = streamOf(text(formData, "stream", 20));
+  const intent = text(formData, "intent", 80);
+  const [action, target] = intent.split(":");
+  if (!isUuid(termId) || name.length < 2 || !KINDS.has(kind) || !isClassCode(classCode)) return { error: "This marksheet could not be found." };
+  if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "This marksheet could not be found." };
+  if ((action !== "approve" && action !== "unlock") || !target || (target !== "all" && !isUuid(target))) return { error: "Choose a subject on this marksheet." };
+
+  let query = opened.auth.supabase.from("assessments").select("id, status, subjects(name)").eq("term_id", termId).eq("name", name).eq("kind", kind).eq("class_code", classCode).eq("stream", stream);
+  query = heldOn ? query.eq("held_on", heldOn) : query.is("held_on", null);
+  const { data, error } = await query;
+  if (error) return { error: "The marksheet could not be updated." };
+  let papers = ((data || []) as { id: string; status: string | null; subjects: unknown }[]).map((paper) => ({
+    id: String(paper.id),
+    status: paper.status || "open",
+    subject: named(paper.subjects),
+  }));
+  if (target !== "all") papers = papers.filter((paper) => paper.id === target);
+  if (!papers.length) return { error: "That subject is no longer on this marksheet." };
+  const where = `${name} for ${classLabel(classCode, stream)}`;
+
+  if (action === "unlock") {
+    const held = papers.filter((paper) => markbookClosed(paper.status));
+    if (!held.length) return { error: target === "all" ? "Nothing on this marksheet is locked." : `${papers[0]?.subject || "That subject"} is already open.` };
+    const { error: updateError } = await opened.auth.supabase.from("assessments").update({ status: "open" }).in("id", held.map((paper) => paper.id));
+    if (updateError) return { error: "The marksheet could not be unlocked." };
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "marks",
+      body: held.length === 1 ? `Unlocked ${held[0]?.subject} on ${where}.` : `Unlocked ${held.length} subjects on ${where}.`,
+    });
+    refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+    const lead = held.length === 1 ? `Unlocked ${held[0]?.subject}.` : `Unlocked ${held.length.toLocaleString("en-GB")} subjects.`;
+    return { ok: `${lead} Marks can be edited again. Approved report cards stay as they are until you return them to draft and prepare again.` };
+  }
+
+  const roster = (await loadRoll(opened.auth.supabase, opened.auth.user.id)).filter((pupil) => pupil.class_code === classCode && streamOf(pupil.stream) === stream);
+  if (!roster.length) return { error: "No pupils are on this class roll." };
+  const pupilIds = roster.map((pupil) => pupil.id);
+  const scores = await fetchAll<{ assessment_id: string; student_id: string; score: number | string | null; missed: boolean }>((from, to) =>
+    opened.auth.supabase.from("assessment_scores").select("assessment_id, student_id, score, missed").in("assessment_id", papers.map((paper) => paper.id)).order("assessment_id").range(from, to),
+  );
+  const saved = new Set(scores.filter((score) => score.missed || num(score.score) !== null).map((score) => `${score.assessment_id}|${score.student_id}`));
+  const ready = papers.filter((paper) => paper.status !== "approved" && pupilIds.every((id) => saved.has(`${paper.id}|${id}`)));
+  const waiting = papers.filter((paper) => paper.status !== "approved" && !ready.includes(paper));
+  if (!ready.length) {
+    if (papers.every((paper) => paper.status === "approved")) return { error: target === "all" ? "Every subject on this marksheet is already locked." : `${papers[0]?.subject || "That subject"} is already locked.` };
+    return { error: `${joinNames(waiting.map((paper) => paper.subject))} still ${waiting.length === 1 ? "has" : "have"} blank marks.` };
+  }
+  const { error: updateError } = await opened.auth.supabase.from("assessments").update({ status: "approved" }).in("id", ready.map((paper) => paper.id));
+  if (updateError) {
+    if (/assessments_status_check|check constraint/i.test(updateError.message)) {
+      return { error: "Approving a marksheet needs supabase/0023_assessment_approval.sql run in the Supabase SQL editor." };
+    }
+    return { error: "The marksheet could not be approved." };
+  }
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "marks",
+    body: ready.length === 1 ? `Approved ${ready[0]?.subject} on ${where}.` : `Approved ${ready.length} subjects on ${where}.`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  const lead = ready.length === 1 ? `Approved ${ready[0]?.subject}. Marks are locked.` : `Approved ${ready.length.toLocaleString("en-GB")} subjects. Marks are locked.`;
+  return { ok: waiting.length ? `${lead} ${joinNames(waiting.map((paper) => paper.subject))} still ${waiting.length === 1 ? "has" : "have"} blank marks.` : lead };
+}
+
+function previewHref(classCode: string, stream: string) {
+  return `${ACADEMICS_BASE}/reports/preview?class=${classCode}&stream=${streamQuery(stream)}`;
+}
+
+async function approveDraftCards(
+  auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
+  input: { classCode: string; stream: string; termId: string },
+): Promise<Result | null> {
+  const waiting = await classMarkbooksReady(auth.supabase, input);
+  if (waiting) return { error: waiting };
+  await prepareClassReports(auth.supabase, input);
+  const section = classSection(input.classCode);
+  const { data: bands, error: bandError } = await auth.supabase.from("grade_bands").select("label, min_score, max_score, points, sort_order, section").eq("section", section).order("sort_order");
+  if (bandError) return { error: bandError.message };
+  const rules = (bands || []).map((band) => ({
+    label: band.label,
+    min_score: num(band.min_score) ?? 0,
+    max_score: num(band.max_score) ?? 0,
+    points: num(band.points) ?? 0,
+    sort_order: num(band.sort_order) ?? 0,
+  }));
+  const { error } = await auth.supabase
+    .from("report_cards")
+    .update({
+      status: "approved",
+      approved_at: new Date().toISOString(),
+      approved_by: auth.user.id,
+      grade_rules: rules,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", input.stream)
+    .eq("status", "draft");
+  if (error) return { error: error.message };
+  return null;
 }
 
 export async function prepareReports(formData: FormData): Promise<Result> {
@@ -409,8 +824,12 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   try {
     const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Prepared report cards for ${classLabel(classCode, stream)}.` });
-    refreshAcademics(`${ACADEMICS_BASE}/reports`);
-    return { ok: result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}.` : "No draft cards were updated. Approved and published cards stay as they are." };
+    const href = previewHref(classCode, stream);
+    refreshAcademics(`${ACADEMICS_BASE}/reports`, href);
+    return {
+      ok: result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}.` : "No draft cards were updated. Approved and published cards stay as they are.",
+      href,
+    };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Reports could not be prepared." };
   }
@@ -421,42 +840,40 @@ export async function approveReports(formData: FormData): Promise<Result> {
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
-  const { classCode, stream, termId } = group(formData);
-  if (!termId || !classCode) return { error: "Choose a term and a class." };
+  const input = group(formData);
+  if (!input.termId || !input.classCode) return { error: "Choose a term and a class." };
   try {
-    const waiting = await classMarkbooksReady(opened.auth.supabase, { termId, classCode, stream });
-    if (waiting) return { error: waiting };
-    await prepareClassReports(opened.auth.supabase, { termId, classCode, stream });
-    const section = classSection(classCode);
-    const { data: bands, error: bandError } = await opened.auth.supabase.from("grade_bands").select("label, min_score, max_score, points, sort_order, section").eq("section", section).order("sort_order");
-    if (bandError) return { error: bandError.message };
-    const rules = (bands || []).map((band) => ({
-      label: band.label,
-      min_score: num(band.min_score) ?? 0,
-      max_score: num(band.max_score) ?? 0,
-      points: num(band.points) ?? 0,
-      sort_order: num(band.sort_order) ?? 0,
-    }));
-    const { error } = await opened.auth.supabase
-      .from("report_cards")
-      .update({
-        status: "approved",
-        approved_at: new Date().toISOString(),
-        approved_by: opened.auth.user.id,
-        grade_rules: rules,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("term_id", termId)
-      .eq("class_code", classCode)
-      .eq("stream", stream)
-      .eq("status", "draft");
-    if (error) return { error: error.message };
-    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Approved report cards for ${classLabel(classCode, stream)} and froze the grading rules.` });
+    const failed = await approveDraftCards(opened.auth, input);
+    if (failed) return failed;
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Approved report cards for ${classLabel(input.classCode, input.stream)} and froze the grading rules.` });
     refreshAcademics(`${ACADEMICS_BASE}/reports`);
     return { ok: "Report cards approved. Grading rules are now frozen on these cards." };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Reports could not be approved." };
   }
+}
+
+export async function cancelReportPreparation(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const { classCode, stream, termId } = group(formData);
+  if (!termId || !classCode) return { error: "Choose a term and a class." };
+  const { data, error } = await opened.auth.supabase
+    .from("report_cards")
+    .delete()
+    .eq("term_id", termId)
+    .eq("class_code", classCode)
+    .eq("stream", stream)
+    .eq("status", "draft")
+    .select("id");
+  if (error) return { error: error.message };
+  const removed = data?.length ?? 0;
+  if (!removed) return { error: "There are no draft report cards to cancel. Approved and published cards stay as they are." };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Cancelled report preparation for ${classLabel(classCode, stream)}.` });
+  refreshAcademics(`${ACADEMICS_BASE}/reports`);
+  return { ok: `Cancelled preparation for ${removed} draft report ${removed === 1 ? "card" : "cards"}. Approved and published cards were left as they are.` };
 }
 
 export async function reopenReports(formData: FormData): Promise<Result> {
@@ -499,6 +916,46 @@ export async function publishReports(formData: FormData): Promise<Result> {
   await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Published report cards for ${classLabel(classCode, stream)}.` });
   refreshAcademics(`${ACADEMICS_BASE}/reports`);
   return { ok: "Approved report cards published. Parents can open them now." };
+}
+
+export async function postReports(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const input = group(formData);
+  if (!input.termId || !input.classCode) return { error: "Choose a term and a class." };
+  try {
+    const { data, error } = await opened.auth.supabase.from("report_cards").select("status").eq("term_id", input.termId).eq("class_code", input.classCode).eq("stream", input.stream);
+    if (error) return { error: error.message };
+    const rows = data || [];
+    const drafts = rows.filter((row) => row.status === "draft").length;
+    const approved = rows.filter((row) => row.status === "approved").length;
+    const published = rows.filter((row) => row.status === "published").length;
+    if (!drafts && !approved) {
+      return { error: published ? "These report cards are already with parents." : "Generate the report cards before posting them." };
+    }
+    if (drafts) {
+      const failed = await approveDraftCards(opened.auth, input);
+      if (failed) return failed;
+    }
+    const { data: posted, error: postError } = await opened.auth.supabase
+      .from("report_cards")
+      .update({ status: "published", published_at: new Date().toISOString(), published_by: opened.auth.user.id, updated_at: new Date().toISOString() })
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", input.stream)
+      .eq("status", "approved")
+      .select("id");
+    if (postError) return { error: postError.message };
+    if (!posted?.length) return { error: "There were no report cards to post." };
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Posted report cards for ${classLabel(input.classCode, input.stream)}.` });
+    refreshAcademics(`${ACADEMICS_BASE}/reports`, previewHref(input.classCode, input.stream));
+    const count = posted.length;
+    return { ok: `Posted ${count} report ${count === 1 ? "card" : "cards"}. Parents can open them now.` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Reports could not be posted." };
+  }
 }
 
 export async function saveReport(formData: FormData): Promise<Result> {

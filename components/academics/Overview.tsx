@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ClassQueue } from "@/components/academics/ClassQueue";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsNotice } from "@/components/academics/ui";
@@ -58,8 +58,99 @@ function Quiet({ icon, children }: { icon: string; children: React.ReactNode }) 
   return <p className="acd-quiet"><span aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>{children}</p>;
 }
 
+function ActivityFeed({ rows, today }: { rows: ActivityItem[]; today: string }) {
+  return (
+    <div className="ov-activity">
+      {activityGroups(rows, today).map((group) => (
+        <section key={group.key} aria-label={group.label}>
+          <h3>{group.label}</h3>
+          <ol>
+            {group.rows.map((row, index) => {
+              const meta = ACTIVITY_KIND[row.kind] ?? { icon: "fa-clock", label: "Update" };
+              const body = (
+                <>
+                  <span className={`ov-act-icon is-${row.kind}`} aria-hidden="true"><i className={`fa-solid ${meta.icon}`} /></span>
+                  <span className="ov-act-copy">
+                    <span className="ov-act-body" title={row.body}>{row.body}</span>
+                    <span className="ov-act-meta">
+                      <span className={`ov-act-kind is-${row.kind}`}>{meta.label}</span>
+                      {row.when ? <time dateTime={row.at || undefined}>{row.when}</time> : null}
+                    </span>
+                  </span>
+                </>
+              );
+              return (
+                <li key={row.id} style={{ "--i": index } as React.CSSProperties}>
+                  {row.href ? <Link href={row.href}>{body}</Link> : <div>{body}</div>}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 type WorkItem = { label: string; note: string; count: number; href: string; icon: string };
 type SnapItem = { label: string; value: string; note: string; href: string };
+type ActivityItem = { id: string; kind: string; body: string; at: string; when: string; href?: string };
+
+const ACTIVITY_KIND: Record<string, { icon: string; label: string }> = {
+  marks: { icon: "fa-pen-to-square", label: "Marks" },
+  scheme: { icon: "fa-list-check", label: "Schemes" },
+  report: { icon: "fa-file-lines", label: "Reports" },
+  calendar: { icon: "fa-calendar-days", label: "Calendar" },
+  intervention: { icon: "fa-hand-holding-heart", label: "Follow-up" },
+  reminder: { icon: "fa-bell", label: "Reminder" },
+  timetable: { icon: "fa-table-cells", label: "Timetable" },
+  setup: { icon: "fa-sliders", label: "Setup" },
+};
+
+const activityDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Africa/Kampala", year: "numeric", month: "2-digit", day: "2-digit" });
+const activityClock = new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Kampala", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+
+function shiftDay(value: string, by: number) {
+  const [year, month, day] = value.split("-").map(Number);
+  return new Date(Date.UTC(year, (month || 1) - 1, (day || 1) + by)).toISOString().slice(0, 10);
+}
+
+function activityWhen(iso: string, today: string) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  if (activityDay.format(date) === today) {
+    const minutes = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
+    if (minutes < 1) return "Just now";
+    if (minutes < 60) return minutes === 1 ? "1 min ago" : `${minutes} min ago`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 8) return hours === 1 ? "1 hour ago" : `${hours} hours ago`;
+  }
+  return activityClock.format(date);
+}
+
+function activityGroups(rows: ActivityItem[], today: string) {
+  const groups: { key: string; label: string; rows: ActivityItem[] }[] = [];
+  for (const row of rows) {
+    const date = row.at ? new Date(row.at) : null;
+    const key = date && !Number.isNaN(date.getTime()) ? activityDay.format(date) : "recent";
+    const label = key === "recent"
+      ? "Recent"
+      : key === today
+        ? "Today"
+        : key === shiftDay(today, -1)
+          ? "Yesterday"
+          : new Date(`${key}T00:00:00Z`).toLocaleDateString("en-GB", {
+              day: "numeric",
+              month: "short",
+              year: key.slice(0, 4) === today.slice(0, 4) ? undefined : "numeric",
+              timeZone: "UTC",
+            });
+    const last = groups[groups.length - 1];
+    if (!last || last.key !== key) groups.push({ key, label, rows: [row] });
+    else last.rows.push(row);
+  }
+  return groups;
+}
 export type OfficeHomeProps = {
   greeting: string;
   dateLabel: string;
@@ -82,7 +173,7 @@ export type OfficeHomeProps = {
   teachers: { id: string; name: string; detail: string; rate: number }[];
   teachersHref: string;
   teachersEmpty: string;
-  activity: { id: string; body: string; when: string; href?: string }[];
+  activity: ActivityItem[];
   activityHref: string | null;
 };
 
@@ -236,19 +327,7 @@ export function OfficeHome({
           </Card>
 
           <Card id="activity" icon="fa-clock-rotate-left" tone="navy" title="Recent activity" description="Approvals, submissions and published reports." action={activityHref ? { href: activityHref, label: "Activity" } : undefined}>
-            {activity.length ? (
-              <ul className="acd-list">
-                {activity.map((row) => (
-                  <li key={row.id}>
-                    <span className="acd-initials" aria-hidden="true"><i className={`fa-solid ${row.href ? "fa-file-lines" : "fa-clock"}`} /></span>
-                    <div>
-                      {row.href ? <Link href={row.href}>{row.body}</Link> : <strong>{row.body}</strong>}
-                      <small>{row.when}</small>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            ) : <Quiet icon="fa-clock">No academic changes recorded yet.</Quiet>}
+            {activity.length ? <ActivityFeed rows={activity} today={kampalaToday()} /> : <Quiet icon="fa-clock">No academic changes recorded yet.</Quiet>}
           </Card>
         </div>
       </div>
@@ -343,19 +422,26 @@ export async function Overview({ supabase, profile, office }: Session) {
     return { month: date.toLocaleDateString("en-GB", { month: "short" }), day: String(day) };
   }
 
-  const activity = picture?.activity.length
+  const activity: ActivityItem[] = picture?.activity.length
     ? picture.activity.slice(0, 6).map((row) => ({
         id: row.id,
+        kind: row.kind,
         body: row.body,
-        when: new Date(row.created_at).toLocaleString("en-GB", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Kampala" }),
-        href: undefined,
+        at: row.created_at,
+        when: activityWhen(row.created_at, today),
       }))
-    : recent.map((card) => ({
-        id: card.id,
-        body: names.get(card.student_id) || "Pupil",
-        when: `Published · ${className(card.class_code)}${streamOf(card.stream) ? ` ${streamOf(card.stream)}` : ""}`,
-        href: `${ACADEMICS_BASE}/reports/${card.id}`,
-      }));
+    : recent.map((card) => {
+        const pupil = names.get(card.student_id) || "a pupil";
+        const klass = `${className(card.class_code)}${streamOf(card.stream) ? ` ${streamOf(card.stream)}` : ""}`;
+        return {
+          id: card.id,
+          kind: "report",
+          body: `Published a report for ${pupil}${klass ? `, ${klass}` : ""}.`,
+          at: card.published_at || "",
+          when: card.published_at ? activityWhen(card.published_at, today) : "Published",
+          href: `${ACADEMICS_BASE}/reports/${card.id}`,
+        };
+      });
 
   return (
     <OfficeHome

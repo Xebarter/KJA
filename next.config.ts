@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  serverExternalPackages: ["exceljs"],
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
     serverActions: { bodySizeLimit: "21mb" },

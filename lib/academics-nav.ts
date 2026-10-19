@@ -9,6 +9,9 @@ export function isAcademicsRole(role: string | null | undefined) {
 
 /** Which script to run when a query fails because the database is behind the app. */
 export function academicsSchemaScript(message: string | null | undefined) {
+  if (message && /report_line_parts/i.test(message)) return "supabase/0024_report_line_parts.sql";
+  if (message && /attendance_closures/i.test(message)) return "supabase/0022_attendance_closures.sql";
+  if (message && /assessments_status_check/i.test(message)) return "supabase/0023_assessment_approval.sql";
   return message && /timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|approved_at/i.test(message)
     ? "supabase/0016_academics_work.sql"
     : "supabase/0015_academics.sql";

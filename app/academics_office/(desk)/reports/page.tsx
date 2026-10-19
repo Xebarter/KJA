@@ -1,7 +1,6 @@
 import Link from "next/link";
-import { approveReports, prepareReports, publishReports, reopenReports } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { DeskForm } from "@/components/academics/Form";
+import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE, classLabel, groupPupils, loadCurrentTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
@@ -58,6 +57,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const drafts = selectedCards.filter((card) => card.status === "draft").length;
   const approved = selectedCards.filter((card) => card.status === "approved").length;
   const published = selectedCards.filter((card) => card.status === "published").length;
+  const onRoll = new Set(pupils.map((pupil) => pupil.id));
+  const waiting = groups
+    .map((group) => ({
+      group,
+      drafts: group.pupils.filter((pupil) => byPupil.get(pupil.id)?.status === "draft").length,
+    }))
+    .filter((row) => row.drafts > 0);
+  const draftTotal = cards.filter((card) => card.status === "draft").length;
+  const unmatchedDrafts = cards.filter((card) => card.status === "draft" && !onRoll.has(card.student_id)).length;
   const sections = (["nursery", "primary"] as const)
     .map((section) => ({ section, label: section === "nursery" ? "Nursery" : "Primary", rows: groups.filter((group) => group.section === section) }))
     .filter((section) => section.rows.length);
@@ -71,14 +79,40 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         description={
           term && selected
             ? <>{term.label} · <strong>{nf(selected.pupils.length)}</strong> on this report.</>
-            : term
-              ? <>{term.label}. Prepare a class, approve it once markbooks are submitted, then publish for parents.</>
-              : "Report cards need a current term."
+            : term && draftTotal
+              ? <>{term.label}. <strong>{nf(draftTotal)}</strong> {draftTotal === 1 ? "report card is" : "report cards are"} still in draft.</>
+              : term
+                ? <>{term.label}. Generate a class, preview every card, then post it for parents.</>
+                : "Report cards need a current term."
         }
         actions={selected ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports`}><i className="fa-solid fa-table-cells" aria-hidden="true" /> All classes</Link> : null}
       />
       {!term ? <Empty title="No current term" /> : (
         <>
+          {!selected && draftTotal ? (
+            <section className="rpt-alert" aria-label="Draft report cards">
+              <div className="rpt-alert-head">
+                <span aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
+                <div>
+                  <strong>{nf(draftTotal)} {draftTotal === 1 ? "draft" : "drafts"}</strong>
+                  <p>Open a class to preview and post its report cards.</p>
+                </div>
+              </div>
+              {waiting.length ? (
+                <ul className="rpt-alert-list">
+                  {waiting.map(({ group, drafts: count }) => (
+                    <li key={`${group.code}-${group.stream}`}>
+                      <Link href={`${ACADEMICS_BASE}/reports?class=${group.code}&stream=${streamQuery(group.stream)}`}>
+                        {classLabel(group.code, group.stream)}
+                        <em>{nf(count)}</em>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {unmatchedDrafts ? <p className="rpt-alert-note">{nf(unmatchedDrafts)} {unmatchedDrafts === 1 ? "draft is" : "drafts are"} for learners no longer on the roll.</p> : null}
+            </section>
+          ) : null}
           {selected ? (
             <section className="rpt-strip" aria-label={classLabel(selected.code, selected.stream)}>
               <div>
@@ -87,11 +121,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </div>
               <div className={drafts ? "is-warn" : ""}>
                 <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
-                <span className="rpt-stat-copy"><span>Draft</span><strong>{nf(drafts)}</strong><small>Ready to approve</small></span>
+                <span className="rpt-stat-copy"><span>Draft</span><strong>{nf(drafts)}</strong><small>Still with the office</small></span>
               </div>
               <div className={approved ? "is-warn" : ""}>
                 <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-stamp" /></span>
-                <span className="rpt-stat-copy"><span>Approved</span><strong>{nf(approved)}</strong><small>Waiting to publish</small></span>
+                <span className="rpt-stat-copy"><span>Approved</span><strong>{nf(approved)}</strong><small>Ready to post</small></span>
               </div>
               <div className={selected.pupils.length && published === selected.pupils.length ? "is-ok" : ""}>
                 <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-circle-check" /></span>
@@ -106,7 +140,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
                   <div>
                     <h2>Classes</h2>
-                    <p>Prepare one stream at a time.</p>
+                    <p>Open one stream at a time.</p>
                   </div>
                 </div>
               </header>
@@ -118,16 +152,17 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                       {section.rows.map((group) => {
                         const mine = group.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is Card => Boolean(card));
                         const live = mine.filter((card) => card.status === "published").length;
+                        const open = mine.filter((card) => card.status === "draft").length;
                         const on = selected?.code === group.code && selected.stream === group.stream;
                         return (
                           <li key={`${group.code}-${group.stream}`}>
-                            <Link className={on ? "is-on" : ""} href={`${ACADEMICS_BASE}/reports?class=${group.code}&stream=${streamQuery(group.stream)}`}>
+                            <Link className={`${on ? "is-on" : ""}${open ? " is-draft" : ""}`} href={`${ACADEMICS_BASE}/reports?class=${group.code}&stream=${streamQuery(group.stream)}`}>
                               <span className="rpt-mark" aria-hidden="true">{group.code}</span>
                               <span>
                                 <strong>{classLabel(group.code, group.stream)}</strong>
-                                <small>{nf(group.pupils.length)} pupils</small>
+                                <small>{open ? `${nf(open)} draft${open === 1 ? "" : "s"}` : `${nf(group.pupils.length)} pupils`}</small>
                               </span>
-                              <span className="rpt-mini">{nf(live)}/{nf(group.pupils.length)}</span>
+                              {open ? <span className="rpt-drafts" aria-label={`${open} drafts`}>{nf(open)}</span> : <span className="rpt-mini">{nf(live)}/{nf(group.pupils.length)}</span>}
                             </Link>
                           </li>
                         );
@@ -144,38 +179,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
                   <div>
                     <h2>{selected ? classLabel(selected.code, selected.stream) : "Choose a class"}</h2>
-                    <p>{selected ? "Prepare from marks, then approve and publish." : "Pick a stream from the list."}</p>
+                    <p>{selected ? "Generate the cards, preview them, then post." : "Pick a stream from the list."}</p>
                   </div>
                 </div>
               </header>
               {selected ? (
                 <>
-                  <div className="rpt-actions">
-                    <DeskForm action={prepareReports}>
-                      <input type="hidden" name="term_id" value={term.id} />
-                      <input type="hidden" name="class_code" value={selected.code} />
-                      <input type="hidden" name="stream" value={selected.stream} />
-                      <button className="rpt-btn" type="submit">Prepare from marks</button>
-                    </DeskForm>
-                    <DeskForm action={approveReports}>
-                      <input type="hidden" name="term_id" value={term.id} />
-                      <input type="hidden" name="class_code" value={selected.code} />
-                      <input type="hidden" name="stream" value={selected.stream} />
-                      <button className="rpt-btn is-gold" type="submit">Approve</button>
-                    </DeskForm>
-                    <DeskForm action={publishReports}>
-                      <input type="hidden" name="term_id" value={term.id} />
-                      <input type="hidden" name="class_code" value={selected.code} />
-                      <input type="hidden" name="stream" value={selected.stream} />
-                      <button className="rpt-btn" type="submit">Publish approved</button>
-                    </DeskForm>
-                    <DeskForm action={reopenReports}>
-                      <input type="hidden" name="term_id" value={term.id} />
-                      <input type="hidden" name="class_code" value={selected.code} />
-                      <input type="hidden" name="stream" value={selected.stream} />
-                      <button className="rpt-btn is-ghost" type="submit">Return to draft</button>
-                    </DeskForm>
-                  </div>
+                  <StreamReportBar termId={term.id} classCode={selected.code} stream={selected.stream} drafts={drafts} cards={selectedCards.length} />
                   {selected.pupils.length ? (
                     <ul className="rpt-roll">
                       {selected.pupils.map((pupil, index) => {
@@ -197,7 +207,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     </ul>
                   ) : <p className="rpt-quiet">No active pupils in this stream.</p>}
                 </>
-              ) : <p className="rpt-quiet">Pick a class to prepare its report cards.</p>}
+              ) : <p className="rpt-quiet">Pick a class to generate its report cards.</p>}
             </section>
           </div>
         </>

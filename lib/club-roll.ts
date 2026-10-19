@@ -50,7 +50,8 @@ type Pupil = {
   campus: string | null;
 };
 
-export async function loadClubRoll(supabase: SupabaseClient): Promise<ClubRoll> {
+/** `clubIds` limits the roll to those clubs. Omit it to include every club that has consent. */
+export async function loadClubRoll(supabase: SupabaseClient, clubIds?: readonly string[] | null): Promise<ClubRoll> {
   const termQuery = await supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle();
   if (termQuery.error) throw new Error(termQuery.error.message);
   const term = termQuery.data as { id: string; label: string } | null;
@@ -69,11 +70,11 @@ export async function loadClubRoll(supabase: SupabaseClient): Promise<ClubRoll> 
   const consents = (consentsQuery.data || []) as { student_id: string; club_id: string }[];
   const payments = (paymentsQuery.data || []) as { student_id: string; club_id: string; amount: number }[];
   const paidOf = new Map(payments.map((row) => [`${row.student_id}:${row.club_id}`, Number(row.amount) || 0]));
-  const clubIds = new Set(clubs.map((club) => club.id));
+  const catalogueIds = new Set(clubs.map((club) => club.id));
 
   const learnersOf = new Map<string, string[]>();
   for (const consent of consents) {
-    if (!clubIds.has(consent.club_id)) continue;
+    if (!catalogueIds.has(consent.club_id)) continue;
     const list = learnersOf.get(consent.club_id);
     if (list) list.push(consent.student_id);
     else learnersOf.set(consent.club_id, [consent.student_id]);
@@ -88,7 +89,9 @@ export async function loadClubRoll(supabase: SupabaseClient): Promise<ClubRoll> 
   }
   const pupilOf = new Map(pupils.map((pupil) => [pupil.id, pupil]));
 
+  const wanted = clubIds ? new Set(clubIds) : null;
   const sheets = clubs.flatMap((club) => {
+    if (wanted && !wanted.has(club.id)) return [];
     const fee = Number(club.fee_amount) || 0;
     const ids = learnersOf.get(club.id) || [];
     const learners = ids.flatMap((studentId) => {

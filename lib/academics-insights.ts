@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { groupOf } from "@/lib/accounts-agg";
-import { classLabel, num, streamOf, type TermRow } from "@/lib/academics";
+import { classLabel, markbookClosed, num, streamOf, type TermRow } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 import { remember } from "@/lib/remember";
 import { fetchAll } from "@/lib/students";
@@ -169,7 +169,7 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
         missing: Math.max(0, size - filledCount),
       };
     })
-    .filter((paper) => paper.status !== "submitted" || paper.missing > 0);
+    .filter((paper) => !markbookClosed(paper.status) || paper.missing > 0);
 
   const schemeRows = (schemes.data || []) as Scheme[];
   const schemeList: PictureScheme[] = schemeRows.map((scheme) => {
@@ -241,7 +241,7 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
     const current = teacherMap.get(id) || { id, name: person?.full_name || "Teacher", papersSubmitted: 0, papersAssigned: 0, lessonsTaught: 0, lessonsPlanned: 0 };
     const match = paperRows.filter((paper) => paper.subject_id === row.subject_id && paper.class_code === row.class_code && streamOf(paper.stream) === streamOf(row.stream as string | null));
     current.papersAssigned += match.length;
-    current.papersSubmitted += match.filter((paper) => paper.status === "submitted").length;
+    current.papersSubmitted += match.filter((paper) => markbookClosed(paper.status)).length;
     teacherMap.set(id, current);
   }
   for (const scheme of schemeList) {
@@ -260,7 +260,7 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
     classes: classKeys.size,
     papers: paperRows.length,
     mean: average(overalls),
-    openMarkbooks: openMarkbooks.filter((paper) => paper.status !== "submitted"),
+    openMarkbooks: openMarkbooks.filter((paper) => !markbookClosed(paper.status)),
     gaps: openMarkbooks.filter((paper) => paper.missing > 0),
     schemesWaiting: schemeList.filter((scheme) => scheme.status === "submitted"),
     overdueLessons: schemeList.reduce((sum, scheme) => sum + scheme.overdue, 0),
