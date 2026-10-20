@@ -3,6 +3,7 @@ import { CancelPreparation } from "@/components/academics/CancelPreparation";
 import { DownloadReportPdfButton } from "@/components/academics/DownloadReportPdfButton";
 import { DeskForm } from "@/components/academics/Form";
 import { GenerateReportsDialog } from "@/components/academics/GenerateReportsDialog";
+import { ACADEMICS_BASE, streamQuery } from "@/lib/academics";
 import type { ReportSitting } from "@/lib/academics-reports";
 
 export function StreamReportBar({
@@ -41,7 +42,12 @@ export function StreamReportBar({
         <input type="hidden" name="stream" value={stream} />
         <button className="rpt-btn is-gold" type="submit">Post</button>
       </DeskForm>
-      {cards ? <DownloadReportPdfButton classCode={classCode} stream={stream} /> : null}
+      {cards ? (
+        <DownloadReportPdfButton
+          href={`${ACADEMICS_BASE}/reports/pdf?class=${encodeURIComponent(classCode)}&stream=${encodeURIComponent(streamQuery(stream))}`}
+          filename={`${classCode}-${stream || "class"}-report-cards.pdf`}
+        />
+      ) : null}
       <div className="rpt-actions-secondary">
         <DeskForm action={reopenReports}>
           <input type="hidden" name="term_id" value={termId} />

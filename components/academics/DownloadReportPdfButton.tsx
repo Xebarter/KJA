@@ -2,19 +2,17 @@
 
 import { useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
-import { ACADEMICS_BASE, streamQuery } from "@/lib/academics";
 
 /** Fetches the stream PDF while showing the shared green progress ring. */
 export function DownloadReportPdfButton({
-  classCode,
-  stream,
+  href,
+  filename,
 }: {
-  classCode: string;
-  stream: string;
+  href: string;
+  filename: string;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const href = `${ACADEMICS_BASE}/reports/pdf?class=${encodeURIComponent(classCode)}&stream=${encodeURIComponent(streamQuery(stream))}`;
 
   async function download() {
     if (busy) return;
@@ -39,13 +37,13 @@ export function DownloadReportPdfButton({
       const blob = await response.blob();
       const disposition = response.headers.get("content-disposition") || "";
       const matched = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
-      const filename = matched
+      const downloadName = matched
         ? decodeURIComponent(matched[1].replace(/"/g, ""))
-        : `${classCode}-${stream || "class"}-report-cards.pdf`;
+        : filename;
       const objectUrl = URL.createObjectURL(blob);
       const anchor = document.createElement("a");
       anchor.href = objectUrl;
-      anchor.download = filename;
+      anchor.download = downloadName;
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
