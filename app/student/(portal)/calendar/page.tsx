@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MONTHS_SHORT, parseYmd } from "@/lib/events-calendar";
+import { academicKindLabel } from "@/lib/student";
 import { getStudentPortal } from "@/lib/student-portal";
 
 export const metadata = { title: "Calendar" };
@@ -14,35 +15,81 @@ function DateTile({ ymd }: { ymd: string }) {
   );
 }
 
+type TimelineItem = {
+  key: string;
+  ymd: string;
+  title: string;
+  subtitle: string;
+  href?: string;
+  kind: "event" | "exam" | "deadline" | "meeting" | "reporting";
+};
+
 export default async function StudentCalendarPage() {
   const portal = await getStudentPortal();
   const today = new Date().toLocaleDateString("en-CA", { timeZone: "Africa/Kampala" });
-  const upcoming = portal.events.filter((event) => String(event.starts_on) >= today);
+
+  const items: TimelineItem[] = [
+    ...portal.events
+      .filter((event) => String(event.starts_on) >= today)
+      .map((event) => ({
+        key: `e-${event.slug}`,
+        ymd: String(event.starts_on),
+        title: event.title,
+        subtitle: event.location || "School event",
+        href: `/event/${event.slug}`,
+        kind: "event" as const,
+      })),
+    ...portal.academicDates
+      .filter((row) => row.starts_on >= today)
+      .map((row) => ({
+        key: `a-${row.id}`,
+        ymd: row.starts_on,
+        title: row.title,
+        subtitle: [academicKindLabel(row.kind), row.campus].filter(Boolean).join(" · "),
+        kind: row.kind,
+      })),
+  ].sort((a, b) => a.ymd.localeCompare(b.ymd));
 
   return (
     <div className="st-section">
-      <p className="account-kicker">School</p>
+      <p className="account-kicker">Life</p>
       <h1>Calendar</h1>
-      <p className="lead">Upcoming school events.</p>
+      <p className="lead">
+        Upcoming school events{portal.termLabel ? ` and dates for ${portal.termLabel}` : " and important term dates"}.
+      </p>
 
-      {upcoming.length ? (
-        <ul className="ov-events" style={{ marginTop: "1rem", listStyle: "none", padding: 0, display: "grid", gap: ".65rem" }}>
-          {upcoming.map((event) => (
-            <li key={event.slug}>
-              <Link href={`/event/${event.slug}`} className="ov-event" style={{ display: "flex", gap: ".85rem", padding: ".85rem 1rem", background: "#fff", borderRadius: 14, border: "1px solid rgba(25,35,43,.08)" }}>
-                <DateTile ymd={String(event.starts_on)} />
-                <span className="ov-event-text">
-                  <strong>{event.title}</strong>
-                  <small style={{ display: "block", color: "#5d6670" }}>{event.location || "School event"}</small>
+      {items.length ? (
+        <ul className="st-cal-list">
+          {items.map((item) => {
+            const inner = (
+              <>
+                <DateTile ymd={item.ymd} />
+                <span className="st-cal-text">
+                  <strong>{item.title}</strong>
+                  <small>
+                    <span className={`st-cal-kind is-${item.kind}`}>{item.kind === "event" ? "Event" : academicKindLabel(item.kind as "exam" | "deadline" | "meeting" | "reporting")}</span>
+                    {item.subtitle ? ` · ${item.subtitle}` : ""}
+                  </small>
                 </span>
-              </Link>
-            </li>
-          ))}
+              </>
+            );
+            return (
+              <li key={item.key}>
+                {item.href ? (
+                  <Link href={item.href} className="st-cal-row">
+                    {inner}
+                  </Link>
+                ) : (
+                  <div className="st-cal-row">{inner}</div>
+                )}
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <div className="hw-empty">
           <i className="fa-solid fa-calendar-days" aria-hidden="true" />
-          <p>No upcoming events right now.</p>
+          <p>No upcoming dates right now. Check back soon.</p>
         </div>
       )}
     </div>

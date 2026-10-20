@@ -124,6 +124,13 @@ export function buildPerformanceProfile(input: ReportInput, settings: CommentSet
     cocurricularBand = best;
   }
 
+  const activityPercents = assessedActivities
+    .map((row) => row.percent)
+    .filter((value): value is number => value != null && Number.isFinite(value));
+  const cocurricularScoreRaw = mean(activityPercents);
+  const cocurricularScore =
+    cocurricularScoreRaw == null ? null : Math.round(cocurricularScoreRaw);
+
   const strongestActivities = [...assessedActivities]
     .sort((a, b) =>
       bandRank(b.band, settings) - bandRank(a.band, settings)
@@ -167,6 +174,7 @@ export function buildPerformanceProfile(input: ReportInput, settings: CommentSet
     assessedSubjectCount: assessedSubjects.length,
     missingSubjectCount: listedMissing,
     overallPercent,
+    cocurricularScore,
     academicBand,
     cocurricularBand,
     subjectsByBand,

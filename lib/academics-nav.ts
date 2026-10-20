@@ -12,6 +12,9 @@ export function academicsSchemaScript(message: string | null | undefined) {
   if (message && /subjects_kind_check|0028_subject_kinds|default_skills/i.test(message)) {
     return "supabase/0028_subject_kinds_academic_other.sql";
   }
+  if (message && /report_card_activities.*comment|column .*comment|0030_activity_comments/i.test(message)) {
+    return "supabase/0030_activity_comments.sql";
+  }
   if (message && /skills|activity_score|0026_cocurricular|column .*score/i.test(message) && /report_card_activities|cocurricular/i.test(message)) {
     return "supabase/0026_cocurricular_skills.sql";
   }
@@ -23,6 +26,9 @@ export function academicsSchemaScript(message: string | null | undefined) {
   if (message && /assessments_status_check/i.test(message)) return "supabase/0023_assessment_approval.sql";
   if (message && /homework_assignments|student_conversations|student_messages|notify_user|0029_student/i.test(message)) {
     return "supabase/0029_student_portal.sql";
+  }
+  if (message && /attendance_student|club_consents_student|class_teachers_student|academic_dates_student|0030_student/i.test(message)) {
+    return "supabase/0030_student_portal_extras.sql";
   }
   return message && /timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|approved_at/i.test(message)
     ? "supabase/0016_academics_work.sql"

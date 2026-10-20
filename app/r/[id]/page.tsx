@@ -31,7 +31,7 @@ export default async function OnlineReportPage({ params }: { params: Promise<{ i
       ? loadSubjectInitials(supabase, { termId: card.term_id, classCode: card.class_code, stream: card.stream || "" })
       : Promise.resolve(new Map<string, string>()),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order").eq("section", nursery ? "nursery" : "primary").order("sort_order"),
-    supabase.from("report_card_activities").select("slot, activity_name, level").eq("report_card_id", id).order("slot"),
+    supabase.from("report_card_activities").select("slot, activity_name, level, comment").eq("report_card_id", id).order("slot"),
   ]);
   if (!pupil) notFound();
   const term = card.fee_terms as { label?: string } | { label?: string }[] | null;
@@ -40,6 +40,7 @@ export default async function OnlineReportPage({ params }: { params: Promise<{ i
     pupil_name: pupil.full_name,
     student_number: pupil.student_number,
     term_label: (Array.isArray(term) ? term[0]?.label : term?.label) || "Term",
+    report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
@@ -50,13 +51,22 @@ export default async function OnlineReportPage({ params }: { params: Promise<{ i
     days_present: num(card.days_present),
     days_opened: num(card.days_opened),
     overall_score: num(card.overall_score),
+    overall_aggregate: num((card as { overall_aggregate?: number | null }).overall_aggregate),
+    overall_grade: (card as { overall_grade?: string | null }).overall_grade ?? null,
     overall_position: num(card.overall_position),
     status: card.status,
     student_id: card.student_id,
     photo_path: pupil.photo_path || null,
     activities: [1, 2, 3, 4].map((slot) => {
-      const row = (activityRows || []).find((item) => Number(item.slot) === slot);
-      return { slot, activity_name: row?.activity_name ? String(row.activity_name) : null, level: row?.level ? String(row.level) : null };
+      const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
+        | { activity_name?: string | null; level?: string | null; comment?: string | null }
+        | undefined;
+      return {
+        slot,
+        activity_name: row?.activity_name ? String(row.activity_name) : null,
+        level: row?.level ? String(row.level) : null,
+        comment: row?.comment ? String(row.comment) : null,
+      };
     }),
     lines: (lines || []).map((line) => ({
       subject_id: String(line.subject_id),

@@ -183,3 +183,149 @@ body:has(.kja-student) {
 .scr-table th, .scr-table td { padding: .7rem .85rem; border-bottom: 1px solid rgba(25, 35, 43, .08); text-align: left; font-size: .88rem; }
 .scr-table th { background: #f7f1e6; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: #5d6670; }
 .scr-flag { color: #e42435; font-weight: 700; }
+
+/* Attendance */
+.st-att-hero {
+  display: grid; grid-template-columns: auto 1fr; gap: 1.25rem; align-items: center;
+  padding: 1.15rem 1.25rem; border-radius: 18px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08); box-shadow: 0 12px 28px -20px rgba(25, 35, 43, .4);
+}
+.st-att-pct { text-align: center; min-width: 110px; }
+.st-att-pct strong {
+  display: block; font-size: 2.4rem; line-height: 1; color: #19232b;
+  font-family: var(--heading-font, Yantramanav, sans-serif);
+}
+.st-att-pct span { display: block; margin-top: .35rem; color: #5d6670; font-size: .78rem; }
+.st-att-stats {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .55rem; margin: 0;
+}
+.st-att-stats div {
+  padding: .65rem .7rem; border-radius: 12px; background: rgba(25, 35, 43, .04); text-align: center;
+}
+.st-att-stats dt { margin: 0; color: #5d6670; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.st-att-stats dd { margin: .2rem 0 0; font-size: 1.25rem; font-weight: 700; font-variant-numeric: tabular-nums; }
+.st-att-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .45rem; }
+.st-att-list li {
+  display: flex; justify-content: space-between; align-items: center; gap: .75rem;
+  padding: .75rem 1rem; border-radius: 12px; background: #fff; border: 1px solid rgba(25, 35, 43, .08);
+}
+.st-att-chip {
+  display: inline-flex; padding: .25rem .65rem; border-radius: 999px;
+  font-size: .75rem; font-weight: 700;
+}
+.st-att-chip.is-present { background: rgba(18, 114, 56, .12); color: #127238; }
+.st-att-chip.is-late { background: rgba(253, 163, 27, .18); color: #8a5a00; }
+.st-att-chip.is-absent { background: rgba(228, 36, 53, .12); color: #e42435; }
+.st-att-chip.is-excused { background: rgba(25, 35, 43, .08); color: #5d6670; }
+
+/* Clubs */
+.st-club-grid { display: grid; gap: .85rem; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+.st-club-card {
+  display: grid; gap: .75rem; padding: 1.05rem 1.1rem; border-radius: 16px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08); box-shadow: 0 10px 24px -18px rgba(25, 35, 43, .35);
+}
+.st-club-card header { display: flex; gap: .75rem; align-items: flex-start; }
+.st-club-icon {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px;
+  background: rgba(228, 36, 53, .1); color: #e42435; flex: 0 0 auto;
+}
+.st-club-card h2 { margin: 0; font-size: 1.05rem; }
+.st-club-card header p { margin: .2rem 0 0; color: #5d6670; font-size: .82rem; }
+.st-club-desc { margin: 0; color: #5d6670; font-size: .88rem; line-height: 1.45; }
+.st-club-card footer { display: flex; flex-wrap: wrap; gap: .4rem; }
+
+/* My class */
+.st-teacher-block { display: grid; gap: .65rem; margin-top: .35rem; }
+.st-teacher-block h2 { margin: 0; font-size: 1.1rem; }
+.st-teacher-grid { display: grid; gap: .55rem; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+.st-teacher-card {
+  display: flex; gap: .75rem; align-items: center; padding: .85rem 1rem;
+  border-radius: 14px; background: #fff; border: 1px solid rgba(25, 35, 43, .08);
+}
+.st-teacher-card.is-class { border-color: rgba(253, 163, 27, .35); background: linear-gradient(135deg, #fff, #fff8eb); }
+.st-teacher-avatar {
+  display: grid; place-items: center; width: 42px; height: 42px; border-radius: 50%;
+  background: rgba(25, 35, 43, .07); color: #19232b; flex: 0 0 auto;
+}
+.st-teacher-card strong { display: block; }
+.st-teacher-card span { color: #5d6670; font-size: .82rem; }
+.st-peer-grid { display: grid; gap: .65rem; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.st-peer-card {
+  display: grid; grid-template-columns: auto 1fr auto; gap: .7rem; align-items: center;
+  padding: .75rem .85rem; border-radius: 14px; background: #fff; border: 1px solid rgba(25, 35, 43, .08);
+}
+.st-peer-face {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  overflow: hidden; background: rgba(25, 35, 43, .08); font-weight: 700; font-size: .85rem;
+}
+.st-peer-face img { width: 100%; height: 100%; object-fit: cover; }
+.st-peer-text strong { display: block; }
+.st-peer-text span { color: #5d6670; font-size: .78rem; }
+.st-house-badge {
+  display: inline-block; margin-top: .15rem; padding: .1rem .45rem; border-radius: 999px;
+  background: rgba(253, 163, 27, .16); color: #8a5a00; font-size: .7rem; font-weight: 700;
+}
+
+/* Calendar */
+.st-cal-list { list-style: none; margin: 0; padding: 0; display: grid; gap: .55rem; }
+.st-cal-row {
+  display: flex; gap: .85rem; align-items: center; padding: .85rem 1rem;
+  border-radius: 14px; background: #fff; border: 1px solid rgba(25, 35, 43, .08); color: inherit;
+}
+.st-cal-text { min-width: 0; }
+.st-cal-text strong { display: block; }
+.st-cal-text small { display: block; margin-top: .2rem; color: #5d6670; }
+.st-cal-kind {
+  display: inline-block; padding: .1rem .45rem; border-radius: 999px;
+  background: rgba(25, 35, 43, .07); font-size: .68rem; font-weight: 700;
+}
+.st-cal-kind.is-exam { background: rgba(228, 36, 53, .12); color: #e42435; }
+.st-cal-kind.is-reporting { background: rgba(18, 114, 56, .12); color: #127238; }
+.st-cal-kind.is-deadline { background: rgba(253, 163, 27, .18); color: #8a5a00; }
+
+/* Digital ID card */
+.st-id-card {
+  display: grid; grid-template-columns: 140px 1fr; gap: 1.15rem; align-items: center;
+  padding: 1.25rem; border-radius: 20px;
+  background: linear-gradient(145deg, #1c2832 0%, #151e25 70%, #19232b 100%);
+  color: #fff; box-shadow: 0 18px 36px -18px rgba(25, 35, 43, .55);
+}
+.st-id-photo {
+  display: grid; place-items: center; width: 140px; height: 140px; border-radius: 18px;
+  overflow: hidden; background: rgba(255, 255, 255, .12); font-size: 2rem; font-weight: 700;
+  border: 3px solid rgba(253, 163, 27, .85);
+}
+.st-id-photo img { width: 100%; height: 100%; object-fit: cover; }
+.st-id-school {
+  margin: 0 0 .35rem; font-family: Cinzel, "Times New Roman", serif;
+  font-size: .72rem; letter-spacing: .08em; text-transform: uppercase; color: #fda31b;
+}
+.st-id-body h2 { margin: 0; font-size: 1.55rem; letter-spacing: -.02em; }
+.st-id-aka { margin: .25rem 0 0; color: rgba(255, 255, 255, .65); font-size: .88rem; }
+.st-id-facts {
+  display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .55rem .9rem;
+  margin: 1rem 0 0;
+}
+.st-id-facts dt { margin: 0; color: rgba(255, 255, 255, .5); font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.st-id-facts dd { margin: .15rem 0 0; font-weight: 600; }
+.st-id-login {
+  margin-top: .5rem; padding: 1.25rem 1.35rem; border-radius: 18px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08);
+}
+.st-id-login .account-form { display: grid; gap: .65rem; max-width: 360px; }
+
+@media (max-width: 720px) {
+  .st-att-hero { grid-template-columns: 1fr; }
+  .st-att-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .st-id-card { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+  .st-id-facts { text-align: left; }
+  .st-peer-card { grid-template-columns: auto 1fr; }
+  .st-peer-card .account-btn { grid-column: 1 / -1; }
+}
+
+@media print {
+  .account-side, .account-topbar, .st-id-login, .st-banner { display: none !important; }
+  .account-shell { display: block; }
+  .account-main { padding: 0; }
+  .st-id-card { box-shadow: none; border: 1px solid #19232b; }
+}

@@ -81,7 +81,8 @@ export type RuleCondition =
   | { op: "skill_acquisition_lte"; value: number }
   | { op: "mixed_performance"; equals: boolean }
   | { op: "assessed_subject_count_gte"; value: number }
-  | { op: "assessed_subject_count_lte"; value: number };
+  | { op: "assessed_subject_count_lte"; value: number }
+  | { op: "cocurricular_score_equals"; equals: number };
 
 export type RuleAction =
   | { op: "select_template_group"; group: string }
@@ -162,6 +163,8 @@ export type PerformanceProfile = {
   assessedSubjectCount: number;
   missingSubjectCount: number;
   overallPercent: number | null;
+  /** Rounded mean of assessed activity percents; null when no numeric marks. */
+  cocurricularScore: number | null;
   academicBand: CommentBandCode | null;
   cocurricularBand: CommentBandCode | null;
   subjectsByBand: Record<string, SubjectProfileRow[]>;
@@ -187,6 +190,8 @@ export type PerformanceProfile = {
 export type GeneratedUnit = {
   commentType: CommentType;
   subjectId: string | null;
+  /** When set, this cocurricular unit is the comment for one activity slot. */
+  activitySlot?: number | null;
   text: string | null;
   status: "draft" | "needs_review" | "failed";
   ruleIds: string[];

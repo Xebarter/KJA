@@ -105,7 +105,7 @@ export function refreshSubjectCatalogue() {
 
 /** True when the error means an academics SQL script hasn't been run yet. */
 export function missingAcademicsSchema(message: string | null | undefined) {
-  return Boolean(message && /teaching_staff|subjects|grade_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|does not exist|schema cache/i.test(message));
+  return Boolean(message && /teaching_staff|subjects|grade_bands|division_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|overall_aggregate|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|does not exist|schema cache/i.test(message));
 }
 export async function logAcademics(
   supabase: SupabaseClient,
@@ -151,15 +151,21 @@ export type SubjectRow = {
   default_skills: string[];
 };
 
-export type BandRow = {
-  id: string;
-  section: "nursery" | "primary";
-  label: string;
-  min_score: number;
-  max_score: number;
-  points: number;
-  sort_order: number;
-};
+export type {
+  BandRow,
+  DivisionBand,
+  DivisionTrack,
+} from "@/lib/grading-scale";
+export {
+  DEFAULT_DIVISION_BANDS,
+  bandMidpoint,
+  divisionFor,
+  divisionTrack,
+  gradeFor,
+  mapDivisionBand,
+  subjectAggregate,
+} from "@/lib/grading-scale";
+import type { BandRow } from "@/lib/grading-scale";
 
 export type StaffRow = {
   id: string;
@@ -345,19 +351,6 @@ function parseScale(rules: unknown): ScaleBand[] {
     bands.push({ label, min, max, sort: num(row.sort_order) ?? bands.length });
   }
   return bands.sort((a, b) => a.sort - b.sort).map(({ label, min, max }) => ({ label, min, max }));
-}
-
-export function gradeFor(bands: BandRow[], section: "nursery" | "primary", percent: number | null) {
-  if (percent === null) return null;
-  const match = bands
-    .filter((band) => band.section === section)
-    .sort((a, b) => a.sort_order - b.sort_order)
-    .find((band) => percent >= band.min_score && percent <= band.max_score);
-  return match ?? null;
-}
-
-export function bandMidpoint(band: BandRow) {
-  return Math.round(((band.min_score + band.max_score) / 2) * 10) / 10;
 }
 
 const SET_ORDER: Record<string, number> = { bot: 1, midterm: 2, test: 3, endterm: 4 };

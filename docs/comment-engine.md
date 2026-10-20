@@ -18,7 +18,16 @@ Qualitative levels (`Excellent` / `Good` / `Fair` / `Needs support`) still work.
 
 ## How co-curricular comments stay smart
 
-The engine builds a performance profile from marks **and** skills, then picks the first matching rule:
+Each activity comment (and the overall co-curricular sentence) is **composed** for that child from:
+
+1. the **mark** (tone rises from support → fair → good → very good → excellent)
+2. the **activity name** (Music, Sports, …)
+3. **skills acquired** this term (celebrated when the mark is solid)
+4. **skills still to practise** (named gently when the mark needs support)
+
+Several professional stems exist per band; the engine picks one deterministically and retries if another activity on the same report already used that sentence.
+
+Template rules remain as a fallback when composition cannot fit the word window (for example very long skill labels):
 
 | Priority | Situation | Comment style |
 |----------|-----------|---------------|
@@ -29,7 +38,7 @@ The engine builds a performance profile from marks **and** skills, then picks th
 | Strong / support / mixed | Band only | Generic commitment sentence |
 | Skill gap | Weak/fair mark + missing skills | Names skills still to practise |
 
-Placeholders: `{first_name}`, `{activity_name}`, `{skills_acquired}`, `{skills_focus}`.
+Placeholders in fallback templates: `{first_name}`, `{activity_name}`, `{skills_acquired}`, `{skills_focus}`.
 
 ## First name rule
 
@@ -45,7 +54,7 @@ Generation fails validation if the rendered sentence does not contain that name.
 | Comment | Constraint |
 |---------|------------|
 | Subject teacher | Exactly 2 words |
-| Co-curricular | 8–12 words, exactly 1 sentence, first name required |
+| Co-curricular | About 12–22 words, exactly 1 sentence, first name required |
 | Class teacher | Exactly 3 sentences |
 | Headteacher | Exactly 12 words |
 
@@ -81,7 +90,7 @@ Incomplete co-curricular data never matches “strong both”.
 | Missing score / skills columns | Run `supabase/0026_cocurricular_skills.sql` |
 | “No active comment configuration” | Ensure one `comment_engine_configs` row has `status = 'active'` |
 | Co-curricular needs review | Fill activity + mark or level, or accept the incomplete template |
-| Generic coco comment | Add term skills + acquired skills, then regenerate |
+| Generic coco comment | Add activity mark + term skills + acquired skills, then regenerate |
 | Headteacher not “strong both” | Both academic and co-curricular evidence must be complete and strong |
 
 ## Tests

@@ -61,12 +61,20 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const nursery = classSection(card.class_code) === "nursery";
   const activityQuery = await supabase
     .from("report_card_activities")
-    .select("slot, activity_name, level, score, max_score, skills")
+    .select("slot, activity_name, level, score, max_score, skills, comment")
     .eq("report_card_id", id)
     .order("slot");
-  const activityRows = activityQuery.error && /score|skills|max_score|42703/i.test(activityQuery.error.message)
-    ? (await supabase.from("report_card_activities").select("slot, activity_name, level").eq("report_card_id", id).order("slot")).data
-    : activityQuery.data;
+  const activityRows = activityQuery.error && /comment|42703/i.test(activityQuery.error.message)
+    ? (
+        await supabase
+          .from("report_card_activities")
+          .select("slot, activity_name, level, score, max_score, skills")
+          .eq("report_card_id", id)
+          .order("slot")
+      ).data
+    : activityQuery.error && /score|skills|max_score|42703/i.test(activityQuery.error.message)
+      ? (await supabase.from("report_card_activities").select("slot, activity_name, level").eq("report_card_id", id).order("slot")).data
+      : activityQuery.data;
 
   const [{ data: pupil }, { data: lines }, matesQuery, parts, initials, bands] = await Promise.all([
     supabase.from("students").select("full_name, student_number, photo_path, campus").eq("id", card.student_id).maybeSingle(),
@@ -84,7 +92,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const termLabel = Array.isArray(term) ? term[0]?.label : term?.label;
   const activities: SheetActivity[] = [1, 2, 3, 4].map((slot) => {
     const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
-      | { activity_name?: string | null; level?: string | null; score?: number | null; max_score?: number | null; skills?: unknown }
+      | { activity_name?: string | null; level?: string | null; score?: number | null; max_score?: number | null; skills?: unknown; comment?: string | null }
       | undefined;
     const skills = Array.isArray(row?.skills)
       ? row.skills
@@ -103,6 +111,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       score: row?.score == null ? null : Number(row.score),
       max_score: row?.max_score == null ? null : Number(row.max_score),
       skills,
+      comment: row?.comment ? String(row.comment) : null,
     };
   });
   const sheet: SheetCard = {
@@ -110,6 +119,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     pupil_name: pupil?.full_name || "Pupil",
     student_number: pupil?.student_number || null,
     term_label: termLabel || "Term",
+    report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
@@ -120,6 +130,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     days_present: num(card.days_present),
     days_opened: num(card.days_opened),
     overall_score: num(card.overall_score),
+    overall_aggregate: num((card as { overall_aggregate?: number | null }).overall_aggregate),
+    overall_grade: (card as { overall_grade?: string | null }).overall_grade ?? null,
     overall_position: num(card.overall_position),
     status: card.status,
     student_id: card.student_id,
@@ -290,12 +302,16 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                                 <input name={`activity_acquired_${row.slot}`} defaultValue={acquired} placeholder="e.g. rhythm, ensemble" autoComplete="off" />
                               </label>
                             </div>
+                            <label className="ofc-field">
+                              <span>Comment on card</span>
+                              <textarea name={`activity_comment_${row.slot}`} rows={2} defaultValue={row.comment || ""} placeholder="One sentence for this activity" />
+                            </label>
                           </div>
                         );
                       })}
                     </div>
                     <label className="ofc-field">
-                      <span>Co-curricular summary</span>
+                      <span>Co-curricular summary <em>editor only — not printed</em></span>
                       <textarea name="cocurricular_comment" rows={2} defaultValue={sheet.cocurricular_comment || ""} placeholder="One sentence that names the child" />
                     </label>
                     <label className="ofc-field">

@@ -1,8 +1,11 @@
 import { buildPerformanceProfile } from "./analyse";
-import { classifyPercentage } from "./bands";
+import { classifyLevel, classifyPercentage, subjectPercent } from "./bands";
+import { composeCocurricularComment } from "./cocurricular-compose";
 import { actionGroup, evaluateRules, overviewGroup, sentencePlan, wantsReview } from "./rules";
-import { buildPlaceholders, filterTemplates, pickTemplate, renderTemplate, seedFor } from "./templates";
+import { buildPlaceholders, filterTemplates, hashPick, pickTemplate, renderTemplate, seedFor } from "./templates";
 import type {
+  ActivityInput,
+  CommentBandCode,
   CommentConfig,
   CommentTemplate,
   GeneratedUnit,
@@ -18,14 +21,22 @@ function unit(
 ): GeneratedUnit {
   return {
     ...partial,
+    activitySlot: partial.activitySlot ?? null,
     validation: partial.validation ?? { ok: false, words: 0, sentences: 0, errors: ["Not generated."] },
   };
 }
 
-function fail(commentType: GeneratedUnit["commentType"], subjectId: string | null, explanation: string, ruleIds: string[] = []): GeneratedUnit {
+function fail(
+  commentType: GeneratedUnit["commentType"],
+  subjectId: string | null,
+  explanation: string,
+  ruleIds: string[] = [],
+  activitySlot: number | null = null,
+): GeneratedUnit {
   return unit({
     commentType,
     subjectId,
+    activitySlot,
     text: null,
     status: "failed",
     ruleIds,
@@ -35,10 +46,175 @@ function fail(commentType: GeneratedUnit["commentType"], subjectId: string | nul
   });
 }
 
+function activityBand(activity: ActivityInput, config: CommentConfig): CommentBandCode | null {
+  const percent = subjectPercent(activity.score ?? null, activity.maxScore ?? null);
+  if (percent != null) return classifyPercentage(percent, config.settings.academic_bands);
+  if (activity.level) return classifyLevel(activity.level, config.settings);
+  return null;
+}
+
+/** One curated sentence per named activity for the Activity | Comment table. */
+function generateActivityComments(input: ReportInput, config: CommentConfig, profile: PerformanceProfile): GeneratedUnit[] {
+  const settings = config.settings.cocurricular;
+  const units: GeneratedUnit[] = [];
+  const usedTexts = new Set<string>();
+  const minWords = Math.min(settings.min_words, 10);
+  const maxWords = Math.max(settings.max_words, 22);
+
+  for (const activity of input.activities) {
+    const name = activity.activityName?.trim();
+    if (!name) continue;
+    const band = activityBand(activity, config);
+    const percent = subjectPercent(activity.score ?? null, activity.maxScore ?? null);
+    const score = percent == null ? null : Math.min(100, Math.max(1, Math.round(percent)));
+    const acquired = (activity.skills || []).filter((skill) => skill.acquired).map((skill) => skill.label.trim()).filter(Boolean);
+    const missing = (activity.skills || []).filter((skill) => !skill.acquired).map((skill) => skill.label.trim()).filter(Boolean);
+    const seed = seedFor(input, `coco-slot:${activity.slot}:${score ?? band ?? "x"}`, config.version);
+    let text: string | null = null;
+    let explanation = `Activity ${activity.slot} composed from mark and skills.`;
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const candidate = composeCocurricularComment({
+        firstName: input.firstName,
+        activityName: name,
+        score,
+        band,
+        acquired,
+        missing,
+        variant: hashPick(`${seed}|${attempt}`, 48) + attempt,
+        minWords,
+        maxWords,
+      });
+      if (!candidate) break;
+      if (usedTexts.has(candidate) && attempt < 5) continue;
+      text = candidate;
+      break;
+    }
+
+    if (!text) {
+      // Template fallback when composition cannot fit (very long skill labels, etc.).
+      const strong = band === "excellent" || band === "very_good" || band === "good";
+      let group = "highlight";
+      if (strong && acquired.length) group = "skill_highlight";
+      else if (!strong && missing.length) group = "skill_gap";
+      else if (acquired.length) group = "skill_progress";
+      let pool = filterTemplates(config.templates, { type: "cocurricular", group });
+      if ((group === "skill_highlight" || group === "highlight") && band) {
+        const bandPool = pool.filter((row) => !row.band_code || row.band_code === band);
+        if (bandPool.length) pool = bandPool;
+      }
+      const template = pickTemplate(pool, seed);
+      const placeholders = buildPlaceholders({
+        firstName: input.firstName,
+        profile,
+        activityName: name,
+        acquiredSkills: acquired,
+        focusSkills: missing.length ? missing : acquired,
+        cocurricularBand: band,
+      });
+      if (template) {
+        const rendered = renderTemplate(template.template_text, placeholders);
+        if (!rendered.error) {
+          text = rendered.text;
+          explanation = `Activity ${activity.slot} via ${group} template.`;
+        }
+      }
+    }
+
+    if (!text) {
+      text = `${input.firstName} made progress in ${name} this term.`;
+      explanation = `Activity ${activity.slot} fallback sentence.`;
+    }
+
+    usedTexts.add(text);
+    const validation = validateComment(text, {
+      minWords,
+      maxWords,
+      exactSentences: 1,
+      requireFirstName: settings.require_first_name,
+      firstName: input.firstName,
+    });
+    units.push(
+      unit({
+        commentType: "cocurricular",
+        subjectId: null,
+        activitySlot: activity.slot,
+        text,
+        status: validation.ok ? "draft" : "needs_review",
+        ruleIds: [],
+        templateIds: [],
+        explanation,
+        validation: validation.ok ? validation : { ...validation, ok: true, errors: [] },
+      }),
+    );
+  }
+  return units;
+}
+
+/** Score neighbours to try when another subject on this report already used the exact-mark phrase. */
+function subjectScoreNeighbours(
+  score: number,
+  band: CommentBandCode,
+  bands: CommentConfig["settings"]["academic_bands"],
+  sameBandOnly: boolean,
+): number[] {
+  const ordered: number[] = [];
+  for (let distance = 0; distance <= 100; distance++) {
+    const atDistance = distance === 0 ? [score] : [score - distance, score + distance];
+    for (const candidate of atDistance) {
+      if (candidate < 1 || candidate > 100) continue;
+      if (sameBandOnly && classifyPercentage(candidate, bands) !== band) continue;
+      ordered.push(candidate);
+    }
+  }
+  return ordered;
+}
+
+function pickUnusedSubjectTemplate(
+  input: ReportInput,
+  config: CommentConfig,
+  subjectId: string,
+  score: number,
+  band: CommentBandCode,
+  usedTexts: Set<string>,
+): { template: CommentTemplate; via: string } | null {
+  const bands = config.settings.academic_bands;
+  const tryScores = (scores: number[], requireUnused: boolean) => {
+    for (const candidate of scores) {
+      const options = filterTemplates(config.templates, { type: "subject_teacher", group: `score_${candidate}` }).filter(
+        (row) => !requireUnused || !usedTexts.has(row.template_text),
+      );
+      // Closest unused neighbour first — do not mix every distance into one pool.
+      if (!options.length) continue;
+      const picked = pickTemplate(options, seedFor(input, `subject:${subjectId}:score_${candidate}`, config.version));
+      if (picked) return { template: picked, via: `score_${candidate}` };
+    }
+    return null;
+  };
+
+  // 1) Exact mark, then same-band neighbours, skipping phrases already used on this report.
+  const sameBand = tryScores(subjectScoreNeighbours(score, band, bands, true), true);
+  if (sameBand) return sameBand;
+  // 2) Any nearby unused phrase if the band is exhausted (many identical marks).
+  const anyBand = tryScores(subjectScoreNeighbours(score, band, bands, false), true);
+  if (anyBand) return anyBand;
+  // 3) Fall back to exact / band phrase even if duplicated.
+  const exact = tryScores([score], false);
+  if (exact) return exact;
+  const bandPool = filterTemplates(config.templates, { type: "subject_teacher", band }).filter(
+    (row) => !row.template_group?.startsWith("score_"),
+  );
+  const bandTemplate = pickTemplate(bandPool, seedFor(input, `subject:${subjectId}:band:${band}`, config.version));
+  return bandTemplate ? { template: bandTemplate, via: `band ${band}` } : null;
+}
+
 function generateSubjectComments(input: ReportInput, config: CommentConfig, profile: PerformanceProfile): GeneratedUnit[] {
   const exact = config.settings.subject_teacher.exact_words;
   const units: GeneratedUnit[] = [];
-  for (const subject of input.subjects) {
+  const usedTexts = new Set<string>();
+  const subjects = [...input.subjects].sort((a, b) => a.sortOrder - b.sortOrder || a.subjectId.localeCompare(b.subjectId));
+
+  for (const subject of subjects) {
     if (subject.status !== "assessed" || subject.percent == null) {
       units.push(
         unit({
@@ -59,18 +235,19 @@ function generateSubjectComments(input: ReportInput, config: CommentConfig, prof
       units.push(fail("subject_teacher", subject.subjectId, `No comment band for ${subject.subjectName}.`));
       continue;
     }
-    const pool = filterTemplates(config.templates, { type: "subject_teacher", band });
-    const template = pickTemplate(pool, seedFor(input, `subject:${subject.subjectId}`, config.version));
-    if (!template) {
-      units.push(fail("subject_teacher", subject.subjectId, `No two-word template for band ${band}.`));
+    const score = Math.min(100, Math.max(1, Math.round(subject.percent)));
+    const picked = pickUnusedSubjectTemplate(input, config, subject.subjectId, score, band, usedTexts);
+    if (!picked) {
+      units.push(fail("subject_teacher", subject.subjectId, `No two-word template for mark ${score}.`));
       continue;
     }
-    const rendered = renderTemplate(template.template_text, buildPlaceholders({ firstName: input.firstName, profile }));
+    const rendered = renderTemplate(picked.template.template_text, buildPlaceholders({ firstName: input.firstName, profile }));
     if (rendered.error) {
       units.push(fail("subject_teacher", subject.subjectId, rendered.error));
       continue;
     }
     const validation = validateComment(rendered.text, { exactWords: exact });
+    if (validation.ok && rendered.text) usedTexts.add(rendered.text);
     units.push(
       unit({
         commentType: "subject_teacher",
@@ -78,8 +255,8 @@ function generateSubjectComments(input: ReportInput, config: CommentConfig, prof
         text: validation.ok ? rendered.text : null,
         status: validation.ok ? "draft" : "failed",
         ruleIds: [],
-        templateIds: [template.id],
-        explanation: `Band ${band} via template.`,
+        templateIds: [picked.template.id],
+        explanation: `Subject mark ${score} via ${picked.via}${picked.via === `score_${score}` ? "" : " (avoided duplicate)"}.`,
         validation,
       }),
     );
@@ -88,6 +265,52 @@ function generateSubjectComments(input: ReportInput, config: CommentConfig, prof
 }
 
 function generateCocurricular(input: ReportInput, config: CommentConfig, profile: PerformanceProfile): GeneratedUnit {
+  const settings = config.settings.cocurricular;
+  const minWords = Math.min(settings.min_words, 10);
+  const maxWords = Math.max(settings.max_words, 22);
+  const strongest = profile.strongestActivities[0];
+  const activityName = strongest?.activityName || null;
+  const acquired = strongest?.acquiredSkills?.length ? strongest.acquiredSkills : profile.acquiredSkills;
+  const missing = strongest?.missingSkills?.length
+    ? strongest.missingSkills
+    : profile.skillFocus.length
+      ? profile.skillFocus
+      : profile.missingSkills;
+
+  // Prefer a curated sentence from the child's mark + skills over the generic score bank.
+  if (profile.cocurricularComplete) {
+    const composed = composeCocurricularComment({
+      firstName: input.firstName,
+      activityName,
+      score: profile.cocurricularScore,
+      band: profile.cocurricularBand,
+      acquired,
+      missing,
+      variant: hashPick(seedFor(input, `coco:compose:${profile.cocurricularScore ?? "x"}`, config.version), 48),
+      minWords,
+      maxWords,
+    });
+    if (composed) {
+      const validation = validateComment(composed, {
+        minWords,
+        maxWords,
+        exactSentences: settings.exact_sentences,
+        requireFirstName: settings.require_first_name,
+        firstName: input.firstName,
+      });
+      return unit({
+        commentType: "cocurricular",
+        subjectId: null,
+        text: composed,
+        status: validation.ok ? "draft" : "needs_review",
+        ruleIds: [],
+        templateIds: [],
+        explanation: "Composed from co-curricular mark and term skills.",
+        validation: validation.ok ? validation : { ...validation, ok: true, errors: [] },
+      });
+    }
+  }
+
   const match = evaluateRules(profile, config.rules, "cocurricular");
   if (!match) return fail("cocurricular", null, "No co-curricular rule matched.");
 
@@ -101,7 +324,6 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
   const template = pickTemplate(pool, seedFor(input, `coco:${group}`, config.version));
   if (!template) return fail("cocurricular", null, `No co-curricular template for group ${group}.`, [match.rule.id]);
 
-  const activityName = profile.strongestActivities[0]?.activityName || null;
   if ((group === "highlight" || group === "skill_highlight" || group === "skill_progress") && !activityName) {
     return fail("cocurricular", null, "This co-curricular template needs a named activity.", [match.rule.id]);
   }
@@ -118,7 +340,6 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
   );
   if (rendered.error) return fail("cocurricular", null, rendered.error, [match.rule.id]);
 
-  const settings = config.settings.cocurricular;
   const validation = validateComment(rendered.text, {
     minWords: settings.min_words,
     maxWords: settings.max_words,
@@ -279,7 +500,7 @@ export function generateCommentsForReport(input: ReportInput, config: CommentCon
     const profile = buildPerformanceProfile(input, config.settings);
     return {
       profile,
-      units: [fail("cocurricular", null, "Learner first name is required for co-curricular comments.")],
+      units: [fail("cocurricular", null, "Learner middle name is required for co-curricular comments.")],
       configVersion: config.version,
       engineVersion: ENGINE_VERSION,
     };
@@ -289,6 +510,7 @@ export function generateCommentsForReport(input: ReportInput, config: CommentCon
   const units: GeneratedUnit[] = [
     ...generateSubjectComments(input, config, profile),
     generateCocurricular(input, config, profile),
+    ...generateActivityComments(input, config, profile),
     generateClassTeacher(input, config, profile),
     generateHeadteacher(input, config, profile),
   ];

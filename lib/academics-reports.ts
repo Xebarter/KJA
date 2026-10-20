@@ -2,20 +2,25 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   assessmentSetKey,
   classSection,
+  divisionFor,
+  divisionTrack,
   gradeFor,
   isAcademicSubject,
   isCocurricularSubject,
   kindLabel,
   mapBand,
+  mapDivisionBand,
   mapSubject,
   num,
   planAssessmentSets,
   ranks,
   setsFromParts,
   streamOf,
+  subjectAggregate,
   subjectFits,
   weightedPercent,
   type BandRow,
+  type DivisionBand,
   type PlannedSet,
   type ReportPart,
   type ReportSet,
@@ -24,7 +29,10 @@ import {
 import { levelFromBand } from "@/lib/comment-engine/analyse";
 import { classifyPercentage, DEFAULT_SETTINGS } from "@/lib/comment-engine/bands";
 import { mergeActivitySkills, skillsFromJson } from "@/lib/comment-engine/skills";
+import { normaliseReportTitle } from "@/lib/report-title";
 import { fetchAll } from "@/lib/students";
+
+export { DEFAULT_REPORT_TITLE, normaliseReportTitle } from "@/lib/report-title";
 
 type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null };
 
@@ -136,12 +144,14 @@ export async function prepareClassReports(
     stream: string;
     /** When set, only these sittings are used, with the given shares of each subject. */
     sets?: { key: string; share: number }[];
+    /** Printed heading on the card. Omitted when re-preparing without regenerating. */
+    reportTitle?: string;
   },
 ) {
   const stream = streamOf(input.stream);
   const section = classSection(input.classCode);
 
-  const [pupils, subjects, bands, assessments, teacher, cards] = await Promise.all([
+  const [pupils, subjects, bands, divisions, assessments, teacher, cards] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
       supabase
         .from("student_directory")
@@ -153,6 +163,7 @@ export async function prepareClassReports(
     ),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("grade_bands").select("*").order("sort_order"),
+    supabase.from("division_bands").select("*").order("sort_order"),
     supabase
       .from("assessments")
       .select("id, subject_id, name, kind, max_score, weight")
@@ -186,6 +197,10 @@ export async function prepareClassReports(
   const academic = fitting.filter(isAcademicSubject);
   const cocurricular = fitting.filter(isCocurricularSubject).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)).slice(0, 4);
   const bandRows = ((bands.data || []) as Record<string, unknown>[]).map(mapBand);
+  const divisionRows: DivisionBand[] = divisions.error
+    ? []
+    : ((divisions.data || []) as Record<string, unknown>[]).map(mapDivisionBand);
+  const track = divisionTrack(academic.length);
   const allPapers = ((assessments.data || []) as Record<string, unknown>[]).map((row) => ({
     id: String(row.id),
     subject_id: String(row.subject_id),
@@ -283,7 +298,11 @@ export async function prepareClassReports(
     const overall = scored.length
       ? Math.round((scored.reduce((sum, line) => sum + (line.percent ?? 0), 0) / scored.length) * 10) / 10
       : null;
-    return { pupil, lines, present, overall };
+    const aggregate = section === "primary"
+      ? subjectAggregate(lines.map((line) => line.grade?.points ?? null))
+      : null;
+    const overallGrade = section === "primary" ? divisionFor(divisionRows, track, aggregate) : null;
+    return { pupil, lines, present, overall, aggregate, overallGrade };
   });
 
   const overallRank = ranks(results.filter((row) => row.overall !== null).map((row) => ({ id: row.pupil.id, value: row.overall as number })));
@@ -309,6 +328,7 @@ export async function prepareClassReports(
   if (!drafts.length) return { prepared: 0 };
 
   const now = new Date().toISOString();
+  const reportTitle = input.reportTitle !== undefined ? normaliseReportTitle(input.reportTitle) : undefined;
   const savedCards = await writeChunks(
     drafts.map((row) => ({
       student_id: row.pupil.id,
@@ -320,9 +340,18 @@ export async function prepareClassReports(
       days_opened: opened.size,
       overall_score: row.overall,
       overall_position: overallRank.get(row.pupil.id) ?? null,
+      overall_aggregate: row.aggregate,
+      overall_grade: row.overallGrade,
+      ...(reportTitle !== undefined ? { report_title: reportTitle } : {}),
       updated_at: now,
     })),
-    (slice) => supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }).select("id, student_id"),
+    async (slice) => {
+      const withAgg = await supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }).select("id, student_id");
+      if (!withAgg.error) return withAgg;
+      if (!/overall_aggregate|overall_grade|schema cache/i.test(withAgg.error.message)) return withAgg;
+      const legacy = slice.map(({ overall_aggregate: _a, overall_grade: _g, ...row }) => row);
+      return supabase.from("report_cards").upsert(legacy, { onConflict: "student_id,term_id" }).select("id, student_id");
+    },
   );
   const cardId = new Map(savedCards.map((card) => [String(card.student_id), String(card.id)]));
   const cardIds = [...cardId.values()];
@@ -382,6 +411,19 @@ export async function prepareClassReports(
   }
 
   if (cocurricular.length) {
+    const draftIds = drafts.map((row) => cardId.get(row.pupil.id)).filter((id): id is string => Boolean(id));
+    const priorComments = new Map<string, string | null>();
+    if (draftIds.length) {
+      const { data: priorRows, error: priorError } = await supabase
+        .from("report_card_activities")
+        .select("report_card_id, slot, comment")
+        .in("report_card_id", draftIds);
+      if (!priorError && priorRows) {
+        for (const row of priorRows) {
+          priorComments.set(`${row.report_card_id}:${row.slot}`, (row.comment as string | null) ?? null);
+        }
+      }
+    }
     const activities: Record<string, unknown>[] = [];
     for (const row of drafts) {
       const id = cardId.get(row.pupil.id);
@@ -410,15 +452,17 @@ export async function prepareClassReports(
         const skillRows = taught.length || acquired.length
           ? mergeActivitySkills(taught.length ? taught : acquired, acquired)
           : [];
+        const slot = index + 1;
         activities.push({
           report_card_id: id,
-          slot: index + 1,
+          slot,
           subject_id: subject.id,
           activity_name: subject.name,
           level,
           score: percent,
           max_score: percent === null ? null : 100,
           skills: skillRows,
+          comment: priorComments.get(`${id}:${slot}`) ?? null,
         });
       });
       for (let slot = cocurricular.length + 1; slot <= 4; slot += 1) {
@@ -431,12 +475,16 @@ export async function prepareClassReports(
           score: null,
           max_score: null,
           skills: [],
+          comment: null,
         });
       }
     }
     if (activities.length) {
       const { error: activityError } = await supabase.from("report_card_activities").upsert(activities, { onConflict: "report_card_id,slot" });
       if (activityError) {
+        if (/comment|42703/i.test(activityError.message)) {
+          throw new Error(`${activityError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
+        }
         if (/subject_id|skills|score|max_score|42703/i.test(activityError.message)) {
           throw new Error(`${activityError.message}. Run supabase/0026_cocurricular_skills.sql and supabase/0027_cocurricular_subjects.sql in the Supabase SQL editor.`);
         }

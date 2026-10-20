@@ -108,7 +108,10 @@ export async function applyGeneration(
   const subjectComments = result.units.filter((unit) => unit.commentType === "subject_teacher" && unit.text);
   const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
   const headUnit = result.units.find((unit) => unit.commentType === "headteacher");
-  const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular");
+  const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
+  const activityComments = result.units.filter(
+    (unit) => unit.commentType === "cocurricular" && unit.activitySlot && unit.text,
+  );
 
   const cardPatch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (classUnit?.text) cardPatch.class_teacher_comment = classUnit.text;
@@ -140,6 +143,37 @@ export async function applyGeneration(
     if (updates.length) {
       const { error: saveError } = await supabase.from("report_lines").upsert(updates, { onConflict: "report_card_id,subject_id" });
       if (saveError) throw new Error(saveError.message);
+    }
+  }
+
+  if (activityComments.length) {
+    const { data: rows, error: activityError } = await supabase
+      .from("report_card_activities")
+      .select("slot, activity_name, level, score, max_score, skills, subject_id")
+      .eq("report_card_id", reportId);
+    if (activityError) {
+      if (/comment|42703/i.test(activityError.message)) {
+        throw new Error(`${activityError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
+      }
+      throw new Error(activityError.message);
+    }
+    const bySlot = new Map((rows || []).map((row) => [Number(row.slot), row]));
+    const updates = activityComments
+      .filter((unit) => unit.activitySlot && bySlot.has(unit.activitySlot))
+      .map((unit) => ({
+        ...bySlot.get(unit.activitySlot!),
+        report_card_id: reportId,
+        slot: unit.activitySlot,
+        comment: unit.text,
+      }));
+    if (updates.length) {
+      const { error: saveError } = await supabase.from("report_card_activities").upsert(updates, { onConflict: "report_card_id,slot" });
+      if (saveError) {
+        if (/comment|42703/i.test(saveError.message)) {
+          throw new Error(`${saveError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
+        }
+        throw new Error(saveError.message);
+      }
     }
   }
 
@@ -226,6 +260,7 @@ export async function generateClassReportComments(
   const writtenIds: string[] = [];
   const cardWrites: Record<string, unknown>[] = [];
   const lineWrites: Record<string, unknown>[] = [];
+  const activityWrites: Record<string, unknown>[] = [];
   const provenance: Record<string, unknown>[] = [];
   const audits: Record<string, unknown>[] = [];
   let skipped = 0;
@@ -250,7 +285,7 @@ export async function generateClassReportComments(
     const messages: string[] = [];
     const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
     const headUnit = result.units.find((unit) => unit.commentType === "headteacher");
-    const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular");
+    const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
     if (cocoUnit && !cocoUnit.text && (cocoUnit.status === "needs_review" || cocoUnit.status === "failed")) {
       messages.push(...(cocoUnit.validation.errors.length ? cocoUnit.validation.errors : [cocoUnit.explanation]));
     }
@@ -264,6 +299,7 @@ export async function generateClassReportComments(
       updated_at: now,
     });
     const knownLines = new Map(cardLines.map((line) => [String(line.subject_id), line]));
+    const knownActivities = new Map((activitiesByCard.get(reportId) || []).map((row) => [Number(row.slot), row]));
     for (const unit of result.units) {
       if (unit.commentType === "subject_teacher" && unit.text && unit.subjectId && knownLines.has(unit.subjectId)) {
         const line = knownLines.get(unit.subjectId);
@@ -272,6 +308,19 @@ export async function generateClassReportComments(
           subject_id: unit.subjectId,
           subject_name: String(line?.subject_name || "Subject"),
           teacher_comment: unit.text,
+        });
+      }
+      if (unit.commentType === "cocurricular" && unit.activitySlot && unit.text && knownActivities.has(unit.activitySlot)) {
+        const row = knownActivities.get(unit.activitySlot);
+        activityWrites.push({
+          report_card_id: reportId,
+          slot: unit.activitySlot,
+          activity_name: row?.activity_name ?? null,
+          level: row?.level ?? null,
+          score: "score" in (row || {}) ? (row as { score?: unknown }).score ?? null : null,
+          max_score: "max_score" in (row || {}) ? (row as { max_score?: unknown }).max_score ?? null : null,
+          skills: "skills" in (row || {}) ? (row as { skills?: unknown }).skills ?? [] : [],
+          comment: unit.text,
         });
       }
       if (unit.commentType === "subject_teacher" && !unit.text && unit.status === "draft") continue;
@@ -290,6 +339,17 @@ export async function generateClassReportComments(
   }
   if (lineWrites.length) {
     await writeRows(lineWrites, (slice) => supabase.from("report_lines").upsert(slice, { onConflict: "report_card_id,subject_id" }));
+  }
+  if (activityWrites.length) {
+    try {
+      await writeRows(activityWrites, (slice) => supabase.from("report_card_activities").upsert(slice, { onConflict: "report_card_id,slot" }));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/comment|42703/i.test(message)) {
+        throw new Error(`${message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
+      }
+      throw error;
+    }
   }
   await replaceProvenance(supabase, writtenIds, provenance, audits);
 

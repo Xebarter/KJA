@@ -87,7 +87,7 @@ export function ChildrenView({
             return (
               <article className="ch-card" key={child.id}>
                 <header className="ch-card-head">
-                  <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path} className="ch-avatar" />
+                  <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path || undefined} className="ch-avatar" />
                   <div className="ch-card-name">
                     <h2>{child.full_name}</h2>
                     <p>{subtitle || "On the school register"}</p>
@@ -138,7 +138,7 @@ export function ChildrenView({
                 {child.portal_enabled ? (
                   <p className="st-portal-note">
                     <i className="fa-solid fa-laptop" aria-hidden="true" />
-                    <span>Student portal is on — they can view homework and message classmates. Message content is reviewed by school staff, not shown here.</span>
+                    <span>Student portal is on — homework, attendance, clubs, class directory and classmate messaging. Message content is reviewed by school staff, not shown here.</span>
                   </p>
                 ) : null}
 

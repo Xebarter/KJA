@@ -142,7 +142,7 @@ export default async function AccountHomePage() {
               <div className="ov-children">
                 {portal.pupils.map((child) => (
                   <article className="ov-child" key={child.id}>
-                    <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path} className="ov-child-avatar" />
+                    <StudentFace id={child.id} name={child.full_name} photoPath={child.photo_path || undefined} className="ov-child-avatar" />
                     <div className="ov-child-text">
                       <strong>{child.full_name}</strong>
                       <span>{[child.grade, child.campus ? `${child.campus} campus` : ""].filter(Boolean).join(" · ") || "On the school register"}</span>

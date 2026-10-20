@@ -61,7 +61,16 @@ export default async function ReportPreviewPage({ searchParams }: { searchParams
         actions={<Link className="admin-hero-btn" href={back}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back to class</Link>}
       />
       <section className="rpt-card" aria-label={`${classLabel(classCode, stream)} report cards`}>
-        <StreamReportBar className="rpt-actions rpt-preview-bar" termId={term.id} classCode={classCode} stream={stream} drafts={drafts} cards={cards.length} sittings={sittings} />
+        <StreamReportBar
+          className="rpt-actions rpt-preview-bar"
+          termId={term.id}
+          classCode={classCode}
+          stream={stream}
+          drafts={drafts}
+          cards={cards.length}
+          sittings={sittings}
+          reportTitle={cards.find((card) => card.report_title)?.report_title}
+        />
         {cards.length ? (
           <div className="rpt-preview">
             {cards.map((card) => (

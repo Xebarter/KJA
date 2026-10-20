@@ -37,6 +37,8 @@ function conditionMet(condition: RuleCondition, profile: PerformanceProfile): bo
       return profile.assessedSubjectCount >= condition.value;
     case "assessed_subject_count_lte":
       return profile.assessedSubjectCount <= condition.value;
+    case "cocurricular_score_equals":
+      return profile.cocurricularScore != null && profile.cocurricularScore === condition.equals;
     default:
       return false;
   }

@@ -28,6 +28,7 @@ const STATUS: Record<string, string> = {
   "Mark done": "Updating the record",
   "Open intervention": "Opening the intervention",
   Approve: "Approving",
+  "Download PDF": "Building report cards",
 };
 
 function phrase(label: string) {

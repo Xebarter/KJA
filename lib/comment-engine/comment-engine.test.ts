@@ -38,11 +38,14 @@ function sampleInput(over: Partial<ReportInput> = {}): ReportInput {
 }
 
 describe("learnerFirstName", () => {
-  it("prefers preferred_name", () => {
-    expect(learnerFirstName({ full_name: "Nakato Amina Grace", preferred_name: "Ami" })).toBe("Ami");
+  it("uses the middle name from Surname Given Names", () => {
+    expect(learnerFirstName({ full_name: "Nakato Amina Grace", preferred_name: "Ami" })).toBe("Grace");
   });
-  it("uses first given name from Surname Given Names", () => {
-    expect(learnerFirstName({ full_name: "Nakato Amina Grace" })).toBe("Amina");
+  it("uses the middle name from given_names", () => {
+    expect(learnerFirstName({ given_names: "Amina Grace" })).toBe("Grace");
+  });
+  it("falls back to the only given name when there is no middle name", () => {
+    expect(learnerFirstName({ full_name: "Nakato Amina" })).toBe("Amina");
   });
 });
 
@@ -111,6 +114,57 @@ describe("analysis", () => {
 describe("generateCommentsForReport", () => {
   const config = defaultCommentConfig();
 
+  it("assigns a unique two-word teacher's comment for every mark from 1 to 100", () => {
+    const seen = new Set<string>();
+    for (let mark = 1; mark <= 100; mark++) {
+      const result = generateCommentsForReport(
+        sampleInput({
+          subjects: [
+            {
+              subjectId: "math",
+              subjectName: "Mathematics",
+              score: mark,
+              maxScore: 100,
+              percent: mark,
+              status: "assessed",
+              sortOrder: 1,
+            },
+          ],
+          activities: [1, 2, 3, 4].map((slot) => ({ slot, activityName: null, level: null })),
+        }),
+        config,
+      );
+      const subject = result.units.find((unit) => unit.commentType === "subject_teacher" && unit.text);
+      expect(subject?.text).toBeTruthy();
+      expect(countWords(subject!.text!)).toBe(2);
+      expect(subject!.explanation).toContain(`score_${mark}`);
+      seen.add(subject!.text!);
+    }
+    expect(seen.size).toBe(100);
+  });
+
+  it("gives different teacher's comments when two subjects share the same total", () => {
+    const result = generateCommentsForReport(
+      sampleInput({
+        subjects: [
+          { subjectId: "math", subjectName: "Mathematics", score: 85, maxScore: 100, percent: 85, status: "assessed", sortOrder: 1 },
+          { subjectId: "eng", subjectName: "English", score: 85, maxScore: 100, percent: 85, status: "assessed", sortOrder: 2 },
+          { subjectId: "sci", subjectName: "Science", score: 85, maxScore: 100, percent: 85, status: "assessed", sortOrder: 3 },
+        ],
+        activities: [1, 2, 3, 4].map((slot) => ({ slot, activityName: null, level: null })),
+      }),
+      config,
+    );
+    const subjects = result.units.filter((unit) => unit.commentType === "subject_teacher" && unit.text);
+    expect(subjects).toHaveLength(3);
+    const texts = subjects.map((unit) => unit.text!);
+    expect(new Set(texts).size).toBe(3);
+    for (const text of texts) expect(countWords(text)).toBe(2);
+    expect(subjects[0].explanation).toContain("score_85");
+    expect(subjects[1].explanation).toMatch(/avoided duplicate/);
+    expect(subjects[2].explanation).toMatch(/avoided duplicate/);
+  });
+
   it("produces two-word subject comments and first-name co-curricular", () => {
     const result = generateCommentsForReport(sampleInput(), config);
     const subjects = result.units.filter((unit) => unit.commentType === "subject_teacher" && unit.text);
@@ -119,10 +173,16 @@ describe("generateCommentsForReport", () => {
       expect(countWords(unit.text!)).toBe(2);
       expect(unit.validation.ok).toBe(true);
     }
-    const coco = result.units.find((unit) => unit.commentType === "cocurricular");
+    const coco = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
     expect(coco?.text).toBeTruthy();
     expect(containsFirstName(coco!.text!, "Amina")).toBe(true);
     expect(coco!.validation.ok).toBe(true);
+    const activityUnits = result.units.filter((unit) => unit.commentType === "cocurricular" && unit.activitySlot);
+    expect(activityUnits.length).toBe(2);
+    for (const unit of activityUnits) {
+      expect(unit.text).toBeTruthy();
+      expect(containsFirstName(unit.text!, "Amina")).toBe(true);
+    }
   });
 
   it("produces exactly three class-teacher sentences and twelve headteacher words", () => {
@@ -157,12 +217,24 @@ describe("generateCommentsForReport", () => {
     expect(head?.text?.toLowerCase()).not.toContain("deserves our warm congratulations");
   });
 
-  it("names acquired skills in co-curricular comments when marks are strong", () => {
+  it("curates co-curricular comments from the mark, activity, and skills", () => {
     const result = generateCommentsForReport(sampleInput(), config);
-    const coco = result.units.find((unit) => unit.commentType === "cocurricular");
+    const coco = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
     expect(coco?.validation.ok).toBe(true);
-    expect(coco?.text?.toLowerCase()).toMatch(/rhythm|ensemble|music/);
     expect(containsFirstName(coco!.text!, "Amina")).toBe(true);
+    expect(coco?.text?.toLowerCase()).toMatch(/music|rhythm|ensemble|co-curricular/);
+    expect(coco?.explanation).toMatch(/mark and term skills|composed/i);
+
+    const music = result.units.find((unit) => unit.activitySlot === 1);
+    expect(music?.validation.ok).toBe(true);
+    expect(containsFirstName(music!.text!, "Amina")).toBe(true);
+    expect(music?.text?.toLowerCase()).toContain("music");
+    expect(music?.text?.toLowerCase()).toMatch(/rhythm|ensemble/);
+    expect(music?.explanation).toMatch(/composed|mark and skills/i);
+
+    const sports = result.units.find((unit) => unit.activitySlot === 2);
+    expect(sports?.text?.toLowerCase()).toContain("sports");
+    expect(sports?.text).not.toEqual(music?.text);
   });
 
   it("names skill gaps when the mark is weak", () => {
@@ -187,9 +259,10 @@ describe("generateCommentsForReport", () => {
       }),
       config,
     );
-    const coco = result.units.find((unit) => unit.commentType === "cocurricular");
-    expect(coco?.validation.ok).toBe(true);
-    expect(coco?.text?.toLowerCase()).toMatch(/rhythm|notation|practice|working/);
+    const music = result.units.find((unit) => unit.activitySlot === 1);
+    expect(music?.text).toBeTruthy();
+    expect(music?.text?.toLowerCase()).toContain("music");
+    expect(music?.text?.toLowerCase()).toMatch(/rhythm|notation/);
   });
 });
 

@@ -94,14 +94,24 @@ export function buildSamplePreview(config: CommentConfig): CommentPreview {
   const subjects = result.units
     .filter((unit) => unit.commentType === "subject_teacher" && (unit.text || unit.status === "failed"))
     .map((unit) => lineFrom(unit, names.get(unit.subjectId || "") || "Subject"));
-  const take = (type: GeneratedUnit["commentType"]) => result.units.find((unit) => unit.commentType === type);
+  const take = (type: GeneratedUnit["commentType"]) =>
+    result.units.find((unit) => unit.commentType === type && !unit.activitySlot);
   const sections: CommentPreview["sections"] = [
     { id: "subject_teacher", title: "Subjects", lines: subjects },
   ];
+  const activityNames = new Map(
+    SAMPLE_REPORT.activities
+      .filter((activity) => activity.activityName)
+      .map((activity) => [activity.slot, activity.activityName!]),
+  );
+  const activityLines = result.units
+    .filter((unit) => unit.commentType === "cocurricular" && unit.activitySlot && (unit.text || unit.status === "failed"))
+    .map((unit) => lineFrom(unit, activityNames.get(unit.activitySlot!) || `Activity ${unit.activitySlot}`));
   const coco = take("cocurricular");
   const klass = take("class_teacher");
   const head = take("headteacher");
-  if (coco) sections.push({ id: "cocurricular", title: "Co-curricular", lines: [lineFrom(coco, null)] });
+  if (activityLines.length) sections.push({ id: "cocurricular", title: "Co-curricular activities", lines: activityLines });
+  else if (coco) sections.push({ id: "cocurricular", title: "Co-curricular", lines: [lineFrom(coco, null)] });
   if (klass) sections.push({ id: "class_teacher", title: "Class teacher", lines: [lineFrom(klass, null)] });
   if (head) sections.push({ id: "headteacher", title: "Headteacher", lines: [lineFrom(head, null)] });
 

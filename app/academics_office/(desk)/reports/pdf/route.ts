@@ -1,9 +1,11 @@
-import { classLabel, classSection, loadCurrentTerm, requireAcademics, streamFromQuery } from "@/lib/academics";
-import { loadCrest, pdfResponse } from "@/lib/accounts-pdf";
-import { buildReportCardsPdf, loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
+import { ACADEMICS_BASE, loadCurrentTerm, requireAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { pdfResponse } from "@/lib/accounts-pdf";
+import { loadStreamReportCards } from "@/lib/report-cards-pdf";
+import { buildReportCardsPdfFromPrintPack } from "@/lib/report-cards-print-pdf";
 import { isClassCode } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300;
 
 export async function GET(request: Request) {
   const auth = await requireAcademics();
@@ -24,15 +26,22 @@ export async function GET(request: Request) {
       termLabel: termPack.term.label,
     });
     if (!cards.length) return new Response("Generate the report cards before downloading them.", { status: 404 });
-    const bytes = await buildReportCardsPdf(
-      { title: classLabel(classCode, stream), nursery: classSection(classCode) === "nursery", cards },
-      await loadCrest(request.url),
-      await loadReportCardPhotos(cards),
-      new URL(request.url).origin,
-    );
+    const bytes = await buildReportCardsPdfFromPrintPack({
+      origin: url.origin,
+      cookieHeader: request.headers.get("cookie"),
+      classCode,
+      stream,
+    });
     return pdfResponse(bytes, `${classCode}-${stream || "class"}-report-cards.pdf`, false);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't build the report cards.";
+    // Fall back to the same HTML sheets so staff can still Save as PDF from print.
+    if (/Chrome|Edge|browser|playwright/i.test(message)) {
+      const print = new URL(`${ACADEMICS_BASE}/reports/print`, url.origin);
+      print.searchParams.set("class", classCode);
+      print.searchParams.set("stream", streamQuery(stream));
+      return Response.redirect(print, 302);
+    }
     return new Response(message, { status: 500 });
   }
 }

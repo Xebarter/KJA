@@ -19,8 +19,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!isUuid(id)) return notFound();
   const supabase = await createClient();
   if (!supabase) return notFound();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return notFound();
+  // Prefer local JWT verification so each avatar doesn't wait on a Supabase Auth round trip.
+  const { data: claims } = await supabase.auth.getClaims();
+  const userId = typeof claims?.claims?.sub === "string" ? claims.claims.sub : null;
+  if (!userId) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return notFound();
+  }
 
   const { data: student } = await supabase.from("students").select("photo_path").eq("id", id).maybeSingle();
   const path = typeof student?.photo_path === "string" ? student.photo_path : "";

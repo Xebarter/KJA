@@ -4,7 +4,11 @@ import { classLabel as academicsClassLabel } from "@/lib/academics";
 import {
   classLabel,
   displayName,
+  type StudentAcademicDate,
+  type StudentAttendanceDay,
+  type StudentAttendanceSummary,
   type StudentClassmate,
+  type StudentClub,
   type StudentHomework,
   type StudentLesson,
   type StudentMessage,
@@ -12,6 +16,7 @@ import {
   type StudentProfileRow,
   type StudentReport,
   type StudentSelf,
+  type StudentTeacher,
 } from "@/lib/student";
 import type { Article } from "@/lib/types";
 
@@ -37,6 +42,35 @@ function weekdayKampala(date = new Date()) {
   return day === 0 ? 7 : day;
 }
 
+const emptyAttendance: StudentAttendanceSummary = {
+  present: 0,
+  late: 0,
+  absent: 0,
+  excused: 0,
+  total: 0,
+  percent: 0,
+  recent: [],
+};
+
+function summarizeAttendance(days: StudentAttendanceDay[]): StudentAttendanceSummary {
+  const present = days.filter((d) => d.status === "present").length;
+  const late = days.filter((d) => d.status === "late").length;
+  const absent = days.filter((d) => d.status === "absent").length;
+  const excused = days.filter((d) => d.status === "excused").length;
+  const total = days.length;
+  const counted = present + late;
+  const percent = total ? Math.round((counted / total) * 100) : 0;
+  return {
+    present,
+    late,
+    absent,
+    excused,
+    total,
+    percent,
+    recent: [...days].sort((a, b) => b.attended_on.localeCompare(a.attended_on)).slice(0, 14),
+  };
+}
+
 export async function getStudentPortal() {
   const empty = {
     user: null as { id: string } | null,
@@ -50,9 +84,15 @@ export async function getStudentPortal() {
     lessonsToday: [] as StudentLesson[],
     reports: [] as StudentReport[],
     events: [] as Article[],
+    attendance: emptyAttendance,
+    clubs: [] as StudentClub[],
+    teachers: [] as StudentTeacher[],
+    classTeacher: null as StudentTeacher | null,
+    academicDates: [] as StudentAcademicDate[],
     mustResetPassword: false,
     displayName: "Student",
     classLabel: "",
+    termLabel: null as string | null,
   };
 
   const { user, supabase } = await getStudentSession();
@@ -68,11 +108,22 @@ export async function getStudentPortal() {
 
   const studentRes = await supabase
     .from("students")
-    .select("id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id")
+    .select("id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id, house, sex")
     .eq("profile_id", user.id)
     .maybeSingle();
 
-  const student = studentRes.data as StudentSelf | null;
+  let student = studentRes.data as StudentSelf | null;
+  if (studentRes.error && /house|sex/i.test(studentRes.error.message)) {
+    const fallback = await supabase
+      .from("students")
+      .select("id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id")
+      .eq("profile_id", user.id)
+      .maybeSingle();
+    student = fallback.data
+      ? ({ ...fallback.data, house: null, sex: null } as StudentSelf)
+      : null;
+  }
+
   if (!student) {
     return {
       ...empty,
@@ -83,7 +134,7 @@ export async function getStudentPortal() {
     };
   }
 
-  const termRes = await supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle();
+  const termRes = await supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle();
   const termId = termRes.data?.id as string | undefined;
   const todayWeekday = weekdayKampala();
 
@@ -92,10 +143,30 @@ export async function getStudentPortal() {
     ? classmateIdsRes.data.map((id: unknown) => String(id)).filter(Boolean)
     : [];
 
-  const [classmateRows, homeworkRows, completions, notifications, slots, subjects, cardRows, content] = await Promise.all([
+  const [
+    classmateRows,
+    homeworkRows,
+    completions,
+    notifications,
+    slots,
+    subjects,
+    cardRows,
+    content,
+    attendanceRows,
+    consentRows,
+    clubRows,
+    paymentRows,
+    classTeacherRows,
+    subjectTeacherRows,
+    academicDateRows,
+  ] = await Promise.all([
     classmateIdList.length
       ? rows<StudentClassmate>(
-          supabase.from("students").select("id, full_name, preferred_name, photo_path").in("id", classmateIdList).order("full_name"),
+          supabase
+            .from("students")
+            .select("id, full_name, preferred_name, photo_path, house")
+            .in("id", classmateIdList)
+            .order("full_name"),
         )
       : Promise.resolve([] as StudentClassmate[]),
     termId
@@ -155,9 +226,71 @@ export async function getStudentPortal() {
         .order("published_at", { ascending: false }),
     ),
     getContent(),
+    termId
+      ? rows<StudentAttendanceDay>(
+          supabase
+            .from("attendance")
+            .select("attended_on, status")
+            .eq("student_id", student.id)
+            .eq("term_id", termId)
+            .order("attended_on", { ascending: false }),
+        )
+      : Promise.resolve([]),
+    rows<{ id: string; club_id: string; consented_at: string }>(
+      supabase
+        .from("club_consents")
+        .select("id, club_id, consented_at")
+        .eq("student_id", student.id)
+        .is("withdrawn_at", null)
+        .order("consented_at", { ascending: false }),
+    ),
+    rows<{ id: string; title: string; campus: string | null; meeting: string | null; description: string | null }>(
+      supabase.from("clubs").select("id, title, campus, meeting, description").eq("published", true).order("title"),
+    ),
+    termId
+      ? rows<{ club_id: string }>(
+          supabase
+            .from("club_payments")
+            .select("club_id")
+            .eq("student_id", student.id)
+            .eq("term_id", termId)
+            .is("voided_at", null),
+        )
+      : Promise.resolve([]),
+    termId && student.class_code
+      ? rows<{ staff_id: string }>(
+          supabase
+            .from("class_teachers")
+            .select("staff_id")
+            .eq("term_id", termId)
+            .eq("class_code", student.class_code)
+            .eq("stream", student.stream || ""),
+        )
+      : Promise.resolve([]),
+    termId && student.class_code
+      ? rows<{ staff_id: string; subject_id: string }>(
+          supabase
+            .from("subject_teachers")
+            .select("staff_id, subject_id")
+            .eq("term_id", termId)
+            .eq("class_code", student.class_code)
+            .eq("stream", student.stream || ""),
+        )
+      : Promise.resolve([]),
+    termId
+      ? rows<StudentAcademicDate>(
+          supabase
+            .from("academic_dates")
+            .select("id, title, kind, starts_on, ends_on, campus, note")
+            .eq("term_id", termId)
+            .order("starts_on"),
+        )
+      : Promise.resolve([]),
   ]);
 
-  const classmates = classmateRows.filter((row) => row.id !== student.id);
+  const classmates = classmateRows
+    .filter((row) => row.id !== student.id)
+    .map((row) => ({ ...row, house: row.house ?? null }));
 
   const doneMap = new Map(completions.map((row) => [row.assignment_id, row.done_at]));
   const subjectName = new Map(subjects.map((row) => [row.id, row.name]));
@@ -192,9 +325,77 @@ export async function getStudentPortal() {
     .filter((event) => event.starts_on)
     .sort((a, b) => String(a.starts_on).localeCompare(String(b.starts_on)));
 
-  // Unread messages: messages from others in my conversations after a simple heuristic —
-  // count messages not from me in the last load window; proper read receipts are out of v1,
-  // so we approximate with notifications of kind "messages" unread + recent inbound.
+  const attendance = summarizeAttendance(
+    attendanceRows.map((row) => ({
+      attended_on: row.attended_on,
+      status: row.status as StudentAttendanceDay["status"],
+    })),
+  );
+
+  const paidClubs = new Set(paymentRows.map((row) => row.club_id));
+  const clubById = new Map(clubRows.map((row) => [row.id, row]));
+  const clubs: StudentClub[] = consentRows
+    .map((consent) => {
+      const club = clubById.get(consent.club_id);
+      if (!club) return null;
+      return {
+        id: consent.id,
+        club_id: club.id,
+        title: club.title,
+        campus: club.campus,
+        meeting: club.meeting,
+        description: club.description,
+        consented_at: consent.consented_at,
+        paid: paidClubs.has(club.id),
+      };
+    })
+    .filter(Boolean) as StudentClub[];
+
+  const staffIds = [
+    ...new Set([
+      ...classTeacherRows.map((row) => row.staff_id),
+      ...subjectTeacherRows.map((row) => row.staff_id),
+    ]),
+  ];
+  const staffRows = staffIds.length
+    ? await rows<{ id: string; full_name: string; title: string | null }>(
+        supabase.from("teaching_staff").select("id, full_name, title").in("id", staffIds).eq("active", true),
+      )
+    : [];
+  const staffById = new Map(staffRows.map((row) => [row.id, row]));
+
+  const classTeacherStaff = classTeacherRows[0] ? staffById.get(classTeacherRows[0].staff_id) : null;
+  const classTeacher: StudentTeacher | null = classTeacherStaff
+    ? {
+        id: classTeacherStaff.id,
+        full_name: classTeacherStaff.full_name,
+        title: classTeacherStaff.title,
+        subject_name: null,
+        role: "class",
+      }
+    : null;
+
+  const teachers: StudentTeacher[] = subjectTeacherRows
+    .map((row) => {
+      const staff = staffById.get(row.staff_id);
+      if (!staff) return null;
+      return {
+        id: `${staff.id}:${row.subject_id}`,
+        full_name: staff.full_name,
+        title: staff.title,
+        subject_name: subjectName.get(row.subject_id) || "Subject",
+        role: "subject" as const,
+      };
+    })
+    .filter(Boolean) as StudentTeacher[];
+
+  const academicDates = academicDateRows
+    .filter((row) => !row.campus || !student.campus || row.campus === student.campus || /all/i.test(row.campus))
+    .map((row) => ({
+      ...row,
+      kind: row.kind as StudentAcademicDate["kind"],
+    }));
+
   let unreadMessages = 0;
   const convRes = await supabase
     .from("student_conversations")
@@ -215,7 +416,11 @@ export async function getStudentPortal() {
   return {
     user,
     profile,
-    student,
+    student: {
+      ...student,
+      house: student.house ?? null,
+      sex: student.sex ?? null,
+    },
     classmates,
     homework,
     notifications,
@@ -224,9 +429,15 @@ export async function getStudentPortal() {
     lessonsToday: todayWeekday >= 1 && todayWeekday <= 5 ? lessonsToday : [],
     reports,
     events,
+    attendance,
+    clubs,
+    teachers,
+    classTeacher,
+    academicDates,
     mustResetPassword: Boolean(user.user_metadata?.must_reset_password),
     displayName: displayName(student),
     classLabel: classLabel(student.class_code, student.stream),
+    termLabel: (termRes.data?.label as string | undefined) || null,
   };
 }
 
@@ -236,7 +447,7 @@ export async function loadStudentMessages(conversationId?: string) {
 
   const studentRes = await supabase
     .from("students")
-    .select("id, full_name, preferred_name, class_code, stream, photo_path")
+    .select("id, full_name, preferred_name, class_code, stream, photo_path, house, sex, campus, student_number, status, profile_id")
     .eq("profile_id", user.id)
     .maybeSingle();
   const student = studentRes.data as StudentSelf | null;
@@ -248,7 +459,7 @@ export async function loadStudentMessages(conversationId?: string) {
     : [];
   const classmates = classmateIdList.length
     ? await rows<StudentClassmate>(
-        supabase.from("students").select("id, full_name, preferred_name, photo_path").in("id", classmateIdList).order("full_name"),
+        supabase.from("students").select("id, full_name, preferred_name, photo_path, house").in("id", classmateIdList).order("full_name"),
       )
     : [];
 
@@ -264,7 +475,7 @@ export async function loadStudentMessages(conversationId?: string) {
   const peerMap = new Map(classmates.map((c) => [c.id, c]));
   for (const id of peerIds) {
     if (!peerMap.has(id)) {
-      const { data } = await supabase.from("students").select("id, full_name, preferred_name, photo_path").eq("id", id).maybeSingle();
+      const { data } = await supabase.from("students").select("id, full_name, preferred_name, photo_path, house").eq("id", id).maybeSingle();
       if (data) peerMap.set(id, data as StudentClassmate);
     }
   }
@@ -288,7 +499,7 @@ export async function loadStudentMessages(conversationId?: string) {
 
   const conversations = convs.map((c) => {
     const peerId = c.student_low_id === student.id ? c.student_high_id : c.student_low_id;
-    const peer = peerMap.get(peerId) || { id: peerId, full_name: "Classmate", preferred_name: null, photo_path: null };
+    const peer = peerMap.get(peerId) || { id: peerId, full_name: "Classmate", preferred_name: null, photo_path: null, house: null };
     return {
       id: c.id,
       student_low_id: c.student_low_id,

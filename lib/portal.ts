@@ -227,7 +227,8 @@ export async function getPortal() {
       date_of_birth: student.date_of_birth,
       student_code: student.student_number,
       status: student.status,
-      photo_path: student.photo_path || null,
+      // Keep a real path for cache-busting; leave undefined when unknown so the face can still try /student-photo/:id.
+      photo_path: student.photo_path || undefined,
       portal_enabled: Boolean(student.profile_id),
     }));
   const fees = pupils.length

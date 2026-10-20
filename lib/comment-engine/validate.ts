@@ -86,9 +86,9 @@ export function validateComment(text: string | null | undefined, constraints: Co
   }
   if (constraints.requireFirstName) {
     if (!constraints.firstName?.trim()) {
-      errors.push("Learner first name is missing.");
+      errors.push("Learner middle name is missing.");
     } else if (!containsFirstName(value, constraints.firstName)) {
-      errors.push("Co-curricular comment must mention the learner's first name.");
+      errors.push("Co-curricular comment must mention the learner's middle name.");
     }
   }
 

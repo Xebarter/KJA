@@ -110,8 +110,8 @@ export function validateConfiguration(config: CommentConfig): string[] {
     errors.push("No active headteacher rules.");
   }
   for (const template of active.filter((row) => row.comment_type === "cocurricular")) {
-    if (!template.template_text.includes("{first_name}")) {
-      errors.push(`Co-curricular template missing {first_name}: ${template.id}`);
+    if (!/\{first_name\}|\{middle_name\}/.test(template.template_text)) {
+      errors.push(`Co-curricular template missing {first_name} (middle name): ${template.id}`);
     }
   }
   return errors;

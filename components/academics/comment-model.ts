@@ -42,14 +42,14 @@ export const COMMENT_TABS: {
     label: "Co-curricular",
     icon: "fa-music",
     hint: "One sentence, 8–12 words, and it must include the child’s first name.",
-    tokens: ["{first_name}", "{activity_name}", "{skills_acquired}", "{skills_focus}"],
+    tokens: ["{first_name}", "{middle_name}", "{activity_name}", "{skills_acquired}", "{skills_focus}"],
   },
   {
     id: "class_teacher",
     label: "Class teacher",
     icon: "fa-chalkboard-user",
     hint: "Each line is one sentence. A comment is three of them: opening, then strengths or balance, then a next step.",
-    tokens: ["{first_name}", "{strongest_subjects}", "{weakest_subjects}"],
+    tokens: ["{first_name}", "{middle_name}", "{strongest_subjects}", "{weakest_subjects}"],
   },
   {
     id: "headteacher",
@@ -164,8 +164,8 @@ export function templateReadout(input: {
   }
 
   if (input.requireFirstName) {
-    const ok = /\{first_name\}/i.test(input.text);
-    chips.push({ id: "name", ok, label: ok ? "First name" : "Needs {first_name}" });
+    const ok = /\{first_name\}|\{middle_name\}/i.test(input.text);
+    chips.push({ id: "name", ok, label: ok ? "Middle name" : "Needs {first_name}" });
   }
 
   const empty = !input.text.trim();

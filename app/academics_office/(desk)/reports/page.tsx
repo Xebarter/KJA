@@ -9,7 +9,7 @@ import { loadRoll, type RollPupil } from "@/lib/academics-roll";
 
 export const metadata = { title: "Report cards" };
 
-type Card = { id: string; student_id: string; status: string; class_code: string | null; stream: string | null; overall_score: number | null };
+type Card = { id: string; student_id: string; status: string; class_code: string | null; stream: string | null; overall_score: number | null; report_title?: string | null };
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
@@ -46,11 +46,16 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const [pupils, cardsQuery] = await Promise.all([
     loadRoll(supabase, user.id),
     term
-      ? supabase.from("report_cards").select("id, student_id, status, class_code, stream, overall_score").eq("term_id", term.id)
+      ? supabase.from("report_cards").select("id, student_id, status, class_code, stream, overall_score, report_title").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (cardsQuery.error) return <AcademicsGate title="Report cards" state={{ notice: "schema", message: cardsQuery.error.message }} />;
-  const cards = (cardsQuery.data || []) as Card[];
+  const cardsFallback = cardsQuery.error && /report_title/i.test(cardsQuery.error.message) && term
+    ? await supabase.from("report_cards").select("id, student_id, status, class_code, stream, overall_score").eq("term_id", term.id)
+    : null;
+  if ((cardsFallback || cardsQuery).error) {
+    return <AcademicsGate title="Report cards" state={{ notice: "schema", message: ((cardsFallback || cardsQuery).error as { message: string }).message }} />;
+  }
+  const cards = ((cardsFallback || cardsQuery).data || []) as Card[];
   const byPupil = new Map(cards.map((card) => [card.student_id, card]));
   const groups = groupPupils(pupils);
   const selected = groups.find((group) => group.code === query.class && (stream === null || group.stream === stream)) || null;
@@ -194,7 +199,15 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </header>
               {selected ? (
                 <>
-                  <StreamReportBar termId={term.id} classCode={selected.code} stream={selected.stream} drafts={drafts} cards={selectedCards.length} sittings={sittings} />
+                  <StreamReportBar
+                    termId={term.id}
+                    classCode={selected.code}
+                    stream={selected.stream}
+                    drafts={drafts}
+                    cards={selectedCards.length}
+                    sittings={sittings}
+                    reportTitle={selectedCards.find((card) => card.report_title)?.report_title}
+                  />
                   {selected.pupils.length ? (
                     <ul className="rpt-roll">
                       {selected.pupils.map((pupil, index) => {

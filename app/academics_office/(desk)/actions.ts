@@ -884,8 +884,9 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   if (!termId || !classCode) return { error: "Choose a term and a class." };
   const chosen = reportSetsFrom(formData);
   if ("error" in chosen) return { error: chosen.error };
+  const reportTitle = text(formData, "report_title", 80);
   try {
-    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets });
+    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets, reportTitle });
     const comments = await fillDraftComments(opened.auth, { termId, classCode, stream });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, {
       kind: "report",
@@ -1112,6 +1113,7 @@ export async function saveReport(formData: FormData): Promise<Result> {
     score: number | null;
     max_score: number | null;
     skills: { label: string; acquired: boolean }[];
+    comment: string | null;
   }[] = [];
   for (const slot of [1, 2, 3, 4]) {
     const name = text(formData, `activity_name_${slot}`, 80) || null;
@@ -1130,7 +1132,8 @@ export async function saveReport(formData: FormData): Promise<Result> {
     const taught = parseSkillLabels(text(formData, `activity_skills_${slot}`, 400));
     const acquired = parseSkillLabels(text(formData, `activity_acquired_${slot}`, 400));
     const skills = mergeActivitySkills(taught, acquired);
-    if (name || level || markOk || skills.length) {
+    const comment = text(formData, `activity_comment_${slot}`, 500) || null;
+    if (name || level || markOk || skills.length || comment) {
       activities.push({
         report_card_id: id,
         slot,
@@ -1139,13 +1142,17 @@ export async function saveReport(formData: FormData): Promise<Result> {
         score: markOk ? score : null,
         max_score: markOk ? maxScore : null,
         skills,
+        comment,
       });
     } else {
-      activities.push({ report_card_id: id, slot, activity_name: null, level: null, score: null, max_score: null, skills: [] });
+      activities.push({ report_card_id: id, slot, activity_name: null, level: null, score: null, max_score: null, skills: [], comment: null });
     }
   }
   const { error: activityError } = await opened.auth.supabase.from("report_card_activities").upsert(activities, { onConflict: "report_card_id,slot" });
   if (activityError) {
+    if (/comment|42703/i.test(activityError.message) && !/score|skills|max_score/i.test(activityError.message)) {
+      return { error: `${activityError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.` };
+    }
     if (/score|skills|max_score|42703/i.test(activityError.message)) {
       return { error: `${activityError.message}. Run supabase/0026_cocurricular_skills.sql in the Supabase SQL editor.` };
     }
@@ -1293,6 +1300,42 @@ export async function saveBand(formData: FormData): Promise<Result> {
   if (error) return { error: error.message.includes("duplicate") ? "That grade already exists for this section." : error.message };
   refreshAcademics(`${ACADEMICS_BASE}/settings`);
   return { ok: id ? "Grade band updated." : "Grade band added." };
+}
+
+export async function saveDivisionBand(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (formData.get("intent") === "delete" && id) {
+    const { error } = await opened.auth.supabase.from("division_bands").delete().eq("id", id);
+    if (error) return { error: error.message };
+    refreshAcademics(`${ACADEMICS_BASE}/settings`);
+    return { ok: "Division band removed." };
+  }
+  const track = text(formData, "track", 10);
+  const label = text(formData, "label", 8).toUpperCase();
+  const maxRaw = text(formData, "max_aggregate", 8);
+  const maxAggregate = maxRaw === "" ? null : num(maxRaw);
+  const sortOrder = num(text(formData, "sort_order", 4)) ?? 0;
+  if (track !== "upper" && track !== "lower") return { error: "Choose the upper or lower primary track." };
+  if (!label) return { error: "Enter the grade label (1, 2, 3, 4, or U)." };
+  if (maxRaw !== "" && maxAggregate === null) return { error: "Enter a whole number for the highest aggregate, or leave it blank for the catch-all grade." };
+  if (maxAggregate !== null && maxAggregate < 0) return { error: "Aggregate ceilings cannot be negative." };
+  const row = { track, label, max_aggregate: maxAggregate, sort_order: sortOrder };
+  const query = id
+    ? opened.auth.supabase.from("division_bands").update(row).eq("id", id)
+    : opened.auth.supabase.from("division_bands").insert(row);
+  const { error } = await query;
+  if (error) {
+    if (/division_bands|schema cache|does not exist/i.test(error.message)) {
+      return { error: "Run supabase/0032_report_aggregate.sql to enable aggregate grades." };
+    }
+    return { error: error.message.includes("duplicate") ? "That grade already exists on this track." : error.message };
+  }
+  refreshAcademics(`${ACADEMICS_BASE}/settings`);
+  return { ok: id ? "Division band updated." : "Division band added." };
 }
 
 export async function saveSlot(formData: FormData): Promise<Result> {

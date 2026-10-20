@@ -3,6 +3,7 @@ import type { CommentTemplate, PerformanceProfile, ReportInput } from "./types";
 
 const ALLOWED = new Set([
   "first_name",
+  "middle_name",
   "strongest_subjects",
   "weakest_subjects",
   "activity_name",
@@ -39,23 +40,34 @@ export type PlaceholderContext = {
   firstName: string;
   profile: PerformanceProfile;
   activityName?: string | null;
+  acquiredSkills?: string[];
+  focusSkills?: string[];
+  cocurricularBand?: string | null;
 };
 
 export function buildPlaceholders(ctx: PlaceholderContext): Record<string, string> {
   const top = ctx.profile.strongestActivities[0];
-  const acquired = top?.acquiredSkills?.length ? top.acquiredSkills : ctx.profile.acquiredSkills;
-  const focus = ctx.profile.skillFocus.length
-    ? ctx.profile.skillFocus
-    : ctx.profile.missingSkills;
+  const acquired = ctx.acquiredSkills?.length
+    ? ctx.acquiredSkills
+    : top?.acquiredSkills?.length
+      ? top.acquiredSkills
+      : ctx.profile.acquiredSkills;
+  const focus = ctx.focusSkills?.length
+    ? ctx.focusSkills
+    : ctx.profile.skillFocus.length
+      ? ctx.profile.skillFocus
+      : ctx.profile.missingSkills;
+  const cocoBand = ctx.cocurricularBand ?? ctx.profile.cocurricularBand;
   return {
     first_name: ctx.firstName,
+    middle_name: ctx.firstName,
     strongest_subjects: joinSubjectNames(ctx.profile.strongestSubjects.map((row) => row.subjectName)),
     weakest_subjects: joinSubjectNames(ctx.profile.weakestSubjects.map((row) => row.subjectName)),
     activity_name: (ctx.activityName || top?.activityName || "").trim(),
     skills_acquired: joinSkillNames(acquired, 2),
     skills_focus: joinSkillNames(focus, 2),
     academic_band_label: (ctx.profile.academicBand || "").replace(/_/g, " "),
-    cocurricular_band_label: (ctx.profile.cocurricularBand || "").replace(/_/g, " "),
+    cocurricular_band_label: (cocoBand || "").replace(/_/g, " "),
   };
 }
 

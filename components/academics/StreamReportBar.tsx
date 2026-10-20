@@ -1,8 +1,8 @@
 import { cancelReportPreparation, generateClassComments, postReports, reopenReports } from "@/app/academics_office/(desk)/actions";
 import { CancelPreparation } from "@/components/academics/CancelPreparation";
+import { DownloadReportPdfButton } from "@/components/academics/DownloadReportPdfButton";
 import { DeskForm } from "@/components/academics/Form";
 import { GenerateReportsDialog } from "@/components/academics/GenerateReportsDialog";
-import { ACADEMICS_BASE, streamQuery } from "@/lib/academics";
 import type { ReportSitting } from "@/lib/academics-reports";
 
 export function StreamReportBar({
@@ -12,6 +12,7 @@ export function StreamReportBar({
   drafts,
   cards,
   sittings,
+  reportTitle,
   className = "rpt-actions",
 }: {
   termId: string;
@@ -20,11 +21,12 @@ export function StreamReportBar({
   drafts: number;
   cards: number;
   sittings: ReportSitting[];
+  reportTitle?: string | null;
   className?: string;
 }) {
   return (
     <div className={className}>
-      <GenerateReportsDialog termId={termId} classCode={classCode} stream={stream} sittings={sittings} />
+      <GenerateReportsDialog termId={termId} classCode={classCode} stream={stream} sittings={sittings} defaultTitle={reportTitle || undefined} />
       {drafts ? (
         <DeskForm action={generateClassComments}>
           <input type="hidden" name="term_id" value={termId} />
@@ -39,7 +41,7 @@ export function StreamReportBar({
         <input type="hidden" name="stream" value={stream} />
         <button className="rpt-btn is-gold" type="submit">Post</button>
       </DeskForm>
-      {cards ? <a className="rpt-btn is-ghost" href={`${ACADEMICS_BASE}/reports/pdf?class=${classCode}&stream=${streamQuery(stream)}`}>Download PDF</a> : null}
+      {cards ? <DownloadReportPdfButton classCode={classCode} stream={stream} /> : null}
       <div className="rpt-actions-secondary">
         <DeskForm action={reopenReports}>
           <input type="hidden" name="term_id" value={termId} />

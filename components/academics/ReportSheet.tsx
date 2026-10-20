@@ -3,7 +3,9 @@ import Link from "next/link";
 import { StudentFace } from "@/components/StudentFace";
 import { ReportQr } from "@/components/academics/ReportQr";
 import { classLabel, DEFAULT_GRADE_SCALE, formatShare, num, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
-import { formatReportDate, formatReportMoney, type ReportFeeLine } from "@/lib/report-closing";
+import { normaliseReportTitle } from "@/lib/report-title";
+import type { ReportFeeLine } from "@/lib/report-closing";
+import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import "./report-sheet.css";
 
 export type SheetLine = {
@@ -26,6 +28,7 @@ export type SheetActivity = {
   score?: number | null;
   max_score?: number | null;
   skills?: SheetActivitySkill[];
+  comment?: string | null;
 };
 
 export type SheetCard = {
@@ -33,6 +36,7 @@ export type SheetCard = {
   pupil_name: string;
   student_number: string | null;
   term_label: string;
+  report_title?: string | null;
   class_code: string | null;
   stream: string;
   class_teacher_name: string | null;
@@ -43,6 +47,8 @@ export type SheetCard = {
   days_present: number | null;
   days_opened: number | null;
   overall_score: number | null;
+  overall_aggregate?: number | null;
+  overall_grade?: string | null;
   overall_position: number | null;
   status: string;
   student_id?: string | null;
@@ -64,14 +70,14 @@ function activityFor(card: SheetCard, slot: number): SheetActivity | undefined {
 
 export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nursery: boolean; portrait?: ReactNode }) {
   const place = classLabel(card.class_code, card.stream);
+  const sheetTitle = normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
   const scored = card.lines.some((line) => line.score !== null);
-  const attendance = card.days_opened ? `${card.days_present ?? 0} of ${card.days_opened}` : "—";
   const columns = 1 + (sets.length || 1) + (nursery ? 0 : 1) + 3;
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
 
   return (
-    <article className="acd-sheet" aria-label={`${card.pupil_name}, end of term report`}>
+    <article className="acd-sheet" aria-label={`${card.pupil_name}, ${sheetTitle}`}>
       <div className="acd-sheet-edge">
         <div className="acd-sheet-watermark" aria-hidden="true">
           <img src="/images/icon.png" alt="" />
@@ -103,7 +109,7 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
           </div>
           <div className="acd-sheet-rules" aria-hidden="true" />
           <div className="acd-sheet-title">
-            <h2><span>End of Term Report</span></h2>
+            <h2><span>{sheetTitle}</span></h2>
             <p className="acd-sheet-term">{card.term_label}</p>
           </div>
         </header>
@@ -120,16 +126,16 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
               <dd>{formatScore(card.overall_score, nursery)}</dd>
             </div>
             <div>
+              <dt>AGG</dt>
+              <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</dd>
+            </div>
+            <div>
+              <dt>Grade</dt>
+              <dd>{card.overall_grade || "—"}</dd>
+            </div>
+            <div>
               <dt>Position</dt>
               <dd>{card.overall_position ? ordinal(card.overall_position) : "—"}</dd>
-            </div>
-            <div>
-              <dt>Attendance</dt>
-              <dd>{attendance}</dd>
-            </div>
-            <div>
-              <dt>Conduct</dt>
-              <dd>{card.conduct || "—"}</dd>
             </div>
           </dl>
         </section>
@@ -147,9 +153,9 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
                       <small>{formatShare(set.share)}</small>
                     </th>
                   ))}
-                  <th className="is-num">{sets.length ? "Total" : nursery ? "Progress" : "Score"}</th>
-                  {!nursery ? <th className="is-num">Grade</th> : null}
-                  <th className="is-num">Position</th>
+                  <th className="is-num is-score">{sets.length ? "Total" : nursery ? "Progress" : "Score"}</th>
+                  {!nursery ? <th className="is-num is-grade">Grade</th> : null}
+                  <th className="is-num is-position">Position</th>
                   <th className="is-note">Teacher's comment</th>
                   <th className="is-sign">Initials</th>
                 </tr>
@@ -166,11 +172,11 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
                         const part = line.parts?.find((entry) => entry.key === set.key);
                         return <td key={set.key} className="is-num is-set">{formatScore(part?.score ?? null, nursery)}</td>;
                       })}
-                      <td className="is-num">
+                      <td className="is-num is-score">
                         <span className="acd-sheet-figure">{nursery ? (line.grade || "—") : formatScore(line.score, false)}</span>
                       </td>
-                      {!nursery ? <td className="is-num">{line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">—</span>}</td> : null}
-                      <td className="is-num">{line.position ? ordinal(line.position) : <span className="acd-sheet-empty">—</span>}</td>
+                      {!nursery ? <td className="is-num is-grade">{line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">—</span>}</td> : null}
+                      <td className="is-num is-position">{line.position ? ordinal(line.position) : <span className="acd-sheet-empty">—</span>}</td>
                       <td className="is-note" title={line.teacher_comment || undefined}>{line.teacher_comment || ""}</td>
                       <td className="is-sign">{line.teacher_initials || ""}</td>
                     </tr>
@@ -186,11 +192,11 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
                   <tr>
                     <th>{nursery ? "Overall" : "Average"}</th>
                     {sets.map((set) => <td key={set.key} />)}
-                    <td className="is-num">{formatScore(card.overall_score, nursery)}</td>
-                    {!nursery ? <td /> : null}
-                    <td className="is-num">{card.overall_position ? ordinal(card.overall_position) : ""}</td>
-                    <td />
-                    <td />
+                    <td className="is-num is-score">{formatScore(card.overall_score, nursery)}</td>
+                    {!nursery ? <td className="is-num is-grade" /> : null}
+                    <td className="is-num is-position">{card.overall_position ? ordinal(card.overall_position) : ""}</td>
+                    <td className="is-note" />
+                    <td className="is-sign" />
                   </tr>
                 </tfoot>
               ) : null}
@@ -213,31 +219,24 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
 
           <section className="acd-sheet-activities" aria-label="Co-curricular activities">
             <p className="acd-sheet-kicker">Co-curricular</p>
-            <table>
-              <tbody>
+            <table className="acd-sheet-coco-table">
+              <thead>
                 <tr>
-                  <th scope="row">Activity</th>
-                  {ACTIVITY_SLOTS.map((slot) => {
-                    const row = activityFor(card, slot);
-                    return <td key={slot}>{row?.activity_name || ""}</td>;
-                  })}
+                  <th scope="col">Activity</th>
+                  <th scope="col">Comment</th>
                 </tr>
-                <tr className="is-level">
-                  <th scope="row">Level</th>
-                  {ACTIVITY_SLOTS.map((slot) => {
-                    const row = activityFor(card, slot);
-                    const mark = row?.score != null && row.max_score
-                      ? `${row.score}/${row.max_score}`
-                      : null;
-                    return <td key={slot}>{mark || row?.level || ""}</td>;
-                  })}
-                </tr>
+              </thead>
+              <tbody>
+                {ACTIVITY_SLOTS.map((slot) => activityFor(card, slot))
+                  .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()))
+                  .map((row) => (
+                    <tr key={row.slot}>
+                      <td className="is-activity">{row.activity_name}</td>
+                      <td className="is-coco-note">{row.comment || ""}</td>
+                    </tr>
+                  ))}
               </tbody>
             </table>
-            <div className={`acd-sheet-coco-comment${card.cocurricular_comment ? " has-copy" : " is-blank"}`}>
-              <p className="acd-sheet-kicker">Comment</p>
-              <p>{card.cocurricular_comment || ""}</p>
-            </div>
           </section>
 
           <section className="acd-sheet-report">
@@ -248,23 +247,22 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
             <p className={card.class_teacher_comment ? "has-copy" : "is-blank"}>{card.class_teacher_comment || ""}</p>
           </section>
 
-          <section className="acd-sheet-principal">
-            <h3><span>Headteacher's comment</span></h3>
-            <div className="acd-sheet-principal-body">
+          <section className="acd-sheet-closing" aria-label="Headteacher comment and next-term fees">
+            <div className="acd-sheet-principal">
+              <h3><span>Headteacher's comment</span></h3>
               <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
-              <ReportQr id={card.id} />
             </div>
-          </section>
-
-          <section className="acd-sheet-fees" aria-label="Fees and the next term">
-            <div>
-              <h3>School fees for next term</h3>
-              <FeeLines lines={card.fees ?? []} />
-            </div>
-            <div>
-              <h3>Next term starts on</h3>
-              <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "—"}</p>
-            </div>
+            <ReportQr id={card.id} />
+            <section className="acd-sheet-fees" aria-label="Fees and the next term">
+              <div>
+                <h3>School fees for next term</h3>
+                <FeeLines lines={card.fees ?? []} />
+              </div>
+              <div>
+                <h3>Next term starts on</h3>
+                <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "—"}</p>
+              </div>
+            </section>
           </section>
         </div>
 

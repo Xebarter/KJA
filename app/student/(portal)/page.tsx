@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { MONTHS_SHORT, parseYmd } from "@/lib/events-calendar";
+import { academicKindLabel } from "@/lib/student";
 import { getStudentPortal } from "@/lib/student-portal";
 
 const ZONE = "Africa/Kampala";
@@ -44,7 +45,31 @@ export default async function StudentHomePage() {
   const openHomework = portal.homework.filter((row) => !row.done);
   const dueSoon = openHomework.filter((row) => row.due_on >= today).slice(0, 4);
   const overdue = openHomework.filter((row) => row.due_on < today).length;
-  const upcoming = portal.events.filter((event) => String(event.starts_on) >= today).slice(0, 3);
+  const weekEnd = new Date(today + "T12:00:00");
+  weekEnd.setDate(weekEnd.getDate() + 7);
+  const weekEndYmd = weekEnd.toISOString().slice(0, 10);
+  const thisWeek = [
+    ...portal.academicDates
+      .filter((row) => row.starts_on >= today && row.starts_on <= weekEndYmd)
+      .map((row) => ({
+        key: row.id,
+        ymd: row.starts_on,
+        title: row.title,
+        note: academicKindLabel(row.kind),
+        href: "/student/calendar",
+      })),
+    ...portal.events
+      .filter((event) => String(event.starts_on) >= today && String(event.starts_on) <= weekEndYmd)
+      .map((event) => ({
+        key: event.slug,
+        ymd: String(event.starts_on),
+        title: event.title,
+        note: event.location || "School event",
+        href: `/event/${event.slug}`,
+      })),
+  ]
+    .sort((a, b) => a.ymd.localeCompare(b.ymd))
+    .slice(0, 4);
 
   const pending = [
     overdue ? plural(overdue, "overdue homework") : "",
@@ -67,26 +92,25 @@ export default async function StudentHomePage() {
       tone: overdue ? "alert" : undefined,
     },
     {
-      label: "Messages",
-      value: String(portal.classmates.length),
-      note: "Classmates you can text",
-      href: "/student/messages",
-      icon: "fa-comments",
+      label: "Attendance",
+      value: portal.attendance.total ? `${portal.attendance.percent}%` : "—",
+      note: portal.attendance.total ? `${portal.attendance.present + portal.attendance.late} days in` : "No register yet",
+      href: "/student/attendance",
+      icon: "fa-clipboard-user",
     },
     {
-      label: "Notices",
-      value: String(portal.unread),
-      note: portal.unread ? "Unread" : "You're up to date",
-      href: "/student/notifications",
-      icon: "fa-bell",
-      tone: portal.unread ? "alert" : undefined,
+      label: "Clubs",
+      value: String(portal.clubs.length),
+      note: portal.clubs[0]?.title || "None yet",
+      href: "/student/clubs",
+      icon: "fa-puzzle-piece",
     },
     {
-      label: "Reports",
-      value: String(portal.reports.length),
-      note: portal.reports[0] ? `Latest ${shortDate(portal.reports[0].published_at)}` : "None yet",
-      href: "/student/reports",
-      icon: "fa-file-lines",
+      label: "Class teacher",
+      value: portal.classTeacher ? portal.classTeacher.full_name.split(/\s+/)[0] : "—",
+      note: portal.classTeacher?.title || "Not set yet",
+      href: "/student/class",
+      icon: "fa-chalkboard-user",
     },
   ];
 
@@ -99,12 +123,17 @@ export default async function StudentHomePage() {
           </p>
           <h1>{greeting()}, {first}</h1>
           <p className="ov-hero-summary">{summary}</p>
+          {portal.student?.house ? (
+            <p className="ov-hero-summary" style={{ marginTop: ".35rem", opacity: .85 }}>
+              {portal.student.house} house · {portal.classLabel}
+            </p>
+          ) : null}
           <div className="ov-hero-actions">
             <Link className="ov-btn ov-btn-gold" href="/student/homework">
               <i className="fa-solid fa-book" aria-hidden="true" /> Homework
             </Link>
-            <Link className="ov-btn ov-btn-glass" href="/student/messages">
-              <i className="fa-solid fa-comments" aria-hidden="true" /> Messages
+            <Link className="ov-btn ov-btn-glass" href="/student/class">
+              <i className="fa-solid fa-users" aria-hidden="true" /> My class
             </Link>
           </div>
         </div>
@@ -169,11 +198,42 @@ export default async function StudentHomePage() {
             ) : (
               <div className="ov-empty">
                 <i className="fa-solid fa-book" aria-hidden="true" />
-                <p>No homework waiting. Enjoy the free time — or check Messages.</p>
+                <p>No homework waiting. Enjoy the free time — or check My class.</p>
               </div>
             )}
           </section>
 
+          <section className="ov-panel">
+            <header className="ov-panel-head">
+              <h2>This week</h2>
+              <Link href="/student/calendar">Calendar</Link>
+            </header>
+            {thisWeek.length ? (
+              <ul className="ov-events">
+                {thisWeek.map((item) => (
+                  <li key={item.key}>
+                    <Link href={item.href} className="ov-event">
+                      <span className="ov-event-media">
+                        <DateTile ymd={item.ymd} />
+                      </span>
+                      <span className="ov-event-text">
+                        <strong>{item.title}</strong>
+                        <small>{item.note}</small>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="ov-empty">
+                <i className="fa-solid fa-calendar-days" aria-hidden="true" />
+                <p>Nothing special on the calendar this week.</p>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <div className="ov-col">
           <section className="ov-panel">
             <header className="ov-panel-head">
               <h2>Notices</h2>
@@ -199,37 +259,27 @@ export default async function StudentHomePage() {
               </div>
             )}
           </section>
-        </div>
 
-        <div className="ov-col">
-          <section className="ov-panel">
-            <header className="ov-panel-head">
-              <h2>Coming up</h2>
-              <Link href="/student/calendar">Calendar</Link>
-            </header>
-            {upcoming.length ? (
+          {portal.clubs.length ? (
+            <section className="ov-panel">
+              <header className="ov-panel-head">
+                <h2>Your clubs</h2>
+                <Link href="/student/clubs">All</Link>
+              </header>
               <ul className="ov-events">
-                {upcoming.map((event) => (
-                  <li key={event.slug}>
-                    <Link href={`/event/${event.slug}`} className="ov-event">
-                      <span className="ov-event-media">
-                        <DateTile ymd={String(event.starts_on)} />
-                      </span>
+                {portal.clubs.slice(0, 3).map((club) => (
+                  <li key={club.id}>
+                    <Link href="/student/clubs" className="ov-event">
                       <span className="ov-event-text">
-                        <strong>{event.title}</strong>
-                        <small>{event.location || "School event"}</small>
+                        <strong>{club.title}</strong>
+                        <small>{club.meeting || club.campus || (club.paid ? "Paid" : "With parents for payment")}</small>
                       </span>
                     </Link>
                   </li>
                 ))}
               </ul>
-            ) : (
-              <div className="ov-empty">
-                <i className="fa-solid fa-calendar-days" aria-hidden="true" />
-                <p>No upcoming events right now.</p>
-              </div>
-            )}
-          </section>
+            </section>
+          ) : null}
         </div>
       </div>
     </div>
