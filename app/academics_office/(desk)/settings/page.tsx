@@ -1,8 +1,10 @@
-import { saveBand } from "@/app/academics_office/(desk)/actions";
+import { saveBand, saveNextTermStart } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { gradeFor, mapBand, openAcademics, type BandRow } from "@/lib/academics";
+import { gradeFor, loadCurrentTerm, mapBand, openAcademics, type BandRow } from "@/lib/academics";
+import { formatReportDate, nextTermSlot } from "@/lib/report-closing";
+import { serviceClient } from "@/lib/supabase/service";
 
 export const metadata = { title: "Grading" };
 
@@ -45,6 +47,7 @@ export default async function GradingPage() {
   const openIssues = reviews.reduce((sum, item) => sum + item.review.issues.length, 0);
   const primaryCount = reviews.find((item) => item.section.value === "primary")?.review.ranked.length ?? 0;
   const nurseryCount = reviews.find((item) => item.section.value === "nursery")?.review.ranked.length ?? 0;
+  const nextTerm = await loadNextTerm(opened.auth.supabase);
 
   return (
     <div className="app-page ofc-page grd-page">
@@ -70,6 +73,30 @@ export default async function GradingPage() {
         <div className={openIssues ? "is-warn" : "is-ok"}>
           <span className="grd-stat-icon" aria-hidden="true"><i className="fa-solid fa-scale-balanced" /></span>
           <span className="grd-stat-copy"><span>Policy</span><strong>{openIssues ? "Review" : "Set"}</strong><small>Approved cards keep their rules</small></span>
+        </div>
+      </section>
+      <section className="grd-card grd-next">
+        <header className="grd-card-head">
+          <div className="grd-card-title">
+            <span className="grd-card-icon" aria-hidden="true"><i className="fa-solid fa-calendar-day" /></span>
+            <div>
+              <p>Report cards</p>
+              <h2>Next term</h2>
+            </div>
+          </div>
+        </header>
+        <div className="grd-body">
+          <p className="grd-note">This date is printed beside the fees on every report card{nextTerm.label ? <> for the term after <strong>{nextTerm.current}</strong></> : null}.</p>
+          {nextTerm.ready ? (
+            <DeskForm action={saveNextTermStart} className="grd-next-form">
+              <label className="ofc-field">
+                <span>Next term starts on</span>
+                <input name="starts_on" type="date" required defaultValue={nextTerm.startsOn ?? ""} />
+              </label>
+              <button className="grd-save" type="submit">Save date</button>
+            </DeskForm>
+          ) : <p className="grd-quiet">Set a current term before choosing when the next one starts.</p>}
+          {nextTerm.startsOn ? <p className="grd-next-when">{formatReportDate(nextTerm.startsOn)}</p> : null}
         </div>
       </section>
       <div className="grd-sheets">
@@ -174,6 +201,20 @@ function NewBand({ section }: { section: (typeof SECTIONS)[number] }) {
       <button className="grd-save" type="submit">Add band</button>
     </DeskForm>
   );
+}
+
+async function loadNextTerm(supabase: Parameters<typeof loadCurrentTerm>[0]) {
+  const termPack = await loadCurrentTerm(supabase);
+  if (!termPack.term) return { ready: false, current: "", label: "", startsOn: null as string | null };
+  const slot = nextTermSlot(termPack.term.year, termPack.term.term);
+  const db = serviceClient() ?? supabase;
+  const { data } = await db.from("fee_terms").select("label, starts_on").eq("year", slot.year).eq("term", slot.term).maybeSingle();
+  return {
+    ready: true,
+    current: termPack.term.label,
+    label: data?.label || `${slot.year} Term ${slot.term}`,
+    startsOn: data?.starts_on ? String(data.starts_on).slice(0, 10) : null,
+  };
 }
 
 function reviewScale(bands: BandRow[]) {

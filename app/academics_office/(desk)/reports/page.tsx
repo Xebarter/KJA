@@ -4,6 +4,7 @@ import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE, classLabel, groupPupils, loadCurrentTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { loadReportSittings, type ReportSitting } from "@/lib/academics-reports";
 import { loadRoll, type RollPupil } from "@/lib/academics-roll";
 
 export const metadata = { title: "Report cards" };
@@ -53,6 +54,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const byPupil = new Map(cards.map((card) => [card.student_id, card]));
   const groups = groupPupils(pupils);
   const selected = groups.find((group) => group.code === query.class && (stream === null || group.stream === stream)) || null;
+  let sittings: ReportSitting[] = [];
+  if (term && selected) {
+    try {
+      sittings = await loadReportSittings(supabase, { termId: term.id, classCode: selected.code, stream: selected.stream });
+    } catch (error) {
+      return <AcademicsGate title="Report cards" state={{ notice: "schema", message: error instanceof Error ? error.message : "Assessments could not be loaded." }} />;
+    }
+  }
   const selectedCards = selected ? selected.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is Card => Boolean(card)) : [];
   const drafts = selectedCards.filter((card) => card.status === "draft").length;
   const approved = selectedCards.filter((card) => card.status === "approved").length;
@@ -185,7 +194,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </header>
               {selected ? (
                 <>
-                  <StreamReportBar termId={term.id} classCode={selected.code} stream={selected.stream} drafts={drafts} cards={selectedCards.length} />
+                  <StreamReportBar termId={term.id} classCode={selected.code} stream={selected.stream} drafts={drafts} cards={selectedCards.length} sittings={sittings} />
                   {selected.pupils.length ? (
                     <ul className="rpt-roll">
                       {selected.pupils.map((pupil, index) => {

@@ -40,6 +40,67 @@ type Attempt = {
   followed_up_at?: string | null;
 };
 
+const COUNT_COLUMNS = "phone, child_name, application_id, status, created_at";
+
+function unpaidGroups(rows: Attempt[], now: number, tracked: boolean): UnpaidApplication[] {
+  const groups = new Map<string, Attempt[]>();
+  for (const row of rows) {
+    const key = `${row.phone}|${(row.child_name ?? "").trim().toLowerCase()}`;
+    const list = groups.get(key);
+    if (list) list.push(row);
+    else groups.set(key, [row]);
+  }
+
+  const items: UnpaidApplication[] = [];
+  for (const attempts of groups.values()) {
+    if (attempts.some((row) => row.application_id)) continue;
+    const paid = attempts.find((row) => row.status === "paid");
+    const latest = paid ?? attempts[0];
+    if (tracked && latest.followed_up_at) continue;
+    const state: UnpaidState = paid
+      ? "stuck"
+      : latest.status === "failed"
+        ? "failed"
+        : now - new Date(latest.created_at).getTime() > ABANDONED_MS
+          ? "abandoned"
+          : "waiting";
+    items.push({
+      id: latest.id,
+      child: latest.child_name,
+      parent: latest.payer_name ?? null,
+      email: latest.payer_email ?? null,
+      phone: latest.phone,
+      campus: latest.campus ?? "",
+      grade: latest.application?.grade ?? null,
+      amount: latest.amount ?? 0,
+      state,
+      reason: state === "failed" ? latest.failure_reason : null,
+      attempts: attempts.length,
+      createdAt: latest.created_at,
+    });
+  }
+  return items;
+}
+
+/** Cheap count for nav badges — narrow columns only, no application join. */
+export async function countUnpaidApplications(
+  supabase: SupabaseClient,
+  now = Date.now(),
+): Promise<number> {
+  const since = new Date(now - WINDOW_DAYS * DAY).toISOString();
+  const query = (columns: string) =>
+    supabase.from("admission_payments").select(columns).gte("created_at", since).order("created_at", { ascending: false }).limit(500);
+
+  let tracked = true;
+  let result = await query(`${COUNT_COLUMNS}, followed_up_at`);
+  if (result.error?.code === "42703") {
+    tracked = false;
+    result = await query(COUNT_COLUMNS);
+  }
+  if (result.error || !result.data) return 0;
+  return unpaidGroups(result.data as unknown as Attempt[], now, tracked).length;
+}
+
 /**
  * Admission applications whose fee hasn't been paid, one per parent and child.
  * `tracked` is false until 0009_payment_followups.sql has run, so follow-ups can't be recorded yet.
@@ -60,41 +121,5 @@ export async function loadUnpaidApplications(
   }
   if (result.error || !result.data) return { items: [], tracked };
 
-  const groups = new Map<string, Attempt[]>();
-  for (const row of result.data as unknown as Attempt[]) {
-    const key = `${row.phone}|${(row.child_name ?? "").trim().toLowerCase()}`;
-    const list = groups.get(key);
-    if (list) list.push(row);
-    else groups.set(key, [row]);
-  }
-
-  const items: UnpaidApplication[] = [];
-  for (const attempts of groups.values()) {
-    if (attempts.some((row) => row.application_id)) continue;
-    const paid = attempts.find((row) => row.status === "paid");
-    const latest = paid ?? attempts[0];
-    if (latest.followed_up_at) continue;
-    const state: UnpaidState = paid
-      ? "stuck"
-      : latest.status === "failed"
-        ? "failed"
-        : now - new Date(latest.created_at).getTime() > ABANDONED_MS
-          ? "abandoned"
-          : "waiting";
-    items.push({
-      id: latest.id,
-      child: latest.child_name,
-      parent: latest.payer_name,
-      email: latest.payer_email,
-      phone: latest.phone,
-      campus: latest.campus,
-      grade: latest.application?.grade ?? null,
-      amount: latest.amount,
-      state,
-      reason: state === "failed" ? latest.failure_reason : null,
-      attempts: attempts.length,
-      createdAt: latest.created_at,
-    });
-  }
-  return { items, tracked };
+  return { items: unpaidGroups(result.data as unknown as Attempt[], now, tracked), tracked };
 }

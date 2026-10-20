@@ -7,7 +7,13 @@ import { searchAcademics } from "@/app/academics_office/(desk)/actions";
 import { signOut } from "@/app/actions";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
-import { ACADEMICS_BASE, academicsNav, type AcademicsBadge } from "@/lib/academics-nav";
+import {
+  ACADEMICS_BASE,
+  academicsNav,
+  EMPTY_ACADEMICS_BADGES,
+  type AcademicsBadgeCounts,
+  type AcademicsShellPerson,
+} from "@/lib/academics-nav";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 function placesFor(office: boolean): SidebarHit[] {
@@ -34,18 +40,21 @@ function Seal() {
 
 export function AcademicsShell({
   children,
-  person,
-  badges,
-  office,
+  person: initialPerson,
+  badges: initialBadges = EMPTY_ACADEMICS_BADGES,
+  office: initialOffice = true,
 }: {
   children: React.ReactNode;
-  person: { name: string; email: string; role: string };
-  badges: Record<AcademicsBadge, number>;
-  office: boolean;
+  person: AcademicsShellPerson;
+  badges?: AcademicsBadgeCounts;
+  office?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [badges, setBadges] = useState(initialBadges);
+  const [person, setPerson] = useState(initialPerson);
+  const [office, setOffice] = useState(initialOffice);
   const search = useRef<HTMLInputElement>(null);
   const nav = academicsNav.filter((item) => office || !item.office);
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
@@ -53,10 +62,33 @@ export function AcademicsShell({
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
-    for (const item of academicsNav) {
-      if (office || !item.office) router.prefetch(item.href);
-    }
-  }, [router, office]);
+    const controller = new AbortController();
+    let cancelled = false;
+    let inflight = false;
+    const load = () => {
+      if (cancelled || inflight) return;
+      inflight = true;
+      fetch(`${ACADEMICS_BASE}/api/badges`, { credentials: "same-origin", signal: controller.signal })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          if (data.badges) setBadges(data.badges);
+          if (data.person) setPerson(data.person);
+          if (typeof data.office === "boolean") setOffice(data.office);
+        })
+        .catch(() => {})
+        .finally(() => {
+          inflight = false;
+        });
+    };
+    load();
+    const id = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      controller.abort();
+      window.clearInterval(id);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;
@@ -84,7 +116,7 @@ export function AcademicsShell({
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
       <header className="admin-topbar">
-        <Link href={ACADEMICS_BASE} className="admin-topbar-brand">
+        <Link href={ACADEMICS_BASE} className="admin-topbar-brand" prefetch={false}>
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -105,7 +137,7 @@ export function AcademicsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="academics-side" className="admin-side">
-        <Link href={ACADEMICS_BASE} className="admin-brand">
+        <Link href={ACADEMICS_BASE} className="admin-brand" prefetch={false}>
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -134,7 +166,7 @@ export function AcademicsShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined} prefetch={false}>
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -143,7 +175,7 @@ export function AcademicsShell({
             );
           })}
           <hr className="admin-nav-rule" />
-          <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}>
+          <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""} prefetch={false}>
             <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
             <span>Take a register</span>
           </Link>

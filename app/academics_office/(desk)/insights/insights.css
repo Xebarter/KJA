@@ -13,6 +13,13 @@
   font-family: Yantramanav, Roboto, sans-serif;
 }
 
+.ins-term-meta {
+  margin: -.35rem 0 .85rem;
+  color: var(--admin-muted, #8a8174);
+  font-size: .92rem;
+}
+.ins-term-meta strong { color: var(--admin-ink, #19232b); font-weight: 700; }
+
 .ins-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

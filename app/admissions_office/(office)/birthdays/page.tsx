@@ -44,21 +44,17 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
   const month = Number(pick(params, "month"));
   const range = BIRTHDAY_RANGES.find((entry) => entry === Number(pick(params, "range"))) ?? 30;
 
-  const load = (columns: string) => fetchAll<Row>((from, to) =>
-    auth.supabase
-      .from("student_directory")
-      .select(columns)
-      .eq("status", "active")
-      .order("class_order", { nullsFirst: false })
-      .order("full_name")
-      .range(from, to));
-
+  // Skip photo_path so a missing column never doubles a full-register scan.
   let all: Row[];
   try {
-    all = await load(`${COLUMNS}, photo_path`).catch((error: Error) => {
-      if (/photo_path/.test(error.message)) return load(COLUMNS);
-      throw error;
-    });
+    all = await fetchAll<Row>((from, to) =>
+      auth.supabase
+        .from("student_directory")
+        .select(COLUMNS)
+        .eq("status", "active")
+        .order("class_order", { nullsFirst: false })
+        .order("full_name")
+        .range(from, to));
   } catch (error) {
     return <OfficeNotice title="Birthdays" heading="Birthdays could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
   }
@@ -75,7 +71,7 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
     house: row.house,
     phone: row.mother_phone || row.father_phone,
     parent: row.mother_phone ? row.mother_name || "Mother" : row.father_phone ? row.father_name || "Father" : null,
-    photo: studentPhotoUrl(row.id, row.photo_path ?? null),
+    photo: studentPhotoUrl(row.id, null),
   }));
 
   return (

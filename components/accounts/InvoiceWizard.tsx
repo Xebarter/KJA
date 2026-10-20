@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { generateInvoices, type GenerateResult, type GenerateRow } from "@/app/accounts/(desk)/invoices/actions";
+import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback } from "@/components/accounts/client";
 import { ACCOUNTS_BASE, amount, day, ugx } from "@/lib/accounts-format";
 import type { ActionResult } from "@/lib/office-forms";
@@ -28,6 +29,7 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
   const [rows, setRows] = useState<GenerateRow[]>([]);
   const [result, setResult] = useState<ActionResult | null>(null);
   const [pending, start] = useTransition();
+  const [job, setJob] = useState("Working");
   const chosen = terms.find((entry) => entry.id === term);
   const rated = new Set(ratedClasses[term] ?? []);
 
@@ -46,6 +48,7 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
 
   const runRpc = (dryRun: boolean) => {
     setResult(null);
+    setJob(dryRun ? "Preparing the preview" : "Creating invoices");
     start(async () => {
       const outcome: GenerateResult = await generateInvoices(term, classes, dryRun, status).catch(() => ({ error: "Something went wrong. Check your connection and try again." }));
       if ("rows" in outcome && outcome.rows) setRows(outcome.rows);
@@ -62,6 +65,7 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
 
   return (
     <div className="acc-wizard">
+      <ProcessStatus active={pending} label={job} />
       <ol className="acc-steps" aria-label="Progress">
         {STEPS.map((label, index) => (
           <li key={label} className={index === step ? "is-on" : index < step ? "is-done" : ""} aria-current={index === step ? "step" : undefined}>

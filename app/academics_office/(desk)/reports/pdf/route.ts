@@ -28,6 +28,7 @@ export async function GET(request: Request) {
       { title: classLabel(classCode, stream), nursery: classSection(classCode) === "nursery", cards },
       await loadCrest(request.url),
       await loadReportCardPhotos(cards),
+      new URL(request.url).origin,
     );
     return pdfResponse(bytes, `${classCode}-${stream || "class"}-report-cards.pdf`, false);
   } catch (error) {

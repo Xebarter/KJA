@@ -1,7 +1,9 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { StudentFace } from "@/components/StudentFace";
+import { ReportQr } from "@/components/academics/ReportQr";
 import { classLabel, DEFAULT_GRADE_SCALE, formatShare, num, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
+import { formatReportDate, formatReportMoney, type ReportFeeLine } from "@/lib/report-closing";
 import "./report-sheet.css";
 
 export type SheetLine = {
@@ -15,6 +17,17 @@ export type SheetLine = {
   parts?: ReportPart[];
 };
 
+export type SheetActivitySkill = { label: string; acquired: boolean };
+
+export type SheetActivity = {
+  slot: number;
+  activity_name: string | null;
+  level: string | null;
+  score?: number | null;
+  max_score?: number | null;
+  skills?: SheetActivitySkill[];
+};
+
 export type SheetCard = {
   id: string;
   pupil_name: string;
@@ -25,6 +38,7 @@ export type SheetCard = {
   class_teacher_name: string | null;
   class_teacher_comment: string | null;
   head_comment: string | null;
+  cocurricular_comment?: string | null;
   conduct: string | null;
   days_present: number | null;
   days_opened: number | null;
@@ -34,12 +48,19 @@ export type SheetCard = {
   student_id?: string | null;
   photo_path?: string | null;
   lines: SheetLine[];
+  activities?: SheetActivity[];
   sets?: ReportSet[];
   scale?: ScaleBand[];
   href?: string;
+  fees?: ReportFeeLine[];
+  next_starts_on?: string | null;
 };
 
 const ACTIVITY_SLOTS = [1, 2, 3, 4];
+
+function activityFor(card: SheetCard, slot: number): SheetActivity | undefined {
+  return (card.activities || []).find((row) => row.slot === slot);
+}
 
 export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nursery: boolean; portrait?: ReactNode }) {
   const place = classLabel(card.class_code, card.stream);
@@ -196,14 +217,27 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
               <tbody>
                 <tr>
                   <th scope="row">Activity</th>
-                  {ACTIVITY_SLOTS.map((slot) => <td key={slot} />)}
+                  {ACTIVITY_SLOTS.map((slot) => {
+                    const row = activityFor(card, slot);
+                    return <td key={slot}>{row?.activity_name || ""}</td>;
+                  })}
                 </tr>
-                <tr className="is-comment">
-                  <th scope="row">Comment</th>
-                  {ACTIVITY_SLOTS.map((slot) => <td key={slot} />)}
+                <tr className="is-level">
+                  <th scope="row">Level</th>
+                  {ACTIVITY_SLOTS.map((slot) => {
+                    const row = activityFor(card, slot);
+                    const mark = row?.score != null && row.max_score
+                      ? `${row.score}/${row.max_score}`
+                      : null;
+                    return <td key={slot}>{mark || row?.level || ""}</td>;
+                  })}
                 </tr>
               </tbody>
             </table>
+            <div className={`acd-sheet-coco-comment${card.cocurricular_comment ? " has-copy" : " is-blank"}`}>
+              <p className="acd-sheet-kicker">Comment</p>
+              <p>{card.cocurricular_comment || ""}</p>
+            </div>
           </section>
 
           <section className="acd-sheet-report">
@@ -215,21 +249,48 @@ export function ReportSheet({ card, nursery, portrait }: { card: SheetCard; nurs
           </section>
 
           <section className="acd-sheet-principal">
-            <h3><span>Principal's comment</span></h3>
-            <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
+            <h3><span>Headteacher's comment</span></h3>
+            <div className="acd-sheet-principal-body">
+              <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
+              <ReportQr id={card.id} />
+            </div>
           </section>
 
-          <section className="acd-sheet-fees" aria-label="School fees for next term">
-            <h3>School fees for next term</h3>
-            <div className="acd-sheet-fee-lines" aria-hidden="true">
-              <span />
-              <span />
+          <section className="acd-sheet-fees" aria-label="Fees and the next term">
+            <div>
+              <h3>School fees for next term</h3>
+              <FeeLines lines={card.fees ?? []} />
+            </div>
+            <div>
+              <h3>Next term starts on</h3>
+              <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "—"}</p>
             </div>
           </section>
         </div>
 
       </div>
     </article>
+  );
+}
+
+function FeeLines({ lines }: { lines: ReportFeeLine[] }) {
+  if (!lines.length) return <p className="acd-sheet-next">—</p>;
+  const total = lines.reduce((sum, line) => sum + line.amount, 0);
+  return (
+    <dl className="acd-sheet-fee-list">
+      {lines.map((line) => (
+        <div key={line.name}>
+          <dt>{line.name}</dt>
+          <dd>{formatReportMoney(line.amount)}</dd>
+        </div>
+      ))}
+      {lines.length > 1 ? (
+        <div className="is-total">
+          <dt>Total</dt>
+          <dd>{formatReportMoney(total)}</dd>
+        </div>
+      ) : null}
+    </dl>
   );
 }
 

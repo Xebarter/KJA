@@ -31,6 +31,8 @@ export type ChildRow = {
   status?: string | null;
   class_code?: string | null;
   photo_path?: string | null;
+  /** True when admissions issued a student portal login. */
+  portal_enabled?: boolean;
 };
 
 export type ReportRow = {

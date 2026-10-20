@@ -4,6 +4,7 @@ import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { ReportSheet } from "@/components/academics/ReportSheet";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { ACADEMICS_BASE, classLabel, classSection, loadCurrentTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { loadReportSittings } from "@/lib/academics-reports";
 import { loadStreamReportCards } from "@/lib/report-cards-pdf";
 import { isClassCode } from "@/lib/students";
 
@@ -37,8 +38,12 @@ export default async function ReportPreviewPage({ searchParams }: { searchParams
     );
   }
   let cards;
+  let sittings;
   try {
-    cards = await loadStreamReportCards(supabase, { termId: term.id, classCode, stream, termLabel: term.label });
+    [cards, sittings] = await Promise.all([
+      loadStreamReportCards(supabase, { termId: term.id, classCode, stream, termLabel: term.label }),
+      loadReportSittings(supabase, { termId: term.id, classCode, stream }),
+    ]);
   } catch (error) {
     return <AcademicsGate title="Report cards" state={{ notice: "schema", message: error instanceof Error ? error.message : "Report cards could not be loaded." }} />;
   }
@@ -56,7 +61,7 @@ export default async function ReportPreviewPage({ searchParams }: { searchParams
         actions={<Link className="admin-hero-btn" href={back}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back to class</Link>}
       />
       <section className="rpt-card" aria-label={`${classLabel(classCode, stream)} report cards`}>
-        <StreamReportBar className="rpt-actions rpt-preview-bar" termId={term.id} classCode={classCode} stream={stream} drafts={drafts} cards={cards.length} />
+        <StreamReportBar className="rpt-actions rpt-preview-bar" termId={term.id} classCode={classCode} stream={stream} drafts={drafts} cards={cards.length} sittings={sittings} />
         {cards.length ? (
           <div className="rpt-preview">
             {cards.map((card) => (

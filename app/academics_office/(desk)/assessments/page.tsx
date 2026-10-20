@@ -18,7 +18,9 @@ import {
   subjectFits,
 } from "@/lib/academics";
 import { groupOf } from "@/lib/accounts-agg";
+import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
+import { isCocurricularSubject } from "@/lib/subject-kind";
 import { fetchAll } from "@/lib/students";
 
 export const metadata = { title: "Assessments" };
@@ -63,7 +65,28 @@ export default async function AssessmentsPage() {
       : Promise.resolve(new Map<string, number>()),
   ]);
   if (papersQuery.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: papersQuery.error.message }} />;
-  const rows = (papersQuery.data || []) as PaperRow[];
+  const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
+  const otherCatalogue = subjects.filter((subject) => isCocurricularSubject(subject));
+
+  let rows = (papersQuery.data || []) as PaperRow[];
+  let otherFillNote = "";
+  if (office && term && rows.length && otherCatalogue.length) {
+    try {
+      const filled = await ensureOtherMarkbooks(supabase, term.id, user.id);
+      if (filled.added > 0) {
+        const refreshed = await supabase
+          .from("assessments")
+          .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
+          .eq("term_id", term.id)
+          .order("held_on", { ascending: false });
+        if (!refreshed.error) rows = (refreshed.data || []) as PaperRow[];
+        otherFillNote = `Added ${filled.added.toLocaleString("en-GB")} Other ${filled.added === 1 ? "markbook" : "markbooks"} so they appear in the workbook picker.`;
+      }
+    } catch {
+      otherFillNote = "Other subjects could not be added to existing assessments automatically. Re-run Set assessment with the same name.";
+    }
+  }
+
   let counts = enteredById;
   if (!counts && rows.length) {
     const scoreRows = await fetchAll<{ assessment_id: string }>((from, to) =>
@@ -73,32 +96,37 @@ export default async function AssessmentsPage() {
     for (const score of scoreRows) counts.set(score.assessment_id, (counts.get(score.assessment_id) || 0) + 1);
   }
   counts = counts ?? new Map<string, number>();
-  const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
-  const subjectName = new Map(subjects.map((subject) => [subject.id, subject.name]));
-  const subjectOrder = new Map(subjects.map((subject) => [subject.id, subject.sort_order]));
+  const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const groups = groupPupils(pupils);
   const rolls = new Map(groups.map((group) => [`${group.code}|${group.stream}`, group.pupils.length]));
-  const papers: PaperCard[] = rows.map((paper) => ({
-    id: paper.id,
-    href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
-    name: paper.name,
-    subject: subjectName.get(paper.subject_id) || "Subject",
-    classLabel: classLabel(paper.class_code, paper.stream),
-    classOrder: classOrder(paper.class_code) ?? 99,
-    stream: streamOf(paper.stream),
-    kind: paper.kind,
-    kindLabel: kindLabel(paper.kind),
-    classCode: paper.class_code,
-    status: paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open",
-    weight: Number(paper.weight) || 0,
-    maxScore: Number(paper.max_score) || 100,
-    heldOn: shortDay(paper.held_on),
-    heldOnIso: paper.held_on || "",
-    entered: counts.get(paper.id) || 0,
-    roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
-    nursery: classSection(paper.class_code) === "nursery",
-    subjectOrder: subjectOrder.get(paper.subject_id) ?? 0,
-  }));
+  const papers: PaperCard[] = rows.map((paper) => {
+    const subject = subjectById.get(paper.subject_id);
+    const subjectKind = subject?.kind === "cocurricular" ? "cocurricular" as const : "core" as const;
+    return {
+      id: paper.id,
+      href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
+      name: paper.name,
+      subject: subject?.name || "Subject",
+      classLabel: classLabel(paper.class_code, paper.stream),
+      classOrder: classOrder(paper.class_code) ?? 99,
+      stream: streamOf(paper.stream),
+      kind: paper.kind,
+      kindLabel: kindLabel(paper.kind),
+      classCode: paper.class_code,
+      status: paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open",
+      weight: Number(paper.weight) || 0,
+      maxScore: Number(paper.max_score) || 100,
+      heldOn: shortDay(paper.held_on),
+      heldOnIso: paper.held_on || "",
+      entered: counts.get(paper.id) || 0,
+      roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+      nursery: classSection(paper.class_code) === "nursery",
+      subjectOrder: subject?.sort_order ?? 0,
+      subjectKind,
+      skillCount: subjectKind === "cocurricular" ? (subject?.default_skills.length ?? 0) : 0,
+    };
+  });
+  const otherPaperCount = papers.filter((paper) => paper.subjectKind === "cocurricular").length;
   const openCount = papers.filter((paper) => paper.status === "open").length;
   const waitingCount = papers.filter((paper) => paper.status === "submitted").length;
   const approvedCount = papers.filter((paper) => paper.status === "approved").length;
@@ -162,7 +190,19 @@ export default async function AssessmentsPage() {
               />
             ) : null}
           />
-          {papers.length ? <UploadMarks papers={papers} office={office} /> : null}
+          {papers.length ? (
+            <UploadMarks
+              papers={papers}
+              office={office}
+              otherCatalogue={otherCatalogue.map((subject) => ({
+                id: subject.id,
+                name: subject.name,
+                skillCount: subject.default_skills.length,
+              }))}
+              otherPaperCount={otherPaperCount}
+              otherFillNote={otherFillNote}
+            />
+          ) : null}
         </>
       ) : <Empty title="No current term" />}
     </div>

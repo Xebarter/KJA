@@ -581,3 +581,105 @@ export async function searchOffice(raw: string): Promise<{ error?: string; hits:
   if (error) return { error: error.message, hits: [] };
   return { hits: ranked((data || []) as OfficeRow[]) };
 }
+
+function tempPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
+}
+
+export type IssueLoginResult = ActionResult & { email?: string; password?: string };
+
+/** Create a student portal login and link it to the pupil record. */
+export async function issueStudentLogin(studentId: string, formData: FormData): Promise<IssueLoginResult> {
+  const auth = await requireOffice();
+  if ("error" in auth) return { error: auth.error };
+  if (!isUuid(studentId)) return { error: "Invalid student." };
+
+  const email = String(formData.get("email") || "").trim().toLowerCase();
+  if (!EMAIL.test(email)) return { error: "Enter a valid email address." };
+
+  const { data: student, error: studentError } = await auth.supabase
+    .from("students")
+    .select("id, full_name, preferred_name, profile_id, status")
+    .eq("id", studentId)
+    .maybeSingle();
+  if (studentError) return { error: studentError.message };
+  if (!student) return { error: "Student not found." };
+  if (student.profile_id) return { error: "This student already has a portal login." };
+
+  const { serviceClient } = await import("@/lib/supabase/service");
+  const service = serviceClient();
+  if (!service) return { error: "Service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY." };
+
+  const password = tempPassword();
+  const display = (student.preferred_name || student.full_name || "Student").trim();
+  const { data: created, error: createError } = await service.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: {
+      full_name: display,
+      must_reset_password: true,
+      student_id: studentId,
+    },
+  });
+  if (createError || !created.user) {
+    return { error: createError?.message || "Could not create the login." };
+  }
+
+  const userId = created.user.id;
+  const { error: profileError } = await service.from("profiles").upsert({
+    id: userId,
+    role: "student",
+    email,
+    full_name: display,
+  });
+  if (profileError) {
+    await service.auth.admin.deleteUser(userId);
+    return { error: profileError.message };
+  }
+
+  const { error: linkError } = await service.from("students").update({ profile_id: userId }).eq("id", studentId);
+  if (linkError) {
+    await service.auth.admin.deleteUser(userId);
+    return { error: linkError.message };
+  }
+
+  await logStudents(auth.supabase, auth.user.id, [studentId], "note", `Issued student portal login for ${email}.`);
+  refreshOffice(`${OFFICE}/students/${studentId}`);
+  return {
+    ok: `Login created for ${display}. Share the temporary password now — it will not be shown again.`,
+    email,
+    password,
+  };
+}
+
+/** Unlink and disable a student portal login. */
+export async function revokeStudentLogin(studentId: string): Promise<ActionResult> {
+  const auth = await requireOffice();
+  if ("error" in auth) return { error: auth.error };
+  if (!isUuid(studentId)) return { error: "Invalid student." };
+
+  const { data: student, error: studentError } = await auth.supabase
+    .from("students")
+    .select("id, full_name, profile_id")
+    .eq("id", studentId)
+    .maybeSingle();
+  if (studentError) return { error: studentError.message };
+  if (!student?.profile_id) return { error: "This student has no portal login." };
+
+  const { serviceClient } = await import("@/lib/supabase/service");
+  const service = serviceClient();
+  if (!service) return { error: "Service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY." };
+
+  const profileId = student.profile_id;
+  await service.from("students").update({ profile_id: null }).eq("id", studentId);
+  await service.from("profiles").update({ role: "parent" }).eq("id", profileId);
+  await service.auth.admin.updateUserById(profileId, { ban_duration: "876000h" });
+
+  await logStudents(auth.supabase, auth.user.id, [studentId], "note", "Revoked student portal login.");
+  refreshOffice(`${OFFICE}/students/${studentId}`);
+  return { ok: "Student portal login revoked." };
+}

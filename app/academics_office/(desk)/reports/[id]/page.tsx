@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { saveReport } from "@/app/academics_office/(desk)/actions";
+import { generateReportComments, saveReport } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm, PrintButton } from "@/components/academics/Form";
-import { formatScore, ordinal, ReportSheet, type SheetCard, type SheetLine } from "@/components/academics/ReportSheet";
+import { formatScore, ordinal, ReportSheet, type SheetActivity, type SheetCard, type SheetLine } from "@/components/academics/ReportSheet";
 import { AcademicsGate } from "@/components/academics/ui";
 import { ACADEMICS_BASE, CONDUCT, classLabel, classSection, num, openAcademics, scaleBands } from "@/lib/academics";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
+import { ensureDraftReportComments } from "@/lib/comment-engine";
+import { loadReportClosing } from "@/lib/report-closing";
 import { isUuid } from "@/lib/students";
 
 export const metadata = { title: "Report card" };
@@ -42,12 +44,32 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Report card" state={opened} />;
   const { supabase, office } = opened.auth;
-  const { data: card, error } = await supabase.from("report_cards").select("*, fee_terms(label)").eq("id", id).maybeSingle();
+  let { data: card, error } = await supabase.from("report_cards").select("*, fee_terms(label)").eq("id", id).maybeSingle();
   if (error) return <AcademicsGate title="Report card" state={{ notice: "schema", message: error.message }} />;
   if (!card) notFound();
+  if (office && card.status === "draft") {
+    try {
+      const filled = await ensureDraftReportComments(supabase, id, opened.auth.user.id);
+      if (filled) {
+        const refreshed = await supabase.from("report_cards").select("*, fee_terms(label)").eq("id", id).maybeSingle();
+        if (refreshed.data) card = refreshed.data;
+      }
+    } catch {
+      // Leave the card blank if the comment bank is not ready yet.
+    }
+  }
   const nursery = classSection(card.class_code) === "nursery";
+  const activityQuery = await supabase
+    .from("report_card_activities")
+    .select("slot, activity_name, level, score, max_score, skills")
+    .eq("report_card_id", id)
+    .order("slot");
+  const activityRows = activityQuery.error && /score|skills|max_score|42703/i.test(activityQuery.error.message)
+    ? (await supabase.from("report_card_activities").select("slot, activity_name, level").eq("report_card_id", id).order("slot")).data
+    : activityQuery.data;
+
   const [{ data: pupil }, { data: lines }, matesQuery, parts, initials, bands] = await Promise.all([
-    supabase.from("students").select("full_name, student_number, photo_path").eq("id", card.student_id).maybeSingle(),
+    supabase.from("students").select("full_name, student_number, photo_path, campus").eq("id", card.student_id).maybeSingle(),
     supabase.from("report_lines").select("*").eq("report_card_id", id),
     card.class_code
       ? supabase.from("report_cards").select("id, student_id, students(full_name)").eq("term_id", card.term_id).eq("class_code", card.class_code).eq("stream", card.stream || "")
@@ -60,6 +82,29 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   ]);
   const term = card.fee_terms as { label?: string } | { label?: string }[] | null;
   const termLabel = Array.isArray(term) ? term[0]?.label : term?.label;
+  const activities: SheetActivity[] = [1, 2, 3, 4].map((slot) => {
+    const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
+      | { activity_name?: string | null; level?: string | null; score?: number | null; max_score?: number | null; skills?: unknown }
+      | undefined;
+    const skills = Array.isArray(row?.skills)
+      ? row.skills
+          .map((item) => {
+            if (!item || typeof item !== "object") return null;
+            const label = typeof (item as { label?: unknown }).label === "string" ? (item as { label: string }).label.trim() : "";
+            if (!label) return null;
+            return { label, acquired: Boolean((item as { acquired?: unknown }).acquired) };
+          })
+          .filter((item): item is { label: string; acquired: boolean } => Boolean(item))
+      : [];
+    return {
+      slot,
+      activity_name: row?.activity_name ? String(row.activity_name) : null,
+      level: row?.level ? String(row.level) : null,
+      score: row?.score == null ? null : Number(row.score),
+      max_score: row?.max_score == null ? null : Number(row.max_score),
+      skills,
+    };
+  });
   const sheet: SheetCard = {
     id,
     pupil_name: pupil?.full_name || "Pupil",
@@ -70,6 +115,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     class_teacher_name: card.class_teacher_name,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,
+    cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,
     conduct: card.conduct,
     days_present: num(card.days_present),
     days_opened: num(card.days_opened),
@@ -78,6 +124,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     status: card.status,
     student_id: card.student_id,
     photo_path: pupil?.photo_path || null,
+    activities,
     lines: (lines || []).map((line) => ({
       subject_id: String(line.subject_id),
       subject_name: String(line.subject_name),
@@ -90,6 +137,9 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     })).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
     scale: scaleBands(nursery ? "nursery" : "primary", card.grade_rules, bands.error ? null : bands.data),
   };
+  const closing = await loadReportClosing(supabase, { termId: card.term_id, classCode: card.class_code, campus: pupil?.campus });
+  sheet.fees = closing.fees;
+  sheet.next_starts_on = closing.nextStartsOn;
   sheet.sets = cardSets(id, sheet.lines, parts);
   const ordered = ((matesQuery.error ? [] : matesQuery.data) || [])
     .map((row) => ({ id: String(row.id), name: mateName(row as Mate) }))
@@ -183,44 +233,100 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               </div>
             </header>
             {canEdit ? (
-              <DeskForm className="rpt-editor-form" action={saveReport}>
-                <input type="hidden" name="id" value={id} />
-                <div className="rpt-editor-scroll">
-                  <label className="ofc-field">
-                    <span>Conduct</span>
-                    <select name="conduct" defaultValue={card.conduct || ""}>
-                      <option value="">Not set</option>
-                      {CONDUCT.map((item) => <option key={item}>{item}</option>)}
-                    </select>
-                  </label>
-                  <label className="ofc-field">
-                    <span>Class teacher{card.class_teacher_name ? <em>{card.class_teacher_name}</em> : null}</span>
-                    <textarea name="class_teacher_comment" rows={3} defaultValue={card.class_teacher_comment || ""} placeholder="How this pupil worked this term" />
-                  </label>
-                  <label className="ofc-field">
-                    <span>Principal</span>
-                    <textarea name="head_comment" rows={2} defaultValue={card.head_comment || ""} placeholder="Head teacher's remark" />
-                  </label>
-                  {sheet.lines.length ? (
+              <>
+                {card.status === "draft" ? (
+                  <DeskForm className="rpt-editor-generate" action={generateReportComments}>
+                    <input type="hidden" name="id" value={id} />
+                    <button className="rpt-btn" type="submit">Regenerate comments</button>
+                    <p className="rpt-quiet">Remarks fill automatically when cards are prepared. Use this only to rewrite them from the active comment bank.</p>
+                  </DeskForm>
+                ) : null}
+                <DeskForm className="rpt-editor-form" action={saveReport}>
+                  <input type="hidden" name="id" value={id} />
+                  <div className="rpt-editor-scroll">
+                    <label className="ofc-field">
+                      <span>Conduct</span>
+                      <select name="conduct" defaultValue={card.conduct || ""}>
+                        <option value="">Not set</option>
+                        {CONDUCT.map((item) => <option key={item}>{item}</option>)}
+                      </select>
+                    </label>
                     <div className="rpt-remarks">
-                      <h3>Subject remarks <em>{remarked} of {sheet.lines.length}</em></h3>
-                      {sheet.lines.map((line) => (
-                        <label className="rpt-remark" key={line.subject_id}>
-                          <span className="rpt-remark-label">
-                            <strong>{line.subject_name}</strong>
-                            {remarkMeta(line, nursery) ? <em>{remarkMeta(line, nursery)}</em> : null}
-                          </span>
-                          <input name={`comment:${line.subject_id}`} defaultValue={line.teacher_comment || ""} placeholder="Add a remark" autoComplete="off" />
-                        </label>
-                      ))}
+                      <h3>Co-curricular <em>from Other subjects or enter here</em></h3>
+                      <p className="rpt-quiet">Subjects marked Other on the Subjects page fill these slots when reports are prepared. You can still edit the mark, skills taught, and skills acquired here.</p>
+                      {activities.map((row) => {
+                        const taught = (row.skills || []).map((skill) => skill.label).join(", ");
+                        const acquired = (row.skills || []).filter((skill) => skill.acquired).map((skill) => skill.label).join(", ");
+                        return (
+                          <div className="rpt-activity-block" key={row.slot}>
+                            <div className="rpt-activity-row">
+                              <label className="ofc-field">
+                                <span>Activity {row.slot}</span>
+                                <input name={`activity_name_${row.slot}`} defaultValue={row.activity_name || ""} placeholder="e.g. Music" autoComplete="off" />
+                              </label>
+                              <label className="ofc-field">
+                                <span>Mark</span>
+                                <input name={`activity_score_${row.slot}`} type="number" min={0} step="any" defaultValue={row.score ?? ""} placeholder="e.g. 82" />
+                              </label>
+                              <label className="ofc-field">
+                                <span>Out of</span>
+                                <input name={`activity_max_${row.slot}`} type="number" min={1} step="any" defaultValue={row.max_score ?? 100} />
+                              </label>
+                              <label className="ofc-field">
+                                <span>Level</span>
+                                <select name={`activity_level_${row.slot}`} defaultValue={row.level || ""}>
+                                  <option value="">From mark</option>
+                                  {CONDUCT.map((item) => <option key={item}>{item}</option>)}
+                                </select>
+                              </label>
+                            </div>
+                            <div className="rpt-activity-skills">
+                              <label className="ofc-field">
+                                <span>Skills this term</span>
+                                <input name={`activity_skills_${row.slot}`} defaultValue={taught} placeholder="e.g. rhythm, ensemble, notation" autoComplete="off" />
+                              </label>
+                              <label className="ofc-field">
+                                <span>Skills acquired</span>
+                                <input name={`activity_acquired_${row.slot}`} defaultValue={acquired} placeholder="e.g. rhythm, ensemble" autoComplete="off" />
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                  ) : null}
-                </div>
-                <div className="rpt-editor-actions">
-                  <button className="rpt-btn" type="submit" name="intent" value="save">Save remarks</button>
-                  {card.status === "approved" ? <button className="rpt-btn is-gold" type="submit" name="intent" value="publish">Publish</button> : null}
-                </div>
-              </DeskForm>
+                    <label className="ofc-field">
+                      <span>Co-curricular summary</span>
+                      <textarea name="cocurricular_comment" rows={2} defaultValue={sheet.cocurricular_comment || ""} placeholder="One sentence that names the child" />
+                    </label>
+                    <label className="ofc-field">
+                      <span>Class teacher{card.class_teacher_name ? <em>{card.class_teacher_name}</em> : null}</span>
+                      <textarea name="class_teacher_comment" rows={3} defaultValue={card.class_teacher_comment || ""} placeholder="How this pupil worked this term" />
+                    </label>
+                    <label className="ofc-field">
+                      <span>Principal</span>
+                      <textarea name="head_comment" rows={2} defaultValue={card.head_comment || ""} placeholder="Head teacher's remark" />
+                    </label>
+                    {sheet.lines.length ? (
+                      <div className="rpt-remarks">
+                        <h3>Subject remarks <em>{remarked} of {sheet.lines.length}</em></h3>
+                        {sheet.lines.map((line) => (
+                          <label className="rpt-remark" key={line.subject_id}>
+                            <span className="rpt-remark-label">
+                              <strong>{line.subject_name}</strong>
+                              {remarkMeta(line, nursery) ? <em>{remarkMeta(line, nursery)}</em> : null}
+                            </span>
+                            <input name={`comment:${line.subject_id}`} defaultValue={line.teacher_comment || ""} placeholder="Add a remark" autoComplete="off" />
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="rpt-editor-actions">
+                    <button className="rpt-btn" type="submit" name="intent" value="save">Save remarks</button>
+                    {card.status === "approved" ? <button className="rpt-btn is-gold" type="submit" name="intent" value="publish">Publish</button> : null}
+                  </div>
+                </DeskForm>
+              </>
             ) : <p className="rpt-quiet">Issued to parents. Print the card from the header.</p>}
           </section>
         ) : null}

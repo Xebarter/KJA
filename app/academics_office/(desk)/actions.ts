@@ -29,16 +29,26 @@ import {
 } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 import { classMarkbooksReady, prepareClassReports } from "@/lib/academics-reports";
+import {
+  defaultCommentConfig,
+  generateAndSaveReportComments,
+  generateClassReportComments,
+  loadActiveCommentConfig,
+  validateComment,
+} from "@/lib/comment-engine";
+import { buildSamplePreview, previewPlainText, type CommentPreview } from "@/lib/comment-engine/preview";
 import { renderAlertEmail } from "@/lib/email/layout";
 import { emailSetupProblem, sendEmail } from "@/lib/email/send";
 import { getContent } from "@/lib/content";
 import { SITE_URL } from "@/lib/newsroom";
-import { EMAIL } from "@/lib/office-forms";
+import { dateField, EMAIL } from "@/lib/office-forms";
+import { formatReportDate, nextTermSlot } from "@/lib/report-closing";
+import { serviceClient } from "@/lib/supabase/service";
 import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
 import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
 
-type Result = { error?: string; ok?: string; href?: string; subject?: ReturnType<typeof mapSubject>; removedId?: string };
+type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string };
 
 const KINDS = new Set(["bot", "midterm", "endterm", "test"]);
 const STATUSES = new Set(ATTENDANCE_STATUSES.map((entry) => entry.value));
@@ -299,19 +309,34 @@ export async function saveSubject(formData: FormData): Promise<Result> {
   if (name.length < 2) return { error: "Enter the subject name." };
   const span = spanForBands(formData.getAll("band").map(String).filter(isSubjectBand));
   if (!span) return { error: "Choose at least one section." };
+  const kind = text(formData, "kind", 20) === "cocurricular" ? "cocurricular" : "core";
+  const skills = kind === "cocurricular"
+    ? text(formData, "default_skills", 500)
+        .split(/[\n,;|/]+/)
+        .map((part) => part.trim().replace(/\s+/g, " ").slice(0, 40))
+        .filter(Boolean)
+        .filter((label, index, list) => list.findIndex((row) => row.toLowerCase() === label.toLowerCase()) === index)
+        .slice(0, 8)
+    : [];
   const row = {
     name,
     section: span.section,
-    kind: "core",
+    kind,
     applies_from: span.applies_from,
     applies_to: span.applies_to,
     active: formData.get("active") !== "0",
+    default_skills: skills,
   };
   const query = id
     ? opened.auth.supabase.from("subjects").update(row).eq("id", id).select("*").single()
-    : opened.auth.supabase.from("subjects").insert({ ...row, code, sort_order: Number(text(formData, "sort_order", 6) || "50") }).select("*").single();
+    : opened.auth.supabase.from("subjects").insert({ ...row, code, sort_order: Number(text(formData, "sort_order", 6) || (kind === "cocurricular" ? "80" : "50")) }).select("*").single();
   const { data, error } = await query;
-  if (error || !data) return { error: error?.message.includes("duplicate") ? "That subject code is already in use." : error?.message || "The subject could not be saved." };
+  if (error || !data) {
+    if (/kind|default_skills|check constraint|42703/i.test(error?.message || "")) {
+      return { error: `${error?.message || "Could not save."} Run supabase/0027_cocurricular_subjects.sql then supabase/0028_subject_kinds_academic_other.sql in the Supabase SQL editor.` };
+    }
+    return { error: error?.message.includes("duplicate") ? "That subject code is already in use." : error?.message || "The subject could not be saved." };
+  }
   refreshSubjectCatalogue();
   return { ok: id ? "Subject updated." : `${name} added.`, subject: mapSubject(data as Record<string, unknown>) };
 }
@@ -780,6 +805,25 @@ function previewHref(classCode: string, stream: string) {
   return `${ACADEMICS_BASE}/reports/preview?class=${classCode}&stream=${streamQuery(stream)}`;
 }
 
+async function fillDraftComments(
+  auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
+  input: { classCode: string; stream: string; termId: string },
+  options: { onlyBlank?: boolean } = {},
+) {
+  try {
+    return await generateClassReportComments(auth.supabase, input, auth.user.id, options);
+  } catch (error) {
+    // Cards stay ready even if the comment bank is missing; the office can fill remarks later.
+    return {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      skipped: 0,
+      errors: [{ reportId: "", messages: [error instanceof Error ? error.message : "Comments could not be generated."] }],
+    };
+  }
+}
+
 async function approveDraftCards(
   auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
   input: { classCode: string; stream: string; termId: string },
@@ -787,6 +831,7 @@ async function approveDraftCards(
   const waiting = await classMarkbooksReady(auth.supabase, input);
   if (waiting) return { error: waiting };
   await prepareClassReports(auth.supabase, input);
+  await fillDraftComments(auth, input, { onlyBlank: true });
   const section = classSection(input.classCode);
   const { data: bands, error: bandError } = await auth.supabase.from("grade_bands").select("label, min_score, max_score, points, sort_order, section").eq("section", section).order("sort_order");
   if (bandError) return { error: bandError.message };
@@ -814,6 +859,22 @@ async function approveDraftCards(
   return null;
 }
 
+function reportSetsFrom(formData: FormData) {
+  const keys = formData.getAll("set").map((value) => String(value || "").trim()).filter(Boolean);
+  if (!keys.length) return { error: "Choose at least one assessment to include." } as const;
+  const sets: { key: string; share: number }[] = [];
+  for (const key of keys) {
+    const share = num(String(formData.get(`share:${key}`) || ""));
+    if (share === null || share <= 0) return { error: `Enter a percentage above 0 for each chosen assessment.` } as const;
+    sets.push({ key, share });
+  }
+  const total = Math.round(sets.reduce((sum, set) => sum + set.share, 0) * 10) / 10;
+  if (Math.abs(total - 100) > 0.05) {
+    return { error: `The shares must add up to 100%. They currently add up to ${total}%.` } as const;
+  }
+  return { sets } as const;
+}
+
 export async function prepareReports(formData: FormData): Promise<Result> {
   const opened = await gate();
   if (!opened.auth) return { error: opened.error };
@@ -821,13 +882,27 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   if (blocked) return blocked;
   const { classCode, stream, termId } = group(formData);
   if (!termId || !classCode) return { error: "Choose a term and a class." };
+  const chosen = reportSetsFrom(formData);
+  if ("error" in chosen) return { error: chosen.error };
   try {
-    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream });
-    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Prepared report cards for ${classLabel(classCode, stream)}.` });
+    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets });
+    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream });
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "report",
+      body: `Prepared report cards for ${classLabel(classCode, stream)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
+    });
     const href = previewHref(classCode, stream);
     refreshAcademics(`${ACADEMICS_BASE}/reports`, href);
+    if (!result.prepared && !comments.succeeded) {
+      return { ok: "No draft cards were updated. Approved and published cards stay as they are.", href };
+    }
+    const parts = [
+      result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}` : null,
+      comments.succeeded ? `filled comments on ${comments.succeeded}` : null,
+    ].filter(Boolean);
+    const note = comments.errors[0]?.messages[0];
     return {
-      ok: result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}.` : "No draft cards were updated. Approved and published cards stay as they are.",
+      ok: `${parts.join(" and ")}.${note && !comments.succeeded ? ` ${note}` : ""}`.trim(),
       href,
     };
   } catch (error) {
@@ -896,6 +971,27 @@ export async function reopenReports(formData: FormData): Promise<Result> {
   return { ok: "Approved cards are drafts again. Published cards were left alone." };
 }
 
+async function notifyStudentsOfReports(
+  supabase: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>["supabase"],
+  cards: { id: string; student_id: string }[],
+) {
+  if (!cards.length) return;
+  const studentIds = [...new Set(cards.map((card) => card.student_id))];
+  const { data: pupils } = await supabase.from("students").select("id, profile_id").in("id", studentIds).not("profile_id", "is", null);
+  const profileByStudent = new Map((pupils || []).map((row) => [row.id, row.profile_id as string]));
+  for (const card of cards) {
+    const profileId = profileByStudent.get(card.student_id);
+    if (!profileId) continue;
+    await supabase.rpc("notify_user", {
+      p_user_id: profileId,
+      p_title: "Your report card is ready",
+      p_body: "Open Reports in the student portal to view it.",
+      p_href: `/r/${card.id}`,
+      p_kind: "reports",
+    });
+  }
+}
+
 export async function publishReports(formData: FormData): Promise<Result> {
   const opened = await gate();
   if (!opened.auth) return { error: opened.error };
@@ -910,9 +1006,10 @@ export async function publishReports(formData: FormData): Promise<Result> {
     .eq("class_code", classCode)
     .eq("stream", stream)
     .eq("status", "approved")
-    .select("id");
+    .select("id, student_id");
   if (error) return { error: error.message };
   if (!data?.length) return { error: "Approve the class before publishing. Draft cards stay with the office." };
+  await notifyStudentsOfReports(opened.auth.supabase, data);
   await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Published report cards for ${classLabel(classCode, stream)}.` });
   refreshAcademics(`${ACADEMICS_BASE}/reports`);
   return { ok: "Approved report cards published. Parents can open them now." };
@@ -946,9 +1043,10 @@ export async function postReports(formData: FormData): Promise<Result> {
       .eq("class_code", input.classCode)
       .eq("stream", input.stream)
       .eq("status", "approved")
-      .select("id");
+      .select("id, student_id");
     if (postError) return { error: postError.message };
     if (!posted?.length) return { error: "There were no report cards to post." };
+    await notifyStudentsOfReports(opened.auth.supabase, posted);
     await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Posted report cards for ${classLabel(input.classCode, input.stream)}.` });
     refreshAcademics(`${ACADEMICS_BASE}/reports`, previewHref(input.classCode, input.stream));
     const count = posted.length;
@@ -977,6 +1075,7 @@ export async function saveReport(formData: FormData): Promise<Result> {
     .update({
       class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
       head_comment: text(formData, "head_comment", 2000) || null,
+      cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
       conduct: CONDUCT.includes(conduct as (typeof CONDUCT)[number]) ? conduct : null,
       updated_at: new Date().toISOString(),
       ...(publishing
@@ -1002,9 +1101,167 @@ export async function saveReport(formData: FormData): Promise<Result> {
       if (saveError) return { error: saveError.message };
     }
   }
+  const { mergeActivitySkills, parseSkillLabels } = await import("@/lib/comment-engine/skills");
+  const { classifyPercentage, DEFAULT_SETTINGS, subjectPercent } = await import("@/lib/comment-engine/bands");
+  const { levelFromBand } = await import("@/lib/comment-engine/analyse");
+  const activities: {
+    report_card_id: string;
+    slot: number;
+    activity_name: string | null;
+    level: string | null;
+    score: number | null;
+    max_score: number | null;
+    skills: { label: string; acquired: boolean }[];
+  }[] = [];
+  for (const slot of [1, 2, 3, 4]) {
+    const name = text(formData, `activity_name_${slot}`, 80) || null;
+    const levelRaw = text(formData, `activity_level_${slot}`, 40);
+    let level = CONDUCT.includes(levelRaw as (typeof CONDUCT)[number]) ? levelRaw : null;
+    const scoreRaw = text(formData, `activity_score_${slot}`, 12);
+    const maxRaw = text(formData, `activity_max_${slot}`, 12) || "100";
+    const score = scoreRaw ? Number(scoreRaw) : null;
+    const maxScore = maxRaw ? Number(maxRaw) : null;
+    const markOk = score != null && Number.isFinite(score) && maxScore != null && maxScore > 0 && Number.isFinite(maxScore);
+    if (markOk) {
+      const band = classifyPercentage(subjectPercent(score, maxScore), DEFAULT_SETTINGS.academic_bands);
+      const fromMark = levelFromBand(band);
+      if (fromMark) level = fromMark;
+    }
+    const taught = parseSkillLabels(text(formData, `activity_skills_${slot}`, 400));
+    const acquired = parseSkillLabels(text(formData, `activity_acquired_${slot}`, 400));
+    const skills = mergeActivitySkills(taught, acquired);
+    if (name || level || markOk || skills.length) {
+      activities.push({
+        report_card_id: id,
+        slot,
+        activity_name: name,
+        level,
+        score: markOk ? score : null,
+        max_score: markOk ? maxScore : null,
+        skills,
+      });
+    } else {
+      activities.push({ report_card_id: id, slot, activity_name: null, level: null, score: null, max_score: null, skills: [] });
+    }
+  }
+  const { error: activityError } = await opened.auth.supabase.from("report_card_activities").upsert(activities, { onConflict: "report_card_id,slot" });
+  if (activityError) {
+    if (/score|skills|max_score|42703/i.test(activityError.message)) {
+      return { error: `${activityError.message}. Run supabase/0026_cocurricular_skills.sql in the Supabase SQL editor.` };
+    }
+    return { error: activityError.message };
+  }
   refreshAcademics(`${ACADEMICS_BASE}/reports/${id}`);
   if (publishing) await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Published a report card for ${classLabel(current.class_code as string | null, current.stream as string | null)}.` });
   return { ok: publishing ? "Report card published." : "Comments saved." };
+}
+
+export async function generateReportComments(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (!id) return { error: "This report card could not be found." };
+  try {
+    const { apply } = await generateAndSaveReportComments(opened.auth.supabase, id, opened.auth.user.id);
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Generated report comments for card ${id}.` });
+    refreshAcademics(`${ACADEMICS_BASE}/reports/${id}`, `${ACADEMICS_BASE}/reports`);
+    if (!apply.ok) {
+      return { error: apply.errors.slice(0, 3).join(" ") || "Some comments need review.", href: `${ACADEMICS_BASE}/reports/${id}` };
+    }
+    return { ok: "Comments generated from the active template bank.", href: `${ACADEMICS_BASE}/reports/${id}` };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Comments could not be generated." };
+  }
+}
+
+export async function generateClassComments(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const { classCode, stream, termId } = group(formData);
+  if (!termId || !classCode) return { error: "Choose a term and a class." };
+  try {
+    const result = await generateClassReportComments(opened.auth.supabase, { termId, classCode, stream }, opened.auth.user.id);
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "report",
+      body: `Regenerated comments for ${result.succeeded} of ${result.processed} draft cards in ${classLabel(classCode, stream)}.`,
+    });
+    const href = `${ACADEMICS_BASE}/reports?class=${classCode}&stream=${streamQuery(stream)}`;
+    refreshAcademics(`${ACADEMICS_BASE}/reports`, href);
+    if (!result.processed) return { error: "There are no draft report cards to comment.", href };
+    if (result.failed) {
+      return {
+        error: `Rewrote ${result.succeeded}, with ${result.failed} needing review. ${result.errors[0]?.messages[0] || ""}`.trim(),
+        href,
+      };
+    }
+    return { ok: `Rewrote comments on ${result.succeeded} draft report ${result.succeeded === 1 ? "card" : "cards"}.`, href };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Class comments could not be generated." };
+  }
+}
+
+export async function saveCommentTemplate(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  const templateText = text(formData, "template_text", 2000);
+  const commentType = text(formData, "comment_type", 40);
+  if (!id || !templateText) return { error: "Enter the template text." };
+
+  const { data: current, error: loadError } = await opened.auth.supabase
+    .from("comment_templates")
+    .select("id, comment_type, exact_words, min_words, max_words, exact_sentences")
+    .eq("id", id)
+    .maybeSingle();
+  if (loadError) return { error: loadError.message };
+  if (!current) return { error: "That template could not be found." };
+
+  const type = current.comment_type || commentType;
+  const check = validateComment(templateText.replace(/\{[a-z_]+\}/gi, "Name"), {
+    exactWords: current.exact_words,
+    minWords: current.min_words,
+    maxWords: current.max_words,
+    exactSentences: current.exact_sentences,
+    requireFirstName: type === "cocurricular",
+    firstName: type === "cocurricular" ? "Name" : undefined,
+  });
+  if (type === "cocurricular" && !/\{first_name\}/i.test(templateText)) {
+    return { error: "Co-curricular templates must include {first_name}." };
+  }
+  if (type === "subject_teacher" && current.exact_words && check.words !== current.exact_words) {
+    return { error: `Subject comments must be exactly ${current.exact_words} words after placeholders are filled.` };
+  }
+  if (type === "headteacher" && current.exact_words && check.words !== current.exact_words) {
+    return { error: `Headteacher comments must be exactly ${current.exact_words} words.` };
+  }
+
+  const { error } = await opened.auth.supabase
+    .from("comment_templates")
+    .update({ template_text: templateText, updated_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) return { error: error.message };
+  refreshAcademics(`${ACADEMICS_BASE}/comments`);
+  return { ok: "Template saved." };
+}
+
+export async function previewCommentEngine(_formData?: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  try {
+    const config = (await loadActiveCommentConfig(opened.auth.supabase)) || defaultCommentConfig();
+    const sample = buildSamplePreview(config);
+    return { ok: "Preview ready.", preview: previewPlainText(sample), sample };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Preview failed." };
+  }
 }
 
 export async function saveBand(formData: FormData): Promise<Result> {
@@ -1222,6 +1479,31 @@ export async function setSchemeStatus(formData: FormData): Promise<Result> {
     return { ok: "Scheme returned to draft." };
   }
   return { error: "Choose what to do with this scheme." };
+}
+
+/** The date printed beside the fees on every report card. Stored on the following term. */
+export async function saveNextTermStart(formData: FormData): Promise<Result> {
+  const opened = await gate();
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const starts = dateField(formData, "starts_on");
+  if (starts.error || !starts.value) return { error: "Choose the date the next term starts." };
+  const db = serviceClient() ?? opened.auth.supabase;
+  const { data: current, error } = await db.from("fee_terms").select("id, year, term").eq("is_current", true).maybeSingle();
+  if (error) return { error: error.message };
+  if (!current) return { error: "Set a current term before choosing when the next one starts." };
+  const slot = nextTermSlot(Number(current.year), Number(current.term));
+  const { data: existing, error: lookupError } = await db.from("fee_terms").select("id, label").eq("year", slot.year).eq("term", slot.term).maybeSingle();
+  if (lookupError) return { error: lookupError.message };
+  const label = existing?.label || `${slot.year} Term ${slot.term}`;
+  const write = existing
+    ? await db.from("fee_terms").update({ starts_on: starts.value }).eq("id", existing.id)
+    : await db.from("fee_terms").insert({ year: slot.year, term: slot.term, label, starts_on: starts.value });
+  if (write.error) return { error: write.error.message };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "setup", body: `Set ${label} to start on ${formatReportDate(starts.value)}.` });
+  refreshAcademics(`${ACADEMICS_BASE}/settings`, `${ACADEMICS_BASE}/reports`);
+  return { ok: `Next term starts on ${formatReportDate(starts.value)}.` };
 }
 
 export async function saveDate(formData: FormData): Promise<Result> {

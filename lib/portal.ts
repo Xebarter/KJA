@@ -45,9 +45,11 @@ type LinkedStudent = {
   date_of_birth: string | null;
   status: string;
   photo_path?: string | null;
+  profile_id?: string | null;
 };
 
 const STUDENT_COLUMNS = "id, full_name, class_code, stream, campus, student_number, date_of_birth, status";
+const STUDENT_COLUMNS_PORTAL = `${STUDENT_COLUMNS}, profile_id`;
 
 function studentIds(value: unknown) {
   if (!Array.isArray(value)) return [];
@@ -61,21 +63,26 @@ function studentIds(value: unknown) {
 async function loadLinkedStudents(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>) {
   const linked = await supabase.rpc("my_student_ids");
   const ids = studentIds(linked.data);
-  if (linked.error) {
-    const withPhoto = await supabase.from("students").select(`${STUDENT_COLUMNS}, photo_path`).order("full_name");
-    if (withPhoto.error && /photo_path/.test(withPhoto.error.message)) {
-      const plain = await supabase.from("students").select(STUDENT_COLUMNS).order("full_name");
+
+  async function fetchStudents(filterIds: string[] | null) {
+    const base = filterIds
+      ? supabase.from("students").select(`${STUDENT_COLUMNS_PORTAL}, photo_path`).in("id", filterIds).order("full_name")
+      : supabase.from("students").select(`${STUDENT_COLUMNS_PORTAL}, photo_path`).order("full_name");
+    const withPortal = await base;
+    if (!withPortal.error) return (withPortal.data ?? []) as LinkedStudent[];
+    if (/profile_id|photo_path/i.test(withPortal.error.message)) {
+      const plainQuery = filterIds
+        ? supabase.from("students").select(STUDENT_COLUMNS).in("id", filterIds).order("full_name")
+        : supabase.from("students").select(STUDENT_COLUMNS).order("full_name");
+      const plain = await plainQuery;
       return (plain.data ?? []) as LinkedStudent[];
     }
-    return (withPhoto.data ?? []) as LinkedStudent[];
+    return [];
   }
+
+  if (linked.error) return fetchStudents(null);
   if (!ids.length) return [];
-  const withPhoto = await supabase.from("students").select(`${STUDENT_COLUMNS}, photo_path`).in("id", ids).order("full_name");
-  if (withPhoto.error && /photo_path/.test(withPhoto.error.message)) {
-    const plain = await supabase.from("students").select(STUDENT_COLUMNS).in("id", ids).order("full_name");
-    return (plain.data ?? []) as LinkedStudent[];
-  }
-  return (withPhoto.data ?? []) as LinkedStudent[];
+  return fetchStudents(ids);
 }
 
 /** Attaches earlier applications that belong to this parent, then the portal query can read them. */
@@ -221,6 +228,7 @@ export async function getPortal() {
       student_code: student.student_number,
       status: student.status,
       photo_path: student.photo_path || null,
+      portal_enabled: Boolean(student.profile_id),
     }));
   const fees = pupils.length
     ? accountFees

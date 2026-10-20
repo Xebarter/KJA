@@ -22,6 +22,9 @@ const grace: StaffMember = {
   classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A" }],
   subjects: [{
     key: "math",
+    subjectId: "math",
+    classCode: "RC",
+    stream: "A",
     subject: "Mathematics",
     label: "Reception A",
     href: "#",
@@ -68,9 +71,39 @@ export default function StaffPreview() {
       <StaffDesk
         members={[grace, peter]}
         gaps={[{ label: "Baby Class A", href: "#" }]}
+        groups={[{ code: "RC", stream: "A", label: "Reception A", pupils: 18 }]}
+        subjects={[{
+          id: "math",
+          code: "MATH",
+          name: "Mathematics",
+          section: "nursery",
+          kind: "core",
+          sort_order: 1,
+          applies_from: null,
+          applies_to: null,
+          active: true,
+          default_skills: [],
+        }]}
+        posts={[{
+          classCode: "RC",
+          stream: "A",
+          subjectId: "math",
+          subject: "Mathematics",
+          staffId: "grace",
+          staffName: "Grace Namukasa",
+        }]}
+        leads={[{
+          classCode: "RC",
+          stream: "A",
+          staffId: "grace",
+          staffName: "Grace Namukasa",
+        }]}
+        termId="term-3"
         termLabel="Term 3 2026"
         initialId="grace"
         save={async () => ({ ok: "Saved" })}
+        assign={async () => ({ ok: "Saved" })}
+        release={async () => ({ ok: "Saved" })}
       />
     </div>
   );

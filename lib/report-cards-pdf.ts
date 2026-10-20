@@ -4,7 +4,11 @@
  */
 import { PDFDocument, StandardFonts, clip, endPath, popGraphicsState, pushGraphicsState, rectangle, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import QRCode from "qrcode";
 import { classLabel, classSection, formatShare, num, scaleBands, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
+import { siteUrl } from "@/lib/admin-alerts";
+import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
+import { reportOnlineUrl } from "@/lib/report-link";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import { fetchAll } from "@/lib/students";
@@ -21,6 +25,12 @@ export type StreamReportLine = {
   parts?: ReportPart[];
 };
 
+export type StreamReportActivity = {
+  slot: number;
+  activity_name: string | null;
+  level: string | null;
+};
+
 export type StreamReportCard = {
   id: string;
   student_id: string;
@@ -33,6 +43,7 @@ export type StreamReportCard = {
   class_teacher_name: string | null;
   class_teacher_comment: string | null;
   head_comment: string | null;
+  cocurricular_comment: string | null;
   conduct: string | null;
   days_present: number | null;
   days_opened: number | null;
@@ -40,8 +51,11 @@ export type StreamReportCard = {
   overall_position: number | null;
   status: string;
   lines: StreamReportLine[];
+  activities: StreamReportActivity[];
   sets?: ReportSet[];
   scale: ScaleBand[];
+  fees?: { name: string; amount: number }[];
+  next_starts_on?: string | null;
 };
 
 type CardRow = {
@@ -52,6 +66,7 @@ type CardRow = {
   class_teacher_name: string | null;
   class_teacher_comment: string | null;
   head_comment: string | null;
+  cocurricular_comment: string | null;
   conduct: string | null;
   days_present: number | null;
   days_opened: number | null;
@@ -167,7 +182,7 @@ export async function loadStreamReportCards(
   const cards = await fetchAll<CardRow>((from, to) =>
     supabase
       .from("report_cards")
-      .select("id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, conduct, days_present, days_opened, overall_score, overall_position, status, grade_rules")
+      .select("id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, cocurricular_comment, conduct, days_present, days_opened, overall_score, overall_position, status, grade_rules")
       .eq("term_id", input.termId)
       .eq("class_code", input.classCode)
       .eq("stream", input.stream)
@@ -178,9 +193,9 @@ export async function loadStreamReportCards(
   const cardIds = cards.map((card) => card.id);
   const pupilIds = [...new Set(cards.map((card) => card.student_id))];
   const section = classSection(input.classCode);
-  const [pupils, lines, parts, initials, bands] = await Promise.all([
-    rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null }>(pupilIds, (slice, from, to) =>
-      supabase.from("students").select("id, full_name, student_number, photo_path").in("id", slice).range(from, to),
+  const [pupils, lines, parts, initials, bands, closing, activities] = await Promise.all([
+    rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null; campus: string | null }>(pupilIds, (slice, from, to) =>
+      supabase.from("students").select("id, full_name, student_number, photo_path, campus").in("id", slice).range(from, to),
     ),
     rowsIn<LineRow>(cardIds, (slice, from, to) =>
       supabase.from("report_lines").select("report_card_id, subject_id, subject_name, score, grade, position, teacher_comment").in("report_card_id", slice).range(from, to),
@@ -188,6 +203,10 @@ export async function loadStreamReportCards(
     loadReportParts(supabase, cardIds),
     loadSubjectInitials(supabase, input),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order").eq("section", section).order("sort_order"),
+    loadClassClosing(supabase, { termId: input.termId, classCode: input.classCode }),
+    rowsIn<{ report_card_id: string; slot: number; activity_name: string | null; level: string | null }>(cardIds, (slice, from, to) =>
+      supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level").in("report_card_id", slice).range(from, to),
+    ),
   ]);
   const names = new Map(pupils.map((pupil) => [pupil.id, pupil]));
   const byCard = new Map<string, StreamReportLine[]>();
@@ -205,6 +224,16 @@ export async function loadStreamReportCards(
     });
     byCard.set(line.report_card_id, list);
   }
+  const activitiesByCard = new Map<string, StreamReportActivity[]>();
+  for (const row of activities) {
+    const list = activitiesByCard.get(row.report_card_id) || [];
+    list.push({
+      slot: Number(row.slot),
+      activity_name: row.activity_name ?? null,
+      level: row.level ?? null,
+    });
+    activitiesByCard.set(row.report_card_id, list);
+  }
   return cards
     .map((card) => {
       const pupil = names.get(card.student_id);
@@ -220,6 +249,7 @@ export async function loadStreamReportCards(
         class_teacher_name: card.class_teacher_name,
         class_teacher_comment: card.class_teacher_comment,
         head_comment: card.head_comment,
+        cocurricular_comment: card.cocurricular_comment,
         conduct: card.conduct,
         days_present: num(card.days_present),
         days_opened: num(card.days_opened),
@@ -227,8 +257,11 @@ export async function loadStreamReportCards(
         overall_position: num(card.overall_position),
         status: card.status,
         lines: (byCard.get(card.id) || []).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
+        activities: (activitiesByCard.get(card.id) || []).sort((a, b) => a.slot - b.slot),
         sets: cardSets(card.id, byCard.get(card.id) || [], parts),
         scale: scaleBands(section, card.grade_rules, bands.error ? null : bands.data),
+        fees: closing.feesFor(pupil?.campus ?? null),
+        next_starts_on: closing.nextStartsOn,
       };
     })
     .sort((a, b) => a.pupil_name.localeCompare(b.pupil_name) || a.id.localeCompare(b.id));
@@ -293,6 +326,7 @@ export async function buildReportCardsPdf(
   input: { title: string; nursery: boolean; cards: StreamReportCard[] },
   crestBytes: Uint8Array | null,
   photos?: Map<string, Uint8Array>,
+  origin = siteUrl(),
 ) {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`${input.title} report cards`);
@@ -382,13 +416,13 @@ export async function buildReportCardsPdf(
   let columns = columnsFor([]);
 
   const drawHead = () => {
-    const headH = columns.some((column) => column.sub) ? 22 : 14;
+    const headH = columns.some((column) => column.sub) ? 26 : 16;
     page!.drawRectangle({ x: M, y: y - headH, width: contentW, height: headH, color: CREAM });
     let x = M + 4;
     for (const column of columns) {
-      const label = fit(column.label, bold, 6.5, Math.max(16, column.width - 8)).toUpperCase();
-      page!.drawText(label, { x, y: y - (column.sub ? 10 : 11), size: column.sub ? 6 : 7, font: bold, color: MUTED });
-      if (column.sub) page!.drawText(column.sub, { x, y: y - 20, size: 7, font: bold, color: INK });
+      const label = fit(column.label, bold, 7.5, Math.max(16, column.width - 8)).toUpperCase();
+      page!.drawText(label, { x, y: y - (column.sub ? 11 : 12), size: column.sub ? 7 : 8, font: bold, color: MUTED });
+      if (column.sub) page!.drawText(column.sub, { x, y: y - 22, size: 8, font: bold, color: INK });
       x += column.width;
     }
     y -= headH;
@@ -534,19 +568,23 @@ export async function buildReportCardsPdf(
     y -= 8;
 
     const floor = 28;
-    const feesH = 42;
-    const activitiesH = 54;
-    const scaleH = 24;
-    const teacherMin = 36;
-    const principalMin = 32;
-    const gap = 10;
+    const gap = 8;
+    const scaleH = 22;
+    const actLabel = 12;
+    const actH = 32;
+    const cocoCommentH = 30; // "COMMENT" label + up to two lines
+    const teacherH = 52;
+    const qrSize = 56;
+    const principalH = 18 + qrSize + 12;
+    const feeRows = Math.max(1, (card.fees?.length || 0) + ((card.fees?.length || 0) > 1 ? 1 : 0));
+    const feesH = 20 + feeRows * 12;
+    const reserved = gap + scaleH + gap + actLabel + actH + cocoCommentH + gap + teacherH + gap + principalH + gap + feesH;
     columns = columnsFor(card.sets);
-    const headH = columns.some((column) => column.sub) ? 22 : 14;
+    const headH = columns.some((column) => column.sub) ? 26 : 16;
     const rowCount = card.lines.length;
-    const reserved = feesH + principalMin + activitiesH + scaleH + teacherMin + gap * 5;
     const tableBottom = floor + reserved;
     const tableRoom = Math.max(headH + 12, y - tableBottom);
-    const rowH = rowCount ? Math.min(14, (tableRoom - headH) / rowCount) : 0;
+    const rowH = rowCount ? Math.min(16, (tableRoom - headH) / rowCount) : 0;
 
     if (!rowCount) {
       page!.drawText("No subjects on this card yet.", { x: M, y: y - 12, size: 8, font: regular, color: MUTED });
@@ -571,7 +609,7 @@ export async function buildReportCardsPdf(
         let x = M;
         columns.forEach((column, index) => {
           const width = Math.max(12, column.width - 6);
-          const size = rowH < 10 ? 6.5 : 7.5;
+          const size = rowH < 11 ? 8 : rowH < 13 ? 9 : 10;
           const value = fit(cells[index] || "", column.key === "subject" ? bold : regular, size, width);
           if (value) {
             const drawn = (column.key === "subject" ? bold : regular).widthOfTextAtSize(value, size);
@@ -585,10 +623,6 @@ export async function buildReportCardsPdf(
       }
     }
 
-    const spare = Math.max(0, y - floor - reserved);
-    const teacherH = teacherMin + spare * 0.58;
-    const principalH = principalMin + spare * 0.42;
-
     const bandText = card.scale
       .map((band) => `${band.label} ${Number.isInteger(band.min) ? band.min : band.min.toFixed(1)}-${Number.isInteger(band.max) ? band.max : band.max.toFixed(1)}`)
       .join("    ");
@@ -599,52 +633,104 @@ export async function buildReportCardsPdf(
     page!.drawText(fit(bandText, regular, scaleSize, contentW - 86), { x: M + 82, y: y - 8, size: scaleSize, font: regular, color: INK });
     y -= scaleH;
 
-    y -= gap * 0.6;
+    y -= gap;
     page!.drawText("CO-CURRICULAR", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
-    const actTop = y - 14;
-    const actH = 34;
+    const actTop = y - actLabel;
     const labelW = 58;
     const slotW = (contentW - labelW) / 4;
     page!.drawRectangle({ x: M, y: actTop - actH, width: contentW, height: actH, borderColor: GOLD, borderWidth: 0.6, color: WHITE });
     page!.drawRectangle({ x: M, y: actTop - actH, width: labelW, height: actH, color: CREAM });
     page!.drawLine({ start: { x: M, y: actTop - 13 }, end: { x: M + contentW, y: actTop - 13 }, thickness: 0.4, color: GOLD });
     page!.drawText("ACTIVITY", { x: M + 5, y: actTop - 9, size: 6, font: bold, color: MUTED });
-    page!.drawText("COMMENT", { x: M + 5, y: actTop - 26, size: 6, font: bold, color: MUTED });
+    page!.drawText("LEVEL", { x: M + 5, y: actTop - 25, size: 6, font: bold, color: MUTED });
     for (let slot = 1; slot <= 4; slot += 1) {
       const x = M + labelW + (slot - 1) * slotW;
       page!.drawLine({ start: { x, y: actTop }, end: { x, y: actTop - actH }, thickness: 0.4, color: GOLD });
+      const activity = (card.activities || []).find((row) => row.slot === slot);
+      const name = fit(activity?.activity_name || "", regular, 7, slotW - 6);
+      const level = fit(activity?.level || "", regular, 7, slotW - 6);
+      if (name) page!.drawText(name, { x: x + 3, y: actTop - 10, size: 7, font: regular, color: INK });
+      if (level) page!.drawText(level, { x: x + 3, y: actTop - 26, size: 7, font: regular, color: INK });
     }
-    y = actTop - actH - gap;
+    y = actTop - actH;
+    y -= 4;
+    page!.drawText("COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
+    y -= 12;
+    const cocoLines = wrap(card.cocurricular_comment || "", regular, 7.5, contentW, 2);
+    if (cocoLines.length) {
+      cocoLines.forEach((noteLine, index) => {
+        page!.drawText(noteLine, { x: M, y: y - 8 - index * 9, size: 7.5, font: regular, color: INK });
+      });
+      y -= Math.max(18, cocoLines.length * 9 + 4);
+    } else {
+      page!.drawLine({ start: { x: M, y: y - 10 }, end: { x: M + contentW, y: y - 10 }, thickness: 0.4, color: GOLD });
+      y -= 16;
+    }
 
-    const teacherBottom = y - teacherH;
+    y -= gap;
     page!.drawText("CLASS TEACHER'S REPORT", { x: M, y: y - 9, size: 6.5, font: bold, color: MUTED });
     if (card.class_teacher_name) {
       const teacher = fit(card.class_teacher_name, bold, 8, 180);
       page!.drawText(teacher, { x: W - M - bold.widthOfTextAtSize(teacher, 8), y: y - 9, size: 8, font: bold, color: INK });
     }
-    page!.drawLine({ start: { x: M, y: y - 14 }, end: { x: W - M, y: y - 14 }, thickness: 0.5, color: GOLD });
-    const teacherLines = wrap(card.class_teacher_comment || "", regular, 8, contentW, Math.max(1, Math.floor((teacherH - 22) / 11)));
-    teacherLines.forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: y - 28 - index * 11, size: 8, font: regular, color: INK });
+    page!.drawLine({ start: { x: M, y: y - 13 }, end: { x: W - M, y: y - 13 }, thickness: 0.5, color: GOLD });
+    wrap(card.class_teacher_comment || "", regular, 8, contentW, 3).forEach((noteLine, index) => {
+      page!.drawText(noteLine, { x: M, y: y - 26 - index * 11, size: 8, font: regular, color: INK });
     });
-    y = teacherBottom;
+    y -= teacherH;
 
-    y -= gap * 0.7;
-    page!.drawText("PRINCIPAL'S COMMENT", { x: M, y: y - 9, size: 6.5, font: bold, color: MUTED });
-    page!.drawLine({ start: { x: M, y: y - 14 }, end: { x: W - M, y: y - 14 }, thickness: 0.5, color: GOLD });
-    wrap(card.head_comment || "", regular, 8, contentW, Math.max(1, Math.floor((principalH - 22) / 11))).forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: y - 28 - index * 11, size: 8, font: regular, color: INK });
+    y -= gap;
+    page!.drawText("HEADTEACHER'S COMMENT", { x: M, y: y - 9, size: 6.5, font: bold, color: MUTED });
+    page!.drawLine({ start: { x: M, y: y - 13 }, end: { x: W - M - qrSize - 8, y: y - 13 }, thickness: 0.5, color: GOLD });
+    const qrPng = await QRCode.toBuffer(reportOnlineUrl(origin, card.id), {
+      type: "png",
+      margin: 1,
+      width: 180,
+      errorCorrectionLevel: "M",
+      color: { dark: "#19232bff", light: "#ffffffff" },
+    });
+    const qrImage = await pdf.embedPng(qrPng);
+    const qrX = W - M - qrSize;
+    const qrY = y - 18 - qrSize;
+    page!.drawImage(qrImage, { x: qrX, y: qrY, width: qrSize, height: qrSize });
+    const online = "ONLINE REPORT";
+    const onlineSize = 5.5;
+    const onlineW = bold.widthOfTextAtSize(online, onlineSize);
+    page!.drawText(online, { x: qrX + (qrSize - onlineW) / 2, y: qrY - 9, size: onlineSize, font: bold, color: MUTED });
+    wrap(card.head_comment || "", regular, 8, contentW - qrSize - 14, 2).forEach((noteLine, index) => {
+      page!.drawText(noteLine, { x: M, y: y - 26 - index * 11, size: 8, font: regular, color: INK });
     });
     y -= principalH;
 
-    y -= gap * 0.7;
+    y -= gap;
     page!.drawRectangle({ x: M, y: y - feesH, width: contentW, height: feesH, color: PAPER, borderColor: GOLD, borderWidth: 0.6 });
     page!.drawRectangle({ x: M, y: y - 2, width: contentW, height: 2, color: GOLD });
-    const feesTitle = "SCHOOL FEES FOR NEXT TERM";
-    const feesW = bold.widthOfTextAtSize(feesTitle, 7);
-    page!.drawText(feesTitle, { x: M + (contentW - feesW) / 2, y: y - 14, size: 7, font: bold, color: GOLD_INK });
-    page!.drawLine({ start: { x: M + 16, y: y - 26 }, end: { x: W - M - 16, y: y - 26 }, thickness: 0.4, color: GOLD });
-    page!.drawLine({ start: { x: M + 16, y: y - 36 }, end: { x: W - M - 16, y: y - 36 }, thickness: 0.4, color: GOLD });
+    const feesSplit = M + contentW * 0.62;
+    page!.drawLine({ start: { x: feesSplit, y }, end: { x: feesSplit, y: y - feesH }, thickness: 0.4, color: GOLD });
+    page!.drawText("SCHOOL FEES FOR NEXT TERM", { x: M + 8, y: y - 14, size: 6.5, font: bold, color: GOLD_INK });
+    page!.drawText("NEXT TERM STARTS ON", { x: feesSplit + 8, y: y - 14, size: 6.5, font: bold, color: GOLD_INK });
+    const feeLines = card.fees ?? [];
+    if (!feeLines.length) {
+      page!.drawText("—", { x: M + 8, y: y - 28, size: 9, font: bold, color: INK });
+    } else {
+      feeLines.forEach((line, index) => {
+        const rowY = y - 28 - index * 12;
+        page!.drawText(fit(line.name, regular, 8, contentW * 0.62 - 78), { x: M + 8, y: rowY, size: 8, font: regular, color: INK });
+        const money = formatReportMoney(line.amount);
+        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: INK });
+      });
+      if (feeLines.length > 1) {
+        const total = feeLines.reduce((sum, line) => sum + line.amount, 0);
+        const rowY = y - 28 - feeLines.length * 12;
+        page!.drawText("Total", { x: M + 8, y: rowY, size: 8, font: bold, color: INK });
+        const money = formatReportMoney(total);
+        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: INK });
+      }
+    }
+    const starts = formatReportDate(card.next_starts_on) || "—";
+    const startsSize = regular.widthOfTextAtSize(starts, 8) > contentW * 0.38 - 16 ? 7 : 8;
+    page!.drawText(fit(starts, bold, startsSize, contentW * 0.38 - 16), { x: feesSplit + 8, y: y - 30, size: startsSize, font: bold, color: INK });
+    y -= feesH;
   }
 
   if (!page) {

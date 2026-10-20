@@ -2,6 +2,7 @@
 
 import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, logAcademics, mapBand, markbookClosed, num, refreshAcademics, requireAcademics, streamOf } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
+import { mergeActivitySkills } from "@/lib/comment-engine/skills";
 import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-workbook";
 import { isUuid } from "@/lib/students";
 
@@ -98,10 +99,34 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   }
 
   const tally = new Map(parsed.sheets.map((sheet) => [sheet.name, { label: sheet.label, subjects: sheet.subjects, scores: 0, missed: 0, cleared: 0 }]));
-  const rows: { assessment_id: string; student_id: string; score: number | null; missed: boolean }[] = [];
+  const rows: { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: { label: string; acquired: boolean }[] }[] = [];
   const seen = new Set<string>();
+  const acquiredBy = new Map<string, string[]>();
+  const taughtBySubject = new Map<string, string[]>();
+  {
+    const subjectIds = [...new Set(papers.map((paper) => paper.subject_id))];
+    for (let index = 0; index < subjectIds.length; index += 80) {
+      const slice = subjectIds.slice(index, index + 80);
+      const result = await auth.supabase.from("subjects").select("id, default_skills").in("id", slice);
+      for (const subject of result.data || []) {
+        const skills = Array.isArray(subject.default_skills)
+          ? subject.default_skills.map((item) => typeof item === "string" ? item.trim() : "").filter(Boolean).slice(0, 8)
+          : [];
+        taughtBySubject.set(String(subject.id), skills);
+      }
+    }
+  }
 
   for (const entry of parsed.entries) {
+    if (!entry.skillLabel) continue;
+    const key = `${entry.paperId}|${entry.studentId}`;
+    const list = acquiredBy.get(key) || [];
+    list.push(entry.skillLabel);
+    acquiredBy.set(key, list);
+  }
+
+  for (const entry of parsed.entries) {
+    if (entry.skillLabel) continue;
     const where = [entry.label, entry.cell, entry.pupil].filter(Boolean).join(" · ");
     const paper = byPaper.get(entry.paperId);
     if (!paper) {
@@ -138,16 +163,44 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     }
     seen.add(`${paper.id}|${entry.studentId}`);
     const bucket = tally.get(entry.sheet);
+    const taught = taughtBySubject.get(paper.subject_id) || [];
+    const acquired = acquiredBy.get(`${paper.id}|${entry.studentId}`) || [];
+    const skills = taught.length || acquired.length ? mergeActivitySkills(taught.length ? taught : acquired, acquired) : undefined;
     if (decision.kind === "missed") {
-      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: null, missed: true });
+      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: null, missed: true, skills });
       if (bucket) bucket.missed += 1;
     } else if (decision.kind === "clear") {
-      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: null, missed: false });
+      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: null, missed: false, skills });
       if (bucket) bucket.cleared += 1;
     } else {
-      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: decision.score, missed: false });
+      rows.push({ assessment_id: paper.id, student_id: entry.studentId, score: decision.score, missed: false, skills });
       if (bucket) bucket.scores += 1;
     }
+  }
+
+  for (const [key, acquired] of acquiredBy) {
+    if (seen.has(key)) continue;
+    const [paperId, studentId] = key.split("|");
+    const paper = byPaper.get(paperId);
+    if (!paper || markbookClosed(paper.status)) continue;
+    const pupil = byPupil.get(studentId);
+    if (!pupil) continue;
+    const taught = taughtBySubject.get(paper.subject_id) || [];
+    const skills = mergeActivitySkills(taught.length ? taught : acquired, acquired);
+    const existing = await auth.supabase
+      .from("assessment_scores")
+      .select("score, missed")
+      .eq("assessment_id", paperId)
+      .eq("student_id", studentId)
+      .maybeSingle();
+    rows.push({
+      assessment_id: paperId,
+      student_id: studentId,
+      score: existing.data ? num(existing.data.score) : null,
+      missed: Boolean(existing.data?.missed),
+      skills,
+    });
+    seen.add(key);
   }
 
   const preview: MarksPreview = {
@@ -168,7 +221,14 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   let saved = 0;
   for (let index = 0; index < rows.length; index += 200) {
     const slice = rows.slice(index, index + 200);
-    const { error } = await auth.supabase.from("assessment_scores").upsert(slice, { onConflict: "assessment_id,student_id" });
+    let { error } = await auth.supabase.from("assessment_scores").upsert(slice, { onConflict: "assessment_id,student_id" });
+    if (error && /skills|42703/i.test(error.message)) {
+      const plain = slice.map(({ assessment_id, student_id, score, missed }) => ({ assessment_id, student_id, score, missed }));
+      ({ error } = await auth.supabase.from("assessment_scores").upsert(plain, { onConflict: "assessment_id,student_id" }));
+      if (!error) {
+        warnings.push("Marks saved. Run supabase/0027_cocurricular_subjects.sql to store acquired skills from the workbook.");
+      }
+    }
     if (error) {
       return { error: saved ? "Some marks were saved, then the upload stopped. Check the markbooks and upload the file again." : error.message };
     }

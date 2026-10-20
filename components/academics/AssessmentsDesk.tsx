@@ -27,6 +27,10 @@ export type PaperCard = {
   roll: number;
   nursery: boolean;
   subjectOrder: number;
+  /** Subject catalogue kind: Academic (core) or Other (cocurricular). */
+  subjectKind: "core" | "cocurricular";
+  /** Skills taught this term for Other subjects (workbook Yes columns). */
+  skillCount: number;
 };
 
 type Filter = "all" | "open" | "submitted" | "approved";

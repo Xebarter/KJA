@@ -43,21 +43,17 @@ export default async function MedicalPage({ searchParams }: { searchParams: Prom
   const requested = pick(params, "class");
   const cls = isClassCode(requested) || requested === "none" ? requested : "";
 
-  const load = (columns: string) => fetchAll<Row>((from, to) =>
-    auth.supabase
-      .from("student_directory")
-      .select(columns)
-      .eq("status", "active")
-      .order("class_order", { nullsFirst: false })
-      .order("full_name")
-      .range(from, to));
-
+  // Skip photo_path so a missing column never doubles a full-register scan.
   let all: Row[];
   try {
-    all = await load(`${COLUMNS}, photo_path`).catch((error: Error) => {
-      if (/photo_path/.test(error.message)) return load(COLUMNS);
-      throw error;
-    });
+    all = await fetchAll<Row>((from, to) =>
+      auth.supabase
+        .from("student_directory")
+        .select(COLUMNS)
+        .eq("status", "active")
+        .order("class_order", { nullsFirst: false })
+        .order("full_name")
+        .range(from, to));
   } catch (error) {
     return <OfficeNotice title="Medical" heading="Medical records could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
   }
@@ -76,7 +72,7 @@ export default async function MedicalPage({ searchParams }: { searchParams: Prom
     phone: row.mother_phone || row.father_phone,
     phoneName: row.mother_phone ? row.mother_name || "Mother" : row.father_phone ? row.father_name || "Father" : null,
     contacts: [row.mother_name, row.mother_phone, row.father_name, row.father_phone].filter(Boolean).join(" "),
-    photo: studentPhotoUrl(row.id, row.photo_path ?? null),
+    photo: studentPhotoUrl(row.id, null),
   }));
 
   const withNotes = rows.filter((row) => row.notes);

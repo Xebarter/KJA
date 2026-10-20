@@ -3,28 +3,65 @@ import { revalidatePath } from "next/cache";
 import { cache } from "react";
 import { ACADEMICS_BASE, isAcademicsRole } from "@/lib/academics-nav";
 import { forgetPrefix, remember } from "@/lib/remember";
+import { normalizeSubjectKind, type SubjectKind } from "@/lib/subject-kind";
 import { subjectFits as subjectFitsClass } from "@/lib/subject-bands";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export { ACADEMICS_BASE, ACADEMICS_ROLES, academicsNav, academicsSchemaScript, isAcademicsRole } from "@/lib/academics-nav";
 export type { AcademicsBadge, AcademicsNavItem } from "@/lib/academics-nav";
+export type { SubjectKind } from "@/lib/subject-kind";
+export { isAcademicSubject, isCocurricularSubject, normalizeSubjectKind, subjectKindLabel } from "@/lib/subject-kind";
 
 const TZ = "Africa/Kampala";
+const SESSION_MS = 60_000;
+
+type AcademicsProfile = { id: string; role: string; full_name: string | null; email: string | null };
+type AcademicsAccess =
+  | { profile: AcademicsProfile; office: true; staffId: null }
+  | { profile: AcademicsProfile; office: false; staffId: string };
+
+/** Profile and teacher link, reused across page clicks. The request's Supabase client stays outside the cache. */
+async function loadAcademicsAccess(supabase: SupabaseClient, userId: string): Promise<AcademicsAccess | null> {
+  const { data } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", userId).maybeSingle();
+  if (!data) return null;
+  const profile: AcademicsProfile = {
+    id: String(data.id),
+    role: String(data.role ?? ""),
+    full_name: (data.full_name as string | null) ?? null,
+    email: (data.email as string | null) ?? null,
+  };
+  if (isAcademicsRole(profile.role)) return { profile, office: true, staffId: null };
+  if (profile.role === "staff") {
+    const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", userId).eq("active", true).maybeSingle();
+    if (teacher?.id) return { profile, office: false, staffId: String(teacher.id) };
+  }
+  return null;
+}
 
 export const requireAcademics = cache(async function requireAcademics() {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return { error: "Your session has expired. Sign in again." } as const;
-  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile) return { error: "This account doesn't have access to the academics office." } as const;
-  if (isAcademicsRole(profile.role)) return { supabase, user, profile, office: true as const, staffId: null as string | null };
-  if (profile.role === "staff") {
-    const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", user.id).eq("active", true).maybeSingle();
-    if (teacher?.id) return { supabase, user, profile, office: false as const, staffId: String(teacher.id) };
+  const { data: claimsData } = await supabase.auth.getClaims();
+  const claims = claimsData?.claims;
+  const userId = typeof claims?.sub === "string" ? claims.sub : null;
+  if (!userId) return { error: "Your session has expired. Sign in again." } as const;
+  let access: AcademicsAccess;
+  try {
+    access = await remember(`academics-session:${userId}`, SESSION_MS, async () => {
+      const loaded = await loadAcademicsAccess(supabase, userId);
+      if (!loaded) throw new Error("no-academics-access");
+      return loaded;
+    });
+  } catch {
+    return { error: "This account doesn't have access to the academics office." } as const;
   }
-  return { error: "This account doesn't have access to the academics office." } as const;
+  const claimEmail = claims && typeof claims.email === "string" ? claims.email : "";
+  const email = access.profile.email || claimEmail;
+  const user = { id: userId, email };
+  const profile = { ...access.profile, email: email || access.profile.email };
+  if (access.office) return { supabase, user, profile, office: true as const, staffId: null as string | null };
+  return { supabase, user, profile, office: false as const, staffId: access.staffId };
 });
 
 export async function openAcademics(): Promise<
@@ -47,9 +84,16 @@ export async function openAcademics(): Promise<
 }
 
 export function refreshAcademics(...paths: string[]) {
-  forgetPrefix("academics-");
-  revalidatePath(ACADEMICS_BASE, "layout");
+  // Bust live desk caches without wiping schema/profile remembers or revalidating the whole
+  // desk layout (badges load client-side; layout revalidation was blocking soft nav).
+  forgetPrefix("academics-badges");
+  forgetPrefix("academics-roll");
+  forgetPrefix("academics-today");
+  forgetPrefix("academics-closures");
+  forgetPrefix("academics-picture");
+  forgetPrefix("academics-staff");
   for (const path of paths) revalidatePath(path);
+  revalidatePath(ACADEMICS_BASE);
   revalidatePath("/account/reports");
 }
 
@@ -98,11 +142,13 @@ export type SubjectRow = {
   code: string;
   name: string;
   section: "nursery" | "primary" | "both";
-  kind: "core" | "other";
+  kind: SubjectKind;
   sort_order: number;
   applies_from: number | null;
   applies_to: number | null;
   active: boolean;
+  /** Skills taught for co-curricular subjects (marks workbook + report activities). */
+  default_skills: string[];
 };
 
 export type BandRow = {
@@ -401,17 +447,39 @@ export function ranks(items: { id: string; value: number }[]) {
 }
 
 export function mapSubject(row: Record<string, unknown>): SubjectRow {
+  const kind: SubjectKind = normalizeSubjectKind(typeof row.kind === "string" ? row.kind : null);
   return {
     id: String(row.id),
     code: String(row.code),
     name: String(row.name),
     section: row.section === "nursery" || row.section === "both" ? row.section : "primary",
-    kind: row.kind === "other" ? "other" : "core",
+    kind,
     sort_order: num(row.sort_order) ?? 0,
     applies_from: num(row.applies_from),
     applies_to: num(row.applies_to),
     active: Boolean(row.active),
+    default_skills: skillLabelsFrom(row.default_skills),
   };
+}
+
+function skillLabelsFrom(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const item of raw) {
+    const label = typeof item === "string"
+      ? item.trim().replace(/\s+/g, " ").slice(0, 40)
+      : item && typeof item === "object" && typeof (item as { label?: unknown }).label === "string"
+        ? String((item as { label: string }).label).trim().replace(/\s+/g, " ").slice(0, 40)
+        : "";
+    if (!label) continue;
+    const key = label.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(label);
+    if (out.length >= 8) break;
+  }
+  return out;
 }
 
 export function mapBand(row: Record<string, unknown>): BandRow {

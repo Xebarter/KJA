@@ -135,6 +135,13 @@ export function ChildrenView({
                   </Link>
                 </nav>
 
+                {child.portal_enabled ? (
+                  <p className="st-portal-note">
+                    <i className="fa-solid fa-laptop" aria-hidden="true" />
+                    <span>Student portal is on — they can view homework and message classmates. Message content is reviewed by school staff, not shown here.</span>
+                  </p>
+                ) : null}
+
               </article>
             );
           })}

@@ -6,21 +6,6 @@ import { APPLICATION_STATUSES, OPEN_STATUSES, PIPELINE, formatDateTime, initials
 import type { requireOffice } from "@/lib/office";
 import { OFFICE, SCHOOL_CLASSES, currentTermStart, daysToBirthday, fetchAll, studentAge } from "@/lib/students";
 
-type Row = {
-  id: string;
-  full_name: string;
-  sex: string | null;
-  class_code: string | null;
-  section: string | null;
-  stream: string | null;
-  date_of_birth: string | null;
-  enrolled_on: string | null;
-  staff_child: boolean;
-  medical_notes: string | null;
-  needs_review: boolean;
-  house: string | null;
-};
-
 type AppRow = {
   id: string;
   child_name: string | null;
@@ -99,50 +84,124 @@ export type OfficeSession = Exclude<Awaited<ReturnType<typeof requireOffice>>, {
 export async function Overview({ supabase }: OfficeSession) {
   const now = new Date();
   const yearStart = `${now.getFullYear()}-01-01`;
+  const termStart = currentTermStart(now);
+  const weekAheadIso = new Date(now.getTime() + 7 * 86_400_000).toISOString();
+  const weekAgoIso = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const visitFloor = new Date(now.getTime() - 3600_000).toISOString();
+  const todayKey = dayKey(now);
+  const yesterdayKey = dayKey(new Date(now.getTime() - 86_400_000));
 
-  let students: Row[];
+  const active = () => supabase.from("student_directory").select("id", { count: "exact", head: true }).eq("status", "active");
+
+  type ClassBit = { class_code: string | null; stream: string | null; sex: string | null };
+  type BdayBit = { id: string; full_name: string; sex: string | null; class_code: string | null; stream: string | null; date_of_birth: string | null };
+
+  let classBits: ClassBit[];
+  let birthdayBits: BdayBit[];
+  let statusCounts: Map<string, number>;
+  let appTotal: number;
+  let total: number;
+  let boys: number;
+  let girls: number;
+  let noSex: number;
+  let newThisTerm: number;
+  let newThisYear: number;
+  let review: number;
+  let missingDob: number;
+  let missingHouse: number;
+  let medical: number;
+  let staffChildren: number;
+  let contactsCount: number;
+  let familyCount: number;
+  let leaversCount: number;
+  let receivedThisWeek: number;
+  let oldestWaiting: string | undefined;
+  let visits: AppRow[];
+  let toEnrol: AppRow[];
+  let studentActivityData: Activity[];
+  let appActivityData: Activity[];
+
   try {
-    students = await fetchAll<Row>((from, to) =>
-      supabase.from("student_directory")
-        .select("id, full_name, sex, class_code, section, stream, date_of_birth, enrolled_on, staff_child, medical_notes, needs_review, house")
-        .eq("status", "active").order("id").range(from, to));
+    const [
+      totalRes, boysRes, girlsRes, newTermRes, newYearRes, reviewRes, missingDobRes, missingHouseRes, medicalRes, staffRes,
+      leavers, contactsToCheck, families,
+      classLoaded, birthdayLoaded, statusLoaded,
+      visitsResult, toEnrolOffered, toEnrolStuck,
+      oldestReceived, receivedWeekRes,
+      studentActivity, appActivity,
+    ] = await Promise.all([
+      active(),
+      active().eq("sex", "M"),
+      active().eq("sex", "F"),
+      active().gte("enrolled_on", termStart),
+      active().gte("enrolled_on", yearStart),
+      active().eq("needs_review", true),
+      active().is("date_of_birth", null),
+      active().is("house", null),
+      active().not("medical_notes", "is", null),
+      active().eq("staff_child", true),
+      supabase.from("students").select("id", { count: "exact", head: true }).neq("status", "active").gte("left_on", yearStart),
+      supabase.from("family_contacts").select("id", { count: "exact", head: true }).eq("needs_check", true),
+      supabase.from("families").select("id", { count: "exact", head: true }),
+      fetchAll<ClassBit>((from, to) =>
+        supabase.from("student_directory").select("class_code, stream, sex").eq("status", "active").order("id").range(from, to)),
+      fetchAll<BdayBit>((from, to) =>
+        supabase.from("student_directory")
+          .select("id, full_name, sex, class_code, stream, date_of_birth")
+          .eq("status", "active").not("date_of_birth", "is", null).order("id").range(from, to)),
+      Promise.all(
+        APPLICATION_STATUSES.map((status) =>
+          supabase.from("applications").select("id", { count: "exact", head: true }).eq("status", status.value)
+            .then((result) => ({ status: status.value, count: result.count ?? 0 }))),
+      ),
+      supabase.from("applications")
+        .select("id, child_name, parent_name, grade, campus, status, created_at, visit_at, student_id")
+        .eq("status", "visit_scheduled").gte("visit_at", visitFloor).lte("visit_at", weekAheadIso)
+        .order("visit_at").limit(20),
+      supabase.from("applications")
+        .select("id, child_name, parent_name, grade, campus, status, created_at, visit_at, student_id")
+        .eq("status", "offered").order("created_at", { ascending: false }).limit(20),
+      supabase.from("applications")
+        .select("id, child_name, parent_name, grade, campus, status, created_at, visit_at, student_id")
+        .eq("status", "enrolled").is("student_id", null).order("created_at", { ascending: false }).limit(20),
+      supabase.from("applications").select("created_at").eq("status", "received").order("created_at").limit(1),
+      supabase.from("applications").select("id", { count: "exact", head: true }).gte("created_at", weekAgoIso),
+      supabase.from("student_activity").select("id, actor_id, kind, body, created_at, student_id").order("created_at", { ascending: false }).limit(12),
+      supabase.from("application_activity").select("id, actor_id, kind, body, created_at, application_id").order("created_at", { ascending: false }).limit(8),
+    ]);
+
+    if (totalRes.error) throw new Error(totalRes.error.message);
+    classBits = classLoaded;
+    birthdayBits = birthdayLoaded;
+    statusCounts = new Map(statusLoaded.map((entry) => [entry.status, entry.count]));
+    appTotal = statusLoaded.reduce((sum, entry) => sum + entry.count, 0);
+    total = totalRes.count ?? 0;
+    boys = boysRes.count ?? 0;
+    girls = girlsRes.count ?? 0;
+    noSex = Math.max(0, total - boys - girls);
+    newThisTerm = newTermRes.count ?? 0;
+    newThisYear = newYearRes.count ?? 0;
+    review = reviewRes.count ?? 0;
+    missingDob = missingDobRes.count ?? 0;
+    missingHouse = missingHouseRes.count ?? 0;
+    medical = medicalRes.count ?? 0;
+    staffChildren = staffRes.count ?? 0;
+    contactsCount = contactsToCheck.count ?? 0;
+    familyCount = families.count ?? 0;
+    leaversCount = leavers.count ?? 0;
+    receivedThisWeek = receivedWeekRes.count ?? 0;
+    oldestWaiting = oldestReceived.data?.[0]?.created_at as string | undefined;
+    visits = ((visitsResult.data || []) as AppRow[]).sort((a, b) => String(a.visit_at).localeCompare(String(b.visit_at)));
+    toEnrol = [...((toEnrolOffered.data || []) as AppRow[]), ...((toEnrolStuck.data || []) as AppRow[])];
+    studentActivityData = (studentActivity.data || []) as Activity[];
+    appActivityData = (appActivity.data || []) as Activity[];
   } catch (error) {
     return <OfficeNotice title="Overview" heading="The student register could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
   }
 
-  const [appsResult, leavers, contactsToCheck, studentActivity, appActivity, families] = await Promise.all([
-    supabase.from("applications").select("id, child_name, parent_name, grade, campus, status, created_at, visit_at, student_id"),
-    supabase.from("students").select("id", { count: "exact", head: true }).neq("status", "active").gte("left_on", yearStart),
-    supabase.from("family_contacts").select("id", { count: "exact", head: true }).eq("needs_check", true),
-    supabase.from("student_activity").select("id, actor_id, kind, body, created_at, student_id").order("created_at", { ascending: false }).limit(12),
-    supabase.from("application_activity").select("id, actor_id, kind, body, created_at, application_id").order("created_at", { ascending: false }).limit(8),
-    supabase.from("families").select("id", { count: "exact", head: true }),
-  ]);
-  let apps = (appsResult.data || []) as AppRow[];
-  if (appsResult.error) {
-    const fallback = await supabase.from("applications").select("id, child_name, parent_name, grade, campus, status, created_at, visit_at");
-    apps = (fallback.data || []) as AppRow[];
-  }
-
-  // Register figures
-  const total = students.length;
-  const boys = students.filter((row) => row.sex === "M").length;
-  const girls = students.filter((row) => row.sex === "F").length;
-  const noSex = total - boys - girls;
-  const termStart = currentTermStart(now);
-  const newThisTerm = students.filter((row) => row.enrolled_on && row.enrolled_on >= termStart).length;
-  const newThisYear = students.filter((row) => row.enrolled_on && row.enrolled_on >= yearStart).length;
-  const review = students.filter((row) => row.needs_review).length;
-  const missingDob = students.filter((row) => !row.date_of_birth).length;
-  const missingHouse = students.filter((row) => !row.house).length;
-  const medical = students.filter((row) => row.medical_notes).length;
-  const staffChildren = students.filter((row) => row.staff_child).length;
-  const contactsCount = contactsToCheck.count ?? 0;
-  const familyCount = families.count ?? 0;
-
   const classes = SCHOOL_CLASSES.map((entry) => {
-    const rows = students.filter((row) => row.class_code === entry.code);
-    const streams = [...new Set(rows.map((row) => row.stream).filter(Boolean))].sort();
+    const rows = classBits.filter((row) => row.class_code === entry.code);
+    const streams = [...new Set(rows.map((row) => row.stream).filter(Boolean))].sort() as string[];
     const classBoys = rows.filter((row) => row.sex === "M").length;
     const classGirls = rows.filter((row) => row.sex === "F").length;
     return { ...entry, streams, total: rows.length, boys: classBoys, girls: classGirls, other: rows.length - classBoys - classGirls };
@@ -154,48 +213,34 @@ export async function Overview({ supabase }: OfficeSession) {
   ].map((section) => ({ ...section, total: section.rows.reduce((sum, entry) => sum + entry.total, 0) }));
   const unplaced = total - sections.reduce((sum, section) => sum + section.total, 0);
 
-  // Applications
-  const counts = new Map<string, number>();
-  for (const app of apps) counts.set(app.status, (counts.get(app.status) ?? 0) + 1);
-  const open = apps.filter((app) => OPEN_STATUSES.includes(app.status as (typeof OPEN_STATUSES)[number])).length;
-  const received = counts.get("received") ?? 0;
-  const receivedThisWeek = apps.filter((app) => new Date(app.created_at).getTime() >= now.getTime() - 7 * 86_400_000).length;
-  const toEnrol = apps.filter((app) => app.status === "offered" || (app.status === "enrolled" && "student_id" in app && !app.student_id));
-  const weekAhead = now.getTime() + 7 * 86_400_000;
-  const visits = apps
-    .filter((app) => app.status === "visit_scheduled" && app.visit_at && new Date(app.visit_at).getTime() >= now.getTime() - 3600_000 && new Date(app.visit_at).getTime() <= weekAhead)
-    .sort((a, b) => String(a.visit_at).localeCompare(String(b.visit_at)));
-  const todayKey = dayKey(now);
-  const yesterdayKey = dayKey(new Date(now.getTime() - 86_400_000));
-  const visitsToday = visits.filter((app) => dayKey(app.visit_at!) === todayKey);
-  const oldestWaiting = apps.filter((app) => app.status === "received").map((app) => app.created_at).sort()[0];
+  const open = OPEN_STATUSES.reduce((sum, status) => sum + (statusCounts.get(status) ?? 0), 0);
+  const received = statusCounts.get("received") ?? 0;
+  const visitsToday = visits.filter((app) => app.visit_at && dayKey(app.visit_at) === todayKey);
   const stages = PIPELINE.map((value) => {
     const status = APPLICATION_STATUSES.find((entry) => entry.value === value)!;
-    return { ...status, count: counts.get(value) ?? 0 };
+    return { ...status, count: statusCounts.get(value) ?? 0 };
   });
   const stageMax = Math.max(1, ...stages.map((stage) => stage.count));
-  const sideStages = APPLICATION_STATUSES.filter((status) => !PIPELINE.includes(status.value)).map((status) => ({ ...status, count: counts.get(status.value) ?? 0 }));
+  const sideStages = APPLICATION_STATUSES.filter((status) => !PIPELINE.includes(status.value)).map((status) => ({ ...status, count: statusCounts.get(status.value) ?? 0 }));
 
-  // Birthdays
-  const birthdays = students
+  const birthdays = birthdayBits
     .map((row) => ({ ...row, days: daysToBirthday(row.date_of_birth, now) }))
     .filter((row) => row.days !== null && row.days <= 7)
     .sort((a, b) => (a.days ?? 0) - (b.days ?? 0))
     .slice(0, 8);
 
-  // Activity feed
-  const studentNames = new Map(students.map((row) => [row.id, row.full_name]));
-  const missing = ((studentActivity.data || []) as Activity[]).map((entry) => entry.student_id!).filter((id) => !studentNames.has(id));
-  if (missing.length) {
-    const { data } = await supabase.from("students").select("id, full_name").in("id", [...new Set(missing)]);
-    for (const row of data || []) studentNames.set(row.id, row.full_name);
-  }
-  const appNames = new Map(apps.map((app) => [app.id, app.child_name || "Unnamed child"]));
-  const feed = [
-    ...((studentActivity.data || []) as Activity[]),
-    ...((appActivity.data || []) as Activity[]),
-  ].sort((a, b) => b.created_at.localeCompare(a.created_at)).slice(0, 12);
-  const people = await loadPeople(supabase, feed.map((entry) => entry.actor_id));
+  const feed = [...studentActivityData, ...appActivityData]
+    .sort((a, b) => b.created_at.localeCompare(a.created_at))
+    .slice(0, 12);
+  const studentIds = [...new Set(feed.map((entry) => entry.student_id).filter(Boolean))] as string[];
+  const appIds = [...new Set(feed.map((entry) => entry.application_id).filter(Boolean))] as string[];
+  const [nameRows, appNameRows, people] = await Promise.all([
+    studentIds.length ? supabase.from("students").select("id, full_name").in("id", studentIds) : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
+    appIds.length ? supabase.from("applications").select("id, child_name").in("id", appIds) : Promise.resolve({ data: [] as { id: string; child_name: string | null }[] }),
+    loadPeople(supabase, feed.map((entry) => entry.actor_id)),
+  ]);
+  const studentNames = new Map((nameRows.data || []).map((row) => [row.id, row.full_name]));
+  const appNames = new Map((appNameRows.data || []).map((row) => [row.id, row.child_name || "Unnamed child"]));
   const days: { label: string; items: Activity[] }[] = [];
   for (const entry of feed) {
     const key = dayKey(entry.created_at);
@@ -338,7 +383,7 @@ export async function Overview({ supabase }: OfficeSession) {
             icon="fa-filter"
             tone="red"
             title="Admissions pipeline"
-            description={`${nf(apps.length)} applications so far. Pick a stage to see who is in it.`}
+            description={`${nf(appTotal)} applications so far. Pick a stage to see who is in it.`}
             action={{ href: `${OFFICE}/applications`, label: "Applications" }}
           >
             <ol className="oov-funnel">
@@ -348,7 +393,7 @@ export async function Overview({ supabase }: OfficeSession) {
                     <span className="oov-funnel-label"><i className="oov-dot" aria-hidden="true" /> {stage.label}</span>
                     <strong>{nf(stage.count)}</strong>
                     <span className="oov-funnel-bar" aria-hidden="true"><span style={{ width: `${(stage.count / stageMax) * 100}%` }} /></span>
-                    <small>{pct(stage.count, apps.length)}% of all</small>
+                    <small>{pct(stage.count, appTotal)}% of all</small>
                   </Link>
                 </li>
               ))}
@@ -575,7 +620,7 @@ export async function Overview({ supabase }: OfficeSession) {
             <ul className="oov-facts">
               <li><Link href={`${OFFICE}/medical`}><strong>{nf(medical)}</strong><span>Medical notes</span></Link></li>
               <li><Link href={`${OFFICE}/students?staff=1`}><strong>{nf(staffChildren)}</strong><span>Staff children</span></Link></li>
-              <li><Link href={`${OFFICE}/reports#leavers`}><strong>{nf(leavers.count ?? 0)}</strong><span>Left this year</span></Link></li>
+              <li><Link href={`${OFFICE}/reports#leavers`}><strong>{nf(leaversCount)}</strong><span>Left this year</span></Link></li>
             </ul>
           </Card>
         </div>

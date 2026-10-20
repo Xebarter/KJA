@@ -3,6 +3,9 @@ import {
   assessmentSetKey,
   classSection,
   gradeFor,
+  isAcademicSubject,
+  isCocurricularSubject,
+  kindLabel,
   mapBand,
   mapSubject,
   num,
@@ -13,10 +16,14 @@ import {
   subjectFits,
   weightedPercent,
   type BandRow,
+  type PlannedSet,
   type ReportPart,
   type ReportSet,
   type SubjectRow,
 } from "@/lib/academics";
+import { levelFromBand } from "@/lib/comment-engine/analyse";
+import { classifyPercentage, DEFAULT_SETTINGS } from "@/lib/comment-engine/bands";
+import { mergeActivitySkills, skillsFromJson } from "@/lib/comment-engine/skills";
 import { fetchAll } from "@/lib/students";
 
 type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null };
@@ -40,7 +47,7 @@ type StoredPart = {
   sort_order: number | string | null;
 };
 
-type Score = { assessment_id: string; student_id: string; score: number | null; missed: boolean };
+type Score = { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: unknown };
 
 type Attendance = { student_id: string; attended_on: string; status: string };
 
@@ -55,13 +62,81 @@ type ExistingCard = {
 
 type ExistingLine = { report_card_id: string; subject_id: string; teacher_comment: string | null };
 
+/** One assessment sitting for the Generate dialog: name, kind, default share of each subject. */
+export type ReportSitting = {
+  key: string;
+  label: string;
+  kind: string;
+  kindLabel: string;
+  share: number;
+  papers: number;
+};
+
+/** Sittings already set for this class, with each share of the subject total. */
+export function sittingsFromPapers(papers: { name: string; kind: string; weight: number }[]): ReportSitting[] {
+  const plan = planAssessmentSets(papers);
+  const counts = new Map<string, number>();
+  for (const paper of papers) {
+    const key = assessmentSetKey(paper.kind, paper.name);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return plan.map((set) => ({
+    key: set.key,
+    label: set.label,
+    kind: set.key.split("|")[0] || "",
+    kindLabel: kindLabel(set.key.split("|")[0] || ""),
+    share: set.share,
+    papers: counts.get(set.key) || 0,
+  }));
+}
+
+/** Load the assessment sittings already set for one class and stream. */
+export async function loadReportSittings(
+  supabase: SupabaseClient,
+  input: { termId: string; classCode: string; stream: string },
+): Promise<ReportSitting[]> {
+  const stream = streamOf(input.stream);
+  const { data, error } = await supabase
+    .from("assessments")
+    .select("name, kind, weight")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream);
+  if (error) throw new Error(error.message);
+  return sittingsFromPapers(
+    ((data || []) as Record<string, unknown>[]).map((row) => ({
+      name: String(row.name || "Assessment"),
+      kind: String(row.kind || ""),
+      weight: num(row.weight) ?? 1,
+    })),
+  );
+}
+
+function planFromSelection(papers: Assessment[], selected: { key: string; share: number }[]): PlannedSet[] {
+  const byKey = new Map(planAssessmentSets(papers).map((set) => [set.key, set]));
+  return selected
+    .map((row) => {
+      const known = byKey.get(row.key);
+      if (!known) return null;
+      const share = row.share > 0 ? row.share : 0;
+      return { ...known, share, weight: share };
+    })
+    .filter((set): set is PlannedSet => Boolean(set));
+}
+
 /**
  * Rebuild report lines for one class and stream from the current marks.
  * New cards stay drafts. Published cards keep their comments and stay published.
  */
 export async function prepareClassReports(
   supabase: SupabaseClient,
-  input: { termId: string; classCode: string; stream: string },
+  input: {
+    termId: string;
+    classCode: string;
+    stream: string;
+    /** When set, only these sittings are used, with the given shares of each subject. */
+    sets?: { key: string; share: number }[];
+  },
 ) {
   const stream = streamOf(input.stream);
   const section = classSection(input.classCode);
@@ -108,8 +183,10 @@ export async function prepareClassReports(
 
   const subjectRows = ((subjects.data || []) as Record<string, unknown>[]).map(mapSubject);
   const fitting = subjectRows.filter((subject) => subjectFits(subject, input.classCode));
+  const academic = fitting.filter(isAcademicSubject);
+  const cocurricular = fitting.filter(isCocurricularSubject).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)).slice(0, 4);
   const bandRows = ((bands.data || []) as Record<string, unknown>[]).map(mapBand);
-  const papers = ((assessments.data || []) as Record<string, unknown>[]).map((row) => ({
+  const allPapers = ((assessments.data || []) as Record<string, unknown>[]).map((row) => ({
     id: String(row.id),
     subject_id: String(row.subject_id),
     name: String(row.name || "Assessment"),
@@ -117,7 +194,15 @@ export async function prepareClassReports(
     max_score: num(row.max_score) ?? 100,
     weight: num(row.weight) ?? 1,
   })) satisfies Assessment[];
-  const plan = planAssessmentSets(papers);
+  const chosen = input.sets?.length
+    ? new Set(input.sets.map((set) => set.key))
+    : null;
+  const papers = chosen
+    ? allPapers.filter((paper) => chosen.has(assessmentSetKey(paper.kind, paper.name)))
+    : allPapers;
+  if (chosen && !papers.length) throw new Error("Choose at least one assessment that is set for this class.");
+  const plan = input.sets?.length ? planFromSelection(allPapers, input.sets) : planAssessmentSets(papers);
+  if (!plan.length) throw new Error("Choose the assessments to include on the report cards.");
 
   const paperIds = papers.map((paper) => paper.id);
   const pupilIds = roster.map((pupil) => pupil.id);
@@ -128,10 +213,19 @@ export async function prepareClassReports(
       ? fetchAll<Score>((from, to) =>
           supabase
             .from("assessment_scores")
-            .select("assessment_id, student_id, score, missed")
+            .select("assessment_id, student_id, score, missed, skills")
             .in("assessment_id", paperIds)
             .order("assessment_id")
             .range(from, to),
+        ).catch(async () =>
+          fetchAll<Score>((from, to) =>
+            supabase
+              .from("assessment_scores")
+              .select("assessment_id, student_id, score, missed")
+              .in("assessment_id", paperIds)
+              .order("assessment_id")
+              .range(from, to),
+          ),
         )
       : Promise.resolve([] as Score[]),
     fetchAll<Attendance>((from, to) =>
@@ -155,25 +249,24 @@ export async function prepareClassReports(
       : Promise.resolve([] as ExistingLine[]),
   ]);
 
-  const scores: Score[] = scoreRows.map((row) => ({
-    assessment_id: row.assessment_id,
-    student_id: row.student_id,
+  const scores = new Map(scoreRows.map((row) => [`${row.assessment_id}:${row.student_id}`, {
     score: num(row.score),
     missed: Boolean(row.missed),
-  }));
+    skills: row.skills,
+  }]));
   const opened = new Set(attendanceRows.map((row) => row.attended_on));
   const teacherName = staffName(teacher.data?.teaching_staff);
   const existing = new Map(((cards.data || []) as ExistingCard[]).map((card) => [card.student_id, card]));
   const comments = new Map(lineRows.map((line) => [`${line.report_card_id}:${line.subject_id}`, line.teacher_comment]));
 
   const results = roster.map((pupil) => {
-    const lines = fitting.map((subject) => {
+    const lines = academic.map((subject) => {
       const mine = papers.filter((paper) => paper.subject_id === subject.id);
       const parts = plan.flatMap((set) => {
         const sitting = mine.filter((paper) => assessmentSetKey(paper.kind, paper.name) === set.key);
         if (!sitting.length) return [];
         const score = weightedPercent(sitting.map((paper) => {
-          const mark = scores.find((row) => row.assessment_id === paper.id && row.student_id === pupil.id);
+          const mark = scores.get(`${paper.id}:${pupil.id}`);
           return { score: mark?.score ?? null, max: paper.max_score, weight: 1, missed: mark?.missed ?? false };
         }));
         return [{ key: set.key, label: set.label, share: set.share, score, sort: set.sort, weight: set.weight }];
@@ -195,7 +288,7 @@ export async function prepareClassReports(
 
   const overallRank = ranks(results.filter((row) => row.overall !== null).map((row) => ({ id: row.pupil.id, value: row.overall as number })));
   const subjectRanks = new Map<string, Map<string, number>>();
-  for (const subject of fitting) {
+  for (const subject of academic) {
     subjectRanks.set(
       subject.id,
       ranks(
@@ -209,54 +302,51 @@ export async function prepareClassReports(
     );
   }
 
-  let prepared = 0;
-  for (const row of results) {
+  const drafts = results.filter((row) => {
     const prior = existing.get(row.pupil.id);
-    if (prior && (prior.status === "approved" || prior.status === "published")) continue;
-    prepared += 1;
-    const saved = prior
-      ? prior
-      : await insertCard(supabase, {
-          student_id: row.pupil.id,
-          term_id: input.termId,
-        });
-    const { error: updateError } = await supabase
-      .from("report_cards")
-      .update({
-        class_code: input.classCode,
-        stream,
-        class_teacher_name: teacherName,
-        days_present: row.present,
-        days_opened: opened.size,
-        overall_score: row.overall,
-        overall_position: overallRank.get(row.pupil.id) ?? null,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", saved.id);
-    if (updateError) throw new Error(updateError.message);
+    return !(prior && (prior.status === "approved" || prior.status === "published"));
+  });
+  if (!drafts.length) return { prepared: 0 };
 
-    const keep = new Set<string>();
-    const parts: { report_card_id: string; subject_id: string; set_key: string; label: string; share: number; score: number | null; sort_order: number }[] = [];
+  const now = new Date().toISOString();
+  const savedCards = await writeChunks(
+    drafts.map((row) => ({
+      student_id: row.pupil.id,
+      term_id: input.termId,
+      class_code: input.classCode,
+      stream,
+      class_teacher_name: teacherName,
+      days_present: row.present,
+      days_opened: opened.size,
+      overall_score: row.overall,
+      overall_position: overallRank.get(row.pupil.id) ?? null,
+      updated_at: now,
+    })),
+    (slice) => supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }).select("id, student_id"),
+  );
+  const cardId = new Map(savedCards.map((card) => [String(card.student_id), String(card.id)]));
+  const cardIds = [...cardId.values()];
+  const keep = new Set(academic.map((subject) => subject.id));
+  const lines: Record<string, unknown>[] = [];
+  const parts: Record<string, unknown>[] = [];
+  for (const row of drafts) {
+    const id = cardId.get(row.pupil.id);
+    if (!id) throw new Error("A report card could not be saved.");
     for (const line of row.lines) {
-      keep.add(line.subject.id);
-      const { error } = await supabase.from("report_lines").upsert(
-        {
-          report_card_id: saved.id,
-          subject_id: line.subject.id,
-          subject_name: line.subject.name,
-          score: line.percent,
-          max_score: line.percent === null ? null : 100,
-          grade: line.grade?.label ?? null,
-          points: line.grade?.points ?? null,
-          position: line.percent === null ? null : subjectRanks.get(line.subject.id)?.get(row.pupil.id) ?? null,
-          teacher_comment: comments.get(`${saved.id}:${line.subject.id}`) ?? null,
-        },
-        { onConflict: "report_card_id,subject_id" },
-      );
-      if (error) throw new Error(error.message);
+      lines.push({
+        report_card_id: id,
+        subject_id: line.subject.id,
+        subject_name: line.subject.name,
+        score: line.percent,
+        max_score: line.percent === null ? null : 100,
+        grade: line.grade?.label ?? null,
+        points: line.grade?.points ?? null,
+        position: line.percent === null ? null : subjectRanks.get(line.subject.id)?.get(row.pupil.id) ?? null,
+        teacher_comment: comments.get(`${id}:${line.subject.id}`) ?? null,
+      });
       for (const part of line.parts) {
         parts.push({
-          report_card_id: saved.id,
+          report_card_id: id,
           subject_id: line.subject.id,
           set_key: part.key,
           label: part.label,
@@ -266,22 +356,96 @@ export async function prepareClassReports(
         });
       }
     }
-    const stale = lineRows
-      .filter((line) => line.report_card_id === saved.id && !keep.has(line.subject_id))
-      .map((line) => line.subject_id);
-    if (stale.length) {
-      const { error } = await supabase.from("report_lines").delete().eq("report_card_id", saved.id).in("subject_id", stale);
-      if (error) throw new Error(error.message);
+  }
+  const draftCardIds = new Set(cardIds);
+  const stale = [...new Set(lineRows.filter((line) => draftCardIds.has(line.report_card_id) && !keep.has(line.subject_id)).map((line) => line.subject_id))];
+
+  await Promise.all([
+    writeChunks(lines, (slice) => supabase.from("report_lines").upsert(slice, { onConflict: "report_card_id,subject_id" })),
+    stale.length
+      ? deleteChunks(cardIds, (slice) => supabase.from("report_lines").delete().in("report_card_id", slice).in("subject_id", stale))
+      : Promise.resolve(),
+    deleteChunks(cardIds, (slice) => supabase.from("report_line_parts").delete().in("report_card_id", slice)),
+  ].map(async (job) => {
+    try {
+      await job;
+    } catch (error) {
+      throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Reports could not be saved."));
     }
-    const cleared = await supabase.from("report_line_parts").delete().eq("report_card_id", saved.id);
-    if (cleared.error) throw new Error(partsSchemaMessage(cleared.error.message));
-    if (parts.length) {
-      const savedParts = await supabase.from("report_line_parts").insert(parts);
-      if (savedParts.error) throw new Error(partsSchemaMessage(savedParts.error.message));
+  }));
+  if (parts.length) {
+    try {
+      await writeChunks(parts, (slice) => supabase.from("report_line_parts").insert(slice));
+    } catch (error) {
+      throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Report parts could not be saved."));
     }
   }
 
-  return { prepared };
+  if (cocurricular.length) {
+    const activities: Record<string, unknown>[] = [];
+    for (const row of drafts) {
+      const id = cardId.get(row.pupil.id);
+      if (!id) continue;
+      cocurricular.forEach((subject, index) => {
+        const mine = papers.filter((paper) => paper.subject_id === subject.id);
+        const partsFor = plan.flatMap((set) => {
+          const sitting = mine.filter((paper) => assessmentSetKey(paper.kind, paper.name) === set.key);
+          if (!sitting.length) return [];
+          const score = weightedPercent(sitting.map((paper) => {
+            const mark = scores.get(`${paper.id}:${row.pupil.id}`);
+            return { score: mark?.score ?? null, max: paper.max_score, weight: 1, missed: mark?.missed ?? false };
+          }));
+          return [{ score, weight: set.weight }];
+        });
+        const percent = weightedPercent(partsFor.map((part) => ({ score: part.score, max: 100, weight: part.weight, missed: false })));
+        const level = levelFromBand(classifyPercentage(percent, DEFAULT_SETTINGS.academic_bands));
+        const taught = subject.default_skills.length
+          ? subject.default_skills
+          : mine.flatMap((paper) => skillsFromJson(scores.get(`${paper.id}:${row.pupil.id}`)?.skills).map((skill) => skill.label));
+        const acquired = mine.flatMap((paper) =>
+          skillsFromJson(scores.get(`${paper.id}:${row.pupil.id}`)?.skills)
+            .filter((skill) => skill.acquired)
+            .map((skill) => skill.label),
+        );
+        const skillRows = taught.length || acquired.length
+          ? mergeActivitySkills(taught.length ? taught : acquired, acquired)
+          : [];
+        activities.push({
+          report_card_id: id,
+          slot: index + 1,
+          subject_id: subject.id,
+          activity_name: subject.name,
+          level,
+          score: percent,
+          max_score: percent === null ? null : 100,
+          skills: skillRows,
+        });
+      });
+      for (let slot = cocurricular.length + 1; slot <= 4; slot += 1) {
+        activities.push({
+          report_card_id: id,
+          slot,
+          subject_id: null,
+          activity_name: null,
+          level: null,
+          score: null,
+          max_score: null,
+          skills: [],
+        });
+      }
+    }
+    if (activities.length) {
+      const { error: activityError } = await supabase.from("report_card_activities").upsert(activities, { onConflict: "report_card_id,slot" });
+      if (activityError) {
+        if (/subject_id|skills|score|max_score|42703/i.test(activityError.message)) {
+          throw new Error(`${activityError.message}. Run supabase/0026_cocurricular_skills.sql and supabase/0027_cocurricular_subjects.sql in the Supabase SQL editor.`);
+        }
+        throw new Error(activityError.message);
+      }
+    }
+  }
+
+  return { prepared: drafts.length };
 }
 
 /** Why a class cannot be approved yet, or null when every paper is submitted and complete. */
@@ -384,14 +548,27 @@ function partsSchemaMessage(message: string) {
   return message;
 }
 
-async function insertCard(supabase: SupabaseClient, row: { student_id: string; term_id: string }): Promise<ExistingCard> {
-  const { data, error } = await supabase
-    .from("report_cards")
-    .insert({ student_id: row.student_id, term_id: row.term_id, status: "draft" })
-    .select("id, student_id, status, class_teacher_comment, head_comment, conduct")
-    .single();
-  if (error || !data) throw new Error(error?.message || "The report card could not be created.");
-  return data as ExistingCard;
+async function writeChunks<T>(
+  rows: T[],
+  write: (slice: T[]) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
+) {
+  const saved: Record<string, unknown>[] = [];
+  for (let index = 0; index < rows.length; index += 200) {
+    const { data, error } = await write(rows.slice(index, index + 200));
+    if (error) throw new Error(error.message);
+    if (Array.isArray(data)) saved.push(...(data as Record<string, unknown>[]));
+  }
+  return saved;
+}
+
+async function deleteChunks(
+  ids: string[],
+  remove: (slice: string[]) => PromiseLike<{ error: { message: string } | null }>,
+) {
+  for (let index = 0; index < ids.length; index += 80) {
+    const { error } = await remove(ids.slice(index, index + 80));
+    if (error) throw new Error(error.message);
+  }
 }
 
 function staffName(value: unknown) {

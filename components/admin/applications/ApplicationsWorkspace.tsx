@@ -77,10 +77,10 @@ export async function ApplicationsWorkspace({
   if (!supabaseConfigured()) {
     return <Notice title="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code> to receive applications here.</p></Notice>;
   }
-  const auth = await requireOffice();
+  const [auth, params] = await Promise.all([requireOffice(), searchParams]);
   if ("error" in auth) return <Notice title="Not available"><p>{auth.error}</p></Notice>;
   const { supabase, user } = auth;
-  const filters = parseFilters(await searchParams);
+  const filters = parseFilters(params);
   const board = filters.view === "board";
   const from = (filters.page - 1) * PAGE_SIZE;
   const now = Date.now();
@@ -92,9 +92,10 @@ export async function ApplicationsWorkspace({
       .limit(BOARD_LIMIT + 1)
     : applicationsQuery(supabase, filters, user.id, COLUMNS, { count: "exact" }).range(from, from + PAGE_SIZE - 1);
 
+  // Summary tiles only need these fields — not the full application row.
   const [listResult, summaryResult, team, content, unpaid] = await Promise.all([
     itemsQuery,
-    supabase.from("applications").select("id, child_name, phone, email, status, read, created_at, visit_at, assigned_to, payment_status, admission_fee"),
+    supabase.from("applications").select("id, child_name, phone, email, status, created_at, visit_at, assigned_to, payment_status, admission_fee"),
     loadTeam(supabase),
     getContent(),
     loadUnpaidApplications(supabase),

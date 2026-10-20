@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { bulkUpdateStudents, type BulkChange } from "@/app/admissions_office/(office)/students/actions";
+import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback, useOfficeAction } from "@/components/office/client";
 import { StudentPhoto } from "@/components/office/StudentPhoto";
 import {
@@ -288,6 +289,7 @@ export function StudentTable({ rows, exportHref }: { rows: RegisterRow[]; export
         </div>
       ) : null}
       <Feedback result={result} />
+      <ProcessStatus active={pending} label="Updating students" />
       <div className="ofc-table-scroll">
         <table className={`app-table ofc-table ofc-reg-table${pending ? " is-busy" : ""}`}>
           <thead>

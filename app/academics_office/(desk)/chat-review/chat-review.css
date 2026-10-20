@@ -1,0 +1,7 @@
+.scr-page { display: grid; gap: 1rem; }
+.scr-toolbar { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; }
+.scr-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
+.scr-table th, .scr-table td { padding: .7rem .85rem; border-bottom: 1px solid rgba(25, 35, 43, .08); text-align: left; font-size: .88rem; vertical-align: top; }
+.scr-table th { background: #f7f1e6; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: #5d6670; }
+.scr-flag { color: #e42435; font-weight: 700; }
+.scr-hidden { opacity: .55; text-decoration: line-through; }

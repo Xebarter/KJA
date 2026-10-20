@@ -45,11 +45,11 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
   const digits = q.replace(/\D/g, "");
   const phoneLike = digits.length >= 6 ? `%${digits.slice(-9)}%` : null;
 
-  // The tile counts and the view filters come from the same two small queries, run alongside the
-  // access check and the search; row-level security keeps the data to office staff.
-  const [auth, activeKids, checkRows, familyTotal, found] = await Promise.all([
+  // Head count for the contacts tile; family_id list only when filtering or marking rows.
+  const [auth, activeKids, checkCount, checkRows, familyTotal, found] = await Promise.all([
     requireOffice(),
     supabase.from("students").select("family_id").eq("status", "active").not("family_id", "is", null).limit(10000),
+    supabase.from("family_contacts").select("id", { count: "exact", head: true }).eq("needs_check", true),
     supabase.from("family_contacts").select("family_id").eq("needs_check", true).limit(5000),
     supabase.from("families").select("id", { count: "exact", head: true }),
     q && words.length
@@ -75,7 +75,7 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
     current: currentIds.length,
     all: familyTotal.count ?? 0,
     large: largeIds.length,
-    check: checkIds.length,
+    check: checkCount.count ?? checkIds.length,
   };
 
   let ids: string[] | null = null;

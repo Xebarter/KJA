@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ClassQueue } from "@/components/academics/ClassQueue";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -12,6 +13,7 @@ import {
   loadCurrentTerm,
   missingAcademicsSchema,
   streamOf,
+  type TermRow,
 } from "@/lib/academics";
 import { loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
 import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
@@ -335,74 +337,41 @@ export function OfficeHome({
   );
 }
 
-export async function Overview({ supabase, profile, office }: Session) {
-  const today = kampalaToday();
-  const termPack = await loadCurrentTerm(supabase);
-  if (termPack.error) {
-    return <AcademicsNotice title="Overview" heading="Could not load the term"><p>{termPack.error}</p></AcademicsNotice>;
-  }
-  const term = termPack.term;
+type OverviewLight = {
+  term: TermRow | null;
+  today: string;
+  pupils: Pupil[];
+  groups: ReturnType<typeof groupPupils>;
+  unmarked: { code: string; stream: string; pupils: Pupil[]; done: number; complete: boolean }[];
+  registerState: { code: string; stream: string; pupils: Pupil[]; done: number; complete: boolean }[];
+  drafts: { id: string; student_id: string; status: string; published_at: string | null; class_code: string | null; stream: string | null }[];
+  published: { id: string; student_id: string; status: string; published_at: string | null; class_code: string | null; stream: string | null }[];
+  untaught: ReturnType<typeof groupPupils>;
+  attendanceRate: number | null;
+  names: Map<string, string>;
+  greeting: string;
+  admin: boolean;
+  office: boolean;
+  attendanceHref: string;
+};
 
-  const [roll, marks, pictureResult, presentCount, markedCount, cardsResult, teachersResult] = await Promise.all([
-    loadRoll(supabase, profile.id).catch((error: unknown) => error),
-    loadDayMarks(supabase, profile.id, today).catch(() => [] as { student_id: string }[]),
-    term
-      ? loadAcademicPicture(supabase, term, today, profile.id).then(
-          (value) => ({ picture: value as AcademicPicture | null, error: "" }),
-          (error: unknown) => ({ picture: null as AcademicPicture | null, error: error instanceof Error ? error.message : "The academic picture could not be loaded." }),
-        )
-      : Promise.resolve({ picture: null as AcademicPicture | null, error: "" }),
-    term
-      ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id).in("status", ["present", "late"])
-      : Promise.resolve({ count: 0, error: null }),
-    term
-      ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id)
-      : Promise.resolve({ count: 0, error: null }),
-    term
-      ? supabase.from("report_cards").select("id, student_id, status, published_at, class_code, stream").eq("term_id", term.id)
-      : Promise.resolve({ data: [], error: null }),
-    term
-      ? supabase.from("class_teachers").select("class_code, stream").eq("term_id", term.id)
-      : Promise.resolve({ data: [], error: null }),
-  ]);
-  if (!Array.isArray(roll)) {
-    const message = roll instanceof Error ? roll.message : "The register could not be loaded.";
-    return <AcademicsNotice title="Overview" heading="Could not load pupils"><p>{message}</p></AcademicsNotice>;
-  }
-  const pupils: Pupil[] = roll;
-  const markedToday = marks;
-  const picture = pictureResult.picture;
-  const pictureError = pictureResult.error;
-  if (pictureError && missingAcademicsSchema(pictureError)) {
-    return <AcademicsNotice title="Overview" heading="Academics office needs an update"><p>{pictureError}</p><p>Run <code>supabase/0016_academics_work.sql</code> in the Supabase SQL editor.</p></AcademicsNotice>;
-  }
+function dayChip(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return { month: "", day: iso };
+  const date = new Date(year, month - 1, day);
+  return { month: date.toLocaleDateString("en-GB", { month: "short" }), day: String(day) };
+}
 
-  const groups = groupPupils(pupils);
-
-  const failed = [cardsResult.error, teachersResult.error, presentCount.error, markedCount.error].find(Boolean);
-  if (failed) return <AcademicsNotice title="Overview" heading="Could not load the office"><p>{failed.message}</p></AcademicsNotice>;
-
-  const markedIds = new Set(markedToday.map((row) => row.student_id));
-  const registerState = groups.map((group) => {
-    const done = group.pupils.filter((pupil) => markedIds.has(pupil.id)).length;
-    return { ...group, done, complete: done === group.pupils.length };
-  });
-  const unmarked = registerState.filter((group) => !group.complete);
-  const cards = (cardsResult.data || []) as { id: string; student_id: string; status: string; published_at: string | null; class_code: string | null; stream: string | null }[];
-  const drafts = cards.filter((card) => card.status === "draft");
-  const published = cards.filter((card) => card.status === "published");
-  const taught = new Set((teachersResult.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}`));
-  const untaught = term ? groups.filter((group) => !taught.has(`${group.code}|${group.stream}`)) : [];
-  const attendanceRate = markedCount.count ? Math.round(((presentCount.count ?? 0) / markedCount.count) * 100) : null;
-  const names = new Map(pupils.map((pupil) => [pupil.id, pupil.full_name]));
-  const recent = published.slice().sort((a, b) => String(b.published_at).localeCompare(String(a.published_at))).slice(0, 5);
-  const firstName = profile.full_name?.trim().split(/\s+/)[0] || "";
-  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Kampala" }).format(new Date()));
-  const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
-  const admin = profile.role === "admin";
+function renderOverviewHome(light: OverviewLight, picture: AcademicPicture | null, pictureError: string) {
+  const {
+    term, today, pupils, groups, unmarked, registerState, drafts, published, untaught,
+    attendanceRate, names, greeting, admin, office, attendanceHref,
+  } = light;
+  const registersDone = registerState.filter((group) => group.complete).length;
   const openMarks = picture?.openMarkbooks.length ?? 0;
   const waitingSchemes = picture?.schemesWaiting.length ?? 0;
   const overdue = picture?.overdueLessons ?? 0;
+  const recent = published.slice().sort((a, b) => String(b.published_at).localeCompare(String(a.published_at))).slice(0, 5);
 
   const todo = [
     { label: "Registers still open", note: unmarked.length ? "Mark today's attendance" : "Every class is marked", count: unmarked.length, href: `${ACADEMICS_BASE}/attendance?date=${today}`, icon: "fa-clipboard-user" },
@@ -412,15 +381,6 @@ export async function Overview({ supabase, profile, office }: Session) {
     { label: "Classes without a teacher", note: term ? "Assign a class teacher" : "Set the current term first", count: untaught.length, href: `${ACADEMICS_BASE}/classes`, icon: "fa-chalkboard-user" },
     ...(office ? [{ label: "Reports ready to publish", note: drafts.length ? "Approve before parents can see them" : "No drafts waiting", count: drafts.length, href: `${ACADEMICS_BASE}/reports`, icon: "fa-file-lines" }] : []),
   ];
-  const attendanceHref = `${ACADEMICS_BASE}/attendance?date=${today}`;
-  const registersDone = registerState.filter((group) => group.complete).length;
-
-  function dayChip(iso: string) {
-    const [year, month, day] = iso.split("-").map(Number);
-    if (!year || !month || !day) return { month: "", day: iso };
-    const date = new Date(year, month - 1, day);
-    return { month: date.toLocaleDateString("en-GB", { month: "short" }), day: String(day) };
-  }
 
   const activity: ActivityItem[] = picture?.activity.length
     ? picture.activity.slice(0, 6).map((row) => ({
@@ -445,7 +405,7 @@ export async function Overview({ supabase, profile, office }: Session) {
 
   return (
     <OfficeHome
-      greeting={`${greeting}${firstName ? `, ${firstName}` : ""}`}
+      greeting={greeting}
       dateLabel={kampalaLong()}
       termLabel={term?.label ?? null}
       pupils={pupils.length}
@@ -504,5 +464,108 @@ export async function Overview({ supabase, profile, office }: Session) {
       activity={activity}
       activityHref={office ? `${ACADEMICS_BASE}/activity` : activity.some((row) => row.href) ? `${ACADEMICS_BASE}/reports` : null}
     />
+  );
+}
+
+async function OverviewWithPicture({
+  light,
+  supabase,
+  userId,
+}: {
+  light: OverviewLight;
+  supabase: Session["supabase"];
+  userId: string;
+}) {
+  let picture: AcademicPicture | null = null;
+  let pictureError = "";
+  if (light.term) {
+    try {
+      picture = await loadAcademicPicture(supabase, light.term, light.today, userId);
+    } catch (error) {
+      pictureError = error instanceof Error ? error.message : "The academic picture could not be loaded.";
+      if (missingAcademicsSchema(pictureError)) {
+        return (
+          <AcademicsNotice title="Overview" heading="Academics office needs an update">
+            <p>{pictureError}</p>
+            <p>Run <code>supabase/0016_academics_work.sql</code> in the Supabase SQL editor.</p>
+          </AcademicsNotice>
+        );
+      }
+    }
+  }
+  return renderOverviewHome(light, picture, pictureError);
+}
+
+export async function Overview({ supabase, profile, office }: Session) {
+  const today = kampalaToday();
+  const termPack = await loadCurrentTerm(supabase);
+  if (termPack.error) {
+    return <AcademicsNotice title="Overview" heading="Could not load the term"><p>{termPack.error}</p></AcademicsNotice>;
+  }
+  const term = termPack.term;
+
+  const [roll, marks, presentCount, markedCount, cardsResult, teachersResult] = await Promise.all([
+    loadRoll(supabase, profile.id).catch((error: unknown) => error),
+    loadDayMarks(supabase, profile.id, today).catch(() => [] as { student_id: string }[]),
+    term
+      ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id).in("status", ["present", "late"])
+      : Promise.resolve({ count: 0, error: null }),
+    term
+      ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id)
+      : Promise.resolve({ count: 0, error: null }),
+    term
+      ? supabase.from("report_cards").select("id, student_id, status, published_at, class_code, stream").eq("term_id", term.id)
+      : Promise.resolve({ data: [], error: null }),
+    term
+      ? supabase.from("class_teachers").select("class_code, stream").eq("term_id", term.id)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (!Array.isArray(roll)) {
+    const message = roll instanceof Error ? roll.message : "The register could not be loaded.";
+    return <AcademicsNotice title="Overview" heading="Could not load pupils"><p>{message}</p></AcademicsNotice>;
+  }
+  const pupils: Pupil[] = roll;
+  const failed = [cardsResult.error, teachersResult.error, presentCount.error, markedCount.error].find(Boolean);
+  if (failed) return <AcademicsNotice title="Overview" heading="Could not load the office"><p>{failed.message}</p></AcademicsNotice>;
+
+  const groups = groupPupils(pupils);
+  const markedIds = new Set(marks.map((row) => row.student_id));
+  const registerState = groups.map((group) => {
+    const done = group.pupils.filter((pupil) => markedIds.has(pupil.id)).length;
+    return { ...group, done, complete: done === group.pupils.length };
+  });
+  const unmarked = registerState.filter((group) => !group.complete);
+  const cards = (cardsResult.data || []) as OverviewLight["drafts"];
+  const drafts = cards.filter((card) => card.status === "draft");
+  const published = cards.filter((card) => card.status === "published");
+  const taught = new Set((teachersResult.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}`));
+  const untaught = term ? groups.filter((group) => !taught.has(`${group.code}|${group.stream}`)) : [];
+  const attendanceRate = markedCount.count ? Math.round(((presentCount.count ?? 0) / markedCount.count) * 100) : null;
+  const firstName = profile.full_name?.trim().split(/\s+/)[0] || "";
+  const hour = Number(new Intl.DateTimeFormat("en-GB", { hour: "numeric", hourCycle: "h23", timeZone: "Africa/Kampala" }).format(new Date()));
+  const greetingWord = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
+
+  const light: OverviewLight = {
+    term,
+    today,
+    pupils,
+    groups,
+    unmarked,
+    registerState,
+    drafts,
+    published,
+    untaught,
+    attendanceRate,
+    names: new Map(pupils.map((pupil) => [pupil.id, pupil.full_name])),
+    greeting: `${greetingWord}${firstName ? `, ${firstName}` : ""}`,
+    admin: profile.role === "admin",
+    office,
+    attendanceHref: `${ACADEMICS_BASE}/attendance?date=${today}`,
+  };
+
+  return (
+    <Suspense fallback={renderOverviewHome(light, null, "")}>
+      <OverviewWithPicture light={light} supabase={supabase} userId={profile.id} />
+    </Suspense>
   );
 }

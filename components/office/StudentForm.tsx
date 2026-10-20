@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createStudent, updateStudent, type FamilyMatch } from "@/app/admissions_office/(office)/students/actions";
+import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback, useOfficeAction } from "@/components/office/client";
 import { FamilyPicker } from "@/components/office/FamilyPicker";
 import { CAMPUS_OPTIONS } from "@/lib/applications";
@@ -566,6 +567,7 @@ export function StudentForm({
             <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : isNew ? "fa-user-plus" : "fa-floppy-disk"}`} aria-hidden="true" />{" "}
             {pending ? "Saving…" : isNew ? "Enrol student" : "Save changes"}
           </button>
+          <ProcessStatus active={pending} label={isNew ? "Enrolling the student" : "Updating the student"} />
         </div>
       </footer>
     </form>

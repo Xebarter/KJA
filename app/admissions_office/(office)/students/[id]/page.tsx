@@ -4,6 +4,7 @@ import { ActionButton, CopyButton, PrintButton } from "@/components/office/clien
 import { ProfileTabs, TabLink, TabNav, TabPanel } from "@/components/office/ProfileTabs";
 import { StudentForm } from "@/components/office/StudentForm";
 import { ChangeFamily, DeleteStudentNote, StudentNoteForm, StudentStatusActions } from "@/components/office/StudentProfile";
+import { StudentLoginPanel } from "@/components/office/StudentLoginPanel";
 import { Card, Detail, MigrationHint, OfficeNotice, Sex, StudentStatus } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, initials, statusInfo, timeAgo, whatsappLink } from "@/lib/applications";
@@ -84,7 +85,7 @@ export default async function StudentPage({
     requireOffice(),
     supabase
       .from("students")
-      .select("*, family:families(*, guardians(*), family_contacts(*), students(id, full_name, class_code, stream, status, date_of_birth))")
+      .select("*, profile_id, family:families(*, guardians(*), family_contacts(*), students(id, full_name, class_code, stream, status, date_of_birth))")
       .eq("id", id)
       .maybeSingle(),
     supabase.from("student_activity").select("*").eq("student_id", id).order("created_at", { ascending: false }).limit(200),
@@ -95,8 +96,12 @@ export default async function StudentPage({
   if (error) return <OfficeNotice title="Student" heading="This student could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
   if (!data) notFound();
 
-  const { family: familyRow, ...studentRow } = data as Student & { family: FamilyRow | null };
-  const student = studentRow as Student;
+  const { family: familyRow, ...studentRow } = data as Student & { profile_id?: string | null; family: FamilyRow | null };
+  const student = studentRow as Student & { profile_id?: string | null };
+  const loginProfile = student.profile_id
+    ? await supabase.from("profiles").select("email").eq("id", student.profile_id).maybeSingle()
+    : null;
+  const loginEmail = loginProfile?.data?.email ?? null;
   const family = familyRow;
   const guardians = [...(familyRow?.guardians ?? [])].sort((a, b) => a.relationship.localeCompare(b.relationship));
   const contacts = [...(familyRow?.family_contacts ?? [])].sort((a, b) => a.position - b.position);
@@ -393,6 +398,15 @@ export default async function StudentPage({
               </div>
 
               <aside className="app-detail-side">
+                <Card title="Student portal" icon="fa-laptop">
+                  <StudentLoginPanel
+                    studentId={id}
+                    studentName={student.full_name}
+                    hasLogin={Boolean(student.profile_id)}
+                    loginEmail={loginEmail}
+                  />
+                </Card>
+
                 <Card
                   title="Health"
                   icon="fa-notes-medical"

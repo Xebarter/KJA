@@ -1,0 +1,109 @@
+export const STUDENT_BASE = "/student";
+
+export const studentNav = [
+  { href: "/student", label: "Home", icon: "fa-house", group: "Home" },
+  { href: "/student/homework", label: "Homework", icon: "fa-book", group: "School" },
+  { href: "/student/timetable", label: "Timetable", icon: "fa-table-cells", group: "School" },
+  { href: "/student/reports", label: "Reports", icon: "fa-file-lines", group: "School" },
+  { href: "/student/calendar", label: "Calendar", icon: "fa-calendar-days", group: "School" },
+  { href: "/student/messages", label: "Messages", icon: "fa-comments", group: "Inbox" },
+  { href: "/student/notifications", label: "Notifications", icon: "fa-bell", group: "Inbox" },
+  { href: "/student/profile", label: "My details", icon: "fa-user", group: "Account" },
+];
+
+export type StudentProfileRow = {
+  id: string;
+  role: string;
+  full_name: string | null;
+  email: string | null;
+};
+
+export type StudentSelf = {
+  id: string;
+  full_name: string;
+  preferred_name: string | null;
+  class_code: string | null;
+  stream: string | null;
+  campus: string | null;
+  student_number: string;
+  photo_path: string | null;
+  status: string;
+  profile_id: string | null;
+};
+
+export type StudentClassmate = {
+  id: string;
+  full_name: string;
+  preferred_name: string | null;
+  photo_path: string | null;
+};
+
+export type StudentHomework = {
+  id: string;
+  title: string;
+  instructions: string | null;
+  due_on: string;
+  published_at: string | null;
+  class_code: string;
+  stream: string;
+  subject_id: string;
+  subject_name?: string | null;
+  done: boolean;
+  done_at: string | null;
+};
+
+export type StudentNotice = {
+  id: string;
+  title: string;
+  body: string | null;
+  href: string | null;
+  kind: string | null;
+  read: boolean;
+  created_at: string;
+};
+
+export type StudentMessage = {
+  id: string;
+  conversation_id: string;
+  sender_student_id: string;
+  body: string;
+  flagged: boolean;
+  created_at: string;
+};
+
+export type StudentConversation = {
+  id: string;
+  student_low_id: string;
+  student_high_id: string;
+  peer: StudentClassmate;
+  last?: StudentMessage;
+  unread: number;
+};
+
+export type StudentLesson = {
+  id: string;
+  weekday: number;
+  period: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  subject_name: string;
+  room: string | null;
+};
+
+export type StudentReport = {
+  id: string;
+  term: string;
+  class_label: string;
+  published_at: string | null;
+};
+
+export function displayName(student: Pick<StudentSelf, "full_name" | "preferred_name"> | null | undefined) {
+  if (!student) return "Student";
+  return (student.preferred_name || student.full_name || "Student").trim();
+}
+
+export function classLabel(classCode: string | null | undefined, stream?: string | null) {
+  if (!classCode) return "No class";
+  const streamBit = stream?.trim() ? ` ${stream.trim()}` : "";
+  return `${classCode}${streamBit}`;
+}

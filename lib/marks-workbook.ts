@@ -1,9 +1,12 @@
 import ExcelJS from "exceljs";
+import { parseSkillLabels } from "@/lib/comment-engine/skills";
 
 const SCHOOL = "Kampala Junior Academy";
 const HEADER_ROW = 8;
 const FIRST_ROW = 9;
 const ID_COL = 1;
+/** Sentinel in the Keys sheet for a free-text “Skills acquired” column (Other subjects with no catalogue skills). */
+const SKILLS_LIST = "*";
 
 const NAVY = "FF19232B";
 const GOLD = "FFC9A227";
@@ -40,6 +43,13 @@ export type MarksBookPaper = {
   subject: string;
   maxScore: number;
   sort: number;
+  /** Other subjects: skills taught this term → Yes/blank “Acquired” columns after the mark. */
+  skills?: string[];
+  /**
+   * Other subjects with no catalogue skills: one free-text “Skills acquired” column
+   * (comma-separated labels). Ignored when `skills` is non-empty.
+   */
+  skillsFreeText?: boolean;
 };
 
 export type MarksBookPupil = {
@@ -55,6 +65,7 @@ export type MarksBookScore = {
   studentId: string;
   score: number | null;
   missed: boolean;
+  skills?: { label: string; acquired: boolean }[];
 };
 
 export type MarksBookBand = { label: string; min: number; max: number; midpoint: number };
@@ -83,6 +94,8 @@ export type MarksBookEntry = {
   studentId: string;
   pupil: string;
   raw: string;
+  /** When set, this cell is a skill acquired flag for a co-curricular paper. */
+  skillLabel?: string;
 };
 
 export type MarksBookIssue = {
@@ -112,8 +125,40 @@ type BuiltSheet = {
   subjects: string[];
   pupils: number;
   papers: { column: number; paper: MarksBookPaper }[];
+  skillColumns: { column: number; paperId: string; subject: string; skillLabel: string }[];
   pupilRows: { row: number; pupil: MarksBookPupil }[];
 };
+
+type SheetColumn =
+  | { kind: "mark"; paper: MarksBookPaper; column: number }
+  | { kind: "skill"; paper: MarksBookPaper; skillLabel: string; column: number }
+  | { kind: "skills_list"; paper: MarksBookPaper; column: number };
+
+function sheetColumns(papers: MarksBookPaper[], firstMark: number): SheetColumn[] {
+  const columns: SheetColumn[] = [];
+  let column = firstMark;
+  for (const paper of papers) {
+    columns.push({ kind: "mark", paper, column });
+    column += 1;
+    const taught = paper.skills || [];
+    if (taught.length) {
+      for (const skillLabel of taught) {
+        columns.push({ kind: "skill", paper, skillLabel, column });
+        column += 1;
+      }
+    } else if (paper.skillsFreeText) {
+      columns.push({ kind: "skills_list", paper, column });
+      column += 1;
+    }
+  }
+  return columns;
+}
+
+function savedSkillsList(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBookPupil) {
+  const saved = input.scores.find((row) => row.assessmentId === paper.id && row.studentId === pupil.id);
+  const acquired = (saved?.skills || []).filter((skill) => skill.acquired).map((skill) => skill.label);
+  return acquired.length ? acquired.join(", ") : null;
+}
 
 type Font = Partial<ExcelJS.Font>;
 
@@ -459,6 +504,12 @@ function savedValue(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBo
   return saved.score;
 }
 
+function savedSkill(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBookPupil, skillLabel: string) {
+  const saved = input.scores.find((score) => score.assessmentId === paper.id && score.studentId === pupil.id);
+  const row = (saved?.skills || []).find((skill) => skill.label.toLowerCase() === skillLabel.toLowerCase());
+  return row?.acquired ? "Yes" : null;
+}
+
 function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, group: ReturnType<typeof groupPapers>[number], used: Set<string>) {
   const sheetName = uniqueSheetName(group.label, used);
   const sheet = workbook.addWorksheet(sheetName, {
@@ -466,21 +517,28 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     views: [{ state: "normal", showGridLines: false }],
   });
   const nursery = group.section === "nursery";
-  const showAverage = !nursery && group.papers.length > 1;
+  const columns = sheetColumns(group.papers, 5);
+  const markColumns = columns.filter((column): column is Extract<SheetColumn, { kind: "mark" }> => column.kind === "mark");
+  const showAverage = !nursery && markColumns.length > 1;
   const firstMark = 5;
-  const enteredCol = firstMark + group.papers.length;
+  const enteredCol = firstMark + columns.length;
   const averageCol = showAverage ? enteredCol + 1 : 0;
   const lastCol = averageCol || enteredCol;
   const listCol = lastCol + 2;
   const lastRow = FIRST_ROW + group.pupils.length - 1;
-  const markEnd = columnLetter(firstMark + group.papers.length - 1);
+  const markLetters = markColumns.map((column) => columnLetter(column.column));
+  const hasYesSkills = columns.some((column) => column.kind === "skill");
+  const hasSkillsList = columns.some((column) => column.kind === "skills_list");
+  const hasSkills = hasYesSkills || hasSkillsList;
 
   sheet.getColumn(ID_COL).hidden = true;
   sheet.getColumn(ID_COL).width = 38;
   sheet.getColumn(2).width = 6;
   sheet.getColumn(3).width = 16;
   sheet.getColumn(4).width = 34;
-  group.papers.forEach((_, index) => { sheet.getColumn(firstMark + index).width = 18; });
+  columns.forEach((column) => {
+    sheet.getColumn(column.column).width = column.kind === "skill" ? 14 : column.kind === "skills_list" ? 28 : 18;
+  });
   sheet.getColumn(enteredCol).width = 12;
   if (averageCol) sheet.getColumn(averageCol).width = 12;
 
@@ -501,16 +559,25 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
 
   const maxes = new Set(group.papers.map((paper) => paper.maxScore));
   const markNote = nursery ? "Progress bands" : maxes.size === 1 ? `Out of ${[...maxes][0]}` : "Each subject shows its own total";
+  const skillNote = hasYesSkills
+    ? "   ·   Skills acquired: Yes if gained"
+    : hasSkillsList
+      ? "   ·   Skills acquired: list them"
+      : "";
   sheet.getRow(5).height = 18;
-  merge(sheet, 5, 2, lastCol, `${input.kindLabel}   ·   ${input.heldOn || "Date not set"}   ·   ${group.pupils.length} ${group.pupils.length === 1 ? "pupil" : "pupils"}   ·   ${markNote}`, {
+  merge(sheet, 5, 2, lastCol, `${input.kindLabel}   ·   ${input.heldOn || "Date not set"}   ·   ${group.pupils.length} ${group.pupils.length === 1 ? "pupil" : "pupils"}   ·   ${markNote}${skillNote}`, {
     font: font(10, MUTED),
     alignment: { vertical: "middle" },
   });
 
   const instruction = nursery
     ? "Choose the progress band from the list. ABS means the pupil missed the paper. CLEAR removes a saved band. A blank cell leaves the saved band unchanged."
-    : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. CLEAR removes a saved mark. A blank cell leaves the saved mark unchanged.";
-  sheet.getRow(6).height = 32;
+    : hasYesSkills
+      ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. ABS means missed. CLEAR removes a saved mark. A blank mark cell leaves the saved mark unchanged."
+      : hasSkillsList
+        ? "Type the mark in the white cells. In Skills acquired, list skills gained this term separated by commas (e.g. rhythm, timing). ABS means missed. CLEAR removes a saved mark."
+        : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. CLEAR removes a saved mark. A blank cell leaves the saved mark unchanged.";
+  sheet.getRow(6).height = 36;
   merge(sheet, 6, 2, lastCol, instruction, {
     font: font(10, INK),
     fill: solid(CREAM),
@@ -520,17 +587,33 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
 
   sheet.getRow(7).height = 8;
   sheet.getRow(HEADER_ROW).height = 34;
-  const headers: { col: number; text: string; align: "left" | "center" }[] = [
+  const headers: { col: number; text: string; align: "left" | "center"; fill?: string }[] = [
     { col: 2, text: "No.", align: "center" },
     { col: 3, text: "Student no.", align: "left" },
     { col: 4, text: "Pupil", align: "left" },
   ];
-  group.papers.forEach((paper, index) => {
-    headers.push({
-      col: firstMark + index,
-      text: nursery ? `${paper.subject} · progress band` : `${paper.subject} · out of ${paper.maxScore}`,
-      align: "center",
-    });
+  columns.forEach((column) => {
+    if (column.kind === "mark") {
+      headers.push({
+        col: column.column,
+        text: nursery ? `${column.paper.subject} · progress band` : `${column.paper.subject} · out of ${column.paper.maxScore}`,
+        align: "center",
+      });
+    } else if (column.kind === "skills_list") {
+      headers.push({
+        col: column.column,
+        text: `${column.paper.subject} · Skills acquired`,
+        align: "center",
+        fill: GREEN,
+      });
+    } else {
+      headers.push({
+        col: column.column,
+        text: `${column.paper.subject} · Acquired · ${column.skillLabel}`,
+        align: "center",
+        fill: GREEN,
+      });
+    }
   });
   headers.push({ col: enteredCol, text: "Entered", align: "center" });
   if (averageCol) headers.push({ col: averageCol, text: "Average", align: "center" });
@@ -539,7 +622,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     cell.value = header.text;
     paint(cell, {
       font: font(10, WHITE, true),
-      fill: solid(NAVY),
+      fill: solid(header.fill || NAVY),
       alignment: { vertical: "middle", horizontal: header.align, wrapText: true },
     });
   });
@@ -552,7 +635,16 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     section: group.section,
     subjects: group.papers.map((paper) => paper.subject),
     pupils: group.pupils.length,
-    papers: group.papers.map((paper, index) => ({ column: firstMark + index, paper })),
+    papers: markColumns.map((column) => ({ column: column.column, paper: column.paper })),
+    skillColumns: columns.flatMap((column) => {
+      if (column.kind === "skill") {
+        return [{ column: column.column, paperId: column.paper.id, subject: column.paper.subject, skillLabel: column.skillLabel }];
+      }
+      if (column.kind === "skills_list") {
+        return [{ column: column.column, paperId: column.paper.id, subject: column.paper.subject, skillLabel: SKILLS_LIST }];
+      }
+      return [];
+    }),
     pupilRows: [],
   };
 
@@ -581,12 +673,54 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     name.value = pupil.name;
     paint(name, { font: font(11, NAVY), fill: zebra, alignment: { vertical: "middle" }, border: grid() });
 
-    group.papers.forEach((paper, paperIndex) => {
-      const column = firstMark + paperIndex;
-      const cell = sheet.getCell(row, column);
-      const value = savedValue(input, paper, pupil);
-      cell.value = value === null ? null : value;
+    columns.forEach((column) => {
+      const cell = sheet.getCell(row, column.column);
       cell.protection = { locked: false };
+      if (column.kind === "skill") {
+        cell.value = savedSkill(input, column.paper, pupil, column.skillLabel);
+        paint(cell, {
+          font: font(11, GREEN, true),
+          fill: solid(WHITE),
+          alignment: { vertical: "middle", horizontal: "center" },
+          border: grid(),
+          numFmt: "@",
+        });
+        cell.dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: ['"Yes"'],
+          showErrorMessage: true,
+          errorStyle: "stop",
+          errorTitle: "Skill acquired?",
+          error: "Choose Yes if the pupil acquired this skill, or leave blank.",
+          showInputMessage: true,
+          promptTitle: `${column.paper.subject} · Acquired · ${column.skillLabel}`,
+          prompt: "Yes if acquired this term. Leave blank if not yet.",
+        };
+        return;
+      }
+      if (column.kind === "skills_list") {
+        cell.value = savedSkillsList(input, column.paper, pupil);
+        paint(cell, {
+          font: font(10, GREEN, true),
+          fill: solid(WHITE),
+          alignment: { vertical: "middle", horizontal: "left", wrapText: true },
+          border: grid(),
+          numFmt: "@",
+        });
+        cell.dataValidation = {
+          type: "custom",
+          allowBlank: true,
+          formulae: ["TRUE"],
+          showErrorMessage: false,
+          showInputMessage: true,
+          promptTitle: `${column.paper.subject} · Skills acquired`,
+          prompt: "List skills acquired this term, separated by commas (e.g. rhythm, timing).",
+        };
+        return;
+      }
+      const value = savedValue(input, column.paper, pupil);
+      cell.value = value === null ? null : value;
       paint(cell, {
         font: font(12, NAVY, true),
         fill: solid(WHITE),
@@ -596,7 +730,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
       });
       const prompt = nursery
         ? "Choose a progress band. ABS if missed. CLEAR to remove a saved band. Leave blank to skip."
-        : `Mark out of ${paper.maxScore}. ABS if missed. CLEAR to remove a saved mark. Leave blank to skip.`;
+        : `Mark out of ${column.paper.maxScore}. ABS if missed. CLEAR to remove a saved mark. Leave blank to skip.`;
       cell.dataValidation = nursery
         ? {
           type: "list",
@@ -607,42 +741,45 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
           errorTitle: "Choose a band",
           error: `Choose ${input.bands.map((band) => band.label).join(", ")}, ABS, or CLEAR.`,
           showInputMessage: true,
-          promptTitle: paper.subject,
+          promptTitle: column.paper.subject,
           prompt,
         }
         : {
           type: "custom",
           allowBlank: true,
-          formulae: [`OR(${cell.address}="",AND(ISNUMBER(${cell.address}),${cell.address}>=0,${cell.address}<=${paper.maxScore}),UPPER(TRIM(${cell.address}&""))="ABS",UPPER(TRIM(${cell.address}&""))="CLEAR")`],
+          formulae: [`OR(${cell.address}="",AND(ISNUMBER(${cell.address}),${cell.address}>=0,${cell.address}<=${column.paper.maxScore}),UPPER(TRIM(${cell.address}&""))="ABS",UPPER(TRIM(${cell.address}&""))="CLEAR")`],
           showErrorMessage: true,
           errorStyle: "stop",
           errorTitle: "Check this mark",
-          error: `Enter a mark from 0 to ${paper.maxScore}, ABS if the pupil missed the paper, or CLEAR to remove a saved mark.`,
+          error: `Enter a mark from 0 to ${column.paper.maxScore}, ABS if the pupil missed the paper, or CLEAR to remove a saved mark.`,
           showInputMessage: true,
-          promptTitle: `${paper.subject} · out of ${paper.maxScore}`,
+          promptTitle: `${column.paper.subject} · out of ${column.paper.maxScore}`,
           prompt,
         };
     });
 
-    const start = columnLetter(firstMark);
+    const firstMarkCell = markLetters[0] || columnLetter(firstMark);
+    const markRefs = markLetters.map((letter) => `${letter}${row}`);
     const entered = sheet.getCell(row, enteredCol);
-    const across = `${start}${row}:${markEnd}${row}`;
-    entered.value = group.papers.length === 1
+    entered.value = markColumns.length === 1
       ? {
         formula: nursery
-          ? `IF(OR(${start}${row}="",UPPER(TRIM(${start}${row}&""))="CLEAR"),"","Yes")`
-          : `IF(OR(ISNUMBER(${start}${row}),UPPER(TRIM(${start}${row}&""))="ABS"),"Yes","")`,
+          ? `IF(OR(${firstMarkCell}${row}="",UPPER(TRIM(${firstMarkCell}${row}&""))="CLEAR"),"","Yes")`
+          : `IF(OR(ISNUMBER(${firstMarkCell}${row}),UPPER(TRIM(${firstMarkCell}${row}&""))="ABS"),"Yes","")`,
         result: "",
       }
       : {
-        formula: nursery ? `COUNTA(${across})-COUNTIF(${across},"CLEAR")` : `COUNT(${across})+COUNTIF(${across},"ABS")`,
+        formula: nursery
+          ? markRefs.map((ref) => `IF(OR(${ref}="",UPPER(TRIM(${ref}&""))="CLEAR"),0,1)`).join("+")
+          : markRefs.map((ref) => `IF(OR(ISNUMBER(${ref}),UPPER(TRIM(${ref}&""))="ABS"),1,0)`).join("+"),
         result: 0,
       };
     paint(entered, { font: font(10, MUTED, true), fill: solid(CREAM), alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
 
     if (averageCol) {
       const average = sheet.getCell(row, averageCol);
-      average.value = { formula: `IF(COUNT(${across})=0,"",ROUND(AVERAGE(${across}),1))`, result: "" };
+      const list = markRefs.join(",");
+      average.value = { formula: `IF(COUNT(${list})=0,"",ROUND(AVERAGE(${list}),1))`, result: "" };
       average.numFmt = "0.0";
       paint(average, { font: font(10, NAVY, true), fill: solid(CREAM), alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     }
@@ -659,8 +796,8 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   }
 
   let priority = 1;
-  group.papers.forEach((paper, index) => {
-    const letter = columnLetter(firstMark + index);
+  markColumns.forEach(({ paper, column }) => {
+    const letter = columnLetter(column);
     const anchor = `${letter}${FIRST_ROW}`;
     const ref = `${anchor}:${letter}${lastRow}`;
     const rules: ExcelJS.ConditionalFormattingRule[] = [
@@ -719,19 +856,30 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     sheet.getRow(row).height = 20;
     paint(sheet.getCell(row, 4), { font: font(9, MUTED, true), alignment: { vertical: "middle", horizontal: "right" } });
     sheet.getCell(row, 4).value = label;
-    group.papers.forEach((_, paperIndex) => {
-      const cell = sheet.getCell(row, firstMark + paperIndex);
-      cell.value = { formula: formula(columnLetter(firstMark + paperIndex)), result: label === "Average" ? "" : 0 };
+    markColumns.forEach(({ column }) => {
+      const cell = sheet.getCell(row, column);
+      cell.value = { formula: formula(columnLetter(column)), result: label === "Average" ? "" : 0 };
       if (label === "Average") cell.numFmt = "0.0";
       paint(cell, { font: font(11, label === "Missed" ? AMBER : NAVY, true), fill: solid(CREAM), alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     });
   });
   const note = summary + summaryRows.length + 2;
-  sheet.getRow(note).height = 28;
-  merge(sheet, note, 2, lastCol, "A blank cell is not a zero. It leaves the mark already saved for that pupil and subject.", {
-    font: { name: "Calibri", size: 9, italic: true, color: { argb: MUTED } },
-    alignment: { vertical: "middle", wrapText: true },
-  });
+  sheet.getRow(note).height = hasSkills ? 40 : 28;
+  merge(
+    sheet,
+    note,
+    2,
+    lastCol,
+    hasYesSkills
+      ? "A blank mark cell is not a zero — it leaves the mark already saved. Skills acquired columns: Yes if gained this term, or leave blank."
+      : hasSkillsList
+        ? "A blank mark cell is not a zero — it leaves the mark already saved. Skills acquired: list skills gained this term, separated by commas."
+        : "A blank cell is not a zero. It leaves the mark already saved for that pupil and subject.",
+    {
+      font: { name: "Calibri", size: 9, italic: true, color: { argb: MUTED } },
+      alignment: { vertical: "middle", wrapText: true },
+    },
+  );
 
   pinColumnHeadings(workbook, sheet, sheetName, HEADER_ROW, lastRow, lastCol);
   sheet.views = [{
@@ -790,6 +938,19 @@ function writeKeys(workbook: ExcelJS.Workbook, input: MarksBookInput, built: Bui
     entry.papers.forEach(({ column, paper }) => {
       row += 1;
       [entry.sheetName, column, paper.id, paper.subject, paper.classCode, paper.stream, paper.maxScore, paper.section === "nursery" ? 1 : 0, entry.label, paper.section]
+        .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
+    });
+  });
+  row += 2;
+  sheet.getCell(row, 1).value = "SKILLS";
+  row += 1;
+  ["sheet", "col", "paper_id", "subject", "skill"].forEach((header, index) => {
+    sheet.getCell(row, index + 1).value = header;
+  });
+  built.forEach((entry) => {
+    entry.skillColumns.forEach((skill) => {
+      row += 1;
+      [entry.sheetName, skill.column, skill.paperId, skill.subject, skill.skillLabel]
         .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
     });
   });
@@ -907,6 +1068,30 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
   }
   if (!papers.length) throw new MarksBookError("This workbook has no subjects to read. Download a fresh one.");
 
+  const skills: { sheet: string; column: number; paperId: string; subject: string; skillLabel: string; label: string }[] = [];
+  while (row < 8000 && plain(keys.getCell(row, 1).value) !== "SKILLS" && plain(keys.getCell(row, 1).value) !== "PUPILS") row += 1;
+  if (plain(keys.getCell(row, 1).value) === "SKILLS") {
+    row += 2;
+    while (row < 8000) {
+      const sheet = plain(keys.getCell(row, 1).value);
+      if (!sheet || sheet === "PUPILS") break;
+      const column = Number(plain(keys.getCell(row, 2).value));
+      const paperId = plain(keys.getCell(row, 3).value);
+      const skillLabel = plain(keys.getCell(row, 5).value);
+      if (Number.isInteger(column) && UUID.test(paperId) && skillLabel) {
+        skills.push({
+          sheet,
+          column,
+          paperId,
+          subject: plain(keys.getCell(row, 4).value) || "Subject",
+          skillLabel,
+          label: papers.find((paper) => paper.sheet === sheet)?.label || sheet,
+        });
+      }
+      row += 1;
+    }
+  }
+
   while (row < 8000 && plain(keys.getCell(row, 1).value) !== "PUPILS") row += 1;
   const expected = new Map<string, { label: string; ids: Map<string, string> }>();
   if (plain(keys.getCell(row, 1).value) === "PUPILS") {
@@ -937,6 +1122,12 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     list.push(paper);
     bySheet.set(paper.sheet, list);
   }
+  const skillsBySheet = new Map<string, typeof skills>();
+  for (const skill of skills) {
+    const list = skillsBySheet.get(skill.sheet) ?? [];
+    list.push(skill);
+    skillsBySheet.set(skill.sheet, list);
+  }
 
   for (const [sheetName, columns] of bySheet) {
     const label = columns[0]?.label || sheetName;
@@ -950,6 +1141,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     const found = new Set<string>();
     seen.set(sheetName, found);
     const expectedCount = known.size;
+    const skillCols = skillsBySheet.get(sheetName) || [];
     let blanks = 0;
     for (let cursor = FIRST_ROW; cursor < FIRST_ROW + Math.max(expectedCount, 1) + 40 && cursor < FIRST_ROW + 1500; cursor += 1) {
       const idCell = worksheet.getCell(cursor, ID_COL);
@@ -958,7 +1150,11 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         const cell = worksheet.getCell(cursor, paper.column);
         return { paper, cell, formula: isFormula(cell.value), read: readCell(cell.value) };
       });
-      const typed = cells.some((item) => !item.formula && (item.read.text || item.read.pending));
+      const skillCells = skillCols.map((skill) => {
+        const cell = worksheet.getCell(cursor, skill.column);
+        return { skill, cell, formula: isFormula(cell.value), read: readCell(cell.value) };
+      });
+      const typed = [...cells, ...skillCells].some((item) => !item.formula && (item.read.text || item.read.pending));
       if (!UUID.test(id)) {
         if (typed) add({ sheet: label, cell: idCell.address, pupil: "", message: "A mark is on a row with no pupil. Download a fresh sheet rather than inserting rows." });
         else {
@@ -994,6 +1190,58 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
           studentId: id,
           pupil,
           raw: item.read.text,
+        });
+      }
+      for (const item of skillCells) {
+        if (!UUID.test(item.skill.paperId) || !Number.isInteger(item.skill.column)) continue;
+        if (item.read.pending) {
+          add({
+            sheet: label,
+            cell: item.cell.address,
+            pupil,
+            message: item.skill.skillLabel === SKILLS_LIST
+              ? "Type the skills acquired as text, or leave blank."
+              : `Choose Yes for ${item.skill.skillLabel}, or leave blank.`,
+          });
+          continue;
+        }
+        if (!item.read.text) continue;
+        const raw = item.read.text.trim();
+        if (item.skill.skillLabel === SKILLS_LIST) {
+          const labels = parseSkillLabels(raw);
+          if (!labels.length) {
+            add({ sheet: label, cell: item.cell.address, pupil, message: "List skills acquired separated by commas, or leave blank." });
+            continue;
+          }
+          for (const skillLabel of labels) {
+            entries.push({
+              sheet: sheetName,
+              label,
+              cell: item.cell.address,
+              paperId: item.skill.paperId,
+              subject: item.skill.subject,
+              studentId: id,
+              pupil,
+              raw: "Yes",
+              skillLabel,
+            });
+          }
+          continue;
+        }
+        if (!/^yes$/i.test(raw) && raw.toUpperCase() !== "Y") {
+          add({ sheet: label, cell: item.cell.address, pupil, message: `Choose Yes for ${item.skill.skillLabel}, or leave blank.` });
+          continue;
+        }
+        entries.push({
+          sheet: sheetName,
+          label,
+          cell: item.cell.address,
+          paperId: item.skill.paperId,
+          subject: item.skill.subject,
+          studentId: id,
+          pupil,
+          raw: "Yes",
+          skillLabel: item.skill.skillLabel,
         });
       }
     }

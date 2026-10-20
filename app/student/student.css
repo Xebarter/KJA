@@ -1,0 +1,185 @@
+/* Student portal modules — shell/overview reuse account.css via .kja-account */
+
+body:has(.kja-student) {
+  background: #faf0de !important;
+}
+
+.st-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  margin: 0 0 1rem;
+  padding: .9rem 1.05rem;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(253, 163, 27, .18), rgba(253, 163, 27, .08));
+  border: 1px solid rgba(253, 163, 27, .35);
+  color: #19232b;
+}
+.st-banner i { color: #c47604; margin-top: .15rem; }
+.st-banner p { margin: 0; font-size: .92rem; line-height: 1.45; }
+.st-banner a { color: #e42435; font-weight: 700; }
+
+/* Homework */
+.hw-page { display: grid; gap: 1.25rem; }
+.hw-head { display: flex; flex-wrap: wrap; align-items: end; justify-content: space-between; gap: .75rem; }
+.hw-head h1 { margin: 0; font-size: 1.75rem; letter-spacing: -.02em; }
+.hw-head p { margin: .25rem 0 0; color: #5d6670; }
+.hw-filters { display: flex; flex-wrap: wrap; gap: .4rem; }
+.hw-filters a,
+.hw-filters button {
+  display: inline-flex; align-items: center; gap: .35rem;
+  padding: .45rem .8rem; border-radius: 999px;
+  background: #fff; border: 1px solid rgba(25, 35, 43, .12);
+  color: #5d6670; font-size: .82rem; font-weight: 700;
+  font: inherit;
+}
+.hw-filters a.is-active,
+.hw-filters button.is-active { background: #19232b; color: #fff; border-color: #19232b; }
+.hw-list { display: grid; gap: .75rem; }
+.hw-card {
+  display: grid; grid-template-columns: 1fr auto; gap: .85rem; align-items: center;
+  padding: 1rem 1.1rem; border-radius: 16px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08);
+  box-shadow: 0 10px 24px -18px rgba(25, 35, 43, .35);
+}
+.hw-card.is-done { opacity: .78; }
+.hw-card.is-overdue:not(.is-done) { border-color: rgba(228, 36, 53, .28); }
+.hw-card h2 { margin: 0; font-size: 1.05rem; }
+.hw-card .hw-meta { margin: .3rem 0 0; color: #5d6670; font-size: .84rem; }
+.hw-chip {
+  display: inline-flex; align-items: center; gap: .3rem;
+  margin-right: .4rem; padding: .2rem .55rem; border-radius: 999px;
+  background: rgba(25, 35, 43, .06); font-size: .72rem; font-weight: 700;
+}
+.hw-chip.is-due { background: rgba(253, 163, 27, .18); color: #8a5a00; }
+.hw-chip.is-overdue { background: rgba(228, 36, 53, .12); color: #e42435; }
+.hw-chip.is-done { background: rgba(18, 114, 56, .12); color: #127238; }
+.hw-actions { display: flex; flex-direction: column; gap: .4rem; align-items: stretch; }
+.hw-actions button, .hw-actions .account-btn {
+  white-space: nowrap; font-size: .82rem; padding: .55rem .9rem;
+}
+.hw-empty {
+  padding: 2rem 1.25rem; text-align: center; border-radius: 16px;
+  background: #fff; border: 1px dashed rgba(25, 35, 43, .15);
+  color: #5d6670;
+}
+.hw-empty i { display: block; font-size: 1.6rem; margin-bottom: .6rem; color: #fda31b; }
+
+/* Messages */
+.sm-page {
+  display: grid;
+  grid-template-columns: minmax(240px, 300px) 1fr;
+  gap: 0;
+  min-height: min(70vh, 640px);
+  border-radius: 18px;
+  overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08);
+  box-shadow: 0 14px 32px -22px rgba(25, 35, 43, .4);
+}
+.sm-side { display: flex; flex-direction: column; border-right: 1px solid rgba(25, 35, 43, .08); background: #fffdf8; }
+.sm-side-head { padding: 1rem 1rem .7rem; border-bottom: 1px solid rgba(25, 35, 43, .08); }
+.sm-side-head h1 { margin: 0; font-size: 1.2rem; }
+.sm-side-head p { margin: .25rem 0 0; color: #5d6670; font-size: .8rem; }
+.sm-peers { padding: .65rem .75rem; border-bottom: 1px solid rgba(25, 35, 43, .06); }
+.sm-peers label { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8a8174; margin-bottom: .35rem; }
+.sm-peers select {
+  width: 100%; padding: .55rem .65rem; border-radius: 10px;
+  border: 1px solid #d9d3c6; background: #fff; font: inherit;
+}
+.sm-threads { list-style: none; margin: 0; padding: .4rem; overflow: auto; flex: 1; }
+.sm-threads button {
+  width: 100%; text-align: left; border: 0; background: transparent;
+  padding: .7rem .75rem; border-radius: 12px; cursor: pointer; font: inherit; color: inherit;
+}
+.sm-threads button:hover, .sm-threads button.is-active { background: rgba(228, 36, 53, .08); }
+.sm-threads strong { display: block; font-size: .92rem; }
+.sm-threads small { display: block; margin-top: .2rem; color: #5d6670; font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sm-chat { display: flex; flex-direction: column; min-width: 0; }
+.sm-chat-head {
+  display: flex; align-items: center; gap: .75rem;
+  padding: .9rem 1.1rem; border-bottom: 1px solid rgba(25, 35, 43, .08);
+}
+.sm-chat-head strong { display: block; }
+.sm-chat-head span { color: #5d6670; font-size: .8rem; }
+.sm-bubble-list { flex: 1; overflow: auto; padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: .55rem; background: #faf0de; }
+.sm-bubble {
+  max-width: min(85%, 420px); padding: .65rem .85rem; border-radius: 14px;
+  background: #fff; border: 1px solid rgba(25, 35, 43, .06);
+  font-size: .92rem; line-height: 1.4;
+}
+.sm-bubble.is-me { align-self: flex-end; background: #19232b; color: #fff; border-color: transparent; }
+.sm-bubble time { display: block; margin-top: .3rem; font-size: .68rem; opacity: .65; }
+.sm-compose {
+  display: flex; gap: .55rem; padding: .75rem 1rem;
+  border-top: 1px solid rgba(25, 35, 43, .08); background: #fff;
+}
+.sm-compose input {
+  flex: 1; padding: .7rem .85rem; border-radius: 12px;
+  border: 1px solid #d9d3c6; font: inherit;
+}
+.sm-compose button {
+  border: 0; border-radius: 12px; padding: .7rem 1rem;
+  background: #e42435; color: #fff; font-weight: 700; cursor: pointer;
+}
+.sm-compose button:disabled { opacity: .55; cursor: default; }
+.sm-empty-chat {
+  flex: 1; display: grid; place-items: center; text-align: center;
+  padding: 2rem; color: #5d6670; background: #faf0de;
+}
+.sm-empty-chat i { font-size: 1.8rem; color: #fda31b; margin-bottom: .5rem; }
+
+@media (max-width: 860px) {
+  .sm-page { grid-template-columns: 1fr; min-height: auto; }
+  .sm-side { max-height: 40vh; }
+  .hw-card { grid-template-columns: 1fr; }
+}
+
+/* Timetable / reports / profile helpers */
+.st-section { display: grid; gap: 1rem; }
+.st-section h1 { margin: 0; font-size: 1.75rem; }
+.st-section > p.lead { margin: 0; color: #5d6670; }
+.st-lesson-grid { display: grid; gap: .55rem; }
+.st-lesson {
+  display: grid; grid-template-columns: 72px 1fr auto; gap: .75rem; align-items: center;
+  padding: .85rem 1rem; border-radius: 14px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .08);
+}
+.st-lesson strong { font-size: 1rem; }
+.st-lesson small { color: #5d6670; }
+.st-period {
+  display: grid; place-items: center; width: 52px; height: 52px;
+  border-radius: 12px; background: rgba(25, 35, 43, .06);
+  font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.st-portal-note {
+  display: flex; gap: .65rem; align-items: flex-start;
+  margin-top: .75rem; padding: .75rem .9rem; border-radius: 12px;
+  background: rgba(18, 114, 56, .08); color: #127238; font-size: .84rem;
+}
+.st-portal-note i { margin-top: .1rem; }
+
+/* Staff homework desk */
+.ahw-page { display: grid; gap: 1.25rem; }
+.ahw-form {
+  display: grid; gap: .85rem; padding: 1.15rem;
+  background: var(--admin-paper, #fffdf8); border-radius: 14px;
+  border: 1px solid rgba(25, 35, 43, .1);
+}
+.ahw-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+.ahw-list { display: grid; gap: .65rem; }
+.ahw-row {
+  display: grid; grid-template-columns: 1fr auto; gap: .75rem; align-items: center;
+  padding: .9rem 1rem; border-radius: 12px; background: #fff; border: 1px solid rgba(25, 35, 43, .08);
+}
+@media (max-width: 720px) {
+  .ahw-form-grid { grid-template-columns: 1fr; }
+}
+
+/* Chat review */
+.scr-page { display: grid; gap: 1rem; }
+.scr-toolbar { display: flex; flex-wrap: wrap; gap: .65rem; align-items: end; }
+.scr-table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
+.scr-table th, .scr-table td { padding: .7rem .85rem; border-bottom: 1px solid rgba(25, 35, 43, .08); text-align: left; font-size: .88rem; }
+.scr-table th { background: #f7f1e6; font-size: .72rem; letter-spacing: .04em; text-transform: uppercase; color: #5d6670; }
+.scr-flag { color: #e42435; font-weight: 700; }

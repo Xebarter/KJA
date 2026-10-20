@@ -3,6 +3,12 @@ body:has(.kja-account) {
   color: var(--body-text-color, #2e2c2c);
   font-family: var(--body-font, Roboto, sans-serif);
 }
+.st-portal-note {
+  display: flex; gap: .65rem; align-items: flex-start;
+  margin-top: .75rem; padding: .75rem .9rem; border-radius: 12px;
+  background: rgba(18, 114, 56, .08); color: #127238; font-size: .84rem; line-height: 1.4;
+}
+.st-portal-note i { margin-top: .1rem; flex: 0 0 auto; }
 .kja-account {
   min-height: 100vh;
   --navy: var(--color-dark, #19232b);

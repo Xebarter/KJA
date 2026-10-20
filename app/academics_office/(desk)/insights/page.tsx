@@ -1,11 +1,13 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { remindTeachers } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, dateKindLabel, kampalaToday, loadCurrentTerm, openAcademics, reasonLabel } from "@/lib/academics";
-import { loadAcademicPicture } from "@/lib/academics-insights";
+import { ACADEMICS_BASE, dateKindLabel, kampalaToday, loadCurrentTerm, openAcademics, reasonLabel, type TermRow } from "@/lib/academics";
+import { loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
 import { emailSetupProblem } from "@/lib/email/send";
+import type { SupabaseClient } from "@supabase/supabase-js";
 
 export const metadata = { title: "Insights" };
 
@@ -17,18 +19,14 @@ export default async function InsightsPage() {
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Insights" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
-  if (!term) return <div className="app-page ofc-page"><PageHeader kicker="Office" icon="fa-chart-column" title="Insights" description="Performance for the current term." /><Empty title="No current term" /></div>;
-  let picture;
-  try {
-    picture = await loadAcademicPicture(supabase, term, kampalaToday(), user.id);
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Insights could not be loaded.";
-    return <AcademicsGate title="Insights" state={{ notice: "schema", message }} />;
+  if (!term) {
+    return (
+      <div className="app-page ofc-page">
+        <PageHeader kicker="Office" icon="fa-chart-column" title="Insights" description="Performance for the current term." />
+        <Empty title="No current term" />
+      </div>
+    );
   }
-  const mail = emailSetupProblem();
-
-  const openFollow = picture.interventions.filter((row) => row.status === "open");
-  const nf = (value: number) => value.toLocaleString("en-GB");
 
   return (
     <div className="app-page ofc-page ins-page">
@@ -36,7 +34,7 @@ export default async function InsightsPage() {
         kicker="Office"
         icon="fa-chart-column"
         title="Insights"
-        description={<>{term.label} · <strong>{nf(picture.pupils)}</strong> pupils in <strong>{nf(picture.classes)}</strong> classes.</>}
+        description={<>{term.label}</>}
         actions={
           <>
             <a className="admin-hero-btn" href={`${ACADEMICS_BASE}/insights/export?kind=results`}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Results</a>
@@ -45,7 +43,38 @@ export default async function InsightsPage() {
           </>
         }
       />
+      <Suspense fallback={<InsightsFallback />}>
+        <InsightsBody supabase={supabase} term={term} userId={user.id} />
+      </Suspense>
+    </div>
+  );
+}
 
+async function InsightsBody({
+  supabase,
+  term,
+  userId,
+}: {
+  supabase: SupabaseClient;
+  term: TermRow;
+  userId: string;
+}) {
+  let picture: AcademicPicture;
+  try {
+    picture = await loadAcademicPicture(supabase, term, kampalaToday(), userId);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Insights could not be loaded.";
+    return <AcademicsGate title="Insights" state={{ notice: "schema", message }} />;
+  }
+  const mail = emailSetupProblem();
+  const openFollow = picture.interventions.filter((row) => row.status === "open");
+  const nf = (value: number) => value.toLocaleString("en-GB");
+
+  return (
+    <>
+      <p className="ins-term-meta" aria-live="polite">
+        <strong>{nf(picture.pupils)}</strong> pupils in <strong>{nf(picture.classes)}</strong> classes
+      </p>
       <section className="ins-strip" aria-label="This term">
         <div>
           <span>Mean score</span>
@@ -204,7 +233,18 @@ export default async function InsightsPage() {
           </section>
         </div>
       </div>
-    </div>
+    </>
+  );
+}
+
+function InsightsFallback() {
+  return (
+    <section className="ins-strip is-loading" aria-busy="true" aria-label="Loading insights">
+      <div><span>Mean score</span><strong>…</strong><small>Loading</small></div>
+      <div><span>Open markbooks</span><strong>…</strong><small>Loading</small></div>
+      <div><span>Schemes waiting</span><strong>…</strong><small>Loading</small></div>
+      <div><span>Overdue lessons</span><strong>…</strong><small>Loading</small></div>
+    </section>
   );
 }
 

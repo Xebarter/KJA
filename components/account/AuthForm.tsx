@@ -90,6 +90,7 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
               setError("");
               const email = String(data.get("email"));
               const password = String(data.get("password"));
+              const { loginDestination } = await import("@/lib/login-destination");
               if (mode === "up") {
                 const { data: signed, error: signUpError } = await supabase.auth.signUp({
                   email,
@@ -101,20 +102,25 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
                   setError(signUpError.message);
                   return;
                 }
-                if (!signed.session) {
+                if (!signed.session || !signed.user) {
                   setError("Check your email to confirm, then sign in.");
                   setMode("in");
                   return;
                 }
-              } else {
-                const { error: signInError } = await supabase.auth.signInWithPassword({ email, password });
-                setBusy(false);
-                if (signInError) {
-                  setError(signInError.message);
-                  return;
-                }
+                const dest = await loginDestination(supabase, signed.user.id, next);
+                router.push(dest);
+                router.refresh();
+                return;
               }
-              router.push(next);
+              const { data: signedIn, error: signInError } = await supabase.auth.signInWithPassword({ email, password });
+              setBusy(false);
+              if (signInError) {
+                setError(signInError.message);
+                return;
+              }
+              const userId = signedIn.user?.id;
+              const dest = userId ? await loginDestination(supabase, userId, next) : next;
+              router.push(dest);
               router.refresh();
             }}>
               {mode === "up" ? (

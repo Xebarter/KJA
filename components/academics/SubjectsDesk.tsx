@@ -3,7 +3,13 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DeskForm } from "@/components/academics/Form";
 import type { SubjectRow } from "@/lib/academics";
+import { subjectKindLabel, type SubjectKind } from "@/lib/subject-kind";
 import { SUBJECT_BANDS, bandPhrase, bandsForSubject, spanForBands, type SubjectBandId } from "@/lib/subject-bands";
+
+const KINDS: { value: SubjectKind; label: string; hint: string; icon: string }[] = [
+  { value: "core", label: "Academic", hint: "Marks table on the report", icon: "fa-solid fa-table-list" },
+  { value: "cocurricular", label: "Other", hint: "Co-curricular table on the report", icon: "fa-solid fa-masks-theater" },
+];
 
 type SaveSubject = (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string; subject?: SubjectRow; removedId?: string }>;
 
@@ -203,7 +209,11 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
                         <span className="asb-code">{subject.code}</span>
                         <span className="asb-who">
                           <strong>{subject.name}</strong>
-                          <small>{spanText(subject)}{subject.active ? "" : " · Hidden"}</small>
+                          <small>
+                            {subject.kind === "cocurricular" ? `${subjectKindLabel(subject.kind)} · ` : ""}
+                            {spanText(subject)}
+                            {subject.active ? "" : " · Hidden"}
+                          </small>
                         </span>
                         <ClassMarks section={subject.section} from={subject.applies_from} to={subject.applies_to} classes={classes} />
                         <i className="fa-solid fa-chevron-right asb-go" aria-hidden="true" />
@@ -232,16 +242,25 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
 
 function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; classes: SubjectClass[]; save: SaveSubject }) {
   const sectionId = useId();
+  const kindId = useId();
   const visibleId = useId();
   const [name, setName] = useState(subject?.name ?? "");
   const [code, setCode] = useState("");
+  const [kind, setKind] = useState<SubjectKind>(subject?.kind === "cocurricular" ? "cocurricular" : "core");
+  const [skills, setSkills] = useState((subject?.default_skills || []).join(", "));
   const [picked, setPicked] = useState<SubjectBandId[]>(subject ? bandsForSubject(subject) : ["lower", "upper"]);
   const [active, setActive] = useState(subject ? subject.active : true);
   const [confirming, setConfirming] = useState(false);
 
   const stored = spanForBands(picked);
-  const title = name.trim() || (subject ? "Untitled" : "Add a subject");
+  const title = name.trim() || (subject ? "Untitled" : "New subject");
   const badge = subject?.code || code.trim().toUpperCase();
+  const isOther = kind === "cocurricular";
+  const note = isOther
+    ? "Goes on the co-curricular table — not the marks table."
+    : stored
+      ? `Taught across ${bandPhrase(stored.span).toLowerCase()}.`
+      : "Choose at least one section below.";
 
   function toggle(id: SubjectBandId) {
     const next = picked.includes(id) ? picked.filter((band) => band !== id) : [...picked, id];
@@ -253,7 +272,7 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
       const outcome = await save(data);
       if (outcome.ok && data.get("intent") !== "delete") setConfirming(false);
       return outcome;
-    }} className="asb-form" refresh={false}>
+    }} className={`asb-form${subject ? "" : " is-new"}`} refresh={false}>
       {subject ? <input type="hidden" name="id" value={subject.id} /> : null}
       <header className="asb-sheet">
         <div className="asb-sheet-id">
@@ -261,11 +280,11 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
             {badge || <i className="fa-solid fa-plus" />}
           </span>
           <div>
-            <p>{subject ? "Editing" : "New subject"}</p>
+            <p>{subject ? "Editing subject" : "Create subject"}</p>
             <h2>{title}</h2>
           </div>
         </div>
-        <p className="asb-sheet-note">{stored ? `Taught in ${bandPhrase(stored.span).toLowerCase()}.` : "Choose at least one section."}</p>
+        <p className="asb-sheet-note">{note}</p>
         <ClassRuler
           section={stored?.section ?? "primary"}
           from={stored ? stored.applies_from : 99}
@@ -277,51 +296,110 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
       <div
         className="asb-sheet-body"
         onKeyDown={(event) => {
-          if (event.key !== "Enter" || event.target instanceof HTMLButtonElement) return;
+          if (event.key !== "Enter" || event.target instanceof HTMLButtonElement || event.target instanceof HTMLTextAreaElement) return;
           event.preventDefault();
         }}
       >
         <div className="asb-block">
-          {subject ? null : (
-            <label className="ofc-field">
-              <span>Code</span>
-              <input name="code" required minLength={2} maxLength={20} placeholder="FRE" autoComplete="off" value={code} onChange={(event) => setCode(event.target.value)} />
+          <p className="asb-step"><span>1</span> Identity</p>
+          <div className={`asb-identity${subject ? " is-named" : ""}`}>
+            {subject ? null : (
+              <label className="ofc-field asb-code-field">
+                <span>Code</span>
+                <input
+                  name="code"
+                  required
+                  minLength={2}
+                  maxLength={20}
+                  placeholder="FRE"
+                  autoComplete="off"
+                  spellCheck={false}
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+                />
+              </label>
+            )}
+            <label className="ofc-field asb-name-field">
+              <span>Name</span>
+              <input
+                name="name"
+                required
+                minLength={2}
+                maxLength={80}
+                placeholder={isOther ? "Music" : "French"}
+                autoComplete="off"
+                autoFocus={!subject}
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+              />
             </label>
-          )}
-          <label className="ofc-field">
-            <span>Name</span>
-            <input name="name" required minLength={2} maxLength={80} placeholder="French" autoComplete="off" value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
+          </div>
         </div>
 
         <div className="asb-block">
-          <p id={sectionId}>Taught in</p>
+          <p className="asb-step" id={kindId}><span>2</span> Type</p>
+          <div className="asb-kinds" role="radiogroup" aria-labelledby={kindId}>
+            {KINDS.map((entry) => {
+              const on = kind === entry.value;
+              return (
+                <label key={entry.value} className={`asb-kind${on ? " is-on" : ""}`}>
+                  <input type="radio" name="kind" value={entry.value} checked={on} onChange={() => setKind(entry.value)} />
+                  <i className={entry.icon} aria-hidden="true" />
+                  <strong>{entry.label}</strong>
+                  <small>{entry.hint}</small>
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="asb-block">
+          <p className="asb-step" id={sectionId}><span>3</span> Taught in</p>
           <div className="asb-seg is-bands" role="group" aria-labelledby={sectionId}>
             {SUBJECT_BANDS.map((band) => {
               const on = picked.includes(band.id);
               return (
                 <label key={band.id} className={on ? "is-on" : ""}>
                   <input type="checkbox" name="band" value={band.id} checked={on} onChange={() => toggle(band.id)} />
-                  {band.label}
+                  <strong>{band.label}</strong>
                   <small>{band.hint}</small>
                 </label>
               );
             })}
           </div>
-          <p className="asb-band-note">The sections in between are included.</p>
+          <p className="asb-band-note">Sections between your picks are included automatically.</p>
         </div>
 
-        <div className="asb-block">
-          <p id={visibleId}>On class lists</p>
-          <div className="asb-seg is-two" role="radiogroup" aria-labelledby={visibleId}>
-            <label className={active ? "is-on" : ""}>
-              <input type="radio" name="active" value="1" checked={active} onChange={() => setActive(true)} />
-              Shown
+        {isOther ? (
+          <div className="asb-block asb-skills-block">
+            <p className="asb-step"><span>4</span> Skills this term</p>
+            <label className="ofc-field">
+              <span className="sr-only">Skills taught this term</span>
+              <textarea
+                name="default_skills"
+                rows={2}
+                placeholder="rhythm, timing, teamwork"
+                value={skills}
+                onChange={(event) => setSkills(event.target.value)}
+              />
             </label>
-            <label className={!active ? "is-on" : ""}>
-              <input type="radio" name="active" value="0" checked={!active} onChange={() => setActive(false)} />
-              Hidden
-            </label>
+            <p className="asb-band-note">Comma-separated. Teachers tick which ones each pupil acquired on the marks workbook.</p>
+          </div>
+        ) : null}
+
+        <div className="asb-block asb-visible-block">
+          <div className="asb-visible-head">
+            <p id={visibleId}>On class lists</p>
+            <div className="asb-seg is-two is-compact" role="radiogroup" aria-labelledby={visibleId}>
+              <label className={active ? "is-on" : ""}>
+                <input type="radio" name="active" value="1" checked={active} onChange={() => setActive(true)} />
+                Shown
+              </label>
+              <label className={!active ? "is-on" : ""}>
+                <input type="radio" name="active" value="0" checked={!active} onChange={() => setActive(false)} />
+                Hidden
+              </label>
+            </div>
           </div>
         </div>
       </div>
@@ -337,8 +415,12 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
           ) : (
             <button type="button" className="asb-delete-start" onClick={() => setConfirming(true)}>Delete</button>
           )
-        ) : <span />}
-        <button className="admin-btn" type="submit" disabled={!stored}>{subject ? "Save changes" : "Add subject"}</button>
+        ) : (
+          <p className="asb-foot-hint">Ready when the name and sections are set.</p>
+        )}
+        <button className="admin-btn" type="submit" disabled={!stored || (!subject && code.trim().length < 2) || name.trim().length < 2}>
+          {subject ? "Save changes" : "Add subject"}
+        </button>
       </footer>
     </DeskForm>
   );

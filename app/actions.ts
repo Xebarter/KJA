@@ -260,4 +260,10 @@ export async function subscribeNewsletter(formData: FormData) {
 export async function signOut() {
   const supabase = await createClient();
   if (supabase) await supabase.auth.signOut();
+  try {
+    const { clearStaffRoleCookie } = await import("@/lib/office");
+    await clearStaffRoleCookie();
+  } catch {
+    /* cookie clear is best-effort */
+  }
 }

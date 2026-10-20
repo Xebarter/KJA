@@ -7,7 +7,8 @@ import { signOut } from "@/app/actions";
 import { searchOffice } from "@/app/admissions_office/(office)/students/actions";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
-import { OFFICE_BASE, officeNav, type OfficeBadge } from "@/lib/office-nav";
+import { EMPTY_OFFICE_BADGES, type OfficeBadgeCounts } from "@/lib/office-badges";
+import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 const OFFICE_PLACES: SidebarHit[] = [
@@ -27,22 +28,46 @@ function Seal() {
   );
 }
 
+type Person = { name: string; email: string; role: string };
+
 export function OfficeShell({
   children,
-  person,
-  badges,
+  person: initialPerson,
+  badges: initialBadges = EMPTY_OFFICE_BADGES,
 }: {
   children: React.ReactNode;
-  person: { name: string; email: string; role: string };
-  badges: Record<OfficeBadge, number>;
+  person: Person;
+  badges?: OfficeBadgeCounts;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [badges, setBadges] = useState(initialBadges);
+  const [person, setPerson] = useState(initialPerson);
   const search = useRef<HTMLInputElement>(null);
   const current = [...officeNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const load = () => {
+      fetch(`${OFFICE_BASE}/api/badges`, { credentials: "same-origin" })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (cancelled || !data) return;
+          if (data.badges) setBadges(data.badges);
+          if (data.person) setPerson(data.person);
+        })
+        .catch(() => {});
+    };
+    load();
+    const id = window.setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, []);
 
   useEffect(() => {
     if (!open) return;

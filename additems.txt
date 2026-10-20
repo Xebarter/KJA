@@ -1,20 +1,1030 @@
-No.	Club Category	Club Details	Club Fee (UGX)
-1	Games and Sports	Badminton	50,000
-2	Games and Sports	Soccer - Talent Extra	70,000
-3	Games and Sports	Swimming	90,000
-4	Games and Sports	Chess Club	40,000
-5	Art and Entertainment	Piano	60,000
-6	Art and Entertainment	Guitar	60,000
-7	Art and Entertainment	Ballet	50,000
-8	Art and Entertainment	Dance for Fitness	40,000
-9	Art and Entertainment	Art Club	40,000
-10	Science and Technology	Home Management	40,000
-11	Science and Technology	Computer Club	40,000
-12	Travel and Adventure	Scouts and Girl Guides	40,000
-13	Information and Language	French Club	40,000
-14	Information and Language	Chinese	40,000
-15	Information and Language	Sanyu Readers (Nursery)	30,000
-16	Information and Language	Readers Quora (Primary)	30,000
-17	Religion	Religious Affairs Catholics	50,000
-18	Religion	Religious Affairs Anglicans	50,000
-19	Religion	Religious Affairs Islam	50,000
+WORLD-CLASS SCHOOL REPORT COMMENTING ENGINE Implementation Guide for an
+AI Coding Agent Version: 1.0 Purpose: A complete product, engineering,
+data, rules, testing, and delivery specification.
+
+====================================================================== 1.
+MISSION AND EXPECTED OUTCOME
+======================================================================
+
+Build a production-ready commenting engine inside an existing school
+management system. The engine analyses a learner’s assessment results
+and produces four coordinated report comments:
+
+1.  Subject teacher’s comment: exactly 2 words for each assessed
+    subject.
+2.  Co-curricular activity report: one meaningful sentence, normally
+    around 10 words, based on the learner’s co-curricular results.
+3.  Class teacher’s report: exactly 3 meaningful sentences based on the
+    learner’s overall academic results, strongest subjects, and areas
+    requiring improvement.
+4.  Headteacher’s comment: exactly 12 words, based on a holistic
+    interpretation of academic and co-curricular performance.
+
+The engine must be accurate, deterministic, explainable, configurable,
+auditable, secure, accessible, easy to administer, and integrated with
+the existing school management system.
+
+Do not implement a superficial list of if/else statements that returns
+one sentence for each percentage band. Build a maintainable commenting
+product with: - A performance-analysis layer. - A configurable rules
+engine. - A structured comment-template library. - A deterministic
+comment composer. - Word-count and sentence-count validation. - Conflict
+and completeness checks. - A review, approval, publication, and audit
+workflow. - Administrative tools to configure bands, templates, rules,
+and school policies. - Automated tests and documentation.
+
+The engine must not invent student results or make unsupported claims.
+It should never treat missing marks as zero. It should flag incomplete
+or inconsistent data and explain why a comment cannot safely be
+generated.
+
+======================================================================
+2. FIRST PRINCIPLE: INSPECT THE EXISTING APPLICATION BEFORE CODING
+======================================================================
+
+Before changing code, inspect the repository and document: - Framework,
+language, package manager, build commands, and application structure. -
+Authentication and authorisation system. - Existing school, campus,
+academic year, term/assessment period, learner, class, stream, subject,
+mark, co-curricular activity, report, and user tables. - Existing
+report-card generation and printing/PDF workflows. - Existing status
+conventions, audit-log patterns, form components, UI design system, and
+error handling. - Database migrations and naming conventions. - Existing
+tenant/school isolation approach. - Existing test framework and CI
+checks. - Whether the app already has grading scales or report comments.
+
+Do not assume the project uses a particular database schema, framework,
+or deployment provider. Adapt the design to the repository’s actual
+conventions.
+
+Do not create duplicate student, class, subject, mark, assessment, or
+report tables if equivalent tables already exist. Reuse existing sources
+of truth. Add only the tables, columns, views, indexes, functions, and
+UI needed for this engine.
+
+Before implementation, create a short integration plan listing the
+existing entities to reuse, the new entities to add, migration
+implications, and the affected screens and APIs. Then implement the
+complete feature, not just a plan or prototype.
+
+Preserve existing behaviour unless a change is necessary and explicitly
+covered by this specification. Avoid unrelated refactors.
+
+======================================================================
+3. PRODUCT PRINCIPLES
+======================================================================
+
+3.1 Truthfulness Every comment must be supported by recorded assessment
+data and approved rules. Do not claim improvement, effort, discipline,
+attendance, leadership, talent, or participation unless the system has
+relevant evidence for that claim.
+
+3.2 Determinism Given the same input data, configuration version, and
+engine version, the engine should produce the same result. Do not
+randomly choose different comments whenever a report is opened.
+
+3.3 Explainability For every generated comment, store or be able to
+reconstruct: - The input data snapshot or relevant result references. -
+The performance profile. - The rule or rules selected. - The template
+IDs used. - The configuration version. - Validation results. This
+enables staff to understand why a comment was generated.
+
+3.4 Configuration over hard-coding School-specific grading bands,
+comment text, sentence targets, thresholds, priorities, and supported
+subject/activity categories should be configurable. Do not scatter
+school policy across UI components or unrelated functions.
+
+3.5 Human accountability Automatically generated comments are drafts
+until the school’s configured approval workflow marks them approved.
+Teachers must be able to edit comments within their permissions. Manual
+edits must be audited.
+
+3.6 Respectful and constructive language Use clear, simple,
+age-appropriate, professional English suitable for school reports in
+Uganda and other configured school contexts. Avoid insulting, shaming,
+discriminatory, sarcastic, or fatalistic language. Describe performance,
+not a child’s worth or identity.
+
+3.7 Complete but safe Support bulk generation for a class or assessment
+period, while isolating failures per learner. One bad record should not
+crash the entire batch. The system must not publish a partially
+generated report as complete.
+
+3.8 Performance Bulk generation should work for large classes and
+multiple campuses without one database request per field or learner
+where batching is practical. Avoid N+1 queries.
+
+3.9 Accessible and usable Use the existing design system. Provide clear
+loading, empty, success, warning, error, and permission states. Ensure
+forms are keyboard accessible, labels are explicit, and status is not
+communicated by colour alone.
+
+======================================================================
+4. FOUR COMMENT TYPES AND ACCEPTANCE RULES
+======================================================================
+
+4.1 Subject teacher’s comment - One comment per assessed subject result,
+subject to the school’s report model. - Exactly two words. - Based
+primarily on the subject’s valid percentage and configured performance
+band. - Examples of approved two-word phrases: “Excellent work”, “Very
+good”, “Good progress”, “Fair performance”, “Needs improvement”,
+“Requires support”. - Each active template must pass the exact
+word-count validator. - If a subject is missing, exempt, unassessed, or
+invalid, follow explicit school policy; do not assign a performance
+comment based on absent data. - If the school wants a comment for exempt
+subjects, configure a non-evaluative label separately, but do not
+misrepresent it as a mark-based judgement.
+
+4.2 Co-curricular activity report - One summary comment per learner per
+report period by default. - One sentence, approximately 10 words. -
+Recommended configurable word range: 8 to 12 words, with a target of
+10. - Based on available co-curricular results and only the
+activity/participation indicators actually recorded. - The system may
+optionally support one comment per activity if the existing report
+design requires it; keep this separate from the default summary
+comment. - If no co-curricular results exist, do not call the learner
+weak or inactive. Use a configured “not assessed” state or flag the
+report as incomplete.
+
+4.3 Class teacher’s report - Exactly three sentences. - Sentence 1:
+overall academic performance. - Sentence 2: academic strengths, using
+actual stronger subjects where the evidence supports naming them. -
+Sentence 3: improvement priority, balanced reinforcement, or a neutral
+next step based on the profile. - It must not mechanically force a
+weakness when all subjects are strong, and must not invent strengths
+when results are missing. - It must avoid listing every subject or
+repeating the same idea in all three sentences. - The engine may use
+different sentence-role combinations for incomplete data, but the output
+must still have exactly three sentences if generated. If safe generation
+is not possible, mark it as requiring review rather than fabricate
+content.
+
+4.4 Headteacher’s comment - Exactly 12 words. - Holistic summary of
+academic and co-curricular results, not academic percentage alone. -
+Must account for strengths, weaknesses, mixed performance, and
+incomplete data. - Should be concise, constructive, appropriate for a
+headteacher, and not duplicate the class teacher report word for word. -
+If either component is missing, the engine must not claim that the
+learner has demonstrated strong all-round performance. It should use an
+approved incomplete-evidence template or require review. - The school
+can choose whether an incomplete report may receive a provisional
+headteacher comment. Default: require review when core evidence is
+incomplete.
+
+Word counting and sentence counting are technical acceptance criteria,
+not optional display preferences.
+
+======================================================================
+5. DATA CONTRACTS AND INPUT VALIDATION
+======================================================================
+
+The engine should consume a normalised report input assembled from
+existing tables. At minimum it needs:
+
+Report context: - school_id / tenant_id - campus_id where applicable -
+student_id - class_id and stream_id where applicable -
+academic_year_id - assessment_period_id / term_id - report_id - report
+status - configuration ID and version
+
+Subject results: - subject_id - subject_name - marks_obtained -
+maximum_marks - result status: assessed, missing, exempt, absent,
+pending, invalid, or the project’s existing equivalent - optional
+weighting, if explicitly part of school policy - optional
+previous-period result, only when comparable
+
+Co-curricular results: - activity_id - activity_name - marks_obtained -
+maximum_marks - status - optional category, weighting, or separate
+participation rating if the school records it
+
+Configuration: - grading bands - overall academic calculation policy -
+co-curricular calculation policy - comment templates - holistic rules -
+word/sentence limits - tie-breaking policy - completeness requirements -
+approval requirements - locale/language and word-count policy
+
+Validation requirements: - marks_obtained must be numeric and
+non-negative unless the existing system supports a documented
+exception. - maximum_marks must be greater than zero for a scored
+result. - marks_obtained must not exceed maximum_marks unless the
+grading policy explicitly permits bonus marks. - Percentages must be
+finite and within the permitted range. - Subject and activity results
+must belong to the same learner and report period being generated. - Do
+not silently coerce malformed strings, null values, or invalid IDs to
+zero. - Distinguish missing, exempt, absent, pending, and a genuine
+score of zero. - Validate that the configuration’s grading bands cover
+the allowed percentage range without gaps or overlaps. - Validate that
+template types and rule actions are supported. - Reject rules that
+reference nonexistent band codes, template groups, or fields. - Record
+validation errors in a structured form suitable for the UI and logs.
+Never expose sensitive internals to unauthorised users.
+
+Use database constraints as well as application validation where
+practical.
+
+======================================================================
+6. PERFORMANCE ANALYSIS LAYER
+======================================================================
+
+The analysis layer should be pure business logic wherever practical: it
+takes validated inputs and configuration and returns a profile without
+performing database writes.
+
+6.1 Percentage calculation For a scored result: percentage =
+(marks_obtained / maximum_marks) * 100
+
+Use appropriate decimal/numeric handling for boundary decisions. Avoid
+relying on imprecise floating-point equality at grading thresholds.
+Decide whether rounding is for display only or for band selection.
+Recommended default: use the unrounded percentage for band selection and
+round only for display, unless school policy says otherwise.
+
+6.2 Grading bands Example defaults for demonstration only: - 80 to 100:
+excellent - 70 to less than 80: very_good - 60 to less than 70: good -
+50 to less than 60: fair - 40 to less than 50: needs_improvement - 0 to
+less than 40: weak
+
+These are not universal grading rules. Administrators must be able to
+change them to match school policy. Model bands with inclusive minimum
+and exclusive maximum boundaries, except the final maximum boundary, or
+use another consistent boundary model. Document it and test every
+boundary.
+
+6.3 Overall academic percentage Default recommended policy for marks
+with different maximum scores: sum of valid marks obtained / sum of
+valid maximum marks * 100
+
+However, if the school’s official policy treats each subject equally or
+uses subject weightings, implement that policy explicitly. Do not
+accidentally average percentages when the policy expects aggregate
+marks, and do not aggregate subjects with different status semantics
+incorrectly.
+
+Store the calculation policy in configuration and include it in the
+profile’s explanation.
+
+6.4 Subject profile For each learner calculate: - assessed subject
+count - missing/pending/exempt/absent counts - overall academic
+percentage, if calculable - overall academic band, if calculable - count
+and list of subjects in each band - strongest subjects - weakest
+subjects - subjects below a configurable support threshold - high-to-low
+performance spread - whether results are sufficiently complete for
+commentary - any contradictory or anomalous data flags
+
+6.5 Strongest and weakest subjects Do not use a single subject blindly
+if several subjects tie. Configure a maximum number of named subjects,
+normally one or two. Use stable tie-breaking, such as a configured
+subject order followed by subject ID. Do not name a subject as a
+strength unless its score meets a configured minimum band. Do not call a
+subject a weakness merely because it is the lowest if it is still
+excellent; use absolute band thresholds as well as relative rank.
+
+6.6 Co-curricular profile Calculate: - number of assessed activities -
+missing/pending/exempt counts - percentage under the configured
+calculation policy - band, if enough valid data exists - strongest
+activity categories only if supported by the data - activities requiring
+improvement - completeness status
+
+If activities have unequal maximum marks, use total obtained / total
+possible unless a different configured weighting policy applies. Never
+treat a missing activity as zero. If the school has only one
+co-curricular mark, use it transparently rather than pretending to know
+which activity is strongest.
+
+6.7 Previous-period comparisons Use only if: - the previous assessment
+period is available, - subject sets and marking scales are sufficiently
+comparable, - the calculation policy is the same or a valid conversion
+is available. Do not say “improved”, “declined”, or “maintained” without
+comparison evidence. If comparability is uncertain, omit trend language.
+
+6.8 Holistic profile Produce a structured profile with: -
+academic_band - cocurricular_band - academic_complete -
+cocurricular_complete - overall_assessment_complete -
+academic_strength_level - academic_support_level -
+cocurricular_strength_level - cocurricular_support_level -
+mixed_performance flags - strongest_subjects - weakest_subjects -
+strongest_activities, only if supported - evidence and warning codes -
+analysis/configuration version
+
+Do not force a single overall score or band unless the school explicitly
+configures one. The default is a multi-dimensional holistic
+classification.
+
+======================================================================
+7. RULES ENGINE DESIGN
+======================================================================
+
+Build a small, safe, deterministic rules engine. Do not use eval(),
+Function(), arbitrary SQL, or execute administrator-entered code.
+
+Each rule should have: - stable rule ID and rule code -
+school/configuration scope - comment type - priority - active/inactive
+state - structured conditions - structured action - effective
+date/version where relevant - optional rationale/help text -
+created/updated metadata
+
+Rule conditions should be selected from an allowlist, for example: -
+academic band in list - co-curricular band in list - assessment complete
+equals true/false - number of assessed subjects greater/less than a
+threshold - subject support count greater than zero - all subjects above
+a configured threshold - strongest subjects exist - weakest subjects
+exist - co-curricular results absent/incomplete - mixed-performance flag
+equals true
+
+Rule actions should also be allowlisted: - select template group -
+select sentence-role template - set a review flag - set a required-data
+flag - choose a configured holistic outcome - apply a documented
+fallback
+
+Rule execution: 1. Validate the profile and configuration. 2. Evaluate
+applicable rules in explicit priority order. 3. Use the first matching
+exclusive rule where rules are designed to be exclusive. 4. Where
+multiple rules may contribute, combine only compatible actions and
+define ordering. 5. Prevent duplicate sentence roles and contradictory
+outcomes. 6. Record matched rule IDs and the explanation. 7. If no rule
+matches, use a safe configured fallback or mark for review. 8. Never
+silently generate a generic positive comment when the data is
+insufficient.
+
+Rule priority must be visible to administrators and tested for
+conflicts. Provide a configuration validation screen or service that
+detects unreachable rules, overlapping exclusive rules, missing
+fallbacks, and templates with invalid counts.
+
+======================================================================
+8. COMMENT TEMPLATE LIBRARY
+======================================================================
+
+Templates should be data, not hard-coded UI text. Store the type, role,
+applicable band or rule group, text, locale, active state, and
+word/sentence constraints.
+
+Suggested comment types: - subject_teacher - cocurricular -
+class_teacher - headteacher
+
+Suggested class teacher sentence roles: - academic_overview -
+strengths - improvement - reinforcement - incomplete_data -
+balanced_performance - next_step
+
+Suggested headteacher groups: - strong_both -
+academic_strong_cocurricular_weak - academic_weak_cocurricular_strong -
+balanced_good - mixed_performance - support_both - incomplete_data -
+not_assessed
+
+Templates may use approved placeholders such as: -
+{strongest_subjects} - {weakest_subjects} - {activity_name} -
+{academic_band_label}
+
+Do not permit arbitrary template code. Use a strict placeholder
+allowlist. Escape inserted text appropriately in UI output. Validate
+that all required placeholders exist and that values are available
+before rendering.
+
+Do not insert a placeholder into a two-word or 12-word comment if the
+placeholder makes word count unpredictable, unless the template
+validator can guarantee and verify the final rendered count. Prefer
+fixed-text templates for strict word-count comments.
+
+Avoid repetitive comments across a class. Use a controlled pool of
+approved variants, with deterministic selection based on stable input
+such as report ID, student ID, comment type, and configuration version.
+Do not use randomness on every render. Variants must have equivalent
+meaning and satisfy all constraints.
+
+Administrators should be able to: - create/edit/deactivate templates -
+preview with sample data - see live word/sentence counts - test a
+template against sample learner profiles - see which rules reference
+it - activate changes only after validation - compare draft and active
+versions - revert to a prior version
+
+Maintain a clear distinction between a draft template and an approved
+active template.
+
+======================================================================
+9. COMMENT GENERATION STRATEGIES
+======================================================================
+
+9.1 Subject teacher comment Inputs: one valid subject result, its band,
+configuration, and approved template pool. Process: 1. Validate result.
+2. Determine band. 3. Select an active two-word template for that band.
+4. Validate exact word count. 5. Save text, band, rule/template IDs, and
+configuration version. If no valid two-word template exists, fail that
+comment with a clear configuration error. Do not make up wording
+silently.
+
+9.2 Co-curricular summary Inputs: co-curricular profile and available
+activity detail. Process: 1. Check completeness. 2. Identify overall
+band and any evidence-backed activity highlights. 3. Choose one approved
+template for the profile. 4. Render only supported placeholders. 5.
+Validate one sentence and configured word range. 6. If incomplete,
+select an explicit incomplete-data template or flag for review. Default
+target: 10 words, allowed range 8-12. The range and sentence count
+should be configurable.
+
+9.3 Class teacher report: three sentence roles Default pattern: Sentence
+1: academic overview. Sentence 2: strengths or balanced performance.
+Sentence 3: improvement, reinforcement, or constructive next step.
+
+The sentence-role selection should adapt to the profile: - Strong
+overall and no meaningful weak subjects: overview + strengths +
+reinforcement. - Strong overall with a clear weak subject: overview +
+strengths + improvement. - Mixed results: overview + strengths +
+improvement. - Generally weak results: honest overview + any
+evidence-backed strength or neutral support statement + constructive
+next step. - Incomplete results: neutral overview + what is known + a
+statement that supports further review, or require review according to
+policy.
+
+Use subject names only when data supports them. Limit the number of
+subject names to avoid long, awkward sentences. Never state that a
+learner “excels in all subjects” if any assessed subject falls below the
+configured threshold.
+
+Validate exactly three sentences after final rendering. Use a proper
+sentence tokenizer or a carefully tested project-level utility, not a
+naive count of periods. If sentence segmentation cannot confidently
+validate a comment, mark it for review.
+
+9.4 Headteacher comment: exactly twelve words The engine must evaluate
+holistic outcomes in this order or another explicitly configured
+order: 1. Required evidence missing or incomplete. 2. Weak academic and
+weak co-curricular profile. 3. Strong academic profile but weak
+co-curricular profile. 4. Weak academic profile but strong co-curricular
+profile. 5. Strong profile in both dimensions. 6. Mixed profile. 7.
+Balanced/satisfactory profile. 8. Explicit safe fallback.
+
+The order is illustrative but the priority system must be documented and
+configurable. Avoid overlap ambiguity. For example, a learner with
+excellent academics and no activity assessment must not match the
+“strong in both” rule.
+
+Use approved fixed 12-word templates where possible. After selecting the
+holistic outcome, validate exactly 12 words. If none exists, block
+publication and show an actionable error.
+
+======================================================================
+10. WORD COUNT, SENTENCE COUNT, AND LANGUAGE VALIDATION
+======================================================================
+
+Implement one shared validator used by: - template creation/editing -
+generation - manual editing - approval - publication - automated tests
+
+Word-count policy must be explicit. A recommended default: - Trim
+leading/trailing whitespace. - Collapse repeated whitespace for
+counting. - Count tokens separated by whitespace, while handling
+punctuation attached to words. - Treat contractions such as “doesn’t” as
+one word. - Decide and document how hyphenated terms, slashes, initials,
+numerals, and apostrophes count. - Use the same algorithm in frontend
+and backend, with the server as the source of truth. - Do not trust a
+client-supplied word count.
+
+Sentence-count validation: - Use a tested sentence tokenizer if
+available in the project. - Account for common abbreviations, initials,
+decimals, and punctuation. - Ensure the final three-sentence class
+teacher report contains exactly three actual sentences. - For
+one-sentence co-curricular comments, prevent accidental multiple
+sentences. - Fixed-count comments should end with appropriate
+punctuation, unless the school’s display standard says otherwise.
+
+Other language validation: - Reject empty comments and unresolved
+placeholders. - Detect duplicate sentences. - Detect contradictory
+phrases where feasible using explicit rule/template metadata rather than
+unreliable keyword guesses alone. - Avoid unsupported claims about
+effort, behaviour, attendance, personality, disability, health, family
+circumstances, or future outcomes. - Do not use an AI model as the only
+validator. - Optional AI-assisted tone checking may be added, but it
+must be advisory and must not override deterministic constraints or
+school rules.
+
+======================================================================
+11. DATABASE DESIGN GUIDANCE
+======================================================================
+
+Adapt names and relationships to the existing schema. Do not blindly
+create duplicates.
+
+Potential new entities:
+
+A. comment_engine_configs - id - school_id / tenant_id - name - settings
+JSON/JSONB with a validated schema, or normalised settings tables -
+version - status: draft, active, archived - created_by, updated_by,
+created_at, updated_at - effective_from/effective_to if needed
+
+B. comment_grading_bands - id - config_id - band_code - label -
+min_percentage - max_percentage or an explicit boundary model -
+priority - active
+
+C. comment_templates - id - school_id / tenant_id - comment_type -
+sentence_role - template_group / band_code - template_text - locale -
+min_words - max_words - exact_words if required - exact_sentences if
+required - status: draft, active, archived - version - created_by,
+updated_by, timestamps
+
+D. comment_rules - id - config_id - rule_code - comment_type -
+priority - conditions JSON/JSONB validated against an allowlist -
+actions JSON/JSONB validated against an allowlist - is_exclusive -
+status - version and audit metadata
+
+E. generated_report_comments - id - report_id - student_id (if not
+reliably derivable from report) - comment_type - subject_id nullable for
+non-subject comments - generated_text - final_text if the model
+distinguishes generated and approved text - status: draft, needs_review,
+approved, published, superseded, failed - source_rule_ids -
+source_template_ids - profile_snapshot or a reference/version sufficient
+for audit - configuration_version - engine_version -
+validation_results - generated_by/system actor - edited_by, approved_by,
+published_by - generated_at, updated_at, approved_at, published_at - row
+version or optimistic-lock field
+
+F. comment_audit_logs - id - generated_comment_id - action -
+previous_text - new_text - previous_status - new_status - actor_id -
+reason - timestamp
+
+Potential additional entities if needed: - comment_generation_jobs for
+bulk runs and progress - comment_rule_test_cases for rule simulations -
+comment_config_versions for immutable configuration snapshots -
+comment_approval_events if the current audit system does not support
+workflow history
+
+Data model requirements: - Add appropriate foreign keys. - Add indexes
+for school, report, student, period, status, and comment type based on
+actual query patterns. - Prevent duplicate active comment records for
+the same report/type/subject scope. - Ensure one report cannot link to
+another student’s results. - Use transactions for generation and
+approval transitions where appropriate. - Keep historical approved
+report text stable when templates change. - Use immutable version
+snapshots or equivalent version references so old reports can be
+reproduced and audited. - Never rely only on JSON fields for
+relationships that require referential integrity.
+
+======================================================================
+12. API AND SERVICE BOUNDARIES
+======================================================================
+
+Use the application’s existing API conventions. Separate core domain
+logic from route handlers and UI.
+
+Suggested service functions: - loadReportInput(reportId,
+authorisedUser) - validateReportInput(input, config) -
+calculateResultPercentage(result) - classifyPercentage(percentage,
+bands) - analyseSubjectResults(results, config) -
+analyseCocurricularResults(results, config) -
+buildPerformanceProfile(input, config) - evaluateRules(profile, rules) -
+generateSubjectComment(result, config) -
+generateCocurricularComment(profile, config) -
+generateClassTeacherReport(profile, config) -
+generateHeadteacherComment(profile, config) - validateComment(comment,
+constraints) - generateCommentsForReport(reportId, options) -
+generateCommentsForClass(classId, periodId, options) -
+approveComment(commentId, userId) - approveReport(reportId, userId) -
+publishReport(reportId, userId) - previewRule(ruleId, sampleProfile) -
+validateConfiguration(config) - getGenerationStatus(jobId)
+
+Potential endpoints, only if compatible with existing architecture: -
+GET configuration and templates - POST/PATCH configuration drafts -
+POST/PATCH templates - POST/PATCH rules - POST configuration
+validation/preview - POST report comment generation - POST bulk class
+generation - GET generation job status - PATCH comment text - POST
+comment approval - POST report approval/publication
+
+Security requirements: - Validate every request on the server. - Derive
+school/tenant scope from the authenticated session and authorised
+database relationships, not from an untrusted client-supplied school ID
+alone. - Verify that the user has access to the requested campus, class,
+learner, report period, and comment type. - Apply row-level security if
+the database uses it, and test it with realistic roles. - Never allow a
+teacher to approve or edit another teacher’s comments outside their
+permissions. - Keep secrets and service-role credentials server-side. -
+Do not log unnecessary student personal information. - Rate-limit or
+otherwise protect expensive bulk operations. - Validate IDs and prevent
+insecure direct object references. - Use transactions and idempotency
+protection for repeated generation requests. - Avoid exposing raw stack
+traces, SQL errors, or private assessment data in API responses.
+
+======================================================================
+13. USER INTERFACE REQUIREMENTS
+======================================================================
+
+Use the existing design system and visual language. Do not introduce a
+disconnected visual style. Prioritise clarity, speed, and practical
+school workflows.
+
+13.1 Comment engine dashboard Display: - assessment period and class
+filters - number of learners and reports - comments generated - reports
+needing review - validation/configuration errors - approval progress -
+last generation time and job status - clear actions for preview,
+generate, review, and export/print if supported
+
+13.2 Configuration screen Provide tabs or sections for: - grading
+bands - subject comment bank - co-curricular comment bank - class
+teacher sentence templates - headteacher templates - holistic rules and
+priorities - word/sentence limits - completeness policy - approval
+workflow - preview and test cases
+
+Show configuration status (draft/active), version, last editor, and
+validation errors. Prevent activation until blocking errors are
+resolved.
+
+13.3 Comment bank editor For each template show: - comment type -
+band/group/role - text editor - live word count - live sentence count -
+target and allowed limits - active/draft status - preview with sample
+profile - references from rules - validation feedback
+
+Use server validation as authoritative. Client validation is for fast
+feedback only.
+
+13.4 Bulk generation Allow authorised staff to select an assessment
+period and class, preview affected learners, and generate comments in
+bulk. - Display progress and counts. - Allow safe retry of failed
+records. - Preserve successful results while isolating failures. -
+Prevent duplicate concurrent jobs for the same scope unless explicitly
+supported. - Show a downloadable or viewable error report. - Do not
+publish automatically unless the school has explicitly configured and
+authorised that workflow.
+
+13.5 Learner review screen Show subject marks and comments together.
+Show the reason for the class teacher and headteacher comments in an
+understandable way, such as “Strong academic performance; co-curricular
+result below configured threshold.” Allow authorised edits and show: -
+generated text - current approved text - word/sentence validation
+status - source rule/template - status and version history - who last
+edited/approved the comment
+
+13.6 Report card Display the saved approved comments, not dynamically
+regenerated text. Respect the existing print/PDF layout and avoid
+clipping or overflow. If a comment is invalid or unapproved, handle it
+according to the school’s publication policy and never silently present
+a failed draft as an approved comment.
+
+======================================================================
+14. WORKFLOW AND STATE TRANSITIONS
+======================================================================
+
+Recommended comment statuses: - not_generated - draft - needs_review -
+approved - published - superseded - failed
+
+Recommended transitions: - not_generated -> draft after successful
+generation - draft -> needs_review if validation passes but human review
+is required - draft -> failed if generation or validation fails -
+needs_review -> approved after authorised approval - approved ->
+published when the report is published - approved/published ->
+needs_review or superseded when relevant marks/configuration change,
+according to policy; retain history - manual edit -> draft or
+needs_review until revalidated and reapproved
+
+Do not permit arbitrary status transitions from the client. Enforce
+transitions in a domain service or database constraints/policies as
+appropriate.
+
+When marks change after comments were generated: - identify affected
+report comments - mark them stale/needs_review - preserve previous
+approved text and audit history - show that the underlying results
+changed - require regeneration or authorised confirmation - do not
+silently change published report history
+
+When templates or rules change: - new generations use the new active
+configuration version - already approved reports remain unchanged unless
+explicitly regenerated - regeneration records the new version and
+retains the previous version
+
+======================================================================
+15. CONFIGURATION MANAGEMENT AND ADMINISTRATION
+======================================================================
+
+Administrators should not need a developer to adjust ordinary school
+policy.
+
+Provide: - configurable grading thresholds and labels - configurable
+comment word and sentence constraints - editable approved comment
+templates - rule priorities and clear descriptions -
+active/draft/archive states - preview against sample profiles - rule
+conflict detection - missing-template detection - template word-count
+checks - configuration versioning and rollback - audit history for all
+changes - school/campus-specific configuration only where the existing
+tenancy model allows it - default configuration inheritance if multiple
+campuses share a school policy
+
+Do not let campus-specific overrides silently diverge from school
+policy. Show which settings are inherited and which are overridden.
+
+Configuration activation should be atomic: either a complete valid
+version becomes active, or the previous version remains active.
+
+======================================================================
+16. AI USAGE POLICY
+======================================================================
+
+The core engine must not require an external AI API to generate routine
+comments. Rules and approved templates should be sufficient for reliable
+production operation.
+
+Optional AI features may: - help an administrator draft new templates -
+suggest more constructive wording for a human to review - flag
+potentially repetitive language - help propose new rule test cases
+
+If AI is used: - do not send student names or unnecessary personal data
+to the model - send only the minimum anonymised performance information
+required - never let the model invent marks or override calculation
+results - validate the returned text with deterministic validators - do
+not publish AI-generated text without the configured approval workflow -
+handle unavailable model services gracefully - never make report
+generation dependent on an optional AI service - document cost, privacy,
+retention, and failure behaviour
+
+Do not use a language model as the sole authority for determining
+whether a student passed, which subject was strongest, or whether a
+comment contains exactly 12 words.
+
+======================================================================
+17. TESTING STRATEGY
+======================================================================
+
+Write unit, integration, permission, workflow, UI, and regression tests.
+Tests must run in the project’s existing test framework.
+
+17.1 Percentage tests - zero marks - full marks - decimal marks if
+allowed - different maximum marks - maximum mark zero - negative marks -
+marks above maximum - boundary values immediately below, at, and above
+every grading threshold - rounding differences at boundaries -
+missing/exempt/absent/pending statuses
+
+17.2 Band configuration tests - valid complete bands - gaps between
+bands - overlapping bands - reversed minimum/maximum - duplicate band
+codes - invalid values outside the allowed range - inactive or missing
+band - final boundary at 100%
+
+17.3 Subject comment tests - every band returns a valid approved
+two-word template - exact word count - no template for a band fails
+safely - exempt/missing results do not receive unsupported performance
+comments - deterministic template selection - changed configuration
+version behaves as expected
+
+17.4 Co-curricular tests - each band has a valid one-sentence template -
+word count within configured range - no assessed activities - incomplete
+activities - one activity versus multiple activities - unequal maximum
+marks - a genuine zero versus a missing mark - no unsupported claims
+about effort or participation
+
+17.5 Class teacher tests - all subjects strong - all subjects weak - one
+weak subject and several strong subjects - mixed profile - ties for
+strongest/weakest - only one assessed subject - insufficient data - no
+fabricated strengths or weaknesses - exactly three sentences - no
+duplicate sentences - correct subject names - no unsupported improvement
+claims
+
+17.6 Headteacher tests - strong academics and strong co-curricular
+results - strong academics and weak co-curricular results - weak
+academics and strong co-curricular results - weak in both areas - mixed
+results - missing academic results - missing co-curricular results - no
+assessment data - overlapping rules and priority resolution - exactly 12
+words for every generated output - incomplete data never matches the
+strong-in-both rule
+
+17.7 Workflow and security tests - unauthorised user cannot generate,
+edit, approve, or publish - tenant/school isolation - teacher access
+limited to authorised classes/subjects - audit log records edits and
+approvals - approved manual edits are not silently overwritten - marks
+changing invalidates the appropriate comments - configuration changes do
+not rewrite historical reports - concurrent generation does not create
+duplicates - retries are idempotent - partial batch failures are
+reported accurately - SQL injection, unsafe template placeholders, and
+untrusted rule content are rejected
+
+17.8 UI tests - configuration form validation - live word/sentence
+counter - bulk generation progress - error and retry states - review and
+approval controls - keyboard navigation and accessible labels - report
+print/PDF layout - responsive layouts at supported screen sizes
+
+17.9 Regression tests Run the existing project test suite and build
+checks. Ensure unrelated report, assessment, login, permissions, and
+printing features still work.
+
+======================================================================
+18. PERFORMANCE, RELIABILITY, AND OBSERVABILITY
+======================================================================
+
+-   Load all required marks and configuration in a small number of
+    batched queries.
+-   Use pagination or background jobs for large bulk generation.
+-   Use idempotency keys or unique constraints to prevent duplicate
+    generation.
+-   Make jobs resumable where practical.
+-   Record duration, processed count, success count, failure count, and
+    validation-failure count.
+-   Log rule IDs and error codes rather than unnecessary personal
+    information.
+-   Retry transient database errors safely; do not retry deterministic
+    validation errors without a change.
+-   Ensure one learner’s invalid record does not stop the entire class
+    run.
+-   Use transactions for each report or a documented batch strategy.
+-   Add appropriate database indexes based on query plans.
+-   Avoid caching data across tenants without tenant-safe cache keys.
+-   Expose operational errors to authorised administrators with useful
+    remediation guidance.
+-   Do not claim a batch is complete until all intended records have a
+    terminal outcome.
+
+======================================================================
+19. PRIVACY, SECURITY, AND DATA GOVERNANCE
+======================================================================
+
+Student performance records are sensitive education data. Implement the
+following: - least-privilege access - tenant/school isolation -
+server-side authorisation - row-level security where supported and
+correctly configured - minimal personal data in logs - audit trail for
+edits, approvals, publication, and configuration changes - secure
+secrets handling - validated API inputs - protection against
+cross-student and cross-school record access - defined retention policy
+for logs and generated snapshots - safe handling of exports and PDFs -
+no external AI transfer of identifiable student information without
+explicit approval and an appropriate privacy basis
+
+Do not expose the performance profile or comments of one learner to
+another parent or unauthorised staff member. Test this explicitly.
+
+======================================================================
+20. MIGRATIONS AND DEPLOYMENT
+======================================================================
+
+-   Follow the repository’s existing migration conventions.
+-   Back up or otherwise protect production data before risky
+    migrations.
+-   Make migrations additive where possible.
+-   Do not rename or delete existing report fields without a verified
+    migration and compatibility plan.
+-   Add required constraints and indexes.
+-   Seed initial sample templates only in a controlled way; do not
+    overwrite school-customised templates on later deployments.
+-   Provide an explicit way to initialise a valid default configuration.
+-   Verify environment variables and server-only credentials.
+-   Run type checking, linting, unit tests, integration tests, and
+    production build.
+-   Test migration on a development/staging copy before production.
+-   Provide a rollback strategy for application code and configuration.
+-   Ensure historical reports remain readable after deployment.
+-   Never execute destructive production operations without explicit
+    authorisation.
+
+======================================================================
+21. REQUIRED ADMINISTRATOR EXPERIENCE
+======================================================================
+
+An administrator should be able to: 1. Open the commenting engine
+settings. 2. Review and configure percentage bands. 3. Edit approved
+comment templates. 4. Configure holistic rules and priorities. 5.
+Preview comments against sample learner profiles. 6. See validation
+errors before activating configuration. 7. Activate a new configuration
+version. 8. Generate comments for a class and assessment period. 9.
+Review errors and retry eligible failures. 10. Review, edit, approve,
+and publish comments according to permissions. 11. inspect the reason
+and source rules behind a generated comment. 12. View history and
+determine which configuration version was used.
+
+The interface should make dangerous or ambiguous actions difficult to
+perform accidentally. Provide confirmation for bulk regeneration and
+clear warnings when approved or published comments will become stale.
+
+======================================================================
+22. DEFINITION OF DONE
+======================================================================
+
+The engine is not complete merely because it can display four sample
+sentences. It is complete only when all applicable criteria below are
+met.
+
+PRODUCT: - All four comment types are implemented. - The subject teacher
+comment is exactly two words. - The co-curricular comment is one
+sentence within the configured word range. - The class teacher report is
+exactly three sentences. - The headteacher comment is exactly twelve
+words. - Comments respond correctly to academic and co-curricular
+combinations. - Incomplete data is handled honestly and safely. - The
+engine uses real assessment data, not demo values.
+
+CONFIGURATION: - Administrators can configure bands, templates, rules,
+priorities, and constraints. - Invalid configurations cannot be
+activated. - Configuration versions are preserved. - Template preview
+and rule simulation work.
+
+ENGINE: - Analysis is separate from persistence and UI. - Rules are
+deterministic and safely evaluated. - Template selection is
+deterministic. - Word and sentence validators are shared and tested. -
+Source rules and configuration versions are traceable. - Failures return
+actionable errors rather than fabricated comments.
+
+WORKFLOW: - Bulk generation works. - Individual comments can be reviewed
+and edited by authorised users. - Approval and publication are
+permission-protected. - Audit history is recorded. - Changes to
+marks/configuration are handled without silently overwriting approved
+reports. - Historical reports remain stable.
+
+SECURITY: - School/tenant isolation is verified. - Role permissions are
+tested. - Unauthorised cross-student access is prevented. - Sensitive
+data is not unnecessarily logged or transmitted.
+
+QUALITY: - Unit, integration, workflow, permission, and regression tests
+pass. - Existing application build and lint/type checks pass. -
+Report-card display and print/PDF output are verified. - No known
+critical errors remain. - Developer and administrator documentation is
+delivered.
+
+======================================================================
+23. REQUIRED DELIVERABLES FROM THE AI CODING AGENT
+======================================================================
+
+At the end of implementation, deliver: 1. A brief summary of the
+existing architecture discovered. 2. A list of existing tables/services
+reused. 3. A list of new files and modified files. 4. Database
+migrations and any safe initial seed data. 5. Completed backend
+analysis, rules, generation, validation, and workflow services. 6.
+Completed admin configuration and comment-review UI. 7. Integration with
+the existing report card. 8. Automated tests and the test results. 9.
+Any required environment configuration, without exposing secrets. 10.
+Documentation explaining configuration, rule priority, word counting,
+generation, permissions, troubleshooting, and rollback. 11. A list of
+assumptions and any unresolved questions. 12. Confirmation of commands
+run for tests, type checking, linting, and production build, including
+any failures.
+
+Do not claim a test passed unless it was actually run and passed. Do not
+leave core features as TODOs, mock functions, hard-coded demo data, or
+nonfunctional buttons. If a feature cannot be completed because required
+project information or access is missing, identify the exact blocker and
+finish all independent work.
+
+======================================================================
+24. RECOMMENDED IMPLEMENTATION SEQUENCE FOR THE AGENT
+======================================================================
+
+Phase 1: Repository discovery - Inspect the application, database
+schema, report workflow, permissions, design system, and tests. - Write
+an integration plan. - Identify all data sources and existing grading
+rules.
+
+Phase 2: Domain model and configuration - Define typed
+input/profile/configuration contracts. - Implement grading-band and
+configuration validation. - Add migrations and seed-safe defaults.
+
+Phase 3: Pure performance analysis - Implement percentage calculation
+and band selection. - Implement subject and co-curricular profiles. -
+Implement completeness, tie-breaking, and evidence flags. - Test
+boundary and missing-data cases.
+
+Phase 4: Rules and template engine - Implement structured allowlisted
+conditions/actions. - Implement deterministic rule evaluation. -
+Implement template rendering and placeholder validation. - Implement
+word/sentence validation. - Implement configuration preview and rule
+simulation.
+
+Phase 5: Four generators - Implement subject teacher comments. -
+Implement co-curricular summaries. - Implement three-sentence class
+teacher reports. - Implement 12-word holistic headteacher comments. -
+Add tests for all profile combinations.
+
+Phase 6: Persistence and workflow - Save generated comments with
+source/version metadata. - Implement safe regeneration, stale-state
+handling, audit events, and approval transitions. - Implement idempotent
+bulk generation.
+
+Phase 7: User interface and report integration - Build configuration,
+preview, bulk generation, review, and approval screens. - Integrate
+approved text into report cards and print/PDF output. - Follow the
+existing design system.
+
+Phase 8: Security and verification - Test tenant isolation and roles. -
+Run all automated tests, lint, type checks, and production build. -
+Resolve regressions and verify report output.
+
+Phase 9: Handover - Document the implementation, configuration, testing,
+known limitations, and rollback. - Report what was actually completed
+and verified.
+
+======================================================================
+25. FINAL INSTRUCTIONS TO THE AI CODING AGENT
+======================================================================
+
+Treat this file as the product and engineering specification. Your job
+is to inspect the real application and implement a complete,
+production-quality commenting engine that fits the existing
+architecture.
+
+Do not stop after writing a plan. Do not return only code snippets or
+database suggestions. Make the actual code, migrations, interfaces,
+validation, tests, and report integration changes in the repository.
+
+Do not assume the sample grading bands are the school’s official bands.
+Make them configurable and verify current project policy. Do not assume
+that missing results mean zero. Do not invent claims about a learner. Do
+not use random wording for every page load. Do not bypass existing
+authentication, permissions, or tenant boundaries. Do not execute
+arbitrary code stored in database rules. Do not overwrite approved
+comments silently. Do not publish a comment that fails its required word
+or sentence constraints.
+
+Prioritise correctness, explainability, maintainability, privacy,
+accessibility, and ease of use. If project-specific details conflict
+with this guide, preserve the existing architecture and established
+school policy while meeting the product requirements wherever possible.
+Document any material deviation.
+
+The final result must be a working feature integrated into the existing
+school management system, with tests and documentation, not merely a
+design mockup.

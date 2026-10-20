@@ -46,7 +46,7 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
         .select("id, full_name, preferred_name, student_number, father_name, mother_name, class_code, stream, sex, date_of_birth, house, medical_notes, panadol_allowed, needs_review")
         .eq("status", "active")
         .order("id")
-        .range(from, to)).then((data) => ({ data }), (error: Error) => ({ error })),
+        .range(from, to)).then((data) => ({ data } as const), (error: Error) => ({ error } as const)),
   ]);
   if ("error" in auth) return <OfficeNotice title="Classes" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   if ("error" in loaded) {

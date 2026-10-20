@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { importMarks, type MarksImportResult, type MarksPreview } from "@/app/academics_office/(desk)/assessments/marks-actions";
+import { ProcessStatus } from "@/components/ProcessStatus";
 
 export const MARKS_SHEET_EVENT = "kja-marks-sheet";
 
@@ -20,6 +21,8 @@ type Paper = {
   roll: number;
   nursery: boolean;
   subjectOrder: number;
+  subjectKind: "core" | "cocurricular";
+  skillCount: number;
 };
 
 type Sitting = {
@@ -88,7 +91,76 @@ function sizeLabel(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export function UploadMarks({ papers, office }: { papers: Paper[]; office: boolean }) {
+function PaperChip({
+  paper,
+  names,
+  on,
+  locked,
+  hasRoll,
+  office,
+  busy,
+  onToggle,
+}: {
+  paper: Paper;
+  names: Map<string, number>;
+  on: boolean;
+  locked: boolean;
+  hasRoll: boolean;
+  office: boolean;
+  busy: boolean;
+  onToggle: () => void;
+}) {
+  const isOther = paper.subjectKind === "cocurricular";
+  const base = (names.get(paper.subject) || 0) > 1 ? `${paper.subject} · ${nf(paper.maxScore)}` : paper.subject;
+  const text = isOther
+    ? `${base}${paper.skillCount > 0 ? ` · ${nf(paper.skillCount)} skill${paper.skillCount === 1 ? "" : "s"}` : ""}`
+    : base;
+  const title = isOther
+    ? paper.skillCount > 0
+      ? `Other subject — workbook includes mark plus ${nf(paper.skillCount)} skill ${paper.skillCount === 1 ? "column" : "columns"}`
+      : "Other subject — set skills on the Subjects page so Yes columns appear in the workbook"
+    : undefined;
+
+  if (locked) {
+    const reason = !hasRoll
+      ? "No pupils on roll"
+      : office
+        ? "Unlock this markbook on the class marksheet before including it."
+        : paper.status === "approved" ? "This markbook is locked." : "This markbook is submitted.";
+    return (
+      <span className={`asm-chip is-locked${isOther ? " is-other" : ""}`} title={reason}>
+        {text}{paper.status === "approved" ? " · Locked" : paper.status === "submitted" ? " · Submitted" : ""}
+      </span>
+    );
+  }
+
+  return (
+    <button
+      type="button"
+      className={`asm-chip${on ? " is-on" : ""}${isOther ? " is-other" : ""}`}
+      aria-pressed={on}
+      title={title}
+      disabled={busy}
+      onClick={onToggle}
+    >
+      {text}
+    </button>
+  );
+}
+
+export function UploadMarks({
+  papers,
+  office,
+  otherCatalogue = [],
+  otherPaperCount = 0,
+  otherFillNote = "",
+}: {
+  papers: Paper[];
+  office: boolean;
+  otherCatalogue?: { id: string; name: string; skillCount: number }[];
+  otherPaperCount?: number;
+  otherFillNote?: string;
+}) {
   const router = useRouter();
   const sittings = useMemo(() => groupSittings(papers), [papers]);
   const [sittingKeyValue, setSittingKeyValue] = useState(sittings[0]?.key ?? "");
@@ -97,7 +169,7 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
   const [preview, setPreview] = useState<MarksPreview | null>(null);
   const [askSubmit, setAskSubmit] = useState(false);
   const [error, setError] = useState("");
-  const [ok, setOk] = useState("");
+  const [ok, setOk] = useState(otherFillNote);
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState<"download" | "read" | "save" | "">("");
   const submitRef = useRef<HTMLButtonElement>(null);
@@ -114,6 +186,12 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
     : [];
   const subjectCount = chosen.length;
   const pupilCount = chosenClasses.reduce((sum, group) => sum + group.roll, 0);
+  const sittingHasOther = Boolean(sitting?.classes.some((group) => group.papers.some((paper) => paper.subjectKind === "cocurricular")));
+  const catalogueNames = otherCatalogue.map((subject) => subject.name).slice(0, 6);
+
+  useEffect(() => {
+    if (otherFillNote) setOk(otherFillNote);
+  }, [otherFillNote]);
 
   useEffect(() => {
     if (sittings.some((entry) => entry.key === sittingKeyValue)) return;
@@ -175,6 +253,9 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
   else if (chosenClasses.length === 1) scope = `${chosenClasses[0].label} · ${nf(subjectCount)} subjects`;
   else if (chosenClasses.length) scope = `${nf(chosenClasses.length)} streams · ${nf(subjectCount)} subjects`;
   if (subjectCount) scope += ` · ${nf(pupilCount)} ${pupilCount === 1 ? "pupil" : "pupils"}`;
+  const otherChosen = chosen.filter((paper) => paper.subjectKind === "cocurricular");
+  const otherWithoutSkills = otherChosen.filter((paper) => paper.skillCount < 1);
+  const otherWithSkills = otherChosen.filter((paper) => paper.skillCount > 0);
   const handed = preview?.sheets.reduce((sum, sheet) => sum + sheet.scores + sheet.missed, 0) ?? 0;
 
   async function download() {
@@ -254,6 +335,7 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
 
   const allOn = available.length > 0 && available.every((paper) => picked.includes(paper.id));
   const someOn = available.some((paper) => picked.includes(paper.id));
+  const busyLabel = busy === "download" ? "Preparing the workbook" : busy === "read" ? "Reading the workbook" : busy === "save" ? "Submitting marks" : "Working";
 
   return (
     <section className="asm-card asm-sheet-card" id="marks-sheet" aria-label="Upload marks">
@@ -272,7 +354,7 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
             <span>1</span>
             <div>
               <h3>Choose the papers</h3>
-              <p>One subject, one stream, or several streams.</p>
+              <p>Academic marks and each Other subject (with skills) for the report card.</p>
             </div>
           </div>
           <label className="ofc-field">
@@ -300,6 +382,8 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
                 const selected = open.filter((paper) => picked.includes(paper.id)).length;
                 const names = new Map<string, number>();
                 for (const paper of group.papers) names.set(paper.subject, (names.get(paper.subject) || 0) + 1);
+                const academic = group.papers.filter((paper) => paper.subjectKind !== "cocurricular");
+                const other = group.papers.filter((paper) => paper.subjectKind === "cocurricular");
                 return (
                   <div key={group.label} className="asm-stream">
                     <label className="asm-master">
@@ -312,36 +396,84 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
                       />
                       <span>
                         <strong>{group.label}</strong>
-                        <small>{group.roll ? `${nf(group.roll)} ${group.roll === 1 ? "pupil" : "pupils"}` : "No pupils on roll"}{group.nursery ? " · Progress bands" : ""}</small>
+                        <small>
+                          {group.roll ? `${nf(group.roll)} ${group.roll === 1 ? "pupil" : "pupils"}` : "No pupils on roll"}
+                          {group.nursery ? " · Progress bands" : ""}
+                          {other.length ? ` · ${nf(other.length)} Other` : ""}
+                        </small>
                       </span>
                     </label>
-                    <div className="asm-chips">
-                      {group.papers.map((paper) => {
-                        const closed = paper.status !== "open";
-                        const locked = closed || !group.roll;
-                        const on = picked.includes(paper.id);
-                        const text = (names.get(paper.subject) || 0) > 1 ? `${paper.subject} · ${nf(paper.maxScore)}` : paper.subject;
-                        if (locked) {
-                          const reason = !group.roll
-                            ? "No pupils on roll"
-                            : office
-                              ? "Unlock this markbook on the class marksheet before including it."
-                              : paper.status === "approved" ? "This markbook is locked." : "This markbook is submitted.";
-                          return <span key={paper.id} className="asm-chip is-locked" title={reason}>{text}{paper.status === "approved" ? " · Locked" : paper.status === "submitted" ? " · Submitted" : ""}</span>;
-                        }
-                        return (
-                          <button key={paper.id} type="button" className={`asm-chip${on ? " is-on" : ""}`} aria-pressed={on} disabled={busy !== ""} onClick={() => togglePaper(paper.id)}>
-                            {text}
-                          </button>
-                        );
-                      })}
-                    </div>
+                    {academic.length ? (
+                      <div className="asm-chip-block">
+                        <p className="asm-chip-label">Academic</p>
+                        <div className="asm-chips">
+                          {academic.map((paper) => (
+                            <PaperChip
+                              key={paper.id}
+                              paper={paper}
+                              names={names}
+                              on={picked.includes(paper.id)}
+                              locked={paper.status !== "open" || !group.roll}
+                              hasRoll={Boolean(group.roll)}
+                              office={office}
+                              busy={busy !== ""}
+                              onToggle={() => togglePaper(paper.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {other.length ? (
+                      <div className="asm-chip-block is-other">
+                        <p className="asm-chip-label">Other <em>marks and skills for the co-curricular table</em></p>
+                        <div className="asm-chips">
+                          {other.map((paper) => (
+                            <PaperChip
+                              key={paper.id}
+                              paper={paper}
+                              names={names}
+                              on={picked.includes(paper.id)}
+                              locked={paper.status !== "open" || !group.roll}
+                              hasRoll={Boolean(group.roll)}
+                              office={office}
+                              busy={busy !== ""}
+                              onToggle={() => togglePaper(paper.id)}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 );
               })}
             </div>
           ) : null}
           <p className="asm-note">{available.length ? scope : office ? "Every markbook in this assessment is locked. Unlock one on the class marksheet before downloading a sheet." : "Every markbook in this assessment is locked."}</p>
+          {sitting && !sittingHasOther && otherCatalogue.length ? (
+            <p className="asm-note is-hint">
+              {otherPaperCount === 0 ? (
+                <>
+                  Other subjects are on the Subjects page ({catalogueNames.join(", ")}
+                  {otherCatalogue.length > catalogueNames.length ? "…" : ""}) but have no markbooks in this assessment yet.
+                  Refresh this page or re-run <strong>Set assessment</strong> with the same name to add them.
+                </>
+              ) : (
+                <>This sitting has no Other subjects. Check that each Other subject is taught in these classes (Subjects page).</>
+              )}
+            </p>
+          ) : null}
+          {otherWithSkills.length ? (
+            <p className="asm-note">
+              Other subjects include Skills acquired columns (Yes for each skill set on the Subjects page).
+            </p>
+          ) : null}
+          {otherWithoutSkills.length ? (
+            <p className="asm-note is-hint">
+              {otherWithoutSkills.length === 1
+                ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet — the workbook still has a Skills acquired column for a comma-separated list. Add skills on Subjects for Yes tick columns.`
+                : `${nf(otherWithoutSkills.length)} Other subjects have no skills listed yet — each still gets a Skills acquired text column. Add skills on Subjects for Yes tick columns.`}
+            </p>
+          ) : null}
           <button type="button" className="asm-commit" disabled={!chosen.length || busy !== ""} onClick={download}>
             <i className={`fa-solid ${busy === "download" ? "fa-spinner fa-spin" : "fa-file-arrow-down"}`} aria-hidden="true" />
             {busy === "download" ? "Preparing the workbook" : "Download workbook"}
@@ -426,6 +558,7 @@ export function UploadMarks({ papers, office }: { papers: Paper[]; office: boole
           {ok ? <p className="acd-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {ok}</p> : null}
         </div>
       </div>
+      <ProcessStatus active={busy !== ""} label={busyLabel} />
       {askSubmit && preview ? (
         <div
           className="asm-modal"

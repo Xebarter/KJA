@@ -488,11 +488,20 @@ export async function fetchAll<T>(build: (from: number, to: number) => PromiseLi
     if (error) throw new Error(error.message);
     return (data || []) as T[];
   };
-  const rows: T[] = [];
-  for (let from = 0; from < limit; from += size) {
-    const page = await take(from);
-    rows.push(...page);
-    if (page.length < size) break;
+  const first = await take(0);
+  if (first.length < size || first.length >= limit) return first.slice(0, limit);
+
+  // Remaining pages load in parallel batches so soft nav is not a long sequential waterfall.
+  const rows = [...first];
+  const batch = 4;
+  for (let from = size; from < limit; from += size * batch) {
+    const offsets: number[] = [];
+    for (let i = 0; i < batch && from + i * size < limit; i++) offsets.push(from + i * size);
+    const pages = await Promise.all(offsets.map((offset) => take(offset)));
+    for (const page of pages) {
+      rows.push(...page);
+      if (page.length < size) return rows.slice(0, limit);
+    }
   }
-  return rows;
+  return rows.slice(0, limit);
 }
