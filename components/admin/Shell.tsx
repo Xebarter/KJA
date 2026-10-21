@@ -6,7 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
 import { searchAdmin } from "@/app/admin/(panel)/search/actions";
 import { SidebarSearch } from "@/components/SidebarSearch";
-import { contentGroups, inboxLinks, resourceLabel } from "@/lib/admin";
+import { contentGroups, resourceLabel } from "@/lib/admin";
 import { initials } from "@/lib/applications";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
@@ -18,24 +18,19 @@ const GROUP_ICONS: Record<string, string> = {
   Careers: "fa-briefcase",
 };
 
-const INBOX_ICONS: Record<string, string> = {
-  "/admin/inbox/messages": "fa-envelope",
-  "/admin/inbox/newsletter": "fa-paper-plane",
-};
-
 const ADMIN_PLACES: SidebarHit[] = [
   { id: "/admin", href: "/admin", title: "Dashboard", meta: "Admin", icon: "fa-gauge-high" },
-  { id: "/admin/stories", href: "/admin/stories", title: "Stories", meta: "Newsroom", icon: "fa-newspaper" },
   { id: "/admin/applications", href: "/admin/applications", title: "Applications", meta: "Admissions", icon: "fa-file-signature" },
-  { id: "/admissions_office", href: "/admissions_office", title: "Admissions office", meta: "Admissions", icon: "fa-building-user" },
-  { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Admissions", icon: "fa-calculator" },
-  { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Academics", icon: "fa-graduation-cap" },
-  { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admissions", icon: "fa-user-shield" },
+  { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admin", icon: "fa-user-shield" },
   { id: "/admin/students", href: "/admin/students", title: "Students", meta: "Portal", icon: "fa-user-graduate" },
   { id: "/admin/inbox/messages", href: "/admin/inbox/messages", title: "Messages", meta: "Inbox", icon: "fa-envelope" },
-  { id: "/admin/inbox/newsletter", href: "/admin/inbox/newsletter", title: "Newsletter", meta: "Inbox", icon: "fa-paper-plane" },
-  { id: "/admin/images", href: "/admin/images", title: "Images", meta: "Website", icon: "fa-images" },
-  { id: "/admin/settings", href: "/admin/settings", title: "Site settings", meta: "Website", icon: "fa-sliders" },
+  { id: "/admissions_office", href: "/admissions_office", title: "Admissions office", meta: "Offices", icon: "fa-building-user" },
+  { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Offices", icon: "fa-calculator" },
+  { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Offices", icon: "fa-graduation-cap" },
+  { id: "/admin/stories", href: "/admin/stories", title: "Stories", meta: "CMS", icon: "fa-newspaper" },
+  { id: "/admin/inbox/newsletter", href: "/admin/inbox/newsletter", title: "Newsletter", meta: "CMS", icon: "fa-paper-plane" },
+  { id: "/admin/images", href: "/admin/images", title: "Images", meta: "CMS", icon: "fa-images" },
+  { id: "/admin/settings", href: "/admin/settings", title: "Site settings", meta: "CMS", icon: "fa-sliders" },
   ...contentGroups.flatMap((group) =>
     group.keys.map((key) => ({
       id: `/admin/content/${key}`,
@@ -110,13 +105,17 @@ export function AdminShell({
 
   const sections = [
     { href: "/admin", label: "Dashboard" },
-    { href: "/admin/stories", label: "Stories" },
     { href: "/admin/applications", label: "Applications" },
     { href: "/admin/team", label: "Team" },
     { href: "/admin/students", label: "Students" },
+    { href: "/admin/inbox/messages", label: "Messages" },
+    { href: "/admissions_office", label: "Admissions office" },
+    { href: "/accounts", label: "Accounts office" },
+    { href: "/academics_office", label: "Academics office" },
+    { href: "/admin/stories", label: "Stories" },
+    { href: "/admin/inbox/newsletter", label: "Newsletter" },
     { href: "/admin/images", label: "Images" },
     { href: "/admin/settings", label: "Site settings" },
-    ...inboxLinks,
     ...contentGroups.flatMap((group) => group.keys.map((key) => ({ href: `/admin/content/${key}`, label: resourceLabel(key) }))),
   ];
   const current = sections.find((section) => isActive(pathname, section.href))?.label ?? "Dashboard";
@@ -170,10 +169,12 @@ export function AdminShell({
           <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink>
 
           <hr className="admin-nav-rule" />
-          <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink>
+          <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
+          <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
+          <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink>
+          <NavLink href="/admin/inbox/messages" icon="fa-envelope" badge={unreadMessages}>Messages</NavLink>
 
           <hr className="admin-nav-rule" />
-          <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
           <a href="/admissions_office">
             <i className="fa-solid fa-building-user" aria-hidden="true" />
             <span>Admissions office</span>
@@ -186,26 +187,12 @@ export function AdminShell({
             <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
             <span>Academics office</span>
           </a>
-          <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
-          <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink>
 
           <hr className="admin-nav-rule" />
-          {inboxLinks.map((link) => (
-            <NavLink
-              key={link.href}
-              href={link.href}
-              icon={INBOX_ICONS[link.href] ?? "fa-inbox"}
-              badge={link.href === "/admin/inbox/messages" ? unreadMessages : undefined}
-            >
-              {link.label}
-            </NavLink>
-          ))}
-
-          <hr className="admin-nav-rule" />
+          <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink>
+          <NavLink href="/admin/inbox/newsletter" icon="fa-paper-plane">Newsletter</NavLink>
           <NavLink href="/admin/images" icon="fa-images">Images</NavLink>
           <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink>
-
-          <hr className="admin-nav-rule" />
           {contentGroups.map((group) => {
             const inGroup = group.keys.some((key) => isActive(pathname, `/admin/content/${key}`));
             const groupBadge = group.keys.some((key) => key === "vacancies") ? newJobApplications : 0;
