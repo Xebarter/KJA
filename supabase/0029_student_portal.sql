@@ -408,7 +408,7 @@ create policy report_lines_student on public.report_lines
   using (
     exists (
       select 1 from public.report_cards c
-      where c.id = report_id
+      where c.id = report_lines.report_card_id
         and c.published_at is not null
         and c.student_id = public.my_student_id()
     )

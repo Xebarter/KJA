@@ -5,8 +5,10 @@ const SCHOOL = "Kampala Junior Academy";
 const HEADER_ROW = 8;
 const FIRST_ROW = 9;
 const ID_COL = 1;
-/** Sentinel in the Keys sheet for a free-text “Skills acquired” column (Other subjects with no catalogue skills). */
+/** Sentinel in the Keys sheet for a free-text “Major skills learnt” column (Other subjects with no catalogue skills). */
 const SKILLS_LIST = "*";
+/** Max comma-separated labels in a Major skills learnt cell. */
+const MAJOR_SKILLS_LIMIT = 4;
 
 const NAVY = "FF19232B";
 const GOLD = "FFC9A227";
@@ -46,8 +48,9 @@ export type MarksBookPaper = {
   /** Other subjects: skills taught this term → Yes/blank “Acquired” columns after the mark. */
   skills?: string[];
   /**
-   * Other subjects with no catalogue skills: one free-text “Skills acquired” column
-   * (comma-separated labels). Ignored when `skills` is non-empty.
+   * Other subjects with no catalogue skills: one free-text “Major skills learnt” column
+   * (comma-separated labels, max 4). Entered on the first pupil row; others inherit.
+   * Ignored when `skills` is non-empty.
    */
   skillsFreeText?: boolean;
 };
@@ -158,6 +161,17 @@ function savedSkillsList(input: MarksBookInput, paper: MarksBookPaper, pupil: Ma
   const saved = input.scores.find((row) => row.assessmentId === paper.id && row.studentId === pupil.id);
   const acquired = (saved?.skills || []).filter((skill) => skill.acquired).map((skill) => skill.label);
   return acquired.length ? acquired.join(", ") : null;
+}
+
+/** Class-wide Major skills learnt text for a paper (first non-empty saved list among pupils). */
+function classMajorSkillsList(input: MarksBookInput, paper: MarksBookPaper, pupils: MarksBookPupil[]) {
+  for (const pupil of pupils) {
+    const text = savedSkillsList(input, paper, pupil);
+    if (!text) continue;
+    const labels = parseSkillLabels(text, MAJOR_SKILLS_LIMIT);
+    if (labels.length) return labels.join(", ");
+  }
+  return null;
 }
 
 type Font = Partial<ExcelJS.Font>;
@@ -562,7 +576,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   const skillNote = hasYesSkills
     ? "   ·   Skills acquired: Yes if gained"
     : hasSkillsList
-      ? "   ·   Skills acquired: list them"
+      ? "   ·   Major skills learnt: up to 4, first row"
       : "";
   sheet.getRow(5).height = 18;
   merge(sheet, 5, 2, lastCol, `${input.kindLabel}   ·   ${input.heldOn || "Date not set"}   ·   ${group.pupils.length} ${group.pupils.length === 1 ? "pupil" : "pupils"}   ·   ${markNote}${skillNote}`, {
@@ -575,7 +589,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     : hasYesSkills
       ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. ABS means missed. CLEAR removes a saved mark. A blank mark cell leaves the saved mark unchanged."
       : hasSkillsList
-        ? "Type the mark in the white cells. In Skills acquired, list skills gained this term separated by commas (e.g. rhythm, timing). ABS means missed. CLEAR removes a saved mark."
+        ? "Type the mark in the white cells. In Major skills learnt, list up to 4 skills on the first pupil row (comma-separated, e.g. rhythm, timing). Lower rows inherit that list. ABS means missed. CLEAR removes a saved mark."
         : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. CLEAR removes a saved mark. A blank cell leaves the saved mark unchanged.";
   sheet.getRow(6).height = 36;
   merge(sheet, 6, 2, lastCol, instruction, {
@@ -602,7 +616,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     } else if (column.kind === "skills_list") {
       headers.push({
         col: column.column,
-        text: `${column.paper.subject} · Skills acquired`,
+        text: `${column.paper.subject} · Major skills learnt`,
         align: "center",
         fill: GREEN,
       });
@@ -700,7 +714,15 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
         return;
       }
       if (column.kind === "skills_list") {
-        cell.value = savedSkillsList(input, column.paper, pupil);
+        const majorSkills = classMajorSkillsList(input, column.paper, group.pupils);
+        const letter = columnLetter(column.column);
+        if (index === 0) {
+          cell.value = majorSkills;
+        } else {
+          cell.value = majorSkills
+            ? { formula: `${letter}${FIRST_ROW}`, result: majorSkills }
+            : { formula: `${letter}${FIRST_ROW}` };
+        }
         paint(cell, {
           font: font(10, GREEN, true),
           fill: solid(WHITE),
@@ -714,8 +736,8 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
           formulae: ["TRUE"],
           showErrorMessage: false,
           showInputMessage: true,
-          promptTitle: `${column.paper.subject} · Skills acquired`,
-          prompt: "List skills acquired this term, separated by commas (e.g. rhythm, timing).",
+          promptTitle: `${column.paper.subject} · Major skills learnt`,
+          prompt: "Up to 4 skills, separated by commas. Enter on the first pupil row; others inherit.",
         };
         return;
       }
@@ -873,7 +895,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     hasYesSkills
       ? "A blank mark cell is not a zero — it leaves the mark already saved. Skills acquired columns: Yes if gained this term, or leave blank."
       : hasSkillsList
-        ? "A blank mark cell is not a zero — it leaves the mark already saved. Skills acquired: list skills gained this term, separated by commas."
+        ? "A blank mark cell is not a zero — it leaves the mark already saved. Major skills learnt: up to 4 skills on the first pupil row (comma-separated); lower rows inherit that list."
         : "A blank cell is not a zero. It leaves the mark already saved for that pupil and subject.",
     {
       font: { name: "Calibri", size: 9, italic: true, color: { argb: MUTED } },
@@ -1142,6 +1164,21 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     seen.set(sheetName, found);
     const expectedCount = known.size;
     const skillCols = skillsBySheet.get(sheetName) || [];
+    /** First non-empty Major skills learnt text per free-text column (class-wide inherit). */
+    const majorSkillsAnchor = new Map<number, string>();
+    for (const skill of skillCols) {
+      if (skill.skillLabel !== SKILLS_LIST) continue;
+      const scanTo = FIRST_ROW + Math.max(expectedCount, 1) + 40;
+      for (let cursor = FIRST_ROW; cursor < scanTo && cursor < FIRST_ROW + 1500; cursor += 1) {
+        const id = readCell(worksheet.getCell(cursor, ID_COL).value).text;
+        if (!UUID.test(id)) continue;
+        const read = readCell(worksheet.getCell(cursor, skill.column).value);
+        if (read.text.trim()) {
+          majorSkillsAnchor.set(skill.column, read.text.trim());
+          break;
+        }
+      }
+    }
     let blanks = 0;
     for (let cursor = FIRST_ROW; cursor < FIRST_ROW + Math.max(expectedCount, 1) + 40 && cursor < FIRST_ROW + 1500; cursor += 1) {
       const idCell = worksheet.getCell(cursor, ID_COL);
@@ -1194,23 +1231,38 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
       }
       for (const item of skillCells) {
         if (!UUID.test(item.skill.paperId) || !Number.isInteger(item.skill.column)) continue;
-        if (item.read.pending) {
-          add({
-            sheet: label,
-            cell: item.cell.address,
-            pupil,
-            message: item.skill.skillLabel === SKILLS_LIST
-              ? "Type the skills acquired as text, or leave blank."
-              : `Choose Yes for ${item.skill.skillLabel}, or leave blank.`,
-          });
-          continue;
-        }
-        if (!item.read.text) continue;
-        const raw = item.read.text.trim();
         if (item.skill.skillLabel === SKILLS_LIST) {
-          const labels = parseSkillLabels(raw);
+          const anchor = majorSkillsAnchor.get(item.skill.column) || "";
+          const own = item.read.text.trim();
+          if (item.read.pending && !own && !anchor) {
+            add({
+              sheet: label,
+              cell: item.cell.address,
+              pupil,
+              message: "Type Major skills learnt as text on the first pupil row (up to 4, comma-separated), or leave blank.",
+            });
+            continue;
+          }
+          const raw = own || anchor;
+          if (!raw) continue;
+          const tooMany = parseSkillLabels(raw, MAJOR_SKILLS_LIMIT + 1);
+          if (tooMany.length > MAJOR_SKILLS_LIMIT) {
+            add({
+              sheet: label,
+              cell: item.cell.address,
+              pupil,
+              message: `List at most ${MAJOR_SKILLS_LIMIT} major skills learnt, separated by commas.`,
+            });
+            continue;
+          }
+          const labels = parseSkillLabels(raw, MAJOR_SKILLS_LIMIT);
           if (!labels.length) {
-            add({ sheet: label, cell: item.cell.address, pupil, message: "List skills acquired separated by commas, or leave blank." });
+            add({
+              sheet: label,
+              cell: item.cell.address,
+              pupil,
+              message: "List major skills learnt separated by commas, or leave blank.",
+            });
             continue;
           }
           for (const skillLabel of labels) {
@@ -1228,6 +1280,17 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
           }
           continue;
         }
+        if (item.read.pending) {
+          add({
+            sheet: label,
+            cell: item.cell.address,
+            pupil,
+            message: `Choose Yes for ${item.skill.skillLabel}, or leave blank.`,
+          });
+          continue;
+        }
+        if (!item.read.text) continue;
+        const raw = item.read.text.trim();
         if (!/^yes$/i.test(raw) && raw.toUpperCase() !== "Y") {
           add({ sheet: label, cell: item.cell.address, pupil, message: `Choose Yes for ${item.skill.skillLabel}, or leave blank.` });
           continue;

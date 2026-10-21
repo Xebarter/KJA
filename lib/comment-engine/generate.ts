@@ -122,7 +122,7 @@ function generateActivityComments(input: ReportInput, config: CommentConfig, pro
     }
 
     if (!text) {
-      text = `${input.firstName} made progress in ${name} this term.`;
+      text = `${input.firstName} has made progress in ${name} this term and should keep building next term.`;
       explanation = `Activity ${activity.slot} fallback sentence.`;
     }
 

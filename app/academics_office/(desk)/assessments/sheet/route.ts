@@ -1,4 +1,5 @@
 import { bandMidpoint, classLabel, classOrder, classSection, kampalaToday, kindLabel, mapBand, markbookClosed, num, requireAcademics, streamOf } from "@/lib/academics";
+import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
 import { buildMarksWorkbook, marksWorkbookFilename, MarksBookError, type MarksBookBand, type MarksBookPaper, type MarksBookScore } from "@/lib/marks-workbook";
 import { isCocurricularSubject } from "@/lib/subject-kind";
@@ -57,10 +58,50 @@ export async function POST(request: Request) {
     if (papers.length !== ids.length) return new Response("Some of those markbooks are no longer on the list.", { status: 400 });
     const signature = new Set(papers.map((paper) => `${paper.term_id}|${paper.name}|${paper.kind}|${paper.held_on || ""}`));
     if (signature.size !== 1) return new Response("Choose subjects from one assessment.", { status: 400 });
+
+    const termId = String(papers[0].term_id);
+    const sample = papers[0];
+    // Backfill Other markbooks onto sittings created before Other subjects existed.
+    if (auth.office) {
+      try {
+        await ensureOtherMarkbooks(auth.supabase, termId, auth.user.id);
+      } catch {
+        /* Still build the workbook from whatever papers are available. */
+      }
+    }
+
+    // Pull the full sitting so Other subjects appear even when the picker still had only Academic papers selected.
+    {
+      const sittingRows = await fetchAll<PaperRow>((from, to) => {
+        let query = auth.supabase
+          .from("assessments")
+          .select("id, term_id, class_code, stream, subject_id, name, kind, max_score, held_on, status")
+          .eq("term_id", termId)
+          .eq("name", sample.name)
+          .eq("kind", sample.kind);
+        query = sample.held_on ? query.eq("held_on", sample.held_on) : query.is("held_on", null);
+        return query.order("id").range(from, to);
+      });
+      const chosenKeys = new Set(papers.map((paper) => `${paper.class_code}|${streamOf(paper.stream)}`));
+      const { data: kindRows } = await auth.supabase.from("subjects").select("id, kind").eq("active", true);
+      const otherIds = new Set(
+        (kindRows || [])
+          .filter((row) => isCocurricularSubject(String(row.kind || "")))
+          .map((row) => String(row.id)),
+      );
+      const have = new Set(papers.map((paper) => paper.id));
+      for (const row of sittingRows) {
+        if (have.has(row.id)) continue;
+        if (!chosenKeys.has(`${row.class_code}|${streamOf(row.stream)}`)) continue;
+        if (!otherIds.has(row.subject_id)) continue;
+        papers.push(row);
+        have.add(row.id);
+      }
+    }
+
     const open = papers.filter((paper) => !markbookClosed(paper.status));
     if (!open.length) return new Response("Those markbooks are locked. Unlock them on the class marksheet before downloading a sheet.", { status: 400 });
 
-    const termId = String(papers[0].term_id);
     const subjectIds = [...new Set(open.map((paper) => paper.subject_id))];
     const [termQuery, subjectQuery, roll, bandsQuery] = await Promise.all([
       auth.supabase.from("fee_terms").select("label").eq("id", termId).maybeSingle(),

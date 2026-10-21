@@ -4,12 +4,13 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { HomeworkDesk } from "@/components/academics/HomeworkDesk";
 import "./homework.css";
 import {
-  ACADEMICS_BASE,
   classLabel,
+  classSection,
   groupPupils,
   loadCurrentTerm,
   mapSubject,
   openAcademics,
+  subjectFits,
 } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 
@@ -54,8 +55,16 @@ export default async function HomeworkPage() {
     label: classLabel(g.code, g.stream),
     classCode: g.code,
     stream: g.stream,
+    section: classSection(g.code),
     count: g.pupils.length,
   }));
+  const classCodes = [...new Set(classOptions.map((option) => option.classCode))];
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Kampala",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
 
   const doneCounts = new Map<string, number>();
   for (const row of completionsQuery.data || []) {
@@ -63,12 +72,22 @@ export default async function HomeworkPage() {
   }
 
   const subjectName = new Map(subjects.map((s) => [s.id, s.name]));
-  const rows = (assignmentsQuery.data || []).map((row) => ({
-    ...row,
-    subject_name: subjectName.get(row.subject_id) || "Subject",
-    done: doneCounts.get(row.id) || 0,
-    class_label: classLabel(row.class_code, row.stream),
-  }));
+  const classSize = new Map(classOptions.map((option) => [option.value, option.count]));
+  const rows = (assignmentsQuery.data || []).map((row) => {
+    const classKey = `${row.class_code}|${row.stream || ""}`;
+    return {
+      id: row.id,
+      title: row.title,
+      instructions: row.instructions,
+      due_on: row.due_on,
+      published_at: row.published_at,
+      subject_name: subjectName.get(row.subject_id) || "Subject",
+      class_label: classLabel(row.class_code, row.stream),
+      class_key: classKey,
+      done: doneCounts.get(row.id) || 0,
+      class_size: classSize.get(classKey) || 0,
+    };
+  });
 
   return (
     <div className="app-page ahw-page">
@@ -84,12 +103,16 @@ export default async function HomeworkPage() {
         <HomeworkDesk
           termId={term.id}
           termLabel={term.label}
-          subjects={subjects.map((s) => ({ id: s.id, name: s.name }))}
+          today={today}
+          subjects={subjects.map((subject) => ({
+            id: subject.id,
+            name: subject.name,
+            classCodes: classCodes.filter((code) => subjectFits(subject, code)),
+          }))}
           classes={classOptions}
           rows={rows}
           createAction={createHomework}
           publishAction={publishHomework}
-          base={ACADEMICS_BASE}
         />
       )}
     </div>

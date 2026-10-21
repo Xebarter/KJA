@@ -77,6 +77,7 @@ export async function ensureOtherMarkbooks(
         max_score: num(template.max_score) ?? 100,
         weight: num(template.weight) ?? 1,
         held_on: template.held_on,
+        status: "open",
         created_by: userId,
       });
     }
@@ -85,7 +86,16 @@ export async function ensureOtherMarkbooks(
   for (let index = 0; index < fresh.length; index += 80) {
     const slice = fresh.slice(index, index + 80);
     const { error } = await supabase.from("assessments").insert(slice);
-    if (error) throw new Error(error.message);
+    if (error) {
+      // Older schemas may not have status yet — retry without it.
+      if (/status|42703/i.test(error.message)) {
+        const plain = slice.map(({ status: _status, ...row }) => row);
+        const again = await supabase.from("assessments").insert(plain);
+        if (again.error) throw new Error(again.error.message);
+        continue;
+      }
+      throw new Error(error.message);
+    }
   }
 
   return { added: fresh.length, otherSubjectCount: otherSubjects.length };

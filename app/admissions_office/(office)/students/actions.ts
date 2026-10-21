@@ -582,13 +582,6 @@ export async function searchOffice(raw: string): Promise<{ error?: string; hits:
   return { hits: ranked((data || []) as OfficeRow[]) };
 }
 
-function tempPassword() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const bytes = new Uint8Array(12);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => alphabet[b % alphabet.length]).join("");
-}
-
 export type IssueLoginResult = ActionResult & { email?: string; password?: string };
 
 /** Create a student portal login and link it to the pupil record. */
@@ -609,50 +602,17 @@ export async function issueStudentLogin(studentId: string, formData: FormData): 
   if (!student) return { error: "Student not found." };
   if (student.profile_id) return { error: "This student already has a portal login." };
 
-  const { serviceClient } = await import("@/lib/supabase/service");
-  const service = serviceClient();
-  if (!service) return { error: "Service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY." };
-
-  const password = tempPassword();
+  const { linkStudentPortalLogin } = await import("@/lib/student-portal-login");
   const display = (student.preferred_name || student.full_name || "Student").trim();
-  const { data: created, error: createError } = await service.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: {
-      full_name: display,
-      must_reset_password: true,
-      student_id: studentId,
-    },
-  });
-  if (createError || !created.user) {
-    return { error: createError?.message || "Could not create the login." };
-  }
+  const result = await linkStudentPortalLogin({ studentId, email, displayName: display });
+  if (result.error) return { error: result.error };
 
-  const userId = created.user.id;
-  const { error: profileError } = await service.from("profiles").upsert({
-    id: userId,
-    role: "student",
-    email,
-    full_name: display,
-  });
-  if (profileError) {
-    await service.auth.admin.deleteUser(userId);
-    return { error: profileError.message };
-  }
-
-  const { error: linkError } = await service.from("students").update({ profile_id: userId }).eq("id", studentId);
-  if (linkError) {
-    await service.auth.admin.deleteUser(userId);
-    return { error: linkError.message };
-  }
-
-  await logStudents(auth.supabase, auth.user.id, [studentId], "note", `Issued student portal login for ${email}.`);
+  await logStudents(auth.supabase, auth.user.id, [studentId], "note", `Issued student portal login for ${result.email}.`);
   refreshOffice(`${OFFICE}/students/${studentId}`);
   return {
-    ok: `Login created for ${display}. Share the temporary password now — it will not be shown again.`,
-    email,
-    password,
+    ok: result.ok,
+    email: result.email,
+    password: result.password,
   };
 }
 
@@ -670,16 +630,11 @@ export async function revokeStudentLogin(studentId: string): Promise<ActionResul
   if (studentError) return { error: studentError.message };
   if (!student?.profile_id) return { error: "This student has no portal login." };
 
-  const { serviceClient } = await import("@/lib/supabase/service");
-  const service = serviceClient();
-  if (!service) return { error: "Service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY." };
-
-  const profileId = student.profile_id;
-  await service.from("students").update({ profile_id: null }).eq("id", studentId);
-  await service.from("profiles").update({ role: "parent" }).eq("id", profileId);
-  await service.auth.admin.updateUserById(profileId, { ban_duration: "876000h" });
+  const { unlinkStudentPortalLogin } = await import("@/lib/student-portal-login");
+  const result = await unlinkStudentPortalLogin(student.profile_id, studentId);
+  if (result.error) return { error: result.error };
 
   await logStudents(auth.supabase, auth.user.id, [studentId], "note", "Revoked student portal login.");
   refreshOffice(`${OFFICE}/students/${studentId}`);
-  return { ok: "Student portal login revoked." };
+  return { ok: result.ok };
 }

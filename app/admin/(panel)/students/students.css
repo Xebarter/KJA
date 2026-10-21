@@ -1,0 +1,511 @@
+/* Admin students — portal access desk. */
+
+.asp-page { display: grid; gap: 1.15rem; }
+.asp-page > .admin-hero { margin: 0; }
+.asp-page .admin-hero-lede strong { color: #fff; }
+.asp-page h1,
+.asp-page h2,
+.asp-strip strong {
+  font-family: Yantramanav, Roboto, sans-serif;
+}
+
+.asp-desk { display: grid; gap: 1.15rem; }
+
+.asp-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  overflow: hidden;
+  border: 1px solid #e6e1d6;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+}
+.asp-strip > div {
+  display: flex;
+  align-items: flex-start;
+  gap: .8rem;
+  min-width: 0;
+  padding: 1.05rem 1.1rem 1rem;
+  border-left: 1px solid #efeae2;
+}
+.asp-strip > div:first-child { border-left: 0; }
+.asp-stat-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 11px;
+  background: #f3efe8;
+  color: #19232b;
+  font-size: .82rem;
+}
+.asp-strip .is-ok .asp-stat-icon { background: #e7f3ea; color: #127238; }
+.asp-strip .is-warn .asp-stat-icon { background: #fbf3e4; color: #8a5a12; }
+.asp-stat-copy { display: grid; gap: .12rem; min-width: 0; }
+.asp-stat-copy > span {
+  color: #8a8174;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.asp-stat-copy strong {
+  color: #19232b;
+  font-size: 1.45rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.asp-stat-copy small { color: #8a8174; font-size: .75rem; }
+.asp-strip .is-warn .asp-stat-copy strong { color: #8a5a12; }
+.asp-strip .is-ok .asp-stat-copy strong { color: #127238; }
+
+.asp-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: .75rem;
+  padding: 1rem 1.15rem;
+  border: 1px solid #cfe8d6;
+  border-radius: 14px;
+  background: #edf8f0;
+  color: #127238;
+  animation: asp-in .22s ease;
+}
+.asp-banner > i { margin-top: .2rem; flex: none; }
+.asp-banner-body { display: grid; gap: .55rem; min-width: 0; flex: 1; }
+.asp-banner p { margin: 0; }
+.asp-banner-hint { color: #3d7a4f; font-size: .85rem; }
+.asp-cred {
+  display: grid;
+  grid-template-columns: 5.5rem minmax(0, 1fr) auto;
+  gap: .5rem;
+  align-items: center;
+}
+.asp-cred > span {
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  color: #3d7a4f;
+}
+.asp-cred code {
+  min-width: 0;
+  padding: .35rem .55rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, .75);
+  color: #19232b;
+  font-size: .9rem;
+  overflow-wrap: anywhere;
+}
+
+.asp-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: .5rem;
+  margin: 0;
+  padding: .85rem 1.05rem;
+  border-radius: 12px;
+  font-size: .9rem;
+  animation: asp-in .22s ease;
+}
+.asp-notice.is-ok { background: #edf8f0; color: #127238; }
+.asp-notice.is-error { background: #fdecee; color: #c81e2d; }
+
+.asp-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, .75fr);
+  gap: 1.15rem;
+  align-items: start;
+}
+
+.asp-card {
+  overflow: hidden;
+  border: 1px solid #e6e1d6;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+}
+.asp-create { position: sticky; top: 1rem; }
+.asp-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .8rem;
+  padding: 1rem 1.15rem;
+  border-bottom: 1px solid #efeae2;
+  background:
+    linear-gradient(#c9a227, #c9a227) top / 100% 3px no-repeat,
+    #fff;
+}
+.asp-card-title { display: flex; align-items: flex-start; gap: .75rem; min-width: 0; }
+.asp-card-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: #f3efe8;
+  color: #19232b;
+  font-size: .85rem;
+}
+.asp-card-head h2 {
+  margin: 0;
+  color: #19232b;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+.asp-card-head p {
+  margin: .2rem 0 0;
+  color: #8a8174;
+  font-size: .82rem;
+  line-height: 1.35;
+}
+
+.asp-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .75rem;
+  padding: .85rem 1.15rem;
+  border-bottom: 1px solid #efeae2;
+  background: #fcfaf6;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+.asp-search {
+  position: relative;
+  flex: 1 1 14rem;
+  min-width: 12rem;
+}
+.asp-search i:first-child {
+  position: absolute;
+  top: 50%;
+  left: .85rem;
+  color: #8a8174;
+  font-size: .78rem;
+  transform: translateY(-50%);
+  pointer-events: none;
+}
+.asp-search input {
+  width: 100%;
+  height: 40px;
+  padding: 0 2.4rem 0 2.15rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 10px;
+  background: #fff;
+  color: #19232b;
+  font: inherit;
+  font-size: .9rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.asp-search input:focus {
+  outline: none;
+  border-color: rgba(201, 162, 39, .65);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
+}
+.asp-search-clear {
+  position: absolute;
+  top: 50%;
+  right: .4rem;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #8a8174;
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.asp-search-clear:hover { background: #f3efe8; color: #19232b; }
+
+.asp-filters {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .2rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 12px;
+  background: #fff;
+}
+.asp-filters button {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 34px;
+  padding: 0 .7rem;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: #5d6670;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+.asp-filters button em {
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  color: #8a8174;
+}
+.asp-filters button:hover { background: #f3efe8; color: #19232b; }
+.asp-filters button.is-on { background: #19232b; color: #fff; }
+.asp-filters button.is-on em { color: rgba(255, 255, 255, .72); }
+
+.asp-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: min(70vh, 44rem);
+  overflow: auto;
+  content-visibility: auto;
+}
+.asp-list > li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1.2fr) auto minmax(10rem, auto);
+  gap: .85rem 1rem;
+  align-items: center;
+  padding: .85rem 1.15rem;
+  border-bottom: 1px solid #efeae2;
+  transition: background .15s ease;
+}
+.asp-list > li:last-child { border-bottom: 0; }
+.asp-list > li:hover { background: #fcfaf6; }
+.asp-list > li.is-on {
+  background:
+    linear-gradient(#127238, #127238) left / 3px 100% no-repeat,
+    #fff;
+}
+.asp-list > li.is-on:hover {
+  background:
+    linear-gradient(#127238, #127238) left / 3px 100% no-repeat,
+    #fcfaf6;
+}
+.asp-list > li.is-issuing { background: #fffdf6; }
+
+.asp-face {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 42px;
+  height: 42px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: #f3efe8;
+  color: #5d6670;
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  box-shadow: inset 0 0 0 1px rgba(25, 35, 43, .06);
+}
+.asp-face img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity .25s ease;
+}
+
+.asp-who { min-width: 0; display: grid; gap: .12rem; }
+.asp-who strong {
+  color: #19232b;
+  font-size: .95rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.asp-who small { color: #8a8174; font-size: .78rem; }
+.asp-email {
+  color: #5d6670;
+  font-size: .78rem;
+  overflow-wrap: anywhere;
+}
+
+.asp-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .14rem .5rem;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.asp-pill.is-on { background: #e7f3ea; color: #127238; }
+.asp-pill.is-off { background: #f3efe8; color: #5d6670; }
+
+.asp-actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: .35rem;
+  min-width: 0;
+}
+.asp-actions .admin-btn,
+.asp-issue .admin-btn,
+.asp-banner .admin-btn,
+.asp-form .admin-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  min-height: 32px;
+  height: 32px;
+  padding: 0 .75rem;
+  border-radius: 8px;
+  font-size: .78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  line-height: 1;
+}
+.asp-issue {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  justify-content: flex-end;
+  align-items: center;
+  width: 100%;
+  animation: asp-in .18s ease;
+}
+.asp-issue input {
+  flex: 1 1 10rem;
+  min-width: 9rem;
+  height: 32px;
+  padding: 0 .65rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: .82rem;
+}
+.asp-issue input:focus {
+  outline: none;
+  border-color: rgba(201, 162, 39, .65);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
+}
+
+.asp-empty {
+  display: grid;
+  justify-items: center;
+  gap: .45rem;
+  padding: 2.4rem 1.5rem;
+  text-align: center;
+}
+.asp-empty-icon {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  margin-bottom: .25rem;
+  border-radius: 14px;
+  background: #f3efe8;
+  color: #8a8174;
+  font-size: 1.1rem;
+}
+.asp-empty strong { color: #19232b; font-size: 1rem; }
+.asp-empty p {
+  margin: 0;
+  max-width: 28rem;
+  color: #8a8174;
+  font-size: .88rem;
+  line-height: 1.4;
+}
+
+.asp-create .asp-form {
+  display: grid;
+  gap: .75rem;
+  padding: 1rem 1.15rem 1.2rem;
+}
+.asp-form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: .75rem;
+}
+.asp-form .ofc-field {
+  display: grid;
+  gap: .28rem;
+  font-size: .88rem;
+  color: #19232b;
+}
+.asp-form .ofc-field > span {
+  color: #8a8174;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.asp-form .ofc-field em {
+  font-style: normal;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-transform: none;
+  color: #a0988c;
+}
+.asp-form input,
+.asp-form select {
+  width: 100%;
+  height: 40px;
+  padding: 0 .75rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 10px;
+  background: #fff;
+  color: #19232b;
+  font: inherit;
+  font-size: .9rem;
+  transition: border-color .15s ease, box-shadow .15s ease;
+}
+.asp-form input:focus,
+.asp-form select:focus {
+  outline: none;
+  border-color: rgba(201, 162, 39, .65);
+  box-shadow: 0 0 0 3px rgba(201, 162, 39, .18);
+}
+.asp-form .admin-btn {
+  justify-content: center;
+  width: 100%;
+  height: 36px;
+  min-height: 36px;
+  margin-top: .25rem;
+  font-size: .84rem;
+}
+
+@keyframes asp-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 980px) {
+  .asp-layout { grid-template-columns: 1fr; }
+  .asp-create { position: static; order: -1; }
+}
+
+@media (max-width: 900px) {
+  .asp-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .asp-strip > div:nth-child(3) { border-left: 0; }
+  .asp-list > li {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  .asp-actions { grid-column: 2 / -1; justify-content: flex-start; }
+  .asp-cred { grid-template-columns: 1fr auto; }
+  .asp-cred > span { grid-column: 1 / -1; }
+}
+
+@media (max-width: 640px) {
+  .asp-strip { grid-template-columns: 1fr; }
+  .asp-strip > div { border-left: 0; border-top: 1px solid #efeae2; }
+  .asp-strip > div:first-child { border-top: 0; }
+  .asp-tools { flex-direction: column; align-items: stretch; }
+  .asp-filters { width: 100%; }
+  .asp-filters button { flex: 1; justify-content: center; }
+  .asp-form-row { grid-template-columns: 1fr; }
+  .asp-list > li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .asp-status,
+  .asp-actions { grid-column: 2 / -1; }
+}

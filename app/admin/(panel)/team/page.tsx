@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { TeamManager } from "@/components/admin/TeamManager";
 import { emailAlertStatus } from "@/lib/admin-alerts";
@@ -61,15 +60,7 @@ export default async function TeamPage() {
   const officers = everyone.filter((member) => member.role === "admissions");
   const assigned = everyone.reduce((sum, member) => sum + member.open, 0);
 
-  const kpis = [
-    {
-      label: "Admins", value: members.length, icon: "fa-user-shield",
-      note: officers.length ? `Plus ${officers.length} admissions officer${officers.length === 1 ? "" : "s"}` : members.length === 1 ? "Only you can sign in" : "Can sign in to this dashboard",
-      href: "#team-members",
-    },
-    { label: "Open applications owned", value: assigned, icon: "fa-user-check", note: `Shared across ${everyone.length} team member${everyone.length === 1 ? "" : "s"}`, href: "/admin/applications" },
-    { label: "Open and unassigned", value: unassigned, icon: "fa-user-clock", note: unassigned ? "Waiting for an owner" : "Every open application has an owner", href: "/admin/applications?owner=none" },
-  ];
+  const officersTotal = officers.length + accountants.length + teachers.length;
 
   return (
     <div className="app-page tm">
@@ -77,10 +68,14 @@ export default async function TeamPage() {
         kicker="Administration"
         icon="fa-user-shield"
         title="Team"
-        description="Admins can sign in to the dashboard and manage applications, stories and website content. Admissions, accounts and academics officers each have their own office."
+        description={
+          <>
+            Give colleagues access to the <strong>dashboard</strong> or an office. They need a parent portal account first — then add their email below.
+          </>
+        }
         actions={
           <a className="admin-hero-btn" href="#team-invite">
-            <i className="fa-solid fa-user-plus" aria-hidden="true" /> Add an admin
+            <i className="fa-solid fa-user-plus" aria-hidden="true" /> Add access
           </a>
         }
       >
@@ -90,25 +85,28 @@ export default async function TeamPage() {
             {members.length > 5 ? <span className="is-more">+{members.length - 5}</span> : null}
           </div>
           <p>
-            <strong>{members.length} admin{members.length === 1 ? "" : "s"}</strong>
-            <span>keeping the KJA website and admissions running</span>
+            <strong>
+              {members.length} admin{members.length === 1 ? "" : "s"}
+              {officersTotal ? ` · ${officersTotal} officer${officersTotal === 1 ? "" : "s"}` : ""}
+            </strong>
+            <span>
+              {unassigned
+                ? `${unassigned} open application${unassigned === 1 ? "" : "s"} still unassigned`
+                : assigned
+                  ? `${assigned} open application${assigned === 1 ? "" : "s"} owned by the team`
+                  : "No open applications waiting"}
+            </span>
           </p>
         </div>
       </PageHeader>
 
-      <div className="admin-kpis is-3">
-        {kpis.map((kpi) => (
-          <Link key={kpi.label} href={kpi.href} className="admin-kpi">
-            <span className="admin-kpi-icon"><i className={`fa-solid ${kpi.icon}`} aria-hidden="true" /></span>
-            <span className="admin-kpi-label">{kpi.label}</span>
-            <strong>{kpi.value.toLocaleString("en-GB")}</strong>
-            <span className="admin-kpi-note">{kpi.note}</span>
-            <i className="fa-solid fa-arrow-right admin-kpi-go" aria-hidden="true" />
-          </Link>
-        ))}
-      </div>
-
-      <TeamManager members={members} officers={officers} accountants={accountants} teachers={teachers} alerts={{ ...emailAlertStatus(), withoutEmail: members.filter((member) => !member.email).length }} />
+      <TeamManager
+        members={members}
+        officers={officers}
+        accountants={accountants}
+        teachers={teachers}
+        alerts={{ ...emailAlertStatus(), withoutEmail: members.filter((member) => !member.email).length }}
+      />
     </div>
   );
 }

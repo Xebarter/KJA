@@ -72,14 +72,12 @@ export default async function ChatReviewPage({
     if (convs.error) loadError = convs.error.message;
     const convIds = (convs.data || []).map((c) => c.id);
     if (convIds.length) {
-      let q = supabase
+      const result = await supabase
         .from("student_messages")
         .select("id, body, flagged, hidden, created_at, sender_student_id, conversation_id")
         .in("conversation_id", convIds)
         .order("created_at", { ascending: false })
         .limit(120);
-      if (flaggedOnly) q = q.eq("flagged", true).eq("hidden", false);
-      const result = await q;
       if (result.error) loadError = result.error.message;
       else messages = result.data || [];
     }
@@ -100,7 +98,11 @@ export default async function ChatReviewPage({
         kicker="Safeguarding"
         icon="fa-shield-halved"
         title="Chat review"
-        description="Review classmate messages. Flagged notes need a look; hide anything that should not stay visible."
+        description={
+          <>
+            Check classmate messages by class. <strong>Flagged</strong> notes need a look — hide anything that should not stay visible to pupils.
+          </>
+        }
       />
       <ChatReviewDesk
         classes={classOptions}

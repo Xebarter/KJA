@@ -54,32 +54,48 @@ export default async function AssessmentsPage() {
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
-  const [papersQuery, subjectsQuery, pupils, enteredById] = await Promise.all([
-    term
-      ? supabase.from("assessments").select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status").eq("term_id", term.id).order("held_on", { ascending: false })
-      : Promise.resolve({ data: [], error: null }),
+  let papersLoadError: string | null = null;
+  let rows: PaperRow[] = [];
+  try {
+    rows = term
+      ? await fetchAll<PaperRow>((from, to) =>
+          supabase
+            .from("assessments")
+            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
+            .eq("term_id", term.id)
+            .order("held_on", { ascending: false })
+            .order("id")
+            .range(from, to),
+        )
+      : [];
+  } catch (error) {
+    papersLoadError = error instanceof Error ? error.message : "Assessments could not be loaded.";
+  }
+  const [subjectsQuery, pupils, enteredById] = await Promise.all([
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     loadRoll(supabase, user.id),
     term
       ? groupOf(supabase.from("assessment_scores").select("assessment_id, id.count(), assessments!inner(term_id)").eq("assessments.term_id", term.id), "assessment_id", "count")
       : Promise.resolve(new Map<string, number>()),
   ]);
-  if (papersQuery.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: papersQuery.error.message }} />;
+  if (papersLoadError) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: papersLoadError }} />;
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
   const otherCatalogue = subjects.filter((subject) => isCocurricularSubject(subject));
 
-  let rows = (papersQuery.data || []) as PaperRow[];
   let otherFillNote = "";
   if (office && term && rows.length && otherCatalogue.length) {
     try {
       const filled = await ensureOtherMarkbooks(supabase, term.id, user.id);
       if (filled.added > 0) {
-        const refreshed = await supabase
-          .from("assessments")
-          .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
-          .eq("term_id", term.id)
-          .order("held_on", { ascending: false });
-        if (!refreshed.error) rows = (refreshed.data || []) as PaperRow[];
+        rows = await fetchAll<PaperRow>((from, to) =>
+          supabase
+            .from("assessments")
+            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
+            .eq("term_id", term.id)
+            .order("held_on", { ascending: false })
+            .order("id")
+            .range(from, to),
+        );
         otherFillNote = `Added ${filled.added.toLocaleString("en-GB")} Other ${filled.added === 1 ? "markbook" : "markbooks"} so they appear in the workbook picker.`;
       }
     } catch {

@@ -32,17 +32,14 @@ function bandFromScore(score: number | null, band: CommentBandCode | null): Comm
   return "weak";
 }
 
-function pick<T>(options: T[], variant: number): T {
-  return options[Math.abs(variant) % options.length]!;
-}
-
 function skillsPhrase(labels: string[], max = 2): string {
   return joinSkillNames(labels, max);
 }
 
 /**
  * Builds one natural, professional co-curricular sentence from the child's mark and
- * the skills taught / acquired. Returns null when nothing sensible can be said.
+ * the skills taught / acquired. Past performance this term, then a forward recommendation.
+ * Returns null when nothing sensible can be said.
  */
 export function composeCocurricularComment(input: CocurricularComposeInput): string | null {
   const first = input.firstName.trim();
@@ -62,97 +59,97 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
   if (band === "excellent") {
     if (acquired) {
       stems.push(
-        `${first} has excelled ${inActivity}, showing ${acquired} with real confidence this term.`,
-        `${first} shines ${inActivity} and has acquired ${acquired} through committed, cheerful participation.`,
-        `${first} sets a fine example ${inActivity}, demonstrating ${acquired} with maturity and enthusiasm.`,
+        `${first} has excelled ${inActivity} this term, showing ${acquired}, and should keep building that confidence next term.`,
+        `${first} has acquired ${acquired} ${inActivity} this term and should continue setting that example next term.`,
+        `${first} has demonstrated ${acquired} with maturity ${inActivity} this term and should keep that enthusiasm next term.`,
       );
     } else {
       stems.push(
-        `${first} has excelled ${inActivity} this term with outstanding commitment and genuine enthusiasm.`,
-        `${first} participates exceptionally well ${inActivity}, showing leadership, discipline, and a willing spirit.`,
-        `${first} has made an outstanding contribution ${inActivity} and encourages others by example.`,
+        `${first} has excelled ${inActivity} this term with outstanding commitment and should keep that energy next term.`,
+        `${first} has participated exceptionally well ${inActivity} this term and should continue leading by example next term.`,
+        `${first} has made an outstanding contribution ${inActivity} this term and should keep encouraging others next term.`,
       );
     }
   } else if (band === "very_good") {
     if (acquired) {
       stems.push(
-        `${first} has done very well ${inActivity}, developing ${acquired} through steady, willing practice.`,
-        `${first} shows strong commitment ${inActivity} and is growing confidently in ${acquired}.`,
-        `${first} contributes thoughtfully ${during} and has made clear progress with ${acquired}.`,
+        `${first} has done very well ${inActivity} this term, developing ${acquired}, and should keep practising next term.`,
+        `${first} has shown strong commitment ${inActivity} this term and should continue growing in ${acquired} next term.`,
+        `${first} has made clear progress with ${acquired} ${during} this term and should keep that effort next term.`,
       );
     } else {
       stems.push(
-        `${first} has maintained very good participation ${inActivity}, showing cooperation, effort, and responsibility.`,
-        `${first} takes ${where} seriously and contributes with confidence, respect, and a positive attitude.`,
-        `${first} participates willingly ${inActivity} and continues to build valuable skills each week.`,
+        `${first} has maintained very good participation ${inActivity} this term and should continue cooperating responsibly next term.`,
+        `${first} has taken ${where} seriously this term and should keep contributing with confidence next term.`,
+        `${first} has participated willingly ${inActivity} this term and should continue building valuable skills next term.`,
       );
     }
   } else if (band === "good") {
     if (acquired) {
       stems.push(
-        `${first} has made good progress ${inActivity} and is growing steadily in ${acquired}.`,
-        `${first} participates well ${inActivity}, showing a positive attitude while developing ${acquired}.`,
-        `${first} contributes positively ${during} and is becoming more confident with ${acquired}.`,
+        `${first} has made good progress ${inActivity} this term, growing in ${acquired}, and should keep practising next term.`,
+        `${first} has participated well ${inActivity} this term while developing ${acquired} and should continue next term.`,
+        `${first} has contributed positively ${during} this term and should keep building confidence with ${acquired} next term.`,
       );
     } else if (focus && input.missing.length) {
       stems.push(
-        `${first} shows good involvement ${inActivity} and should keep practising ${focus} with guidance.`,
-        `${first} participates willingly ${inActivity}; further practice of ${focus} will strengthen progress.`,
+        `${first} has shown good involvement ${inActivity} this term and should keep practising ${focus} next term.`,
+        `${first} has participated willingly ${inActivity} this term and should strengthen ${focus} with guidance next term.`,
       );
     } else {
       stems.push(
-        `${first} participates well ${inActivity} and shows a positive attitude towards learning new skills.`,
-        `${first} has shown good involvement ${inActivity} and contributes positively when given responsibility.`,
-        `${first} takes part ${inActivity} with interest and usually works well alongside fellow learners.`,
+        `${first} has participated well ${inActivity} this term and should keep learning new skills next term.`,
+        `${first} has shown good involvement ${inActivity} this term and should take more responsibility next term.`,
+        `${first} has taken part ${inActivity} with interest this term and should keep working well with classmates next term.`,
       );
     }
   } else if (band === "fair") {
     if (acquired) {
       stems.push(
-        `${first} is making fair progress ${inActivity}; continued practice of ${acquired} will help further.`,
-        `${first} shows developing interest ${inActivity} and is beginning to build ${acquired} more confidently.`,
-        `${first} participates ${inActivity} at times and should aim for greater consistency with ${acquired}.`,
+        `${first} has made fair progress ${inActivity} this term and should keep practising ${acquired} next term.`,
+        `${first} has shown developing interest ${inActivity} this term and should build ${acquired} more confidently next term.`,
+        `${first} has participated ${inActivity} only at times this term and should aim for greater consistency with ${acquired} next term.`,
       );
     } else if (focus) {
       stems.push(
-        `${first} is developing ${inActivity} and should keep practising ${focus} with regular teacher guidance.`,
-        `${first} needs steadier participation ${inActivity}, especially when working on ${focus} this term.`,
-        `${first} shows emerging interest ${inActivity}; more practice of ${focus} would build confidence.`,
+        `${first} has developed unevenly ${inActivity} this term and should keep practising ${focus} with guidance next term.`,
+        `${first} has needed steadier participation ${inActivity} this term, especially with ${focus}, and should improve next term.`,
+        `${first} has shown emerging interest ${inActivity} this term and should practise ${focus} to build confidence next term.`,
       );
     } else {
       stems.push(
-        `${first} is making fair progress ${inActivity} and would benefit from encouragement and steady practice.`,
-        `${first} takes part ${inActivity} and is encouraged to participate more actively with classmates.`,
-        `${first} shows developing interest ${inActivity} but needs to sustain effort throughout each session.`,
+        `${first} has made fair progress ${inActivity} this term and should keep practising with encouragement next term.`,
+        `${first} has taken part ${inActivity} this term and should participate more actively with classmates next term.`,
+        `${first} has shown developing interest ${inActivity} this term and should sustain effort throughout each session next term.`,
       );
     }
   } else if (band === "needs_improvement") {
     if (focus) {
       stems.push(
-        `${first} needs closer support ${inActivity}, especially with ${focus}, and regular guided practice.`,
-        `${first} should practise ${focus} more often ${inActivity} to build confidence and basic skills.`,
-        `${first} requires encouragement ${inActivity} to engage more willingly, particularly with ${focus}.`,
+        `${first} has needed closer support ${inActivity} this term, especially with ${focus}, and should practise regularly next term.`,
+        `${first} has practised ${focus} too little ${inActivity} this term and should build confidence through guided work next term.`,
+        `${first} has engaged reluctantly ${inActivity} this term and should work more willingly on ${focus} next term.`,
       );
     } else {
       stems.push(
-        `${first} needs closer encouragement and regular practice to build confidence ${inActivity} this term.`,
-        `${first} is encouraged to participate more willingly and practise basic skills ${during}.`,
-        `${first} should make a stronger effort ${inActivity} and make better use of the guidance offered.`,
+        `${first} has needed closer encouragement ${inActivity} this term and should practise regularly to build confidence next term.`,
+        `${first} has participated reluctantly ${during} this term and should practise basic skills more willingly next term.`,
+        `${first} has made a limited effort ${inActivity} this term and should make better use of guidance next term.`,
       );
     }
   } else {
     // weak
     if (focus) {
       stems.push(
-        `${first} needs careful support ${inActivity}, beginning with ${focus}, through short guided sessions.`,
-        `${first} requires patient coaching ${inActivity} so that ${focus} can develop with confidence.`,
-        `${first} is still finding ${where} challenging and should revisit ${focus} with close adult help.`,
+        `${first} has found ${where} challenging this term, especially ${focus}, and should revisit it with close help next term.`,
+        `${first} has needed careful support ${inActivity} this term, beginning with ${focus}, and should continue short guided sessions next term.`,
+        `${first} has struggled with ${focus} ${inActivity} this term and should build confidence through patient coaching next term.`,
       );
     } else {
       stems.push(
-        `${first} needs careful support and short, guided practice sessions to gain confidence ${inActivity}.`,
-        `${first} finds ${where} challenging at present and will benefit from patient, regular coaching.`,
-        `${first} requires close guidance ${inActivity} to build the foundations needed for progress.`,
+        `${first} has needed careful support ${inActivity} this term and should gain confidence through short guided practice next term.`,
+        `${first} has found ${where} challenging this term and should continue with patient, regular coaching next term.`,
+        `${first} has required close guidance ${inActivity} this term and should keep building foundations for progress next term.`,
       );
     }
   }
@@ -171,17 +168,17 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
     if (check.ok) return text;
   }
 
-  // Last resort: trim skills to one label and retry the first stem family briefly.
+  // Last resort: trim skills to one label and retry a compact past + forward sentence.
   const shortAcquired = skillsPhrase(input.acquired, 1);
   const shortFocus = skillsPhrase(input.missing.length ? input.missing : input.acquired, 1);
   const compact =
     band === "excellent" || band === "very_good" || band === "good"
       ? shortAcquired
-        ? `${first} has progressed well ${inActivity}, showing ${shortAcquired} this term.`
-        : `${first} has progressed well ${inActivity} with a positive attitude this term.`
+        ? `${first} has progressed well ${inActivity}, showing ${shortAcquired} this term, and should keep building next term.`
+        : `${first} has progressed well ${inActivity} this term and should keep that positive attitude next term.`
       : shortFocus
-        ? `${first} needs more practice ${inActivity}, especially with ${shortFocus}, this term.`
-        : `${first} needs more practice and support ${inActivity} this term.`;
+        ? `${first} has needed more practice ${inActivity}, especially with ${shortFocus}, and should continue next term.`
+        : `${first} has needed more practice and support ${inActivity} this term and should continue next term.`;
   const compactCheck = validateComment(compact, {
     minWords: Math.min(input.minWords, 10),
     maxWords: Math.max(input.maxWords, 22),

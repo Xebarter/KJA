@@ -88,6 +88,17 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
     { label: "Vacancies", value: counts.vacancies, href: "/admin/content/vacancies", icon: "fa-briefcase" },
   ];
 
+  const shortcuts = [
+    { href: "/admin/applications", label: "Applications", icon: "fa-file-signature", badge: newApplications || undefined },
+    { href: "/admin/stories", label: "Stories", icon: "fa-newspaper" },
+    { href: "/admin/students", label: "Students", icon: "fa-user-graduate" },
+    { href: "/admin/inbox/messages", label: "Inbox", icon: "fa-envelope", badge: unreadMessages || undefined },
+    { href: "/admin/team", label: "Team", icon: "fa-user-shield" },
+    { href: "/academics_office", label: "Academics", icon: "fa-graduation-cap", external: true },
+    { href: "/admissions_office", label: "Admissions", icon: "fa-building-user", external: true },
+    { href: "/accounts", label: "Accounts", icon: "fa-calculator", external: true },
+  ];
+
   return (
     <div className="dash">
       <section className="dash-hero">
@@ -97,18 +108,21 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
           <h1>{greeting(now)}</h1>
           <p>
             {todo.length
-              ? `Here's what needs your attention across the Kampala Junior Academy website today.`
-              : "Everything is up to date. Here's how the Kampala Junior Academy website is doing."}
+              ? "A few items need a look today. Start with the list on the right, or jump below."
+              : "You're up to date. Use the shortcuts below to manage the school website."}
           </p>
           <div className="dash-hero-actions">
             <NewStoryMenu disabled={stories.mode === "setup"} />
             <Link className="dash-btn dash-btn-glass" href="/admin/applications">
-              <i className="fa-solid fa-file-signature" aria-hidden="true" /> Review applications
+              <i className="fa-solid fa-file-signature" aria-hidden="true" /> Applications
+            </Link>
+            <Link className="dash-btn dash-btn-glass" href="/admin/students">
+              <i className="fa-solid fa-user-graduate" aria-hidden="true" /> Students
             </Link>
           </div>
         </div>
         <div className="dash-attention">
-          <p className="dash-attention-label">Needs your attention</p>
+          <p className="dash-attention-label">Needs attention</p>
           {todo.length ? (
             <ul>
               {todo.map((item) => (
@@ -122,7 +136,7 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
               ))}
             </ul>
           ) : (
-            <p className="dash-clear"><i className="fa-solid fa-circle-check" aria-hidden="true" /> You&apos;re all caught up.</p>
+            <p className="dash-clear"><i className="fa-solid fa-circle-check" aria-hidden="true" /> All caught up</p>
           )}
         </div>
       </section>
@@ -133,6 +147,24 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
           <span>Supabase isn&apos;t connected yet, so the public site is using the imported content file. Add your keys in <code>.env.local</code> to save changes.</span>
         </p>
       ) : null}
+
+      <nav className="dash-go" aria-label="Quick links">
+        {shortcuts.map((item) =>
+          item.external ? (
+            <a key={item.href} href={item.href} className="dash-go-link">
+              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+              <span>{item.label}</span>
+              {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
+            </a>
+          ) : (
+            <Link key={item.href} href={item.href} className="dash-go-link">
+              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+              <span>{item.label}</span>
+              {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
+            </Link>
+          ),
+        )}
+      </nav>
 
       <div className="admin-kpis">
         {kpis.map((kpi) => (

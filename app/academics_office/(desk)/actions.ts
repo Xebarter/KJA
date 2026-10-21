@@ -551,6 +551,13 @@ export async function setAssessments(formData: FormData): Promise<Result> {
       body: `Set ${name} for ${where} (${fresh.length} ${fresh.length === 1 ? "paper" : "papers"}).`,
     });
   }
+  // Older sittings may still be missing Other subjects that were added to the catalogue later.
+  try {
+    const { ensureOtherMarkbooks } = await import("@/lib/academics-other-papers");
+    await ensureOtherMarkbooks(opened.auth.supabase, termId, opened.auth.user.id);
+  } catch {
+    /* Page load also backfills; do not fail Set assessment on this. */
+  }
   refreshAcademics(`${ACADEMICS_BASE}/assessments`);
   const skipped = rows.length - fresh.length;
   if (!fresh.length) return { ok: skipped === 1 ? "That markbook is already set." : "Those markbooks are already set." };

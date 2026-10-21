@@ -56,22 +56,27 @@ describe("validators", () => {
     expect(countSentences("One. Two. Three.")).toBe(3);
   });
   it("requires first name in co-curricular comments", () => {
-    const ok = validateComment("Amina shows good involvement in co-curricular activities this term.", {
-      minWords: 8,
-      maxWords: 12,
+    const sample =
+      "Amina has shown good involvement in co-curricular activities this term and should keep that positive attitude next term.";
+    const ok = validateComment(sample, {
+      minWords: 12,
+      maxWords: 22,
       exactSentences: 1,
       requireFirstName: true,
       firstName: "Amina",
     });
     expect(ok.ok).toBe(true);
-    expect(containsFirstName(ok.ok ? "Amina shows good involvement in co-curricular activities this term." : "", "Amina")).toBe(true);
-    const bad = validateComment("Shows good involvement in co-curricular activities this term.", {
-      minWords: 8,
-      maxWords: 12,
-      exactSentences: 1,
-      requireFirstName: true,
-      firstName: "Amina",
-    });
+    expect(containsFirstName(sample, "Amina")).toBe(true);
+    const bad = validateComment(
+      "Has shown good involvement in co-curricular activities this term and should keep that positive attitude next term.",
+      {
+        minWords: 12,
+        maxWords: 22,
+        exactSentences: 1,
+        requireFirstName: true,
+        firstName: "Amina",
+      },
+    );
     expect(bad.ok).toBe(false);
   });
 });
@@ -177,11 +182,15 @@ describe("generateCommentsForReport", () => {
     expect(coco?.text).toBeTruthy();
     expect(containsFirstName(coco!.text!, "Amina")).toBe(true);
     expect(coco!.validation.ok).toBe(true);
+    expect(coco!.text).toMatch(/\b(has |excelled|participated)\b/i);
+    expect(coco!.text).toMatch(/\b(next term|moving forward|should keep|should continue)\b/i);
     const activityUnits = result.units.filter((unit) => unit.commentType === "cocurricular" && unit.activitySlot);
     expect(activityUnits.length).toBe(2);
     for (const unit of activityUnits) {
       expect(unit.text).toBeTruthy();
       expect(containsFirstName(unit.text!, "Amina")).toBe(true);
+      expect(unit.text).toMatch(/\b(has |excelled|participated|needed)\b/i);
+      expect(unit.text).toMatch(/\b(next term|moving forward|should keep|should continue|should practise)\b/i);
     }
   });
 
@@ -218,11 +227,16 @@ describe("generateCommentsForReport", () => {
   });
 
   it("curates co-curricular comments from the mark, activity, and skills", () => {
+    const pastCue = /\b(has |excelled|participated|shown|made |acquired|demonstrated|grown|stood out|needed)\b/i;
+    const forwardCue = /\b(next term|moving forward|should keep|should continue|should practise|should join|should take|should aim|should build|should develop|should cooperate|should follow|should sustain|should work|should contribute|should participate|should make)\b/i;
+
     const result = generateCommentsForReport(sampleInput(), config);
     const coco = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
     expect(coco?.validation.ok).toBe(true);
     expect(containsFirstName(coco!.text!, "Amina")).toBe(true);
     expect(coco?.text?.toLowerCase()).toMatch(/music|rhythm|ensemble|co-curricular/);
+    expect(coco?.text).toMatch(pastCue);
+    expect(coco?.text).toMatch(forwardCue);
     expect(coco?.explanation).toMatch(/mark and term skills|composed/i);
 
     const music = result.units.find((unit) => unit.activitySlot === 1);
@@ -230,10 +244,14 @@ describe("generateCommentsForReport", () => {
     expect(containsFirstName(music!.text!, "Amina")).toBe(true);
     expect(music?.text?.toLowerCase()).toContain("music");
     expect(music?.text?.toLowerCase()).toMatch(/rhythm|ensemble/);
+    expect(music?.text).toMatch(pastCue);
+    expect(music?.text).toMatch(forwardCue);
     expect(music?.explanation).toMatch(/composed|mark and skills/i);
 
     const sports = result.units.find((unit) => unit.activitySlot === 2);
     expect(sports?.text?.toLowerCase()).toContain("sports");
+    expect(sports?.text).toMatch(pastCue);
+    expect(sports?.text).toMatch(forwardCue);
     expect(sports?.text).not.toEqual(music?.text);
   });
 

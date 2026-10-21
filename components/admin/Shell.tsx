@@ -31,6 +31,7 @@ const ADMIN_PLACES: SidebarHit[] = [
   { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Admissions", icon: "fa-calculator" },
   { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Academics", icon: "fa-graduation-cap" },
   { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admissions", icon: "fa-user-shield" },
+  { id: "/admin/students", href: "/admin/students", title: "Students", meta: "Portal", icon: "fa-user-graduate" },
   { id: "/admin/inbox/messages", href: "/admin/inbox/messages", title: "Messages", meta: "Inbox", icon: "fa-envelope" },
   { id: "/admin/inbox/newsletter", href: "/admin/inbox/newsletter", title: "Newsletter", meta: "Inbox", icon: "fa-paper-plane" },
   { id: "/admin/images", href: "/admin/images", title: "Images", meta: "Website", icon: "fa-images" },
@@ -112,6 +113,7 @@ export function AdminShell({
     { href: "/admin/stories", label: "Stories" },
     { href: "/admin/applications", label: "Applications" },
     { href: "/admin/team", label: "Team" },
+    { href: "/admin/students", label: "Students" },
     { href: "/admin/images", label: "Images" },
     { href: "/admin/settings", label: "Site settings" },
     ...inboxLinks,
@@ -185,6 +187,7 @@ export function AdminShell({
             <span>Academics office</span>
           </a>
           <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
+          <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink>
 
           <hr className="admin-nav-rule" />
           {inboxLinks.map((link) => (
