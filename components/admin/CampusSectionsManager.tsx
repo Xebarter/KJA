@@ -118,7 +118,7 @@ export function CampusSectionsManager({ sections, campuses, editable }: { sectio
   };
 
   return (
-    <div className="app-page apl cps">
+    <div className="app-page apl cps cms-desk">
       <PageHeader
         kicker="Website content"
         icon="fa-shapes"
@@ -254,10 +254,10 @@ export function CampusSectionsManager({ sections, campuses, editable }: { sectio
                     </label>
                     <span className="cps-order" title="Display order">#{row.sort_order}</span>
                     {editHref ? (
-                      <Link className="story-icon" href={editHref} title="Edit section" aria-label={`Edit ${row.title}`}><i className="fa-solid fa-pen" /></Link>
+                      <Link className="story-icon" href={editHref} title="Edit section" data-act="Edit" aria-label={`Edit ${row.title}`}><i className="fa-solid fa-pen" /></Link>
                     ) : null}
                     {editable && row.id ? (
-                      <button type="button" className="story-icon is-danger" title="Delete section" aria-label={`Delete ${row.title}`} disabled={busy === row.id} onClick={() => remove(row)}>
+                      <button type="button" className="story-icon is-danger" title="Delete section" data-act="Delete" aria-label={`Delete ${row.title}`} disabled={busy === row.id} onClick={() => remove(row)}>
                         <i className="fa-regular fa-trash-can" />
                       </button>
                     ) : null}

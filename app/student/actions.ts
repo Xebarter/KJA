@@ -5,7 +5,19 @@ import { createClient } from "@/lib/supabase/server";
 import { getStudentSession } from "@/lib/student-portal";
 import { filterStudentChat } from "@/lib/student-chat-filter";
 
-type ActionResult = { error?: string; ok?: string; id?: string };
+type ActionResult = {
+  error?: string;
+  ok?: string;
+  id?: string;
+  message?: {
+    id: string;
+    conversation_id: string;
+    sender_student_id: string;
+    body: string;
+    flagged: boolean;
+    created_at: string;
+  };
+};
 
 async function requireStudent() {
   const { user, supabase } = await getStudentSession();
@@ -24,6 +36,12 @@ async function requireStudent() {
 export async function signOutStudent() {
   const supabase = await createClient();
   if (supabase) await supabase.auth.signOut();
+  try {
+    const { clearStaffRoleCookie } = await import("@/lib/office");
+    await clearStaffRoleCookie();
+  } catch {
+    /* cookie clear is best-effort */
+  }
 }
 
 export async function markStudentNoticeRead(ids: string[]): Promise<ActionResult> {
@@ -74,6 +92,7 @@ export async function startStudentChat(peerStudentId: string): Promise<ActionRes
   const existing = await auth.supabase
     .from("student_conversations")
     .select("id")
+    .eq("kind", "dm")
     .eq("student_low_id", low)
     .eq("student_high_id", high)
     .maybeSingle();
@@ -81,7 +100,7 @@ export async function startStudentChat(peerStudentId: string): Promise<ActionRes
 
   const { data, error } = await auth.supabase
     .from("student_conversations")
-    .insert({ student_low_id: low, student_high_id: high })
+    .insert({ kind: "dm", student_low_id: low, student_high_id: high })
     .select("id")
     .maybeSingle();
   if (error) return { error: error.message };
@@ -122,33 +141,61 @@ export async function sendStudentMessage(conversationId: string, body: string): 
       body: text,
       flagged: check.flagged,
     })
-    .select("id")
+    .select("id, conversation_id, sender_student_id, body, flagged, created_at")
     .maybeSingle();
   if (error) return { error: error.message };
 
   const { data: conv } = await auth.supabase
     .from("student_conversations")
-    .select("student_low_id, student_high_id")
+    .select("kind, student_low_id, student_high_id, class_code, stream")
     .eq("id", conversationId)
     .maybeSingle();
   if (conv) {
-    const peerId = conv.student_low_id === auth.student.id ? conv.student_high_id : conv.student_low_id;
-    const { data: peer } = await auth.supabase.from("students").select("profile_id, preferred_name, full_name").eq("id", peerId).maybeSingle();
-    if (peer?.profile_id) {
-      const from = auth.student.preferred_name || auth.student.full_name || "A classmate";
-      await auth.supabase.rpc("notify_user", {
-        p_user_id: peer.profile_id,
-        p_title: `Message from ${from}`,
-        p_body: text.slice(0, 120),
-        p_href: `/student/messages?c=${conversationId}`,
-        p_kind: "messages",
-      });
+    const from = auth.student.preferred_name || auth.student.full_name || "A classmate";
+    if (conv.kind === "class_group") {
+      const { data: peers } = await auth.supabase
+        .from("students")
+        .select("profile_id")
+        .eq("status", "active")
+        .eq("class_code", conv.class_code)
+        .eq("stream", conv.stream || "")
+        .neq("id", auth.student.id)
+        .not("profile_id", "is", null)
+        .limit(40);
+      for (const peer of peers || []) {
+        if (!peer.profile_id) continue;
+        await auth.supabase.rpc("notify_user", {
+          p_user_id: peer.profile_id,
+          p_title: `${from} in class group`,
+          p_body: text.slice(0, 120),
+          p_href: `/student/messages?c=${conversationId}`,
+          p_kind: "messages",
+        });
+      }
+    } else {
+      const peerId = conv.student_low_id === auth.student.id ? conv.student_high_id : conv.student_low_id;
+      if (peerId) {
+        const { data: peer } = await auth.supabase
+          .from("students")
+          .select("profile_id, preferred_name, full_name")
+          .eq("id", peerId)
+          .maybeSingle();
+        if (peer?.profile_id) {
+          await auth.supabase.rpc("notify_user", {
+            p_user_id: peer.profile_id,
+            p_title: `Message from ${from}`,
+            p_body: text.slice(0, 120),
+            p_href: `/student/messages?c=${conversationId}`,
+            p_kind: "messages",
+          });
+        }
+      }
     }
   }
 
-  revalidatePath("/student/messages");
+  // Realtime delivers the row to open clients; skip full-page revalidate for snappy chat.
   revalidatePath("/student");
-  return { ok: "Sent", id: data?.id };
+  return { ok: "Sent", id: data?.id, message: data || undefined };
 }
 
 export async function changeStudentPassword(formData: FormData): Promise<ActionResult> {

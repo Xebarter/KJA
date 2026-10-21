@@ -815,7 +815,7 @@ function previewHref(classCode: string, stream: string) {
 async function fillDraftComments(
   auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
   input: { classCode: string; stream: string; termId: string },
-  options: { onlyBlank?: boolean } = {},
+  options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
 ) {
   try {
     return await generateClassReportComments(auth.supabase, input, auth.user.id, options);
@@ -838,7 +838,7 @@ async function approveDraftCards(
   const waiting = await classMarkbooksReady(auth.supabase, input);
   if (waiting) return { error: waiting };
   await prepareClassReports(auth.supabase, input);
-  await fillDraftComments(auth, input, { onlyBlank: true });
+  await fillDraftComments(auth, input, { onlyBlank: true, skipTrail: true });
   const section = classSection(input.classCode);
   const { data: bands, error: bandError } = await auth.supabase.from("grade_bands").select("label, min_score, max_score, points, sort_order, section").eq("section", section).order("sort_order");
   if (bandError) return { error: bandError.message };
@@ -894,7 +894,9 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   const reportTitle = text(formData, "report_title", 80);
   try {
     const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets, reportTitle });
-    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream });
+    // Only fill blank remarks, and skip provenance/audit writes on prepare — that trail is the slow path.
+    // Re-prepare after marks change stays fast; use "Regenerate comments" when a full rewrite is needed.
+    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream }, { onlyBlank: true, skipTrail: true });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, {
       kind: "report",
       body: `Prepared report cards for ${classLabel(classCode, stream)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
@@ -907,10 +909,11 @@ export async function prepareReports(formData: FormData): Promise<Result> {
     const parts = [
       result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}` : null,
       comments.succeeded ? `filled comments on ${comments.succeeded}` : null,
+      comments.skipped ? `left ${comments.skipped} with existing remarks` : null,
     ].filter(Boolean);
     const note = comments.errors[0]?.messages[0];
     return {
-      ok: `${parts.join(" and ")}.${note && !comments.succeeded ? ` ${note}` : ""}`.trim(),
+      ok: `${parts.join(", ")}.${note && !comments.succeeded ? ` ${note}` : ""}`.trim(),
       href,
     };
   } catch (error) {

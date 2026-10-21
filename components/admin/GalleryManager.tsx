@@ -192,7 +192,7 @@ export function GalleryManager({ items, editable }: { items: GalleryItem[]; edit
   ];
 
   return (
-    <div className="app-page apl pg-admin agal">
+    <div className="app-page apl pg-admin agal cms-desk">
       {fileInput}
       <PageHeader
         kicker="Events & gallery"
@@ -335,10 +335,10 @@ export function GalleryManager({ items, editable }: { items: GalleryItem[]; edit
                       <small>{isHidden ? "Hidden from the website" : "Live in the gallery"}</small>
                     </div>
                     <div className="story-actions agal-actions">
-                      <button type="button" className="story-icon" title="Move earlier" disabled={!canReorder || position === 0 || pending} onClick={() => move(position, -1)}>
+                      <button type="button" className="story-icon" title="Move earlier" data-act="Earlier" disabled={!canReorder || position === 0 || pending} onClick={() => move(position, -1)}>
                         <i className="fa-solid fa-arrow-left" /><span className="visually-hidden">Move earlier</span>
                       </button>
-                      <button type="button" className="story-icon" title="Move later" disabled={!canReorder || position === rows.length - 1 || pending} onClick={() => move(position, 1)}>
+                      <button type="button" className="story-icon" title="Move later" data-act="Later" disabled={!canReorder || position === rows.length - 1 || pending} onClick={() => move(position, 1)}>
                         <i className="fa-solid fa-arrow-right" /><span className="visually-hidden">Move later</span>
                       </button>
                       <label className="story-switch" title={isHidden ? "Show on the website" : "Hide from the website"}>
@@ -347,9 +347,9 @@ export function GalleryManager({ items, editable }: { items: GalleryItem[]; edit
                         <span className="visually-hidden">Live on the website</span>
                       </label>
                       {editHref ? (
-                        <Link className="story-icon" href={editHref} title="Edit caption or image"><i className="fa-solid fa-pen" /></Link>
+                        <Link className="story-icon" href={editHref} title="Edit caption or image" data-act="Edit"><i className="fa-solid fa-pen" /></Link>
                       ) : null}
-                      <button type="button" className="story-icon is-danger" title="Remove photo" disabled={!row.id || pending} onClick={() => remove(row)}>
+                      <button type="button" className="story-icon is-danger" title="Remove photo" data-act="Remove" disabled={!row.id || pending} onClick={() => remove(row)}>
                         <i className="fa-regular fa-trash-can" />
                       </button>
                     </div>

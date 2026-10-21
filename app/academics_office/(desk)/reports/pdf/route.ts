@@ -1,7 +1,8 @@
-import { ACADEMICS_BASE, loadCurrentTerm, requireAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { ACADEMICS_BASE, classSection, loadCurrentTerm, requireAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
 import { pdfResponse } from "@/lib/accounts-pdf";
-import { loadStreamReportCards } from "@/lib/report-cards-pdf";
-import { buildReportCardsPdfFromPrintPack } from "@/lib/report-cards-print-pdf";
+import { loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
+import { buildReportPrintHtml } from "@/lib/report-cards-print-html";
+import { buildReportCardsPdfFromHtml } from "@/lib/report-cards-print-pdf";
 import { isClassCode } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
@@ -26,12 +27,14 @@ export async function GET(request: Request) {
       termLabel: termPack.term.label,
     });
     if (!cards.length) return new Response("Generate the report cards before downloading them.", { status: 404 });
-    const bytes = await buildReportCardsPdfFromPrintPack({
+    const photos = await loadReportCardPhotos(cards);
+    const html = await buildReportPrintHtml({
       origin: url.origin,
-      cookieHeader: request.headers.get("cookie"),
-      classCode,
-      stream,
+      nursery: classSection(classCode) === "nursery",
+      cards,
+      photos,
     });
+    const bytes = await buildReportCardsPdfFromHtml(html);
     return pdfResponse(bytes, `${classCode}-${stream || "class"}-report-cards.pdf`, false);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't build the report cards.";

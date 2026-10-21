@@ -115,4 +115,10 @@ export async function markNoticeRead(formData: FormData) {
 export async function signOutAccount() {
   const { supabase } = await getSessionUser();
   if (supabase) await supabase.auth.signOut();
+  try {
+    const { clearStaffRoleCookie } = await import("@/lib/office");
+    await clearStaffRoleCookie();
+  } catch {
+    /* cookie clear is best-effort */
+  }
 }

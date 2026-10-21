@@ -109,7 +109,7 @@ export default async function CollectionPage({
   if (table === "alumni_profiles") return <AlumniProfilesManager profiles={rows.map(toAlumniProfileRow)} editable={supabaseConfigured()} />;
   if (table === "alumni_photos") return <AlumniPhotosManager photos={rows.map(toAlumniPhotoRow)} editable={supabaseConfigured()} />;
   return (
-    <div>
+    <div className="cms-desk">
       <div className="admin-page-title">
         <div>
           <h1>{resource.label}</h1>

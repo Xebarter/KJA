@@ -2,9 +2,10 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import "./process-status.css";
 
-const SIZE = 152;
-const STROKE = 10;
+const SIZE = 108;
+const STROKE = 8;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRC = 2 * Math.PI * RADIUS;
 
@@ -39,6 +40,7 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
 
     if (active) {
       const started = performance.now();
+      let painted = 0;
       setLeaving(false);
       const climb = (now: number) => {
         if (cancelled) return;
@@ -46,9 +48,12 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
         // Fast early climb, then a slow creep toward 99 so a long job never looks frozen.
         const next = waited <= 0 ? 0 : reduce
           ? Math.min(90, waited * 36)
-          : 70 * (1 - Math.exp(-waited / 1.1)) + 29 * (1 - Math.exp(-waited / 12));
+          : 68 * (1 - Math.exp(-waited / 0.85)) + 31 * (1 - Math.exp(-waited / 14));
         valueRef.current = next;
-        setPct(next);
+        if (now - painted > (reduce ? 160 : 70) || next >= 99) {
+          painted = now;
+          setPct(next);
+        }
         if (next >= 4 && !openRef.current) {
           openRef.current = true;
           setCaption(labelRef.current);
@@ -101,15 +106,6 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
     };
   }, [active]);
 
-  useEffect(() => {
-    if (!open) return;
-    const previous = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previous;
-    };
-  }, [open]);
-
   if (!mounted || !open) return null;
 
   const rounded = Math.min(100, Math.round(pct));
@@ -129,12 +125,11 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
           <svg viewBox={`0 0 ${SIZE} ${SIZE}`} aria-hidden="true">
             <defs>
               <linearGradient id={gradId} x1="18%" y1="0%" x2="82%" y2="100%">
-                <stop offset="0%" stopColor="#7de7a4" />
-                <stop offset="48%" stopColor="#1f9d55" />
-                <stop offset="100%" stopColor="#0d6b38" />
+                <stop offset="0%" stopColor="#8fd9a8" />
+                <stop offset="55%" stopColor="#1c9a52" />
+                <stop offset="100%" stopColor="#127238" />
               </linearGradient>
             </defs>
-            <circle className="proc-halo" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} />
             <circle className="proc-track" cx={SIZE / 2} cy={SIZE / 2} r={RADIUS} />
             <circle
               className="proc-arc"

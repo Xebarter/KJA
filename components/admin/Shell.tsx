@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
+import { AdminProcess } from "@/components/admin/AdminProcess";
 import { searchAdmin } from "@/app/admin/(panel)/search/actions";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { contentGroups, resourceLabel } from "@/lib/admin";
@@ -252,6 +253,7 @@ export function AdminShell({
       </aside>
 
       <div className="admin-main">{children}</div>
+      <AdminProcess />
     </div>
   );
 }

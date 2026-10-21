@@ -1,4 +1,5 @@
 import { StoriesManager } from "@/components/admin/Stories";
+import "./stories.css";
 import { STORY_SOURCE_KEYS, type StorySource } from "@/lib/newsroom";
 import { loadAdminStories } from "@/lib/story-admin-server";
 

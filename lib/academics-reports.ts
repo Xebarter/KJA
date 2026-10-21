@@ -180,7 +180,9 @@ export async function prepareClassReports(
     supabase
       .from("report_cards")
       .select("id, student_id, status, class_teacher_comment, head_comment, conduct")
-      .eq("term_id", input.termId),
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", stream),
   ]);
 
   if (subjects.error) throw new Error(subjects.error.message);
@@ -270,13 +272,24 @@ export async function prepareClassReports(
     skills: row.skills,
   }]));
   const opened = new Set(attendanceRows.map((row) => row.attended_on));
+  const presentByPupil = new Map<string, number>();
+  for (const row of attendanceRows) {
+    if (row.status !== "present" && row.status !== "late") continue;
+    presentByPupil.set(row.student_id, (presentByPupil.get(row.student_id) || 0) + 1);
+  }
+  const papersBySubject = new Map<string, Assessment[]>();
+  for (const paper of papers) {
+    const list = papersBySubject.get(paper.subject_id) || [];
+    list.push(paper);
+    papersBySubject.set(paper.subject_id, list);
+  }
   const teacherName = staffName(teacher.data?.teaching_staff);
   const existing = new Map(((cards.data || []) as ExistingCard[]).map((card) => [card.student_id, card]));
   const comments = new Map(lineRows.map((line) => [`${line.report_card_id}:${line.subject_id}`, line.teacher_comment]));
 
   const results = roster.map((pupil) => {
     const lines = academic.map((subject) => {
-      const mine = papers.filter((paper) => paper.subject_id === subject.id);
+      const mine = papersBySubject.get(subject.id) || [];
       const parts = plan.flatMap((set) => {
         const sitting = mine.filter((paper) => assessmentSetKey(paper.kind, paper.name) === set.key);
         if (!sitting.length) return [];
@@ -291,9 +304,7 @@ export async function prepareClassReports(
       return { subject, percent, grade, parts };
     }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null; parts: { key: string; label: string; share: number; score: number | null; sort: number; weight: number }[] } => Boolean(line));
 
-    const present = attendanceRows.filter(
-      (row) => row.student_id === pupil.id && (row.status === "present" || row.status === "late"),
-    ).length;
+    const present = presentByPupil.get(pupil.id) || 0;
     const scored = lines.filter((line) => line.percent !== null);
     const overall = scored.length
       ? Math.round((scored.reduce((sum, line) => sum + (line.percent ?? 0), 0) / scored.length) * 10) / 10
@@ -394,7 +405,6 @@ export async function prepareClassReports(
     stale.length
       ? deleteChunks(cardIds, (slice) => supabase.from("report_lines").delete().in("report_card_id", slice).in("subject_id", stale))
       : Promise.resolve(),
-    deleteChunks(cardIds, (slice) => supabase.from("report_line_parts").delete().in("report_card_id", slice)),
   ].map(async (job) => {
     try {
       await job;
@@ -402,12 +412,16 @@ export async function prepareClassReports(
       throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Reports could not be saved."));
     }
   }));
-  if (parts.length) {
-    try {
-      await writeChunks(parts, (slice) => supabase.from("report_line_parts").insert(slice));
-    } catch (error) {
-      throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Report parts could not be saved."));
+  try {
+    // Clear then upsert so a changed sitting mix cannot leave orphan set keys behind.
+    await deleteChunks(cardIds, (slice) => supabase.from("report_line_parts").delete().in("report_card_id", slice));
+    if (parts.length) {
+      await writeChunks(parts, (slice) =>
+        supabase.from("report_line_parts").upsert(slice, { onConflict: "report_card_id,subject_id,set_key" }),
+      );
     }
+  } catch (error) {
+    throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Report parts could not be saved."));
   }
 
   if (cocurricular.length) {
@@ -429,7 +443,7 @@ export async function prepareClassReports(
       const id = cardId.get(row.pupil.id);
       if (!id) continue;
       cocurricular.forEach((subject, index) => {
-        const mine = papers.filter((paper) => paper.subject_id === subject.id);
+        const mine = papersBySubject.get(subject.id) || [];
         const partsFor = plan.flatMap((set) => {
           const sitting = mine.filter((paper) => assessmentSetKey(paper.kind, paper.name) === set.key);
           if (!sitting.length) return [];
@@ -596,16 +610,31 @@ function partsSchemaMessage(message: string) {
   return message;
 }
 
+async function mapPool<T>(items: T[], concurrency: number, work: (item: T) => Promise<void>) {
+  if (!items.length) return;
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      await work(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function writeChunks<T>(
   rows: T[],
   write: (slice: T[]) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
 ) {
   const saved: Record<string, unknown>[] = [];
-  for (let index = 0; index < rows.length; index += 200) {
-    const { data, error } = await write(rows.slice(index, index + 200));
+  const slices: T[][] = [];
+  for (let index = 0; index < rows.length; index += 250) slices.push(rows.slice(index, index + 250));
+  await mapPool(slices, 4, async (slice) => {
+    const { data, error } = await write(slice);
     if (error) throw new Error(error.message);
     if (Array.isArray(data)) saved.push(...(data as Record<string, unknown>[]));
-  }
+  });
   return saved;
 }
 
@@ -613,10 +642,12 @@ async function deleteChunks(
   ids: string[],
   remove: (slice: string[]) => PromiseLike<{ error: { message: string } | null }>,
 ) {
-  for (let index = 0; index < ids.length; index += 80) {
-    const { error } = await remove(ids.slice(index, index + 80));
+  const slices: string[][] = [];
+  for (let index = 0; index < ids.length; index += 100) slices.push(ids.slice(index, index + 100));
+  await mapPool(slices, 4, async (slice) => {
+    const { error } = await remove(slice);
     if (error) throw new Error(error.message);
-  }
+  });
 }
 
 function staffName(value: unknown) {

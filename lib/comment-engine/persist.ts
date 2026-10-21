@@ -214,7 +214,7 @@ export async function generateClassReportComments(
   supabase: SupabaseClient,
   input: { termId: string; classCode: string; stream: string },
   actorId: string,
-  options: { onlyBlank?: boolean } = {},
+  options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
 ): Promise<{ processed: number; succeeded: number; failed: number; skipped: number; errors: { reportId: string; messages: string[] }[] }> {
   const { data: cards, error } = await supabase
     .from("report_cards")
@@ -263,6 +263,7 @@ export async function generateClassReportComments(
   const activityWrites: Record<string, unknown>[] = [];
   const provenance: Record<string, unknown>[] = [];
   const audits: Record<string, unknown>[] = [];
+  const recordTrail = !options.skipTrail;
   let skipped = 0;
   let succeeded = 0;
   let failed = 0;
@@ -324,8 +325,10 @@ export async function generateClassReportComments(
         });
       }
       if (unit.commentType === "subject_teacher" && !unit.text && unit.status === "draft") continue;
-      provenance.push(provenanceRow(reportId, actorId, result, unit, now));
-      audits.push(auditRow(reportId, actorId, unit));
+      if (recordTrail) {
+        provenance.push(provenanceRow(reportId, actorId, result, unit, now));
+        audits.push(auditRow(reportId, actorId, unit));
+      }
       if (unit.status === "failed") messages.push(`${unit.commentType}: ${unit.explanation}`);
     }
     if (messages.length) {
@@ -334,24 +337,24 @@ export async function generateClassReportComments(
     } else succeeded += 1;
   }
 
-  if (cardWrites.length) {
-    await writeRows(cardWrites, (slice) => supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }));
-  }
-  if (lineWrites.length) {
-    await writeRows(lineWrites, (slice) => supabase.from("report_lines").upsert(slice, { onConflict: "report_card_id,subject_id" }));
-  }
-  if (activityWrites.length) {
-    try {
-      await writeRows(activityWrites, (slice) => supabase.from("report_card_activities").upsert(slice, { onConflict: "report_card_id,slot" }));
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (/comment|42703/i.test(message)) {
-        throw new Error(`${message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
-      }
-      throw error;
-    }
-  }
-  await replaceProvenance(supabase, writtenIds, provenance, audits);
+  await Promise.all([
+    cardWrites.length
+      ? writeRows(cardWrites, (slice) => supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }))
+      : Promise.resolve(),
+    lineWrites.length
+      ? writeRows(lineWrites, (slice) => supabase.from("report_lines").upsert(slice, { onConflict: "report_card_id,subject_id" }))
+      : Promise.resolve(),
+    activityWrites.length
+      ? writeRows(activityWrites, (slice) => supabase.from("report_card_activities").upsert(slice, { onConflict: "report_card_id,slot" })).catch((error) => {
+          const message = error instanceof Error ? error.message : String(error);
+          if (/comment|42703/i.test(message)) {
+            throw new Error(`${message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
+          }
+          throw error;
+        })
+      : Promise.resolve(),
+  ]);
+  if (recordTrail) await replaceProvenance(supabase, writtenIds, provenance, audits);
 
   return { processed: drafts.length, succeeded, failed, skipped, errors };
 }
@@ -450,16 +453,31 @@ function groupBy<T>(rows: T[], key: (row: T) => string) {
   return grouped;
 }
 
+async function mapPool<T>(items: T[], concurrency: number, work: (item: T) => Promise<void>) {
+  if (!items.length) return;
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      await work(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
 async function fetchIn<T>(
   ids: string[],
   query: (slice: string[]) => PromiseLike<{ data: unknown; error: { message: string } | null }>,
 ) {
   const rows: T[] = [];
-  for (let index = 0; index < ids.length; index += 80) {
-    const { data, error } = await query(ids.slice(index, index + 80));
+  const slices: string[][] = [];
+  for (let index = 0; index < ids.length; index += 100) slices.push(ids.slice(index, index + 100));
+  await mapPool(slices, 4, async (slice) => {
+    const { data, error } = await query(slice);
     if (error) throw new Error(error.message);
     rows.push(...((data || []) as T[]));
-  }
+  });
   return rows;
 }
 
@@ -483,10 +501,12 @@ async function writeRows(
   rows: Record<string, unknown>[],
   write: (slice: Record<string, unknown>[]) => PromiseLike<{ error: { message: string } | null }>,
 ) {
-  for (let index = 0; index < rows.length; index += 150) {
-    const { error } = await write(rows.slice(index, index + 150));
+  const slices: Record<string, unknown>[][] = [];
+  for (let index = 0; index < rows.length; index += 200) slices.push(rows.slice(index, index + 200));
+  await mapPool(slices, 4, async (slice) => {
+    const { error } = await write(slice);
     if (error) throw new Error(error.message);
-  }
+  });
 }
 
 /** Partial unique indexes cannot be used as an upsert target, so replace the rows for this run in bulk. */
@@ -498,25 +518,14 @@ async function replaceProvenance(
 ) {
   const ids = [...new Set(reportIds)];
   if (!ids.length || !rows.length) return;
-  const subjectIds = [...new Set(rows.map((row) => row.subject_id).filter((id): id is string => typeof id === "string" && id.length > 0))];
-  for (let index = 0; index < ids.length; index += 80) {
-    const slice = ids.slice(index, index + 80);
-    const narrative = await supabase
-      .from("generated_report_comments")
-      .delete()
-      .in("report_card_id", slice)
-      .in("comment_type", ["class_teacher", "headteacher", "cocurricular"]);
-    if (narrative.error) throw new Error(narrative.error.message);
-    if (subjectIds.length) {
-      const subjects = await supabase
-        .from("generated_report_comments")
-        .delete()
-        .in("report_card_id", slice)
-        .eq("comment_type", "subject_teacher")
-        .in("subject_id", subjectIds);
-      if (subjects.error) throw new Error(subjects.error.message);
-    }
-  }
-  await writeRows(rows, (slice) => supabase.from("generated_report_comments").insert(slice));
-  if (audits.length) await writeRows(audits, (slice) => supabase.from("comment_audit_logs").insert(slice));
+  const slices: string[][] = [];
+  for (let index = 0; index < ids.length; index += 100) slices.push(ids.slice(index, index + 100));
+  await mapPool(slices, 4, async (slice) => {
+    const cleared = await supabase.from("generated_report_comments").delete().in("report_card_id", slice);
+    if (cleared.error) throw new Error(cleared.error.message);
+  });
+  await Promise.all([
+    writeRows(rows, (slice) => supabase.from("generated_report_comments").insert(slice)),
+    audits.length ? writeRows(audits, (slice) => supabase.from("comment_audit_logs").insert(slice)) : Promise.resolve(),
+  ]);
 }

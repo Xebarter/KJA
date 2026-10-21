@@ -102,7 +102,7 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
   ];
 
   return (
-    <div className="app-page apl pg-admin">
+    <div className="app-page apl pg-admin cms-desk">
       <PageHeader
         kicker="Website content"
         icon="fa-file-lines"
@@ -267,6 +267,7 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
                         </label>
                         <a
                           className={`story-icon${row.published ? "" : " is-off"}`}
+                          data-act="View"
                           href={row.published ? path : undefined}
                           target="_blank"
                           rel="noreferrer"
@@ -276,7 +277,7 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
                           <i className="fa-solid fa-arrow-up-right-from-square" />
                         </a>
                         {editHref ? (
-                          <Link className="story-icon" href={editHref} title="Edit page">
+                          <Link className="story-icon" href={editHref} title="Edit page" data-act="Edit">
                             <i className="fa-solid fa-pen" />
                           </Link>
                         ) : null}

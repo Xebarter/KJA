@@ -79,8 +79,13 @@ export type StudentMessage = {
 
 export type StudentConversation = {
   id: string;
-  student_low_id: string;
-  student_high_id: string;
+  kind: "dm" | "class_group";
+  student_low_id: string | null;
+  student_high_id: string | null;
+  class_code?: string | null;
+  stream?: string | null;
+  title?: string;
+  member_count?: number;
   peer: StudentClassmate;
   last?: StudentMessage;
   unread: number;

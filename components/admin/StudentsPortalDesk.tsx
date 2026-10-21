@@ -8,6 +8,7 @@ import {
   revokeAdminStudentLogin,
 } from "@/app/admin/(panel)/students/actions";
 import { StudentFace } from "@/components/StudentFace";
+import { noteProcess } from "@/lib/process-signal";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
 
 export type PortalStudentRow = {
@@ -78,8 +79,10 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
   function run(
     task: () => Promise<{ error?: string; ok?: string; email?: string; password?: string; studentId?: string }>,
     name?: string,
+    label = "Saving",
   ) {
     setNotice(null);
+    noteProcess(label);
     start(async () => {
       const result = await task();
       setBusyId(null);
@@ -256,7 +259,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
                           onClick={() => {
                             if (!confirm(`Revoke the portal login for ${row.full_name}?`)) return;
                             setBusyId(row.id);
-                            run(() => revokeAdminStudentLogin(row.id));
+                            run(() => revokeAdminStudentLogin(row.id), undefined, "Revoking login");
                           }}
                         >
                           <i className="fa-solid fa-user-slash" aria-hidden="true" />
@@ -269,7 +272,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
                             event.preventDefault();
                             const form = new FormData(event.currentTarget);
                             setBusyId(row.id);
-                            run(() => issueAdminStudentLogin(row.id, form), row.full_name);
+                            run(() => issueAdminStudentLogin(row.id, form), row.full_name, "Issuing login");
                           }}
                         >
                           <input
@@ -337,7 +340,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
                 const result = await createStudentForPortal(data);
                 if (!result.error) form.reset();
                 return result;
-              }, name || "Student");
+              }, name || "Student", "Creating the student");
             }}
           >
             <label className="ofc-field">

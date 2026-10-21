@@ -96,8 +96,9 @@ export async function saveSettings(formData: FormData) {
     payload[key] = clean(value);
   }
   payload.popup_enabled = formData.get("popup_enabled") === "on";
-  const { error } = await supabase.from("site_settings").upsert(payload);
+  const { data: saved, error } = await supabase.from("site_settings").update(payload).eq("id", 1).select("id");
   if (error) throw new Error(error.message);
+  if (!saved?.length) throw new Error("Site settings could not be saved.");
   refreshSite();
 }
 
@@ -146,8 +147,9 @@ export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
     const current = list[target.index] || {};
     const key = field === "hero_slides" ? "image_url" : "icon";
     list[target.index] = { ...current, [key]: imageUrl };
-    const { error: saveError } = await supabase.from("site_settings").upsert({ id: 1, [field]: list });
+    const { data: saved, error: saveError } = await supabase.from("site_settings").update({ [field]: list }).eq("id", 1).select("id");
     if (saveError) throw new Error(saveError.message);
+    if (!saved?.length) throw new Error("Site settings could not be saved.");
     refreshSite();
     revalidatePath("/admin");
     return;

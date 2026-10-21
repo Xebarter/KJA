@@ -1,0 +1,141 @@
+/* Shared polish for the CMS list desks. Scoped so applications and messages keep their own cards. */
+
+.cms-desk > .admin-hero {
+  margin-bottom: 1rem;
+  padding: 0 0 .15rem;
+  border-radius: 0;
+  color: #19232b;
+  background: transparent;
+  box-shadow: none;
+}
+.cms-desk > .admin-hero::before,
+.cms-desk > .admin-hero::after { display: none; }
+.cms-desk .admin-hero h1 {
+  font-family: var(--font-yantramanav), "Yantramanav", sans-serif;
+  font-weight: 700;
+  letter-spacing: -.02em;
+  color: #19232b;
+}
+.cms-desk .admin-hero-kicker { letter-spacing: .08em; color: #8a6a12; }
+.cms-desk .admin-hero-lede,
+.cms-desk .admin-hero-lede strong { color: #5c564c; }
+.cms-desk .admin-hero-btn {
+  height: 36px;
+  padding: 0 .9rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 8px;
+  background: #fff;
+  color: #19232b;
+}
+.cms-desk .admin-hero-btn:hover { border-color: #d5cfc3; background: #faf8f4; color: #19232b; }
+.cms-desk .admin-hero-btn i { color: #5c564c; }
+.cms-desk .admin-hero-btn.is-primary { border-color: #19232b; background: #19232b; color: #fff; }
+.cms-desk .admin-hero-btn.is-primary i { color: #fff; }
+.cms-desk .admin-hero-btn.is-primary:hover { border-color: #24303a; background: #24303a; color: #fff; }
+
+.cms-desk .apl-pipeline {
+  border: 1px solid #e6e1d6;
+  border-radius: 12px;
+  background: #fff;
+  backdrop-filter: none;
+}
+.cms-desk .apl-pipeline-head,
+.cms-desk .apl-pipeline-figures dt,
+.cms-desk .admin-hero-aside p,
+.cms-desk .pg-mix-foot { color: #8a8174; }
+.cms-desk .apl-pipeline-head strong,
+.cms-desk .apl-pipeline-figures dd,
+.cms-desk .admin-hero-aside h2,
+.cms-desk .admin-hero-aside h3,
+.cms-desk .admin-hero-aside strong { color: #19232b; }
+.cms-desk .pg-mix-foot { border-top-color: #efeae2; }
+.cms-desk .admin-pipeline.is-dark { background: #f3efe8; }
+.cms-desk .agal-mosaic.is-empty { border-color: #e6e1d6; background: #faf8f4; color: #8a8174; }
+
+.cms-desk .admin-kpis {
+  gap: 0;
+  margin-bottom: 1rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 12px;
+  background: #fff;
+  overflow: hidden;
+}
+.cms-desk .admin-kpi {
+  border: 0;
+  border-left: 1px solid #efeae2;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  transform: none;
+}
+.cms-desk .admin-kpi:first-child { border-left: 0; }
+.cms-desk .admin-kpi::before { display: none; }
+.cms-desk .admin-kpi:hover,
+.cms-desk a.admin-kpi:hover,
+.cms-desk button.admin-kpi:hover {
+  transform: none;
+  box-shadow: none;
+  background: #faf8f4;
+}
+.cms-desk .admin-kpi.is-active {
+  background: #f7f4ee;
+  box-shadow: inset 0 -2px 0 #c9a227;
+}
+.cms-desk .admin-kpi.is-active .admin-kpi-icon { background: #fbf3df; color: #8a6a12; }
+.cms-desk .admin-kpi-go { display: none; }
+.cms-desk .admin-kpi-hint,
+.cms-desk .admin-kpi-note { color: #8a8174; }
+
+.cms-desk .apl-card,
+.cms-desk .admin-card {
+  border: 1px solid #e6e1d6;
+  border-top: 3px solid #c9a227;
+  border-radius: 12px;
+  box-shadow: none;
+}
+.cms-desk .app-table tbody tr { transition: background .15s ease; }
+.cms-desk .app-table tbody tr:hover td { background: #fcfbf8; }
+
+.cms-desk .story-actions,
+.cms-desk .tch-actions,
+.cms-desk .alx-photo-actions,
+.cms-desk .cps-item-foot,
+.cms-desk .cpa-card-foot { flex-wrap: wrap; }
+.cms-desk .story-actions .story-icon,
+.cms-desk .tch-actions > a.story-icon,
+.cms-desk .cpa-card-foot > a.story-icon,
+.cms-desk .cps-item-foot > .story-icon,
+.cms-desk .alx-photo-actions .story-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  width: auto;
+  height: 28px;
+  padding: 0 .5rem;
+  border-radius: 6px;
+  background: transparent;
+  font-size: .78rem;
+  font-weight: 650;
+}
+.cms-desk .story-actions .story-icon[data-act]::after,
+.cms-desk .tch-actions > a.story-icon[data-act]::after,
+.cms-desk .cpa-card-foot > a.story-icon[data-act]::after,
+.cms-desk .cps-item-foot > .story-icon[data-act]::after,
+.cms-desk .alx-photo-actions .story-icon[data-act]::after { content: attr(data-act); }
+.cms-desk .story-actions .story-icon:hover,
+.cms-desk .tch-actions > a.story-icon:hover,
+.cms-desk .cpa-card-foot > a.story-icon:hover,
+.cms-desk .cps-item-foot > .story-icon:hover,
+.cms-desk .alx-photo-actions .story-icon:hover { background: #f4f1ea; }
+.cms-desk .story-actions .story-icon.is-danger:hover,
+.cms-desk .cps-item-foot > .story-icon.is-danger:hover,
+.cms-desk .alx-photo-actions .story-icon.is-danger:hover { background: #fdf2f2; }
+
+@media (max-width: 980px) {
+  .cms-desk .admin-kpis { grid-template-columns: 1fr 1fr; }
+  .cms-desk .admin-kpi:nth-child(odd) { border-left: 0; }
+  .cms-desk .admin-kpi:nth-child(n + 3) { border-top: 1px solid #efeae2; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cms-desk .app-table tbody tr { transition: none; }
+}

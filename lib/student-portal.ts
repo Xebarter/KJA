@@ -463,15 +463,51 @@ export async function loadStudentMessages(conversationId?: string) {
       )
     : [];
 
-  const convs = await rows<{ id: string; student_low_id: string; student_high_id: string }>(
+  let classGroupId: string | null = null;
+  if (student.class_code) {
+    const { data: ensured } = await supabase.rpc("ensure_my_class_group");
+    classGroupId = ensured ? String(ensured) : null;
+  }
+
+  type ConvRow = {
+    id: string;
+    kind: string | null;
+    student_low_id: string | null;
+    student_high_id: string | null;
+    class_code: string | null;
+    stream: string | null;
+  };
+
+  const dmConvs = await rows<ConvRow>(
     supabase
       .from("student_conversations")
-      .select("id, student_low_id, student_high_id")
+      .select("id, kind, student_low_id, student_high_id, class_code, stream")
+      .eq("kind", "dm")
       .or(`student_low_id.eq.${student.id},student_high_id.eq.${student.id}`)
       .order("created_at", { ascending: false }),
   );
 
-  const peerIds = convs.map((c) => (c.student_low_id === student.id ? c.student_high_id : c.student_low_id));
+  const groupConvs = classGroupId
+    ? await rows<ConvRow>(
+        supabase
+          .from("student_conversations")
+          .select("id, kind, student_low_id, student_high_id, class_code, stream")
+          .eq("id", classGroupId),
+      )
+    : student.class_code
+      ? await rows<ConvRow>(
+          supabase
+            .from("student_conversations")
+            .select("id, kind, student_low_id, student_high_id, class_code, stream")
+            .eq("kind", "class_group")
+            .eq("class_code", student.class_code)
+            .eq("stream", student.stream || ""),
+        )
+      : [];
+
+  const convs = [...groupConvs, ...dmConvs];
+
+  const peerIds = dmConvs.map((c) => (c.student_low_id === student.id ? c.student_high_id! : c.student_low_id!));
   const peerMap = new Map(classmates.map((c) => [c.id, c]));
   for (const id of peerIds) {
     if (!peerMap.has(id)) {
@@ -497,18 +533,59 @@ export async function loadStudentMessages(conversationId?: string) {
     if (!lastByConv.has(msg.conversation_id)) lastByConv.set(msg.conversation_id, msg);
   }
 
-  const conversations = convs.map((c) => {
-    const peerId = c.student_low_id === student.id ? c.student_high_id : c.student_low_id;
-    const peer = peerMap.get(peerId) || { id: peerId, full_name: "Classmate", preferred_name: null, photo_path: null, house: null };
-    return {
-      id: c.id,
-      student_low_id: c.student_low_id,
-      student_high_id: c.student_high_id,
-      peer,
-      last: lastByConv.get(c.id),
-      unread: 0,
-    };
-  }).sort((a, b) => String(b.last?.created_at || "").localeCompare(String(a.last?.created_at || "")));
+  const classTitle = classLabel(student.class_code, student.stream);
+  const memberCount = classmates.length + 1;
+
+  const conversations = convs
+    .map((c) => {
+      const kind = c.kind === "class_group" ? ("class_group" as const) : ("dm" as const);
+      if (kind === "class_group") {
+        const title = `${classTitle || "Class"} group`;
+        return {
+          id: c.id,
+          kind,
+          student_low_id: null,
+          student_high_id: null,
+          class_code: c.class_code,
+          stream: c.stream,
+          title,
+          member_count: memberCount,
+          peer: {
+            id: `class-group:${c.class_code}:${c.stream || ""}`,
+            full_name: title,
+            preferred_name: null,
+            photo_path: null,
+            house: null,
+          },
+          last: lastByConv.get(c.id),
+          unread: 0,
+        };
+      }
+      const peerId = c.student_low_id === student.id ? c.student_high_id! : c.student_low_id!;
+      const peer = peerMap.get(peerId) || {
+        id: peerId,
+        full_name: "Classmate",
+        preferred_name: null,
+        photo_path: null,
+        house: null,
+      };
+      return {
+        id: c.id,
+        kind,
+        student_low_id: c.student_low_id,
+        student_high_id: c.student_high_id,
+        class_code: null,
+        stream: null,
+        peer,
+        last: lastByConv.get(c.id),
+        unread: 0,
+      };
+    })
+    .sort((a, b) => {
+      if (a.kind === "class_group" && b.kind !== "class_group") return -1;
+      if (b.kind === "class_group" && a.kind !== "class_group") return 1;
+      return String(b.last?.created_at || "").localeCompare(String(a.last?.created_at || ""));
+    });
 
   const messages = conversationId
     ? await rows<StudentMessage>(

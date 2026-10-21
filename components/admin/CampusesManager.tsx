@@ -49,7 +49,7 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
   };
 
   return (
-    <div className="app-page apl cpa">
+    <div className="app-page apl cpa cms-desk">
       <PageHeader
         kicker="Website content"
         icon="fa-school"
@@ -169,6 +169,7 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
                   <span className="cpa-card-foot-label">{row.published ? "On the website" : "Hidden"}</span>
                   <a
                     className={`story-icon${row.published ? "" : " is-off"}`}
+                    data-act="View"
                     href={row.published ? `/branch/${row.slug}` : undefined}
                     target="_blank"
                     rel="noreferrer"

@@ -1,4 +1,5 @@
 import { AdminShell } from "@/components/admin/Shell";
+import "@/app/admin/cms-desk.css";
 import { loadUnpaidApplications } from "@/lib/admission-followups";
 import { remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";

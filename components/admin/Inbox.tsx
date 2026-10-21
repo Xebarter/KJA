@@ -331,13 +331,11 @@ export function SubscriberTable({ rows }: { rows: SubscriberRow[] }) {
               <td className="nl-col-domain">{row.domain}</td>
               <td className="nl-col-date"><span title={row.joinedFull}>{row.joined}</span></td>
               <td className="nl-col-actions">
-                <CopyButton text={row.email} label={`Copy ${row.email}`} />
-                <a className="inbox-icon-btn" href={`mailto:${row.email}`} title="Send an email" aria-label={`Email ${row.email}`}>
-                  <i className="fa-regular fa-paper-plane" aria-hidden="true" />
-                </a>
-                <button type="button" className="inbox-icon-btn is-danger" disabled={pending} onClick={() => remove([row])} title="Remove subscriber" aria-label={`Remove ${row.email}`}>
-                  <i className="fa-regular fa-trash-can" aria-hidden="true" />
-                </button>
+                <div className="nl-acts">
+                  <CopyButton text={row.email} label="Copy" done="Copied" className="nl-act" labelled />
+                  <a className="nl-act" href={`mailto:${row.email}`}>Email</a>
+                  <button type="button" className="nl-act is-danger" disabled={pending} onClick={() => remove([row])}>Remove</button>
+                </div>
               </td>
             </tr>
           ))}

@@ -15,6 +15,8 @@ export default async function StudentPortalLayout({ children }: { children: Reac
     <StudentShell
       name={name}
       classLabel={portal.classLabel}
+      studentId={portal.student?.id}
+      photoPath={portal.student?.photo_path}
       unread={portal.unread}
       unreadMessages={portal.unreadMessages}
     >

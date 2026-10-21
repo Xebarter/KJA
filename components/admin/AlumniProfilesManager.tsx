@@ -109,7 +109,7 @@ export function AlumniProfilesManager({ profiles, editable }: { profiles: Alumni
   const faces = enriched.filter((row) => row.image_url).slice(0, 5);
 
   return (
-    <div className="app-page apl alx-admin">
+    <div className="app-page apl alx-admin cms-desk">
       <PageHeader
         kicker="Alumni"
         icon="fa-user-graduate"
@@ -257,6 +257,7 @@ export function AlumniProfilesManager({ profiles, editable }: { profiles: Alumni
                     </label>
                     <a
                       className={`story-icon${row.published ? "" : " is-off"}`}
+                      data-act="View"
                       href={row.published ? `/alumni-profile/${row.slug}` : undefined}
                       target="_blank"
                       rel="noreferrer"

@@ -127,7 +127,7 @@ export function AlumniEventsManager({ events, editable }: { events: AlumniEventR
   const nextParts = next ? dateParts(next.starts_on) : null;
 
   return (
-    <div className="app-page apl alx-admin">
+    <div className="app-page apl alx-admin cms-desk">
       <PageHeader
         kicker="Alumni"
         icon="fa-calendar-days"
@@ -267,6 +267,7 @@ export function AlumniEventsManager({ events, editable }: { events: AlumniEventR
                     </label>
                     <a
                       className={`story-icon${row.published ? "" : " is-off"}`}
+                      data-act="View"
                       href={row.published ? `/alumni-events/${row.slug}` : undefined}
                       target="_blank"
                       rel="noreferrer"
@@ -276,7 +277,7 @@ export function AlumniEventsManager({ events, editable }: { events: AlumniEventR
                       <i className="fa-solid fa-arrow-up-right-from-square" />
                     </a>
                     {editHref ? (
-                      <Link className="story-icon" href={editHref} title="Edit event">
+                      <Link className="story-icon" href={editHref} title="Edit event" data-act="Edit">
                         <i className="fa-solid fa-pen" />
                       </Link>
                     ) : null}

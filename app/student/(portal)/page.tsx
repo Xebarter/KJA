@@ -27,10 +27,10 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
-function DateTile({ ymd, className = "ov-date" }: { ymd: string; className?: string }) {
+function DateTile({ ymd }: { ymd: string }) {
   const { m, d } = parseYmd(ymd);
   return (
-    <time className={className} dateTime={ymd}>
+    <time className="ov-date" dateTime={ymd}>
       <span>{MONTHS_SHORT[m - 1]}</span>
       <strong>{d}</strong>
     </time>
@@ -80,30 +80,32 @@ export default async function StudentHomePage() {
     ? "Your login is ready, but the office still needs to link your pupil record."
     : pending.length
       ? `You have ${pending.length > 1 ? `${pending.slice(0, -1).join(", ")} and ${pending[pending.length - 1]}` : pending[0]}.`
-      : "You're all caught up. Here's what's happening today.";
+      : "You're all caught up. Have a wonderful day at school!";
 
   const stats = [
     {
       label: "Homework",
       value: String(openHomework.length),
-      note: overdue ? `${overdue} overdue` : openHomework.length ? "Still to do" : "All done",
+      note: overdue ? `${overdue} overdue` : openHomework.length ? "Still to do" : "All done!",
       href: "/student/homework",
-      icon: "fa-book",
-      tone: overdue ? "alert" : undefined,
+      icon: "fa-book-open",
+      tone: overdue ? "alert" : openHomework.length === 0 ? "ok" : "hw",
     },
     {
       label: "Attendance",
       value: portal.attendance.total ? `${portal.attendance.percent}%` : "—",
       note: portal.attendance.total ? `${portal.attendance.present + portal.attendance.late} days in` : "No register yet",
       href: "/student/attendance",
-      icon: "fa-clipboard-user",
+      icon: "fa-clipboard-check",
+      tone: "att",
     },
     {
       label: "Clubs",
       value: String(portal.clubs.length),
-      note: portal.clubs[0]?.title || "None yet",
+      note: portal.clubs[0]?.title || "Join a club",
       href: "/student/clubs",
       icon: "fa-puzzle-piece",
+      tone: "club",
     },
     {
       label: "Class teacher",
@@ -111,169 +113,280 @@ export default async function StudentHomePage() {
       note: portal.classTeacher?.title || "Not set yet",
       href: "/student/class",
       icon: "fa-chalkboard-user",
+      tone: "teacher",
     },
   ];
 
+  const shortcuts = [
+    { href: "/student/timetable", label: "Timetable", icon: "fa-table-cells", tone: "sky" },
+    { href: "/student/messages", label: "Messages", icon: "fa-comments", tone: "mint", badge: portal.unreadMessages },
+    { href: "/student/calendar", label: "Calendar", icon: "fa-calendar-days", tone: "sun" },
+    { href: "/student/reports", label: "Reports", icon: "fa-star", tone: "rose" },
+  ];
+
   return (
-    <div className="ov">
-      <section className="ov-hero">
-        <div className="ov-hero-copy">
-          <p className="ov-hero-date">
-            {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: ZONE })}
+    <div className="ov st-home">
+      <section className="st-home-hero">
+        <div className="st-home-hero-bg" aria-hidden="true">
+          <span className="st-blob st-blob-a" />
+          <span className="st-blob st-blob-b" />
+          <span className="st-blob st-blob-c" />
+          <span className="st-spark st-spark-1" />
+          <span className="st-spark st-spark-2" />
+          <span className="st-spark st-spark-3" />
+        </div>
+
+        <div className="st-home-hero-copy">
+          <p className="st-home-kicker">
+            <i className="fa-solid fa-sun" aria-hidden="true" />
+            {new Date().toLocaleDateString("en-GB", {
+              weekday: "long",
+              day: "numeric",
+              month: "long",
+              timeZone: ZONE,
+            })}
           </p>
-          <h1>{greeting()}, {first}</h1>
-          <p className="ov-hero-summary">{summary}</p>
-          {portal.student?.house ? (
-            <p className="ov-hero-summary" style={{ marginTop: ".35rem", opacity: .85 }}>
-              {portal.student.house} house · {portal.classLabel}
-            </p>
-          ) : null}
-          <div className="ov-hero-actions">
-            <Link className="ov-btn ov-btn-gold" href="/student/homework">
-              <i className="fa-solid fa-book" aria-hidden="true" /> Homework
+          <h1>
+            {greeting()}, <span>{first}</span>
+          </h1>
+          <p className="st-home-summary">{summary}</p>
+          {(portal.student?.house || portal.classLabel) && (
+            <div className="st-home-tags">
+              {portal.classLabel ? (
+                <span className="st-home-tag st-home-tag--class">
+                  <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
+                  {portal.classLabel}
+                </span>
+              ) : null}
+              {portal.student?.house ? (
+                <span className="st-home-tag st-home-tag--house">
+                  <i className="fa-solid fa-flag" aria-hidden="true" />
+                  {portal.student.house} house
+                </span>
+              ) : null}
+            </div>
+          )}
+          <div className="st-home-actions">
+            <Link className="st-home-btn st-home-btn--primary" href="/student/homework">
+              <i className="fa-solid fa-book-open" aria-hidden="true" />
+              Homework
             </Link>
-            <Link className="ov-btn ov-btn-glass" href="/student/class">
-              <i className="fa-solid fa-users" aria-hidden="true" /> My class
+            <Link className="st-home-btn st-home-btn--soft" href="/student/class">
+              <i className="fa-solid fa-users" aria-hidden="true" />
+              My class
             </Link>
           </div>
         </div>
-        <div className="ov-hero-card">
-          <span className="ov-hero-card-label">Today&apos;s lessons</span>
+
+        <div className="st-home-lessons">
+          <header>
+            <span className="st-home-lessons-icon" aria-hidden="true">
+              <i className="fa-solid fa-clock" />
+            </span>
+            <div>
+              <strong>Today&apos;s lessons</strong>
+              <small>{portal.lessonsToday.length ? plural(portal.lessonsToday.length, "period") : "Free day"}</small>
+            </div>
+          </header>
           {portal.lessonsToday.length ? (
-            <ul className="ov-events" style={{ margin: 0, padding: 0, listStyle: "none" }}>
-              {portal.lessonsToday.slice(0, 3).map((lesson) => (
-                <li key={lesson.id} style={{ padding: ".35rem 0" }}>
-                  <strong>{lesson.subject_name}</strong>
-                  <small style={{ display: "block", opacity: .75 }}>
-                    Period {lesson.period}
-                    {lesson.room ? ` · ${lesson.room}` : ""}
-                  </small>
+            <ol className="st-home-lesson-list">
+              {portal.lessonsToday.slice(0, 4).map((lesson, index) => (
+                <li key={lesson.id}>
+                  <span className="st-home-period">{lesson.period || index + 1}</span>
+                  <span>
+                    <strong>{lesson.subject_name}</strong>
+                    {lesson.room ? <small>{lesson.room}</small> : null}
+                  </span>
                 </li>
               ))}
-            </ul>
+            </ol>
           ) : (
-            <p className="ov-next-empty">No lessons listed for today.</p>
+            <p className="st-home-lessons-empty">No lessons listed for today. Enjoy the break!</p>
           )}
-          <Link className="ov-hero-card-link" href="/student/timetable">
+          <Link className="st-home-lessons-link" href="/student/timetable">
             Full timetable <i className="fa-solid fa-arrow-right" aria-hidden="true" />
           </Link>
         </div>
       </section>
 
-      <div className="ov-stats">
+      <section className="st-home-stats" aria-label="Your school snapshot">
         {stats.map((stat) => (
-          <Link key={stat.label} href={stat.href} className={`ov-stat${stat.tone ? ` ov-stat--${stat.tone}` : ""}`}>
-            <span className="ov-stat-icon"><i className={`fa-solid ${stat.icon}`} aria-hidden="true" /></span>
-            <span className="ov-stat-label">{stat.label}</span>
-            <strong className="ov-stat-value">{stat.value}</strong>
-            <span className="ov-stat-note">{stat.note}</span>
-            <i className="fa-solid fa-arrow-right ov-stat-go" aria-hidden="true" />
+          <Link
+            key={stat.label}
+            href={stat.href}
+            className={`st-home-stat st-home-stat--${stat.tone}`}
+          >
+            <span className="st-home-stat-icon" aria-hidden="true">
+              <i className={`fa-solid ${stat.icon}`} />
+            </span>
+            <span className="st-home-stat-label">{stat.label}</span>
+            <strong className="st-home-stat-value">{stat.value}</strong>
+            <span className="st-home-stat-note">{stat.note}</span>
           </Link>
         ))}
-      </div>
+      </section>
 
-      <div className="ov-grid">
-        <div className="ov-col">
-          <section className="ov-panel">
-            <header className="ov-panel-head">
-              <h2>Homework due</h2>
-              <Link href="/student/homework">All</Link>
+      <section className="st-home-shortcuts" aria-label="Quick links">
+        {shortcuts.map((item) => (
+          <Link key={item.href} href={item.href} className={`st-home-shortcut st-home-shortcut--${item.tone}`}>
+            <span className="st-home-shortcut-icon" aria-hidden="true">
+              <i className={`fa-solid ${item.icon}`} />
+            </span>
+            <span>{item.label}</span>
+            {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
+          </Link>
+        ))}
+      </section>
+
+      <div className="st-home-grid">
+        <div className="st-home-col">
+          <section className="st-home-panel st-home-panel--hw">
+            <header className="st-home-panel-head">
+              <h2>
+                <span className="st-home-panel-icon" aria-hidden="true">
+                  <i className="fa-solid fa-book-open" />
+                </span>
+                Homework due
+              </h2>
+              <Link href="/student/homework">See all</Link>
             </header>
             {dueSoon.length || overdue ? (
-              <ul className="ov-events">
-                {portal.homework.filter((row) => !row.done).slice(0, 5).map((row) => (
-                  <li key={row.id}>
-                    <Link href="/student/homework" className="ov-event">
-                      <span className="ov-event-text">
-                        <strong>{row.title}</strong>
-                        <small>
-                          {row.subject_name || "Subject"} · due {shortDate(row.due_on)}
-                          {row.due_on < today ? " · overdue" : ""}
-                        </small>
-                      </span>
-                    </Link>
-                  </li>
-                ))}
+              <ul className="st-home-list">
+                {portal.homework
+                  .filter((row) => !row.done)
+                  .slice(0, 5)
+                  .map((row) => {
+                    const late = row.due_on < today;
+                    return (
+                      <li key={row.id}>
+                        <Link href="/student/homework" className={`st-home-item${late ? " is-late" : ""}`}>
+                          <span className="st-home-item-mark" aria-hidden="true">
+                            <i className={`fa-solid ${late ? "fa-triangle-exclamation" : "fa-pencil"}`} />
+                          </span>
+                          <span className="st-home-item-text">
+                            <strong>{row.title}</strong>
+                            <small>
+                              {row.subject_name || "Subject"} · due {shortDate(row.due_on)}
+                              {late ? " · overdue" : ""}
+                            </small>
+                          </span>
+                          <i className="fa-solid fa-chevron-right st-home-item-go" aria-hidden="true" />
+                        </Link>
+                      </li>
+                    );
+                  })}
               </ul>
             ) : (
-              <div className="ov-empty">
-                <i className="fa-solid fa-book" aria-hidden="true" />
-                <p>No homework waiting. Enjoy the free time — or check My class.</p>
+              <div className="st-home-empty">
+                <span aria-hidden="true"><i className="fa-solid fa-trophy" /></span>
+                <p>No homework waiting. Great work — enjoy your free time!</p>
               </div>
             )}
           </section>
 
-          <section className="ov-panel">
-            <header className="ov-panel-head">
-              <h2>This week</h2>
+          <section className="st-home-panel st-home-panel--week">
+            <header className="st-home-panel-head">
+              <h2>
+                <span className="st-home-panel-icon" aria-hidden="true">
+                  <i className="fa-solid fa-calendar-week" />
+                </span>
+                This week
+              </h2>
               <Link href="/student/calendar">Calendar</Link>
             </header>
             {thisWeek.length ? (
-              <ul className="ov-events">
+              <ul className="st-home-list">
                 {thisWeek.map((item) => (
                   <li key={item.key}>
-                    <Link href={item.href} className="ov-event">
-                      <span className="ov-event-media">
+                    <Link href={item.href} className="st-home-item">
+                      <span className="st-home-item-date">
                         <DateTile ymd={item.ymd} />
                       </span>
-                      <span className="ov-event-text">
+                      <span className="st-home-item-text">
                         <strong>{item.title}</strong>
                         <small>{item.note}</small>
                       </span>
+                      <i className="fa-solid fa-chevron-right st-home-item-go" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="ov-empty">
-                <i className="fa-solid fa-calendar-days" aria-hidden="true" />
+              <div className="st-home-empty">
+                <span aria-hidden="true"><i className="fa-solid fa-calendar-days" /></span>
                 <p>Nothing special on the calendar this week.</p>
               </div>
             )}
           </section>
         </div>
 
-        <div className="ov-col">
-          <section className="ov-panel">
-            <header className="ov-panel-head">
-              <h2>Notices</h2>
+        <div className="st-home-col">
+          <section className="st-home-panel st-home-panel--notices">
+            <header className="st-home-panel-head">
+              <h2>
+                <span className="st-home-panel-icon" aria-hidden="true">
+                  <i className="fa-solid fa-bell" />
+                </span>
+                Notices
+              </h2>
               <Link href="/student/notifications">View all</Link>
             </header>
             {portal.notifications.length ? (
-              <ul className="ov-events">
+              <ul className="st-home-list">
                 {portal.notifications.slice(0, 4).map((notice) => (
                   <li key={notice.id}>
-                    <Link href={notice.href || "/student/notifications"} className="ov-event">
-                      <span className="ov-event-text">
-                        <strong>{notice.title}</strong>
-                        <small>{shortDate(notice.created_at)}{notice.read ? "" : " · new"}</small>
+                    <Link
+                      href={notice.href || "/student/notifications"}
+                      className={`st-home-item${notice.read ? "" : " is-new"}`}
+                    >
+                      <span className="st-home-item-mark" aria-hidden="true">
+                        <i className={`fa-solid ${notice.read ? "fa-envelope-open" : "fa-envelope"}`} />
                       </span>
+                      <span className="st-home-item-text">
+                        <strong>{notice.title}</strong>
+                        <small>
+                          {shortDate(notice.created_at)}
+                          {notice.read ? "" : " · new"}
+                        </small>
+                      </span>
+                      <i className="fa-solid fa-chevron-right st-home-item-go" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
             ) : (
-              <div className="ov-empty">
-                <i className="fa-solid fa-bell" aria-hidden="true" />
+              <div className="st-home-empty">
+                <span aria-hidden="true"><i className="fa-solid fa-bell" /></span>
                 <p>No notices yet. Homework and messages will show up here.</p>
               </div>
             )}
           </section>
 
           {portal.clubs.length ? (
-            <section className="ov-panel">
-              <header className="ov-panel-head">
-                <h2>Your clubs</h2>
+            <section className="st-home-panel st-home-panel--clubs">
+              <header className="st-home-panel-head">
+                <h2>
+                  <span className="st-home-panel-icon" aria-hidden="true">
+                    <i className="fa-solid fa-puzzle-piece" />
+                  </span>
+                  Your clubs
+                </h2>
                 <Link href="/student/clubs">All</Link>
               </header>
-              <ul className="ov-events">
+              <ul className="st-home-list">
                 {portal.clubs.slice(0, 3).map((club) => (
                   <li key={club.id}>
-                    <Link href="/student/clubs" className="ov-event">
-                      <span className="ov-event-text">
-                        <strong>{club.title}</strong>
-                        <small>{club.meeting || club.campus || (club.paid ? "Paid" : "With parents for payment")}</small>
+                    <Link href="/student/clubs" className="st-home-item">
+                      <span className="st-home-item-mark" aria-hidden="true">
+                        <i className="fa-solid fa-puzzle-piece" />
                       </span>
+                      <span className="st-home-item-text">
+                        <strong>{club.title}</strong>
+                        <small>
+                          {club.meeting || club.campus || (club.paid ? "Paid" : "With parents for payment")}
+                        </small>
+                      </span>
+                      <i className="fa-solid fa-chevron-right st-home-item-go" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}

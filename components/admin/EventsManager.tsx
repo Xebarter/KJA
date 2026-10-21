@@ -236,7 +236,7 @@ export function EventsManager({ events, editable, today }: { events: Article[]; 
   ];
 
   return (
-    <div className="app-page apl pg-admin aev">
+    <div className="app-page apl pg-admin aev cms-desk">
       <PageHeader
         kicker="Events & gallery"
         icon="fa-calendar-days"
@@ -400,6 +400,7 @@ export function EventsManager({ events, editable, today }: { events: Article[]; 
                             </label>
                             <a
                               className={`story-icon${row.published ? "" : " is-off"}`}
+                              data-act="View"
                               href={row.published ? href : undefined}
                               target="_blank"
                               rel="noreferrer"
@@ -409,9 +410,9 @@ export function EventsManager({ events, editable, today }: { events: Article[]; 
                               <i className="fa-solid fa-arrow-up-right-from-square" />
                             </a>
                             {editHref ? (
-                              <Link className="story-icon" href={editHref} title="Edit event"><i className="fa-solid fa-pen" /></Link>
+                              <Link className="story-icon" href={editHref} title="Edit event" data-act="Edit"><i className="fa-solid fa-pen" /></Link>
                             ) : null}
-                            <button type="button" className="story-icon is-danger" title="Delete event" disabled={!row.id || pending} onClick={() => remove(row)}>
+                            <button type="button" className="story-icon is-danger" title="Delete event" data-act="Delete" disabled={!row.id || pending} onClick={() => remove(row)}>
                               <i className="fa-regular fa-trash-can" />
                             </button>
                           </div>

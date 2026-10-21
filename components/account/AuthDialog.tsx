@@ -10,10 +10,13 @@ const AuthForm = dynamic(() => import("@/components/account/AuthForm").then((mod
 
 type AuthDialogContextValue = {
   openAuth: (next?: string) => void;
+  /** true when a session is known, false when signed out, null while checking */
+  signedIn: boolean | null;
 };
 
 const AuthDialogContext = createContext<AuthDialogContextValue>({
   openAuth: () => undefined,
+  signedIn: null,
 });
 
 export function useAuthDialog() {
@@ -26,6 +29,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   const [open, setOpen] = useState(false);
   const [next, setNext] = useState("/account");
   const [mounted, setMounted] = useState(false);
+  const [signedIn, setSignedIn] = useState<boolean | null>(null);
 
   const closeAuth = useCallback(() => {
     setOpen(false);
@@ -45,6 +49,34 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     setMounted(true);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | undefined;
+
+    void import("@/lib/supabase/browser").then(({ createBrowserSupabase }) => {
+      const supabase = createBrowserSupabase();
+      if (!supabase) {
+        if (active) setSignedIn(false);
+        return;
+      }
+      void supabase.auth.getSession().then(({ data }) => {
+        if (!active) return;
+        setSignedIn(Boolean(data.session));
+        if (data.session) router.prefetch("/account");
+      });
+      const { data } = supabase.auth.onAuthStateChange((_event, session) => {
+        setSignedIn(Boolean(session));
+        if (session) router.prefetch("/account");
+      });
+      unsubscribe = () => data.subscription.unsubscribe();
+    });
+
+    return () => {
+      active = false;
+      unsubscribe?.();
+    };
+  }, [router]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -67,7 +99,7 @@ export function AuthDialogProvider({ children }: { children: React.ReactNode }) 
     };
   }, [open, closeAuth]);
 
-  const value = useMemo(() => ({ openAuth }), [openAuth]);
+  const value = useMemo(() => ({ openAuth, signedIn }), [openAuth, signedIn]);
 
   return (
     <AuthDialogContext.Provider value={value}>

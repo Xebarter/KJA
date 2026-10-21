@@ -74,7 +74,7 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
   const [scrolled, setScrolled] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   const router = useRouter();
-  const { openAuth } = useAuthDialog();
+  const { openAuth, signedIn } = useAuthDialog();
   const phoneHref = `tel:${phone.replace(/\s/g, "")}`;
 
   const sections = [
@@ -92,17 +92,15 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
     setExpanded(null);
   };
 
-  const onAccount = async (event: MouseEvent<HTMLAnchorElement>) => {
+  const onAccount = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     closeMenu();
-    const { createBrowserSupabase } = await import("@/lib/supabase/browser");
-    const supabase = createBrowserSupabase();
-    const session = supabase ? (await supabase.auth.getSession()).data.session : null;
-    if (session) {
-      router.push("/account");
+    // Session is known from AuthDialog (kept warm in the background). No await on click.
+    if (signedIn === false) {
+      openAuth("/account");
       return;
     }
-    openAuth("/account");
+    router.push("/account");
   };
 
   useEffect(() => {

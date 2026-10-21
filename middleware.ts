@@ -134,8 +134,15 @@ export async function middleware(request: NextRequest) {
     if (!user) return parentLogin(isAccountLogin ? undefined : path);
     if (isAccountLogin) return NextResponse.redirect(new URL("/account", request.url));
     if (!isPassword) {
+      const cached = request.cookies.get(STAFF_ROLE_COOKIE)?.value;
+      if (cached === "student") return NextResponse.redirect(new URL("/student", request.url));
+      if (cached && cached !== "student") return response;
       const role = await profileRole();
-      if (role === "student") return NextResponse.redirect(new URL("/student", request.url));
+      if (role === "student") {
+        rememberRole(role);
+        return NextResponse.redirect(new URL("/student", request.url));
+      }
+      if (role) rememberRole(role);
     }
   }
 

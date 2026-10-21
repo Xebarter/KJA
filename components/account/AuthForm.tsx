@@ -21,15 +21,27 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
     setSent(false);
   }
 
+  const title = mode === "reset" ? "Reset password" : mode === "up" ? "Create an account" : "Sign in";
+  const lede = mode === "reset"
+    ? "We will email you a link to choose a new password."
+    : mode === "up"
+      ? "Parents and pupils use the same school account."
+      : "Use the email and password from the school office.";
+
   return (
     <div className="account-auth" onClick={onDismiss}>
       <div
         className="account-auth-card"
         role="dialog"
         aria-modal="true"
-        aria-label={mode === "reset" ? "Reset password" : "Sign in"}
+        aria-label={title}
         onClick={(event) => event.stopPropagation()}
       >
+        {onDismiss ? (
+          <button type="button" className="account-auth-close" onClick={onDismiss} aria-label="Close">
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        ) : null}
         <div className="account-auth-mark">
           <img src="/images/kja-logo.png" alt="Kampala Junior Academy" />
         </div>
@@ -47,7 +59,7 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
                   <div className="account-auth-lead">
                     <span className="account-auth-sent" aria-hidden="true"><i className="fa-regular fa-envelope" /></span>
                     <h2>Check your email</h2>
-                    <p>Open the link in this browser.</p>
+                    <p>Open the link in this browser to set a new password.</p>
                   </div>
                 ) : (
                   <form className="account-form" onSubmit={async (event) => {
@@ -69,13 +81,13 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
                   }}>
                     <div className="account-auth-lead">
                       <h2>Reset password</h2>
-                      <p>We&apos;ll email you a link.</p>
+                      <p>We will email you a link.</p>
                     </div>
                     <label>
                       <span className="account-sr">Email</span>
                       <input name="email" type="email" placeholder="Email" autoComplete="username" required />
                     </label>
-                    <button className="account-btn" type="submit" disabled={busy}>{busy ? "…" : "Send link"}</button>
+                    <button className="account-btn" type="submit" disabled={busy}>{busy ? "Sending…" : "Send link"}</button>
                   </form>
                 )}
                 <button className="account-auth-back" type="button" onClick={() => show("in")}>Back to sign in</button>
@@ -123,6 +135,10 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
               router.push(dest);
               router.refresh();
             }}>
+              <div className="account-auth-title">
+                <h1>{title}</h1>
+                <p>{lede}</p>
+              </div>
               {mode === "up" ? (
                 <label>
                   <span className="account-sr">Name</span>
@@ -140,14 +156,16 @@ export function AuthForm({ next = "/account", onDismiss }: { next?: string; onDi
               {mode === "in" ? (
                 <button className="account-auth-link" type="button" onClick={() => show("reset")}>Forgot password?</button>
               ) : null}
-              <button className="account-btn" type="submit" disabled={busy}>{busy ? "…" : mode === "in" ? "Sign in" : "Register"}</button>
+              <button className="account-btn" type="submit" disabled={busy}>
+                {busy ? (mode === "in" ? "Signing in…" : "Creating account…") : mode === "in" ? "Sign in" : "Create account"}
+              </button>
             </form>
             )}
           </>
         ) : (
-          <p className="account-auth-or">Sign-in is not configured.</p>
+          <p className="account-auth-or">Sign-in is not configured yet. Ask the school office for help.</p>
         )}
-        {error ? <p className="account-error">{error}</p> : null}
+        {error ? <p className="account-error" role="alert">{error}</p> : null}
       </div>
     </div>
   );

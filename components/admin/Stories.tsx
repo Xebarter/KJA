@@ -180,18 +180,25 @@ export function StoriesManager({
   };
 
   const stats = [
-    { value: "live" as const, label: "Live on the site", icon: "fa-signal", count: counts.byStatus.live },
-    { value: "scheduled" as const, label: "Scheduled", icon: "fa-clock", count: counts.byStatus.scheduled },
-    { value: "draft" as const, label: "Drafts", icon: "fa-pen-to-square", count: counts.byStatus.draft },
-    { value: "featured" as const, label: "Featured", icon: "fa-star", count: counts.byStatus.featured },
+    { value: "live" as const, label: "Live", hint: "On the website", icon: "fa-signal", count: counts.byStatus.live, tone: "ok" },
+    { value: "scheduled" as const, label: "Scheduled", hint: "Waiting to go live", icon: "fa-clock", count: counts.byStatus.scheduled, tone: "wait" },
+    { value: "draft" as const, label: "Drafts", hint: "Not published", icon: "fa-pen", count: counts.byStatus.draft, tone: "" },
+    { value: "featured" as const, label: "Featured", hint: "Shown first", icon: "fa-star", count: counts.byStatus.featured, tone: "gold" },
   ];
+
+  function clearFilters() {
+    setType("all");
+    setStatus("all");
+    setQ("");
+    setSort("newest");
+  }
 
   return (
     <div className="app-page story-admin">
       <div className="admin-page-title">
         <div>
           <h1>Stories</h1>
-          <p>School news, blog posts and alumni stories. Everything that appears in the newsroom.</p>
+          <p>News, blog posts and alumni stories for the website.</p>
         </div>
         <NewStoryMenu disabled={!editable} />
       </div>
@@ -199,213 +206,178 @@ export function StoriesManager({
       <StoriesSetupNotice mode={mode} />
       {loadError ? <p className="admin-card app-feedback is-error">{loadError}</p> : null}
 
-      <div className="app-stats">
+      <div className="sto-strip" aria-label="Story summary">
         {stats.map((stat) => (
           <button
             key={stat.value}
             type="button"
-            className={`app-stat${status === stat.value ? " is-active" : ""}`}
+            className={`sto-stat${stat.tone ? ` is-${stat.tone}` : ""}${status === stat.value ? " is-on" : ""}`}
             onClick={() => setStatus((current) => (current === stat.value ? "all" : stat.value))}
             aria-pressed={status === stat.value}
           >
-            <i className={`fa-solid ${stat.icon}`} aria-hidden="true" />
-            <strong>{stat.count}</strong>
-            <span>{stat.label}</span>
+            <span className="sto-stat-icon" aria-hidden="true"><i className={`fa-solid ${stat.icon}`} /></span>
+            <span className="sto-stat-copy">
+              <span>{stat.label}</span>
+              <strong>{stat.count.toLocaleString("en-GB")}</strong>
+              <small>{stat.hint}</small>
+            </span>
           </button>
         ))}
       </div>
 
-      <div className="admin-card app-list-card">
-        <nav className="app-tabs" aria-label="Filter by type">
-          {(["all", ...STORY_SOURCE_KEYS] as const).map((key) => (
-            <button key={key} type="button" className={type === key ? "active" : ""} aria-pressed={type === key} onClick={() => setType(key)}>
-              {key === "all" ? "All stories" : STORY_SOURCES[key].label}
-              <span>{key === "all" ? rows.length : counts.byType.get(key) ?? 0}</span>
-            </button>
-          ))}
-        </nav>
-
-        <div className="app-filters" role="search">
-          <label className="app-search">
+      <section className="sto-panel" aria-label="Story list">
+        <div className="sto-tools">
+          <label className="sto-search">
             <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-            <span className="visually-hidden">Search stories</span>
-            <input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search title, tag, category or author" />
+            <input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search title, tag, category or author" aria-label="Search stories" />
+            {q ? (
+              <button type="button" onClick={() => setQ("")} aria-label="Clear search">
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
+              </button>
+            ) : null}
           </label>
-          <select aria-label="Status" value={status} onChange={(event) => setStatus(event.target.value as StatusFilter)}>
-            <option value="all">Any status</option>
-            <option value="live">Live</option>
-            <option value="scheduled">Scheduled</option>
-            <option value="draft">Drafts</option>
-            <option value="featured">Featured</option>
-          </select>
-          <select aria-label="Sort" value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
+          <div className="sto-types" role="group" aria-label="Story type">
+            {(["all", ...STORY_SOURCE_KEYS] as const).map((key) => (
+              <button key={key} type="button" className={type === key ? "is-on" : ""} aria-pressed={type === key} onClick={() => setType(key)}>
+                {key === "all" ? "All" : STORY_SOURCES[key].label}
+                <em>{(key === "all" ? rows.length : counts.byType.get(key) ?? 0).toLocaleString("en-GB")}</em>
+              </button>
+            ))}
+          </div>
+          <select className="sto-sort" aria-label="Sort" value={sort} onChange={(event) => setSort(event.target.value as Sort)}>
             <option value="newest">Newest first</option>
             <option value="oldest">Oldest first</option>
             <option value="edited">Recently edited</option>
             <option value="title">Title A–Z</option>
           </select>
           {filtered ? (
-            <button
-              type="button"
-              className="app-clear app-link-btn"
-              onClick={() => {
-                setType("all");
-                setStatus("all");
-                setQ("");
-                setSort("newest");
-              }}
-            >
-              Clear
-            </button>
+            <button type="button" className="sto-clear" onClick={clearFilters}>Clear</button>
           ) : null}
         </div>
 
         <StoryFeedback result={result} />
 
         {visible.length ? (
-          <table className={`app-table story-table${pending ? " is-busy" : ""}`}>
-            <thead>
-              <tr>
-                <th>Story</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Date</th>
-                <th aria-label="Featured" />
-                <th className="story-col-actions">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.slice(0, limit).map((row) => {
-                const editHref = row.id ? `/admin/stories/${row.table}/${row.id}` : null;
-                const live = row.status === "live";
-                return (
-                  <tr
-                    key={row.key}
-                    className={busyKey === row.key ? "is-selected" : undefined}
+          <ul className="sto-list">
+            {visible.slice(0, limit).map((row) => {
+              const editHref = row.id ? `/admin/stories/${row.table}/${row.id}` : null;
+              const live = row.status === "live";
+              const published = row.status !== "draft";
+              return (
+                <li key={row.key} className={busyKey === row.key ? "is-busy" : row.featured ? "is-featured" : undefined}>
+                  <div
+                    className="sto-row"
                     onClick={(event) => {
                       if (!editHref || (event.target as HTMLElement).closest("a, button, input, label")) return;
                       router.push(editHref);
                     }}
                   >
-                    <td className="story-col-main">
-                      <span className="story-thumb">
-                        {row.image ? <img src={row.image} alt="" loading="lazy" /> : <i className={`fa-solid ${STORY_TYPE_HELP[row.source].icon}`} aria-hidden="true" />}
-                      </span>
-                      <span className="story-title">
-                        {editHref ? <Link href={editHref}>{row.title}</Link> : <strong>{row.title}</strong>}
-                        <small>
-                          <span className="story-path" title={row.href}>{row.href}</span>
+                    <span className="sto-thumb">
+                      {row.image ? <img src={row.image} alt="" loading="lazy" /> : <i className={`fa-solid ${STORY_TYPE_HELP[row.source].icon}`} aria-hidden="true" />}
+                    </span>
+                    <div className="sto-copy">
+                      {editHref ? <Link href={editHref}>{row.title}</Link> : <strong>{row.title}</strong>}
+                      <p>
+                        <span>{STORY_SOURCES[row.source].label}</span>
+                        <span>{shortDate(row.publishedAt)}</span>
+                        {row.updatedAt ? <span>Edited {timeAgo(row.updatedAt)}</span> : row.author ? <span>{row.author}</span> : null}
+                      </p>
+                      {row.category || row.tags.length ? (
+                        <p className="sto-tags">
                           {row.category ? <em>{row.category}</em> : null}
-                          {row.tags.length ? <em>{row.tags.length} tag{row.tags.length === 1 ? "" : "s"}</em> : null}
-                        </small>
-                      </span>
-                    </td>
-                    <td data-label="Type">
-                      <span className="story-type">
-                        <i className={`fa-solid ${STORY_TYPE_HELP[row.source].icon}`} aria-hidden="true" />
-                        {STORY_SOURCES[row.source].label}
-                      </span>
-                    </td>
-                    <td data-label="Status">
+                          {row.tags.slice(0, 3).map((tag) => <em key={tag}>{tag}</em>)}
+                          {row.tags.length > 3 ? <em>+{row.tags.length - 3}</em> : null}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="sto-side">
                       <StoryStatusBadge status={row.status} at={row.publishedAt} />
-                    </td>
-                    <td data-label="Date">
-                      <span className="story-date">{shortDate(row.publishedAt)}</span>
-                      <small>{row.updatedAt ? `Edited ${timeAgo(row.updatedAt)}` : row.author}</small>
-                    </td>
-                    <td className="story-col-star">
-                      <button
-                        type="button"
-                        className={`story-star${row.featured ? " is-on" : ""}`}
-                        disabled={!row.id || pending}
-                        aria-pressed={row.featured}
-                        title={row.featured ? "Remove from featured" : "Feature on the newsroom"}
-                        onClick={() =>
-                          run(row, () => setStoryFlag(row.table, row.id!, "featured", !row.featured), (entry) => ({ ...entry, featured: !entry.featured }))
-                        }
-                      >
-                        <i className={`fa-${row.featured ? "solid" : "regular"} fa-star`} />
-                        <span className="visually-hidden">Featured</span>
-                      </button>
-                    </td>
-                    <td className="story-col-actions">
-                      <div className="story-actions">
-                        <label className="story-switch" title={row.status === "draft" ? "Publish" : "Move to drafts"}>
-                          <input
-                            type="checkbox"
-                            checked={row.status !== "draft"}
-                            disabled={!row.id || pending}
-                            onChange={(event) => {
-                              const next = event.target.checked;
-                              run(row, () => setStoryFlag(row.table, row.id!, "published", next), (entry) => ({
-                                ...entry,
-                                status: storyStatus(next, entry.publishedAt || (next ? new Date().toISOString() : null)),
-                              }));
-                            }}
-                          />
-                          <span aria-hidden="true" />
-                          <span className="visually-hidden">Published</span>
+                      {row.id ? (
+                        <label className="sto-publish" title={published ? "Move back to drafts" : "Publish on the website"}>
+                          <span className="story-switch">
+                            <input
+                              type="checkbox"
+                              checked={published}
+                              disabled={pending}
+                              onChange={(event) => {
+                                const next = event.target.checked;
+                                run(row, () => setStoryFlag(row.table, row.id!, "published", next), (entry) => ({
+                                  ...entry,
+                                  status: storyStatus(next, entry.publishedAt || (next ? new Date().toISOString() : null)),
+                                }));
+                              }}
+                            />
+                            <span aria-hidden="true" />
+                          </span>
+                          <span>{published ? "Published" : "Draft"}</span>
                         </label>
-                        <a
-                          className={`story-icon${live ? "" : " is-off"}`}
-                          href={live ? row.href : undefined}
-                          target="_blank"
-                          rel="noreferrer"
-                          title={live ? "View on website" : "Not live yet"}
-                          aria-disabled={!live}
-                        >
-                          <i className="fa-solid fa-arrow-up-right-from-square" />
-                        </a>
+                      ) : null}
+                      {editHref ? <Link className="sto-edit" href={editHref}>Edit</Link> : null}
+                    </div>
+                    {row.id ? (
+                      <div className="sto-links">
                         <button
                           type="button"
-                          className="story-icon"
-                          title="Duplicate as a draft"
-                          disabled={!row.id || pending}
-                          onClick={() =>
-                            run(row, () => duplicateStory(row.table, row.id!), undefined, (outcome) => {
-                              if (outcome.id) router.push(`/admin/stories/${outcome.table ?? row.table}/${outcome.id}`);
-                            })
-                          }
+                          className={row.featured ? "is-on" : ""}
+                          disabled={pending}
+                          aria-pressed={row.featured}
+                          onClick={() => run(row, () => setStoryFlag(row.table, row.id!, "featured", !row.featured), (entry) => ({ ...entry, featured: !entry.featured }))}
                         >
-                          <i className="fa-regular fa-copy" />
+                          <i className={`fa-${row.featured ? "solid" : "regular"} fa-star`} aria-hidden="true" />
+                          {row.featured ? "Featured" : "Feature"}
+                        </button>
+                        {live ? (
+                          <a href={row.href} target="_blank" rel="noreferrer">
+                            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> View
+                          </a>
+                        ) : null}
+                        <button
+                          type="button"
+                          disabled={pending}
+                          onClick={() => run(row, () => duplicateStory(row.table, row.id!), undefined, (outcome) => {
+                            if (outcome.id) router.push(`/admin/stories/${outcome.table ?? row.table}/${outcome.id}`);
+                          })}
+                        >
+                          Duplicate
                         </button>
                         <button
                           type="button"
-                          className="story-icon is-danger"
-                          title="Delete"
-                          disabled={!row.id || pending}
+                          className="is-danger"
+                          disabled={pending}
                           onClick={() => {
                             if (!window.confirm(`Delete “${row.title}”? This can't be undone.`)) return;
                             run(row, () => deleteStory(row.table, row.id!), () => null);
                           }}
                         >
-                          <i className="fa-regular fa-trash-can" />
+                          Delete
                         </button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                    ) : null}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         ) : (
-          <div className="app-empty">
+          <div className="sto-empty">
             <i className="fa-regular fa-newspaper" aria-hidden="true" />
-            <p>{rows.length ? "No stories match these filters." : "No stories yet. Use New story to write the first one."}</p>
+            <strong>{rows.length ? "Nothing matches" : "No stories yet"}</strong>
+            <p>{rows.length ? "Try another type, or clear the search and filters." : "Write the first story for the newsroom."}</p>
+            {rows.length ? <button type="button" onClick={clearFilters}>Clear filters</button> : null}
           </div>
         )}
 
-        <div className="app-pager">
-          <span>
-            Showing {Math.min(limit, visible.length)} of {visible.length} {visible.length === 1 ? "story" : "stories"}
-          </span>
-          {visible.length > limit ? (
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => setLimit((value) => value + PAGE)}>
-              Show more
-            </button>
-          ) : null}
-        </div>
-      </div>
+        {visible.length ? (
+          <div className="sto-pager">
+            <span>
+              Showing {Math.min(limit, visible.length).toLocaleString("en-GB")} of {visible.length.toLocaleString("en-GB")}
+            </span>
+            {visible.length > limit ? (
+              <button type="button" onClick={() => setLimit((value) => value + PAGE)}>Show more</button>
+            ) : null}
+          </div>
+        ) : null}
+      </section>
     </div>
   );
 }

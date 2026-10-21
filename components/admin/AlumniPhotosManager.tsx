@@ -186,7 +186,7 @@ export function AlumniPhotosManager({ photos, editable }: { photos: AlumniPhotoR
   ] as const;
 
   return (
-    <div className="app-page apl alx-admin alx-photos-page">
+    <div className="app-page apl alx-admin alx-photos-page cms-desk">
       <PageHeader
         kicker="Alumni"
         icon="fa-images"
@@ -358,16 +358,16 @@ export function AlumniPhotosManager({ photos, editable }: { photos: AlumniPhotoR
                     </label>
                     {canReorder ? (
                       <>
-                        <button type="button" className="story-icon" title="Move earlier" disabled={index === 0} onClick={() => move(index, index - 1)}>
+                        <button type="button" className="story-icon" title="Move earlier" data-act="Earlier" disabled={index === 0} onClick={() => move(index, index - 1)}>
                           <i className="fa-solid fa-arrow-left" />
                         </button>
-                        <button type="button" className="story-icon" title="Move later" disabled={index === rows.length - 1} onClick={() => move(index, index + 1)}>
+                        <button type="button" className="story-icon" title="Move later" data-act="Later" disabled={index === rows.length - 1} onClick={() => move(index, index + 1)}>
                           <i className="fa-solid fa-arrow-right" />
                         </button>
                       </>
                     ) : null}
                     {editable && row.id ? (
-                      <button type="button" className="story-icon is-danger" title="Delete photo" onClick={() => void remove(row)}>
+                      <button type="button" className="story-icon is-danger" title="Delete photo" data-act="Delete" onClick={() => void remove(row)}>
                         <i className="fa-regular fa-trash-can" />
                       </button>
                     ) : null}

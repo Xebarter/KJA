@@ -14,9 +14,14 @@ export default async function StudentMessagesPage({
 
   if (!data.student) {
     return (
-      <div className="hw-empty">
-        <i className="fa-solid fa-comments" aria-hidden="true" />
-        <p>Your pupil record is not linked yet, so messaging is unavailable.</p>
+      <div className="sm-wrap">
+        <div className="sm-gate">
+          <span aria-hidden="true">
+            <i className="fa-solid fa-comments" />
+          </span>
+          <h1>Messages unavailable</h1>
+          <p>Your pupil record is not linked yet, so messaging is unavailable.</p>
+        </div>
       </div>
     );
   }

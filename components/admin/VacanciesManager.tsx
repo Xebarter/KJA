@@ -161,7 +161,7 @@ export function VacanciesManager({
   const segments: VacancyStatus[] = ["open", "closing", "draft", "closed"];
 
   return (
-    <div className="app-page apl vac-admin">
+    <div className="app-page apl vac-admin cms-desk">
       <PageHeader
         kicker="Careers"
         icon="fa-briefcase"
@@ -398,6 +398,7 @@ export function VacanciesManager({
                         </label>
                         <a
                           className={`story-icon${live ? "" : " is-off"}`}
+                          data-act="View"
                           href={live ? "/vacancies#roles" : undefined}
                           target="_blank"
                           rel="noreferrer"
@@ -411,6 +412,7 @@ export function VacanciesManager({
                             <button
                               type="button"
                               className="story-icon"
+                              data-act="Extend"
                               title={row.status === "closed" ? "Reopen for 2 weeks from today" : "Extend the closing date by 2 weeks"}
                               disabled={pending}
                               onClick={() => {
@@ -423,6 +425,7 @@ export function VacanciesManager({
                             <button
                               type="button"
                               className="story-icon"
+                              data-act="Copy"
                               title="Duplicate as a draft"
                               disabled={pending}
                               onClick={() => run(row.id!, () => duplicateVacancy(row.id!))}
@@ -432,6 +435,7 @@ export function VacanciesManager({
                             <button
                               type="button"
                               className="story-icon is-danger"
+                              data-act="Delete"
                               title="Delete"
                               disabled={pending}
                               onClick={() => {

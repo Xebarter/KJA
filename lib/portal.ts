@@ -1,3 +1,4 @@
+import { cache } from "react";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import { serviceClient } from "@/lib/supabase/service";
 import { getContent } from "@/lib/content";
@@ -27,13 +28,14 @@ async function rows<T>(query: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   }
 }
 
-export async function getSessionUser() {
+/** One session read per request. Uses the cookie session (middleware already verified it on portal routes). */
+export const getSessionUser = cache(async function getSessionUser() {
   if (!supabaseConfigured()) return { user: null, supabase: null };
   const supabase = await createClient();
   if (!supabase) return { user: null, supabase: null };
-  const { data: { user } } = await supabase.auth.getUser();
-  return { user, supabase };
-}
+  const { data: { session } } = await supabase.auth.getSession();
+  return { user: session?.user ?? null, supabase };
+});
 
 type LinkedStudent = {
   id: string;
@@ -118,7 +120,8 @@ export async function ensureProfile(userId: string, email?: string | null, fullN
   }, { onConflict: "id", ignoreDuplicates: true });
 }
 
-export async function getPortal() {
+/** One portal load per request, shared by the layout and the page. */
+export const getPortal = cache(async function getPortal() {
   const { user, supabase } = await getSessionUser();
   if (!user || !supabase) {
     return {
@@ -141,20 +144,25 @@ export async function getPortal() {
     };
   }
 
-  await ensureProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name);
-  await Promise.resolve(supabase.rpc("claim_guardian_links")).catch(() => undefined);
-  await linkPastApplications(supabase, user);
+  // Claims and profile setup run beside independent reads, so the page is not held by three round-trips in a row.
+  const linked = Promise.resolve(supabase.rpc("claim_guardian_links"))
+    .catch(() => undefined)
+    .then(() => linkPastApplications(supabase, user));
 
   const [profileRes, children, applications, clubs, signups, messages, notifications, content, students] = await Promise.all([
-    supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    ensureProfile(user.id, user.email, user.user_metadata?.full_name || user.user_metadata?.name).then(() =>
+      supabase.from("profiles").select("*").eq("id", user.id).maybeSingle(),
+    ),
     rows<ChildRow>(supabase.from("children").select("*").eq("user_id", user.id).order("full_name")),
-    rows<ApplicationRow>(supabase.from("applications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
+    linked.then(() =>
+      rows<ApplicationRow>(supabase.from("applications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
+    ),
     rows<ClubRow>(supabase.from("clubs").select("*").eq("published", true).order("title")),
     rows<SignupRow>(supabase.from("club_signups").select("*").eq("user_id", user.id)),
     rows<MessageRow>(supabase.from("parent_messages").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     rows<NoticeRow>(supabase.from("notifications").select("*").eq("user_id", user.id).order("created_at", { ascending: false })),
     getContent(),
-    loadLinkedStudents(supabase),
+    linked.then(() => loadLinkedStudents(supabase)),
   ]);
 
   const childIds = children.map((child) => child.id);
@@ -266,4 +274,4 @@ export async function getPortal() {
     events,
     unread: notifications.filter((item) => !item.read).length,
   };
-}
+});

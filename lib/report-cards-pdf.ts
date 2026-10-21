@@ -105,6 +105,7 @@ const WHITE = rgb(1, 1, 1);
 const MUTED = rgb(0.427, 0.392, 0.345);
 const LINE = rgb(0.922, 0.898, 0.851);
 const CREAM = rgb(0.969, 0.953, 0.918);
+const GREEN = rgb(0.071, 0.647, 0.294);
 
 function latin(text: string | null | undefined) {
   return String(text ?? "")
@@ -166,12 +167,6 @@ function formatScore(score: number | null, nursery: boolean) {
   if (nursery) return score >= 75 ? "Exceeding" : score >= 50 ? "Secure" : score >= 25 ? "Developing" : "Beginning";
   const value = num(score) ?? score;
   return `${value}%`;
-}
-
-function ordinal(value: number) {
-  const mod = value % 100;
-  const suffix = mod >= 11 && mod <= 13 ? "th" : value % 10 === 1 ? "st" : value % 10 === 2 ? "nd" : value % 10 === 3 ? "rd" : "th";
-  return `${value}${suffix}`;
 }
 
 async function rowsIn<T>(ids: string[], load: (slice: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
@@ -304,8 +299,8 @@ export async function loadReportCardPhotos(cards: Pick<StreamReportCard, "id" | 
   const storage = serviceClient();
   if (!storage) return photos;
   const pending = cards.filter((card) => card.photo_path);
-  for (let index = 0; index < pending.length; index += 6) {
-    const slice = pending.slice(index, index + 6);
+  for (let index = 0; index < pending.length; index += 16) {
+    const slice = pending.slice(index, index + 16);
     await Promise.all(slice.map(async (card) => {
       const { data, error } = await storage.storage.from(STUDENT_PHOTO_BUCKET).download(card.photo_path as string);
       if (error || !data) return;
@@ -415,16 +410,14 @@ export async function buildReportCardsPdf(
         ? fitColumns([
             { key: "subject", label: "Subject", width: 120 },
             { key: "progress", label: "Progress", width: 70 },
-            { key: "position", label: "Position", width: 52 },
-            { key: "comment", label: "Teacher's comment", width: contentW - 282 },
+            { key: "comment", label: "Teacher's comment", width: contentW - 230 },
             { key: "initials", label: "Initials", width: initials },
           ])
         : fitColumns([
             { key: "subject", label: "Subject", width: 108 },
             { key: "score", label: "Score", width: 44 },
             { key: "grade", label: "Grade", width: 42 },
-            { key: "position", label: "Position", width: 50 },
-            { key: "comment", label: "Teacher's comment", width: contentW - 284 },
+            { key: "comment", label: "Teacher's comment", width: contentW - 234 },
             { key: "initials", label: "Initials", width: initials },
           ]);
     }
@@ -432,15 +425,13 @@ export async function buildReportCardsPdf(
     const subject = 92;
     const total = 38;
     const grade = input.nursery ? 0 : 34;
-    const position = 42;
-    let comment = contentW - subject - shown.length * setWidth - total - grade - position - initials;
+    let comment = contentW - subject - shown.length * setWidth - total - grade - initials;
     if (comment < 64) comment = 64;
     return fitColumns([
       { key: "subject", label: "Subject", width: subject },
       ...shown.map((set) => ({ key: `set:${set.key}`, label: set.label, sub: formatShare(set.share), width: setWidth })),
       { key: "total", label: "Total", width: total },
       ...(input.nursery ? [] : [{ key: "grade", label: "Grade", width: grade }]),
-      { key: "position", label: "Position", width: position },
       { key: "comment", label: "Teacher's comment", width: comment },
       { key: "initials", label: "Initials", width: initials },
     ]);
@@ -588,14 +579,21 @@ export async function buildReportCardsPdf(
       [input.nursery ? "Overall" : "Average", formatScore(card.overall_score, input.nursery)],
       ["AGG", card.overall_aggregate != null ? String(card.overall_aggregate) : "—"],
       ["Grade", card.overall_grade || "—"],
-      ["Position", card.overall_position ? ordinal(card.overall_position) : "—"],
+      ["Attendance", "✓"],
     ];
     const statX = M + pupilWidth + 10;
     const statW = (contentW - pupilWidth - 10) / stats.length;
     stats.forEach((fact, index) => {
       const x = statX + index * statW;
       page!.drawText(fact[0].toUpperCase(), { x, y: y - 8, size: 6, font: bold, color: MUTED });
-      page!.drawText(fit(fact[1], bold, 9, statW - 6), { x, y: y - 22, size: 9, font: bold, color: INK });
+      if (fact[0] === "Attendance") {
+        const tickLeft = x + Math.max(0, (statW - 10) / 2);
+        const tickY = y - 22;
+        page!.drawLine({ start: { x: tickLeft, y: tickY + 3 }, end: { x: tickLeft + 3.5, y: tickY }, thickness: 1.6, color: GREEN });
+        page!.drawLine({ start: { x: tickLeft + 3.5, y: tickY }, end: { x: tickLeft + 9, y: tickY + 7 }, thickness: 1.6, color: GREEN });
+      } else {
+        page!.drawText(fit(fact[1], bold, 9, statW - 6), { x, y: y - 22, size: 9, font: bold, color: INK });
+      }
     });
     y -= 42;
     page!.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: GOLD });
@@ -640,7 +638,6 @@ export async function buildReportCardsPdf(
           if (column.key === "score") return formatScore(line.score, false);
           if (column.key === "total") return formatScore(line.score, input.nursery);
           if (column.key === "progress" || column.key === "grade") return line.grade || "—";
-          if (column.key === "position") return line.position ? ordinal(line.position) : "—";
           if (column.key === "initials") return line.teacher_initials || "";
           return line.teacher_comment || "";
         });

@@ -100,7 +100,7 @@ export function TeachersManager({ teachers, editable }: { teachers: TeacherRow[]
   const faces = enriched.slice(0, 5);
 
   return (
-    <div className="app-page apl tch-admin">
+    <div className="app-page apl tch-admin cms-desk">
       <PageHeader
         kicker="People"
         icon="fa-chalkboard-user"
@@ -242,6 +242,7 @@ export function TeachersManager({ teachers, editable }: { teachers: TeacherRow[]
                     </label>
                     <a
                       className={`story-icon${row.published ? "" : " is-off"}`}
+                      data-act="View"
                       href={row.published ? `/teacher/${row.slug}` : undefined}
                       target="_blank"
                       rel="noreferrer"

@@ -591,4 +591,84 @@
   .nl-col-date { grid-column: 2; padding-left: calc(40px + .75rem) !important; font-size: .76rem; }
   .nl-table .nl-col-actions { grid-column: 3; grid-row: 1 / span 2; padding: 0; }
   .nl-col-actions .inbox-icon-btn:not(.is-danger) { display: none; }
+  .nl-desk .nl-table .nl-col-actions { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-top: .35rem; }
+}
+
+/* Newsletter desk — matches the light admin desks. */
+.nl-desk { max-width: 1080px; }
+.nl-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 1.5rem; margin-bottom: 1.15rem; }
+.nl-head h1 { margin: 0; font-family: var(--font-yantramanav), "Yantramanav", sans-serif; font-size: clamp(1.7rem, 3vw, 2.15rem); font-weight: 700; letter-spacing: -.02em; color: #19232b; }
+.nl-head p { margin: .3rem 0 0; color: #8a8174; font-size: .92rem; }
+.nl-head-actions { display: flex; flex-wrap: wrap; gap: .45rem; }
+.nl-btn {
+  display: inline-flex; align-items: center; gap: .4rem; height: 36px; padding: 0 .85rem;
+  border: 1px solid #e6e1d6; border-radius: 8px; background: #fff; color: #19232b;
+  font-size: .84rem; font-weight: 650; text-decoration: none; cursor: pointer;
+}
+.nl-btn:hover { border-color: #d5cfc3; background: #faf8f4; }
+.nl-btn.is-solid { border-color: #19232b; background: #19232b; color: #fff; }
+.nl-btn.is-solid:hover { background: #24303a; }
+.nl-btn.is-done { border-color: #c9ddc4; background: #f3f8f1; color: #3c6b34; }
+
+.nl-strip { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 1rem; border: 1px solid #e6e1d6; border-radius: 12px; background: #fff; overflow: hidden; }
+.nl-strip > div { display: flex; align-items: center; gap: .75rem; min-width: 0; padding: .9rem 1rem; border-left: 1px solid #efeae2; }
+.nl-strip > div:first-child { border-left: 0; }
+.nl-stat-icon { display: grid; place-items: center; width: 34px; height: 34px; flex: none; border-radius: 9px; background: #f4f1ea; color: #5c564c; font-size: .85rem; }
+.nl-strip .is-ok .nl-stat-icon { background: #eef5ec; color: #3c6b34; }
+.nl-strip .is-gold .nl-stat-icon { background: #fbf3df; color: #8a6a12; }
+.nl-strip > div > span:last-child { display: grid; gap: .12rem; min-width: 0; }
+.nl-strip > div > span:last-child > span { color: #8a8174; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.nl-strip strong { overflow: hidden; font-family: var(--font-yantramanav), "Yantramanav", sans-serif; font-size: 1.35rem; font-weight: 700; line-height: 1; letter-spacing: -.02em; color: #19232b; text-overflow: ellipsis; white-space: nowrap; }
+.nl-strip small { color: #8a8174; font-size: .75rem; }
+
+.nl-error { margin: 0 0 .8rem; padding: .7rem .9rem; border-radius: 8px; background: #fdf2f2; color: #8d2f2f; font-size: .88rem; }
+.nl-panel { border: 1px solid #e6e1d6; border-top: 3px solid #c9a227; border-radius: 12px; background: #fff; overflow: hidden; }
+.nl-desk .nl-tools { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .75rem .9rem; border-bottom: 1px solid #efeae2; }
+.nl-search { position: relative; flex: 1 1 220px; }
+.nl-search > i { position: absolute; top: 50%; left: .75rem; transform: translateY(-50%); color: #8a8174; font-size: .8rem; pointer-events: none; }
+.nl-search input { width: 100%; height: 36px; padding: 0 2rem 0 2.1rem; border: 1px solid #e6e1d6; border-radius: 8px; background: #fff; color: #19232b; font: inherit; font-size: .9rem; }
+.nl-search input:focus { outline: 2px solid rgba(201, 162, 39, .35); border-color: #c9a227; }
+.nl-search button { position: absolute; top: 50%; right: .35rem; transform: translateY(-50%); display: grid; place-items: center; width: 26px; height: 26px; border: 0; border-radius: 6px; background: transparent; color: #8a8174; cursor: pointer; }
+.nl-desk .nl-tools select { height: 36px; padding: 0 .7rem; border: 1px solid #e6e1d6; border-radius: 8px; background: #fff; color: #19232b; font: inherit; font-size: .86rem; }
+.nl-desk .nl-tools > p { margin: 0 0 0 auto; color: #8a8174; font-size: .8rem; white-space: nowrap; }
+
+.nl-desk .nl-chart { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: .35rem; height: auto; margin: 0; padding: .75rem .9rem .6rem; border-bottom: 1px solid #efeae2; list-style: none; }
+.nl-desk .nl-chart li { display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: .28rem; height: 78px; min-width: 0; }
+.nl-desk .nl-bar { width: 16px; max-width: none; border-radius: 4px 4px 2px 2px; background: #d9d3c7; }
+.nl-desk .nl-chart li.is-current .nl-bar { background: #c9a227; }
+.nl-desk .nl-chart li > span:last-child { font-size: .62rem; line-height: 1; text-align: center; color: #8a8174; }
+
+.nl-desk .nl-table { width: 100%; border-collapse: collapse; }
+.nl-desk .nl-table th { padding: .55rem .9rem; border-bottom: 1px solid #efeae2; background: #faf8f4; color: #8a8174; font-size: .68rem; font-weight: 700; letter-spacing: .06em; text-align: left; text-transform: uppercase; }
+.nl-desk .nl-table td { padding: .7rem .9rem; border-bottom: 1px solid #f3efe8; vertical-align: middle; }
+.nl-desk .nl-table tbody tr:last-child td { border-bottom: 0; }
+.nl-desk .nl-table tbody tr:hover td { background: #fcfbf8; }
+.nl-email { font-weight: 650; color: #19232b; }
+.nl-acts { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
+.nl-act {
+  display: inline-flex; align-items: center; height: 28px; padding: 0 .55rem;
+  border: 0; border-radius: 6px; background: transparent; color: #5c564c;
+  font: inherit; font-size: .78rem; font-weight: 650; text-decoration: none; cursor: pointer;
+}
+.nl-act:hover { background: #f4f1ea; color: #19232b; }
+.nl-act.is-danger:hover { background: #fdf2f2; color: #a12626; }
+.nl-act:disabled { opacity: .5; cursor: default; }
+.nl-empty { display: grid; justify-items: center; gap: .35rem; margin: 0; padding: 2.6rem 1rem; text-align: center; color: #8a8174; }
+.nl-empty i { font-size: 1.2rem; color: #c9a227; }
+.nl-empty strong { color: #19232b; font-size: .95rem; }
+.nl-empty p { margin: 0; max-width: 36ch; font-size: .86rem; }
+.nl-pager { display: flex; align-items: center; justify-content: space-between; gap: .7rem; padding: .7rem .9rem; border-top: 1px solid #efeae2; color: #8a8174; font-size: .82rem; }
+.nl-pager > div { display: flex; gap: .35rem; }
+.nl-pager button { display: grid; place-items: center; width: 32px; height: 32px; padding: 0; border: 1px solid #e6e1d6; border-radius: 8px; background: #fff; color: #19232b; font: inherit; cursor: pointer; }
+.nl-pager button:disabled { opacity: .4; cursor: default; }
+.nl-desk .admin-card.app-notice { border: 1px solid #e6e1d6; border-top: 3px solid #c9a227; border-radius: 12px; background: #fff; }
+
+@media (max-width: 860px) {
+  .nl-strip { grid-template-columns: 1fr 1fr; }
+  .nl-strip > div:nth-child(odd) { border-left: 0; }
+  .nl-strip > div:nth-child(n + 3) { border-top: 1px solid #efeae2; }
+}
+@media (max-width: 640px) {
+  .nl-desk .nl-chart { display: none; }
+  .nl-desk .nl-tools > p { width: 100%; margin-left: 0; }
 }

@@ -13,6 +13,8 @@ export type DashboardApplication = Pick<Application, "id" | "child_name" | "pare
 
 export type DashboardMessage = { id: string; name: string; email: string; subject: string | null; message: string; read: boolean; created_at: string };
 
+type DashShortcut = { href: string; label: string; icon: string; badge?: number; external?: boolean };
+
 export type DashboardProps = {
   now: Date;
   configured: boolean;
@@ -88,7 +90,7 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
     { label: "Vacancies", value: counts.vacancies, href: "/admin/content/vacancies", icon: "fa-briefcase" },
   ];
 
-  const shortcuts = [
+  const shortcuts: DashShortcut[] = [
     { href: "/admin/applications", label: "Applications", icon: "fa-file-signature", badge: newApplications || undefined },
     { href: "/admin/stories", label: "Stories", icon: "fa-newspaper" },
     { href: "/admin/students", label: "Students", icon: "fa-user-graduate" },

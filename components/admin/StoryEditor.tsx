@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import "./story-editor.css";
 import { uploadMedia } from "@/app/actions";
 import { deleteStory, duplicateStory, saveStory, type StoryActionResult } from "@/app/admin/(panel)/stories/actions";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { StoriesSetupNotice, StoryFeedback, StoryStatusBadge } from "@/components/admin/Stories";
 import { formatDateTime, fromKampalaInput, toKampalaInput } from "@/lib/applications";
-import { kampalaIso, plainText, readingMinutes, sourceForTable, STORY_SOURCE_KEYS, STORY_SOURCES, wordCount, type StoryTable } from "@/lib/newsroom";
+import { kampalaIso, readingMinutes, sourceForTable, STORY_SOURCE_KEYS, STORY_SOURCES, wordCount, type StoryTable } from "@/lib/newsroom";
 import {
   excerptFromBody,
   hasComplexMarkup,
@@ -287,234 +288,68 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
   };
 
   const primaryLabel = !form.published ? "Save draft" : status === "scheduled" ? "Schedule" : savedPublished ? "Update" : "Publish";
+  const scheduledForLater = Boolean(publishIso && new Date(publishIso).getTime() > Date.now());
+  const commitLabel = saving ? "Saving…" : !form.published ? (scheduledForLater ? "Schedule" : "Publish") : primaryLabel;
   const seoTitle = form.seo_title || form.title || "Story title";
   const liveHref = !isNew && savedPublished && storyStatus(record.published, record.published_at) === "live" ? storyPath(record.table, record.slug) : null;
+  const titleSlug = slugify(form.title);
+  const slugDrift = Boolean(titleSlug && form.slug !== titleSlug);
+
+  const commit = () => {
+    if (!form.published) {
+      const publishAt = form.publishAt || nowInput();
+      setForm((current) => ({ ...current, published: true, publishAt }));
+      void save({ published: true, publishAt });
+      return;
+    }
+    void save();
+  };
 
   return (
-    <div className="app-page story-editor-page">
-      <Link className="app-back" href="/admin/stories"><i className="fa-solid fa-arrow-left" /> All stories</Link>
-
-      <div className="app-head">
-        <div>
-          <div className="app-head-title">
-            <h1>{isNew ? `New ${info.singular.toLowerCase()}` : "Edit story"}</h1>
-            <StoryStatusBadge status={status} at={publishIso} />
-            {form.featured ? <span className="story-featured-pill"><i className="fa-solid fa-star" /> Featured</span> : null}
-          </div>
-          <p>
-            {dirty ? <span className="story-dirty"><i className="fa-solid fa-circle" /> Unsaved changes</span> : isNew ? "Not saved yet" : "All changes saved"}
-            {record.updated_at && !dirty ? ` · Last edited ${formatDateTime(record.updated_at)}` : null}
-            <span className="story-kbd"> · Press <kbd>Ctrl</kbd>+<kbd>S</kbd> to save</span>
-          </p>
+    <div className="sed">
+      <header className="sed-bar">
+        <Link className="sed-back" href="/admin/stories"><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Stories</Link>
+        <div className="sed-bar-meta">
+          <StoryStatusBadge status={status} at={publishIso} />
+          {form.featured ? <span className="sed-star" title="This story can lead the newsroom"><i className="fa-solid fa-star" aria-hidden="true" /> Featured</span> : null}
+          <span
+            className={`sed-state${dirty ? " is-dirty" : ""}`}
+            title={dirty ? "Press Ctrl+S to save" : record.updated_at ? `Last edited ${formatDateTime(record.updated_at)}` : undefined}
+          >
+            {dirty ? "Unsaved" : isNew ? "Not saved" : "Saved"}
+          </span>
         </div>
-        <div className="app-contact-actions">
+        <div className="sed-bar-actions">
           {!isNew ? (
-            <a className="admin-btn admin-btn-ghost" href={`/story-preview/${record.table}/${record.id}`} target="_blank" rel="noreferrer">
-              <i className="fa-regular fa-eye" /> Preview
+            <a className="sed-btn" href={`/story-preview/${record.table}/${record.id}`} target="_blank" rel="noreferrer">
+              <i className="fa-regular fa-eye" aria-hidden="true" /> Preview
             </a>
           ) : null}
           {liveHref ? (
-            <a className="admin-btn admin-btn-ghost" href={liveHref} target="_blank" rel="noreferrer">
-              <i className="fa-solid fa-arrow-up-right-from-square" /> View live
+            <a className="sed-btn" href={liveHref} target="_blank" rel="noreferrer">
+              <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> View live
             </a>
           ) : null}
-          <button type="button" className="admin-btn" onClick={() => void save()} disabled={saving}>
-            <i className={`fa-solid ${saving ? "fa-spinner fa-spin" : "fa-check"}`} /> {saving ? "Saving…" : primaryLabel}
+          {!form.published ? (
+            <button type="button" className="sed-btn" onClick={() => void save()} disabled={saving} title="Save without publishing (Ctrl+S)">
+              Save draft
+            </button>
+          ) : null}
+          <button type="button" className="sed-btn sed-btn-primary" onClick={commit} disabled={saving} title={form.published ? "Save (Ctrl+S)" : "Make this story public"}>
+            <i className={`fa-solid ${saving ? "fa-spinner fa-spin" : form.published ? "fa-check" : "fa-globe"}`} aria-hidden="true" />
+            {commitLabel}
           </button>
         </div>
-      </div>
+      </header>
 
       <StoriesSetupNotice mode={mode} />
-      <div className="story-feedback-slot" aria-live="polite"><StoryFeedback result={result} /></div>
+      <div className="sed-feedback" aria-live="polite"><StoryFeedback result={result} /></div>
 
-      <div className="story-editor">
-        <div className="story-editor-main">
-          <section className="admin-card story-compose">
-            <label className="visually-hidden" htmlFor="story-title">Title</label>
-            <textarea
-              id="story-title"
-              className="story-title-input"
-              rows={1}
-              placeholder="Headline"
-              value={form.title}
-              onChange={(event) => {
-                const title = event.target.value.replace(/\n/g, " ");
-                setForm((current) => ({ ...current, title, slug: slugTouched ? current.slug : slugify(title) }));
-              }}
-              onInput={(event) => {
-                const el = event.currentTarget;
-                el.style.height = "auto";
-                el.style.height = `${el.scrollHeight}px`;
-              }}
-            />
-            <div className="story-slug">
-              <i className="fa-solid fa-link" aria-hidden="true" />
-              <span>kja.ug{info.base}/</span>
-              <input
-                aria-label="URL slug"
-                value={form.slug}
-                placeholder={slugify(form.title) || "story-address"}
-                onChange={(event) => {
-                  setSlugTouched(true);
-                  set("slug", event.target.value.toLowerCase().replace(/\s+/g, "-"));
-                }}
-                onBlur={() => set("slug", slugify(form.slug))}
-              />
-              {slugTouched && form.title ? (
-                <button type="button" className="app-link-btn" onClick={() => { setSlugTouched(false); set("slug", slugify(form.title)); }}>
-                  Match title
-                </button>
-              ) : null}
-            </div>
-            {!isNew && savedPublished && form.slug !== record.slug ? (
-              <p className="story-warn"><i className="fa-solid fa-triangle-exclamation" /> Changing the address of a live story breaks links people have already shared.</p>
-            ) : null}
-
-            <div className="story-field">
-              <div className="story-field-head">
-                <label htmlFor="story-excerpt">Summary</label>
-                <span>
-                  {body.trim() ? (
-                    <button type="button" className="app-link-btn" onClick={() => set("excerpt", excerptFromBody(body))}>
-                      <i className="fa-solid fa-wand-magic-sparkles" /> Draft from story
-                    </button>
-                  ) : null}
-                  <Counter value={form.excerpt.length} max={STORY_LIMITS.excerpt} min={40} />
-                </span>
-              </div>
-              <textarea
-                id="story-excerpt"
-                rows={3}
-                value={form.excerpt}
-                placeholder="One or two sentences shown on story cards and under the headline."
-                onChange={(event) => set("excerpt", event.target.value)}
-              />
-            </div>
-
-            <div className="story-field">
-              <div className="story-field-head">
-                <label>Story</label>
-                <span className="story-metrics">
-                  <span><i className="fa-solid fa-font" /> {words.toLocaleString()} words</span>
-                  <span><i className="fa-regular fa-clock" /> {minutes} min read</span>
-                  <span><i className="fa-solid fa-heading" /> {sections} section{sections === 1 ? "" : "s"}</span>
-                  <span><i className="fa-regular fa-image" /> {images}</span>
-                </span>
-              </div>
-              <RichTextEditor
-                initialHtml={record.body}
-                complex={complex}
-                onUpload={uploadInline}
-                onChange={(html) => {
-                  setBody(html);
-                  setBodyDirty(true);
-                }}
-              />
-            </div>
-          </section>
-
-          <section className="admin-card story-panel">
-            <h2 className="app-card-title"><i className="fa-brands fa-google" /> Search &amp; sharing</h2>
-            {!extended ? <p className="story-hint">Needs <code>supabase/0005_stories.sql</code>. Until then, search engines use the headline and summary.</p> : null}
-            <div className="story-seo">
-              <div className="story-seo-fields">
-                <div className="story-field">
-                  <div className="story-field-head">
-                    <label htmlFor="story-seo-title">Search title</label>
-                    <Counter value={form.seo_title.length} max={STORY_LIMITS.seoTitle} />
-                  </div>
-                  <input id="story-seo-title" value={form.seo_title} disabled={!extended} placeholder={form.title || "Defaults to the headline"} onChange={(event) => set("seo_title", event.target.value)} />
-                </div>
-                <div className="story-field">
-                  <div className="story-field-head">
-                    <label htmlFor="story-seo-desc">Search description</label>
-                    <Counter value={form.seo_description.length} max={STORY_LIMITS.seoDescription} min={70} />
-                  </div>
-                  <textarea
-                    id="story-seo-desc"
-                    rows={3}
-                    value={form.seo_description}
-                    disabled={!extended}
-                    placeholder={form.excerpt || "Defaults to the summary"}
-                    onChange={(event) => set("seo_description", event.target.value)}
-                  />
-                </div>
-              </div>
-              <div className="story-serp" aria-label="Google preview">
-                <span className="story-serp-label">Google preview</span>
-                <div className="story-serp-site">
-                  <img src="/images/icon.png" alt="" />
-                  <span><strong>Kampala Junior Academy</strong><small>https://kja.ug{path.split("/").slice(0, -1).join(" › ")} › …</small></span>
-                </div>
-                <p className="story-serp-title">{seoTitle.length > 62 ? `${seoTitle.slice(0, 60)}…` : seoTitle}{form.seo_title ? "" : " | Kampala Junior Academy"}</p>
-                <p className="story-serp-desc">{effectiveDescription.length > 158 ? `${effectiveDescription.slice(0, 156)}…` : effectiveDescription || "Add a summary so search results show a helpful description."}</p>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <aside className="story-editor-side">
-          <section className="admin-card story-panel">
-            <h2 className="app-card-title"><i className="fa-solid fa-paper-plane" /> Publishing</h2>
-            <div className="story-segment" role="radiogroup" aria-label="Visibility">
-              <button type="button" role="radio" aria-checked={!form.published} className={!form.published ? "active" : ""} onClick={() => set("published", false)}>
-                <i className="fa-solid fa-pen" /> Draft
-              </button>
-              <button
-                type="button"
-                role="radio"
-                aria-checked={form.published}
-                className={form.published ? "active" : ""}
-                onClick={() => setForm((current) => ({ ...current, published: true, publishAt: current.publishAt || nowInput() }))}
-              >
-                <i className="fa-solid fa-globe" /> Published
-              </button>
-            </div>
-            <label className="story-label" htmlFor="story-date">Publish date</label>
-            <div className="story-date-row">
-              <input id="story-date" type="datetime-local" value={form.publishAt} onChange={(event) => set("publishAt", event.target.value)} />
-              <button type="button" className="app-link-btn" onClick={() => set("publishAt", nowInput())}>Now</button>
-            </div>
-            <p className="story-hint">
-              {status === "scheduled" && publishIso
-                ? <><i className="fa-regular fa-clock" /> Goes live automatically on {formatDateTime(publishIso)}.</>
-                : status === "draft"
-                  ? "Only admins can see drafts. Pick a future date and publish to schedule it."
-                  : form.publishAt
-                    ? "Visible on the website. Set a future date to schedule instead."
-                    : "The date is set when you publish."}
-            </p>
-            <label className={`story-toggle${extended ? "" : " is-disabled"}`}>
-              <input type="checkbox" checked={form.featured} disabled={!extended} onChange={(event) => set("featured", event.target.checked)} />
-              <span aria-hidden="true" />
-              <span>
-                <strong>Feature this story</strong>
-                <small>The newest featured story leads the newsroom.</small>
-              </span>
-            </label>
-            <button type="button" className="admin-btn story-save" onClick={() => void save()} disabled={saving}>
-              {saving ? "Saving…" : primaryLabel}
-            </button>
-            {!form.published ? (
-              <button
-                type="button"
-                className="admin-btn admin-btn-ghost story-save"
-                disabled={saving}
-                onClick={() => {
-                  const publishAt = form.publishAt || nowInput();
-                  setForm((current) => ({ ...current, published: true, publishAt }));
-                  void save({ published: true, publishAt });
-                }}
-              >
-                <i className="fa-solid fa-globe" /> {fromKampalaInput(form.publishAt) && new Date(fromKampalaInput(form.publishAt)!).getTime() > Date.now() ? "Schedule" : "Publish now"}
-              </button>
-            ) : null}
-          </section>
-
-          <section className="admin-card story-panel">
-            <h2 className="app-card-title"><i className="fa-regular fa-image" /> Cover image</h2>
+      <div className="sed-layout">
+        <div className="sed-main">
+          <article className="sed-sheet">
             <div
-              className={`story-cover${dragging ? " is-dragging" : ""}${form.image_url ? " has-image" : ""}`}
+              className={`sed-cover${dragging ? " is-over" : ""}${form.image_url ? " has-image" : ""}`}
               onDragOver={(event) => {
                 event.preventDefault();
                 setDragging(true);
@@ -531,21 +366,23 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                 <img src={form.image_url} alt="" />
               ) : (
                 <button type="button" onClick={() => coverInput.current?.click()}>
-                  <i className="fa-solid fa-cloud-arrow-up" />
-                  <strong>Upload a cover</strong>
-                  <small>or drop an image here · landscape, 1600px wide works best</small>
+                  <i className="fa-regular fa-image" aria-hidden="true" />
+                  <strong>Add a cover image</strong>
+                  <small>Drop a photo here, or click to upload. A wide picture works best.</small>
                 </button>
               )}
-              {uploadingCover ? <span className="story-cover-busy"><i className="fa-solid fa-spinner fa-spin" /> Uploading…</span> : null}
+              {uploadingCover ? <span className="sed-cover-busy"><i className="fa-solid fa-spinner fa-spin" aria-hidden="true" /> Uploading…</span> : null}
             </div>
-            <div className="story-cover-actions">
-              <button type="button" className="app-link-btn" onClick={() => coverInput.current?.click()} disabled={uploadingCover}>
-                {form.image_url ? "Replace" : "Upload"}
+            <div className="sed-cover-tools">
+              <button type="button" onClick={() => coverInput.current?.click()} disabled={uploadingCover}>
+                {form.image_url ? "Replace image" : "Upload image"}
               </button>
-              <button type="button" className="app-link-btn" onClick={() => setShowUrl((value) => !value)}>Use a link</button>
-              {form.image_url ? <button type="button" className="app-link-btn is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
+              <button type="button" onClick={() => setShowUrl((value) => !value)}>{showUrl ? "Hide link" : "Use a link"}</button>
+              {form.image_url ? <button type="button" className="is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? <input className="story-input" value={form.image_url} placeholder="https://…" aria-label="Cover image address" onChange={(event) => set("image_url", event.target.value.trim())} /> : null}
+            {showUrl ? (
+              <input className="sed-input sed-cover-url" value={form.image_url} placeholder="https://…" aria-label="Cover image address" onChange={(event) => set("image_url", event.target.value.trim())} />
+            ) : null}
             <input
               ref={coverInput}
               type="file"
@@ -557,43 +394,211 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                 if (file) void uploadCover(file);
               }}
             />
+
+            <div className="sed-write">
+              <label className="visually-hidden" htmlFor="story-title">{isNew ? `New ${info.singular.toLowerCase()}` : "Story title"}</label>
+              <textarea
+                id="story-title"
+                className="sed-title"
+                rows={1}
+                placeholder="Headline"
+                value={form.title}
+                onChange={(event) => {
+                  const title = event.target.value.replace(/\n/g, " ");
+                  setForm((current) => ({ ...current, title, slug: slugTouched ? current.slug : slugify(title) }));
+                }}
+                onInput={(event) => {
+                  const el = event.currentTarget;
+                  el.style.height = "auto";
+                  el.style.height = `${el.scrollHeight}px`;
+                }}
+              />
+              <div className="sed-slug">
+                <span>kja.ug{info.base}/</span>
+                <input
+                  aria-label="Web address"
+                  value={form.slug}
+                  placeholder={titleSlug || "story-address"}
+                  onChange={(event) => {
+                    setSlugTouched(true);
+                    set("slug", event.target.value.toLowerCase().replace(/\s+/g, "-"));
+                  }}
+                  onBlur={() => set("slug", slugify(form.slug))}
+                />
+                {slugDrift && !savedPublished ? (
+                  <button type="button" onClick={() => { setSlugTouched(false); set("slug", titleSlug); }}>
+                    Match title
+                  </button>
+                ) : null}
+              </div>
+              {!isNew && savedPublished && form.slug !== record.slug ? (
+                <p className="sed-warn"><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" /> This story is already live. A new address will break links people have shared.</p>
+              ) : null}
+
+              <div className="sed-field">
+                <div className="sed-field-head">
+                  <label htmlFor="story-excerpt">Summary</label>
+                  <span>
+                    {body.trim() ? (
+                      <button type="button" className="sed-text" onClick={() => set("excerpt", excerptFromBody(body))}>
+                        Draft from the story
+                      </button>
+                    ) : null}
+                    <Counter value={form.excerpt.length} max={STORY_LIMITS.excerpt} min={40} />
+                  </span>
+                </div>
+                <textarea
+                  id="story-excerpt"
+                  className="sed-excerpt"
+                  rows={2}
+                  value={form.excerpt}
+                  placeholder="One or two sentences for story cards and the line under the headline."
+                  onChange={(event) => set("excerpt", event.target.value)}
+                />
+              </div>
+
+              <div className="sed-field">
+                <div className="sed-field-head">
+                  <label>Story</label>
+                  <span className="sed-metrics">
+                    {words.toLocaleString()} words
+                    <span aria-hidden="true">·</span>
+                    {minutes} min
+                    {sections ? <><span aria-hidden="true">·</span>{sections} section{sections === 1 ? "" : "s"}</> : null}
+                    {images ? <><span aria-hidden="true">·</span>{images} image{images === 1 ? "" : "s"}</> : null}
+                  </span>
+                </div>
+                <RichTextEditor
+                  initialHtml={record.body}
+                  complex={complex}
+                  onUpload={uploadInline}
+                  onChange={(html) => {
+                    setBody(html);
+                    setBodyDirty(true);
+                  }}
+                />
+              </div>
+            </div>
+          </article>
+
+          <section className="sed-card">
+            <h2>Search &amp; sharing</h2>
+            {!extended ? <p className="sed-hint">Needs <code>supabase/0005_stories.sql</code>. Until then, search engines use the headline and summary.</p> : null}
+            <div className="sed-seo">
+              <div className="sed-seo-fields">
+                <div className="sed-field">
+                  <div className="sed-field-head">
+                    <label htmlFor="story-seo-title">Search title</label>
+                    <Counter value={form.seo_title.length} max={STORY_LIMITS.seoTitle} />
+                  </div>
+                  <input id="story-seo-title" className="sed-input" value={form.seo_title} disabled={!extended} placeholder={form.title || "Defaults to the headline"} onChange={(event) => set("seo_title", event.target.value)} />
+                </div>
+                <div className="sed-field">
+                  <div className="sed-field-head">
+                    <label htmlFor="story-seo-desc">Search description</label>
+                    <Counter value={form.seo_description.length} max={STORY_LIMITS.seoDescription} min={70} />
+                  </div>
+                  <textarea
+                    id="story-seo-desc"
+                    className="sed-input"
+                    rows={3}
+                    value={form.seo_description}
+                    disabled={!extended}
+                    placeholder={form.excerpt || "Defaults to the summary"}
+                    onChange={(event) => set("seo_description", event.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="sed-serp" aria-label="Search preview">
+                <span className="sed-serp-label">Search preview</span>
+                <div className="sed-serp-site">
+                  <img src="/images/icon.png" alt="" />
+                  <span><strong>Kampala Junior Academy</strong><small>kja.ug{path}</small></span>
+                </div>
+                <p className="sed-serp-title">{seoTitle.length > 62 ? `${seoTitle.slice(0, 60)}…` : seoTitle}{form.seo_title ? "" : " | Kampala Junior Academy"}</p>
+                <p className="sed-serp-desc">{effectiveDescription.length > 158 ? `${effectiveDescription.slice(0, 156)}…` : effectiveDescription || "Add a summary so search results show a helpful description."}</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <aside className="sed-side">
+          <section className="sed-card">
+            <h2>Publishing</h2>
+            <div className="sed-segment" role="radiogroup" aria-label="Visibility">
+              <button type="button" role="radio" aria-checked={!form.published} className={!form.published ? "is-on" : ""} onClick={() => set("published", false)}>
+                Draft
+              </button>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={form.published}
+                className={form.published ? "is-on" : ""}
+                onClick={() => setForm((current) => ({ ...current, published: true, publishAt: current.publishAt || nowInput() }))}
+              >
+                Published
+              </button>
+            </div>
+            <label className="sed-label" htmlFor="story-date">Publish date</label>
+            <div className="sed-date">
+              <input id="story-date" type="datetime-local" value={form.publishAt} onChange={(event) => set("publishAt", event.target.value)} />
+              <button type="button" onClick={() => set("publishAt", nowInput())}>Now</button>
+            </div>
+            <p className="sed-hint">
+              {status === "scheduled" && publishIso
+                ? <>Goes live on {formatDateTime(publishIso)}.</>
+                : status === "draft"
+                  ? "Only people signed in to admin can see a draft. Choose a future date, then schedule it."
+                  : "Visible on the website. A future date holds it until then."}
+            </p>
+            <label className={`sed-toggle${extended ? "" : " is-disabled"}`}>
+              <input type="checkbox" checked={form.featured} disabled={!extended} onChange={(event) => set("featured", event.target.checked)} />
+              <span aria-hidden="true" />
+              <span>
+                <strong>Feature this story</strong>
+                <small>The newest featured story leads the newsroom.</small>
+              </span>
+            </label>
           </section>
 
-          <section className="admin-card story-panel">
-            <h2 className="app-card-title"><i className="fa-solid fa-folder-tree" /> Organise</h2>
-            <label className="story-label" htmlFor="story-type">{isNew ? "Story type" : "Section"}</label>
-            <select id="story-type" className="story-input" value={form.table} onChange={(event) => set("table", event.target.value as StoryTable)}>
+          <section className="sed-card">
+            <h2>Details</h2>
+            <label className="sed-label" htmlFor="story-type">{isNew ? "Story type" : "Section"}</label>
+            <select id="story-type" className="sed-input" value={form.table} onChange={(event) => set("table", event.target.value as StoryTable)}>
               {STORY_SOURCE_KEYS.map((key) => (
                 <option key={key} value={STORY_SOURCES[key].table}>{STORY_SOURCES[key].label}</option>
               ))}
             </select>
-            <p className="story-hint">
-              {moving ? <><i className="fa-solid fa-right-left" /> Saving moves this story to {info.label}.</> : STORY_TYPE_HELP[source].hint}
+            <p className="sed-hint">
+              {moving ? <>Saving moves this story to {info.label}.</> : STORY_TYPE_HELP[source].hint}
             </p>
-            <label className="story-label" htmlFor="story-author">Author</label>
-            <input id="story-author" className="story-input" list="story-author-options" value={form.author} onChange={(event) => set("author", event.target.value)} />
+            <label className="sed-label" htmlFor="story-author">Author</label>
+            <input id="story-author" className="sed-input" list="story-author-options" value={form.author} onChange={(event) => set("author", event.target.value)} />
             <datalist id="story-author-options">{suggestions.authors.map((name) => <option key={name} value={name} />)}</datalist>
-            <label className="story-label" htmlFor="story-category">Category</label>
+            <label className="sed-label" htmlFor="story-category">Category</label>
             <input
               id="story-category"
-              className="story-input"
+              className="sed-input"
               list="story-category-options"
               value={form.category}
               disabled={!extended}
-              placeholder={`e.g. Academics. Defaults to “${info.label}”`}
+              placeholder={info.label}
               onChange={(event) => set("category", event.target.value)}
             />
             <datalist id="story-category-options">{suggestions.categories.map((name) => <option key={name} value={name} />)}</datalist>
-            <span className="story-label">Tags</span>
+            <span className="sed-label">Tags</span>
             <TagInput tags={form.tags} onChange={(tags) => set("tags", tags)} suggestions={suggestions.tags} disabled={!extended} />
           </section>
 
-          <section className="admin-card story-panel">
-            <h2 className="app-card-title">
-              <i className="fa-solid fa-list-check" /> Ready to publish?
-              <span className={`app-count story-score${score === checklist.length ? " is-done" : ""}`}>{score}/{checklist.length}</span>
-            </h2>
-            <ul className="story-checklist">
+          <section className="sed-card">
+            <div className="sed-score">
+              <h2>Before you publish</h2>
+              <strong className={score === checklist.length ? "is-done" : ""}>{score}/{checklist.length}</strong>
+            </div>
+            <div className="sed-meter" role="meter" aria-valuenow={score} aria-valuemin={0} aria-valuemax={checklist.length} aria-label="How ready this story is to publish">
+              <span style={{ width: `${Math.round((score / checklist.length) * 100)}%` }} />
+            </div>
+            <ul className="sed-check">
               {checklist.map((item) => (
                 <li key={item.label} className={item.ok ? "is-ok" : ""}>
                   <i className={`fa-solid ${item.ok ? "fa-circle-check" : "fa-circle"}`} aria-hidden="true" />
@@ -601,15 +606,12 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                 </li>
               ))}
             </ul>
-            {plainText(form.title).length > 0 && words === 0 ? <p className="story-hint">Tip: start writing in the Story box. The checklist updates as you go.</p> : null}
           </section>
 
           {!isNew ? (
-            <section className="admin-card story-panel">
-              <h2 className="app-card-title"><i className="fa-solid fa-ellipsis" /> More actions</h2>
+            <div className="sed-more">
               <button
                 type="button"
-                className="admin-btn admin-btn-ghost story-save"
                 disabled={saving}
                 onClick={async () => {
                   const outcome = await duplicateStory(record.table, record.id!);
@@ -617,11 +619,11 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                   if (outcome.id) router.push(`/admin/stories/${outcome.table ?? record.table}/${outcome.id}`);
                 }}
               >
-                <i className="fa-regular fa-copy" /> Duplicate as draft
+                <i className="fa-regular fa-copy" aria-hidden="true" /> Duplicate
               </button>
               <button
                 type="button"
-                className="app-danger-btn"
+                className="is-danger"
                 disabled={saving}
                 onClick={async () => {
                   if (!window.confirm(`Delete “${form.title || "this story"}”? This can't be undone.`)) return;
@@ -636,9 +638,9 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                   router.refresh();
                 }}
               >
-                <i className="fa-regular fa-trash-can" /> Delete story
+                <i className="fa-regular fa-trash-can" aria-hidden="true" /> Delete
               </button>
-            </section>
+            </div>
           ) : null}
         </aside>
       </div>
