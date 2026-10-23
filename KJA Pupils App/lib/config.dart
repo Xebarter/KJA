@@ -19,8 +19,11 @@ class AppConfig {
   static const defineKey = String.fromEnvironment('SUPABASE_ANON_KEY');
   static const defineUrlAlias = String.fromEnvironment('NEXT_PUBLIC_SUPABASE_URL');
   static const defineKeyAlias = String.fromEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  static const defineSiteUrl = String.fromEnvironment('KJA_SITE_URL');
+  static const defineSiteUrlAlias = String.fromEnvironment('NEXT_PUBLIC_SITE_URL');
 
   static var _dotenvReady = false;
+  static String siteUrl = '';
 
   bool get isReady => url.startsWith('https://') && anonKey.length >= 20;
 
@@ -61,6 +64,14 @@ class AppConfig {
       _env('SUPABASE_ANON_KEY'),
       _env('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
       prefs.getString('supabase_anon_key'),
+    ]);
+    siteUrl = _firstNonEmpty([
+      defineSiteUrl,
+      defineSiteUrlAlias,
+      _env('KJA_SITE_URL'),
+      _env('NEXT_PUBLIC_SITE_URL'),
+      prefs.getString('kja_site_url'),
+      'https://kja.ug',
     ]);
 
     return AppConfig(url: url, anonKey: key);

@@ -248,6 +248,8 @@ class Teacher {
     required this.role,
     this.title,
     this.subjectName,
+    this.photoPath,
+    this.photoUrl,
   });
 
   final String id;
@@ -255,12 +257,30 @@ class Teacher {
   final String? title;
   final String? subjectName;
   final String role;
+  final String? photoPath;
+  final String? photoUrl;
+
+  /// teaching_staff id (subject rows use `staffId:subjectId` as [id]).
+  String get staffId {
+    final colon = id.indexOf(':');
+    return colon == -1 ? id : id.substring(0, colon);
+  }
 
   String get label {
     final honour = title?.trim() ?? '';
     if (honour.isEmpty) return fullName;
     return '$honour $fullName';
   }
+
+  Teacher withPhotoUrl(String? url) => Teacher(
+        id: id,
+        fullName: fullName,
+        role: role,
+        title: title,
+        subjectName: subjectName,
+        photoPath: photoPath,
+        photoUrl: url,
+      );
 }
 
 class AcademicDate {
@@ -427,6 +447,60 @@ class ChatMessage {
   final DateTime createdAt;
 }
 
+class ClassResource {
+  const ClassResource({
+    required this.id,
+    required this.kind,
+    required this.title,
+    required this.publishedAt,
+    this.body,
+    this.linkUrl,
+    this.filePath,
+    this.fileName,
+    this.fileMime,
+    this.fileSize,
+    this.fileUrl,
+    this.subjectName,
+    this.teacherName,
+  });
+
+  final String id;
+  /// note | file | image | link
+  final String kind;
+  final String title;
+  final String? body;
+  final String? linkUrl;
+  final String? filePath;
+  final String? fileName;
+  final String? fileMime;
+  final int? fileSize;
+  final String? fileUrl;
+  final String? subjectName;
+  final String? teacherName;
+  final DateTime publishedAt;
+
+  bool get isNote => kind == 'note';
+  bool get isImage => kind == 'image';
+  bool get isFile => kind == 'file';
+  bool get isLink => kind == 'link';
+
+  ClassResource withFileUrl(String? url) => ClassResource(
+        id: id,
+        kind: kind,
+        title: title,
+        body: body,
+        linkUrl: linkUrl,
+        filePath: filePath,
+        fileName: fileName,
+        fileMime: fileMime,
+        fileSize: fileSize,
+        fileUrl: url,
+        subjectName: subjectName,
+        teacherName: teacherName,
+        publishedAt: publishedAt,
+      );
+}
+
 class PortalSnapshot {
   const PortalSnapshot({
     required this.displayName,
@@ -451,6 +525,7 @@ class PortalSnapshot {
     this.events = const [],
     this.reports = const [],
     this.conversations = const [],
+    this.resources = const [],
     this.unreadMessages = 0,
   });
 
@@ -478,6 +553,7 @@ class PortalSnapshot {
   final List<SchoolEvent> events;
   final List<ReportCard> reports;
   final List<Conversation> conversations;
+  final List<ClassResource> resources;
   final int unreadMessages;
 
   int get unreadNotices => notices.where((notice) => !notice.read).length;
@@ -495,6 +571,11 @@ class PortalSnapshot {
     int? unreadMessages,
     String? photoUrl,
     Map<String, String>? photoUrls,
+    List<ClubMembership>? clubs,
+    List<AcademicDate>? academicDates,
+    List<SchoolEvent>? events,
+    List<ReportCard>? reports,
+    List<ClassResource>? resources,
   }) {
     return PortalSnapshot(
       displayName: displayName,
@@ -512,13 +593,14 @@ class PortalSnapshot {
       lessonsToday: lessonsToday,
       timetable: timetable,
       attendance: attendance,
-      clubs: clubs,
+      clubs: clubs ?? this.clubs,
       teachers: teachers,
       classmates: classmates,
-      academicDates: academicDates,
-      events: events,
-      reports: reports,
+      academicDates: academicDates ?? this.academicDates,
+      events: events ?? this.events,
+      reports: reports ?? this.reports,
       conversations: conversations ?? this.conversations,
+      resources: resources ?? this.resources,
       unreadMessages: unreadMessages ?? this.unreadMessages,
     );
   }

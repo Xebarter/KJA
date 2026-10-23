@@ -161,6 +161,7 @@ class _ProfilePageState extends State<ProfilePage> {
             pupil: pupil,
             tone: tone,
             photoUrl: widget.portal.photoUrl ?? widget.portal.faceUrl(pupil.id),
+            studentId: pupil.id,
           ),
         const SizedBox(height: 18),
         _CardSectionLabel('Login & password', Icons.lock_rounded, KjaColors.coral),
@@ -458,11 +459,13 @@ class _StudentIdCard extends StatelessWidget {
     required this.pupil,
     required this.tone,
     this.photoUrl,
+    this.studentId,
   });
 
   final Pupil pupil;
   final Color tone;
   final String? photoUrl;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -543,7 +546,13 @@ class _StudentIdCard extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 18, 16, 16),
               child: Column(
                 children: [
-                  PupilFace(name: pupil.displayName, color: tone, radius: 40, photoUrl: photoUrl),
+                  PupilFace(
+                    name: pupil.displayName,
+                    color: tone,
+                    radius: 40,
+                    photoUrl: photoUrl,
+                    studentId: studentId ?? pupil.id,
+                  ),
                   const SizedBox(height: 12),
                   Text(
                     pupil.displayName,

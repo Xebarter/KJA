@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../models.dart';
 import '../navigation.dart';
+import '../pupil_photos.dart';
 import '../state/portal_controller.dart';
 import '../theme.dart';
 import '../widgets/ui.dart';
@@ -11,7 +12,16 @@ import 'home_page.dart';
 import 'homework_page.dart';
 import 'messages_page.dart';
 import 'reports_page.dart';
+import 'resources_page.dart';
 import 'school_pages.dart';
+
+String? _selfPhotoUrl(PortalSnapshot portal) {
+  final id = portal.pupil?.id;
+  final fromPortal = portal.photoUrl ?? portal.faceUrl(id);
+  if ((fromPortal ?? '').trim().isNotEmpty) return fromPortal;
+  if (id == null || id.isEmpty) return null;
+  return PupilPhotoUrl.siteProxy(studentId: id, photoPath: portal.pupil?.photoPath);
+}
 
 class PupilShell extends StatefulWidget {
   const PupilShell({super.key, required this.controller});
@@ -191,7 +201,8 @@ class _PupilShellState extends State<PupilShell> {
       drawer: PupilMenu(
         displayName: portal.displayName,
         classLabel: portal.classLabel,
-        photoUrl: portal.photoUrl ?? portal.faceUrl(portal.pupil?.id),
+        photoUrl: _selfPhotoUrl(portal),
+        studentId: portal.pupil?.id,
         house: portal.pupil?.house,
         current: _destination,
         messageBadge: messageBadge,
@@ -267,9 +278,14 @@ class _PupilShellState extends State<PupilShell> {
       case AppDestination.myClass:
         return ClassPage(portal: portal, onMessage: _messageClassmate);
       case AppDestination.clubs:
-        return ClubsPage(portal: portal);
+        return ListenableBuilder(
+          listenable: widget.controller,
+          builder: (context, _) => ClubsPage(portal: widget.controller.snapshot ?? portal),
+        );
       case AppDestination.calendar:
         return CalendarPage(portal: portal);
+      case AppDestination.resources:
+        return ResourcesPage(portal: portal, controller: widget.controller);
       case AppDestination.messages:
         return MessagesPage(
           portal: portal,

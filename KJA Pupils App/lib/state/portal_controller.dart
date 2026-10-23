@@ -54,13 +54,26 @@ class PortalController extends ChangeNotifier {
 
   Future<String?> signIn(String email, String password) async {
     if (!_supabaseReady) return 'Connect the app to the school first.';
+    final trimmedEmail = email.trim();
+    if (trimmedEmail.isEmpty || password.isEmpty) {
+      return 'Enter the email and password from the office.';
+    }
     try {
-      await Supabase.instance.client.auth.signInWithPassword(email: email.trim(), password: password);
+      await Supabase.instance.client.auth.signInWithPassword(email: trimmedEmail, password: password);
       preview = false;
-      final error = await _load(quiet: true);
+      banner = null;
+      // Load before notifying so we do not flash Login → Shell → Login.
+      final error = await _load(quiet: true, signOutOnFailure: true);
       notifyListeners();
       return error;
     } on AuthException catch (error) {
+      final message = error.message.toLowerCase();
+      if (message.contains('invalid login') || message.contains('invalid credentials')) {
+        return 'Wrong email or password. Check the details from the office, or ask them to reset it.';
+      }
+      if (message.contains('banned') || message.contains('disabled')) {
+        return 'This login was revoked. Ask the office to issue a new sign-in.';
+      }
       return error.message;
     } catch (error) {
       return error is PortalException ? error.message : 'Could not sign in. Try again.';
@@ -188,16 +201,24 @@ class PortalController extends ChangeNotifier {
     }
   }
 
-  Future<String?> _load({required bool quiet}) async {
+  Future<String?> _load({required bool quiet, bool signOutOnFailure = false}) async {
     try {
       final next = await _repository.load();
       snapshot = next;
       preview = false;
       banner = null;
       if (!quiet) notifyListeners();
+      unawaited(_enrichInBackground());
       return null;
     } on PortalException catch (error) {
-      if (snapshot == null) {
+      final wrongAccount = error.message.contains('not a pupil login');
+      // Only drop the session for a wrong role / missing link at first sign-in.
+      // Network blips should not force another password attempt.
+      if (signOutOnFailure && snapshot == null && wrongAccount) {
+        try {
+          await Supabase.instance.client.auth.signOut();
+        } catch (_) {}
+      } else if (signOutOnFailure && snapshot == null && error.message.contains('Sign in to continue')) {
         try {
           await Supabase.instance.client.auth.signOut();
         } catch (_) {}
@@ -211,6 +232,18 @@ class PortalController extends ChangeNotifier {
       if (!quiet) notifyListeners();
       return message;
     }
+  }
+
+  Future<void> _enrichInBackground() async {
+    final current = snapshot;
+    if (current == null || preview || !_supabaseReady) return;
+    try {
+      final next = await _repository.enrichExtras(current);
+      if (snapshot == null || preview) return;
+      // Keep homework/notices the user may have updated while extras were loading.
+      snapshot = next.copyWith(homework: snapshot!.homework, notices: snapshot!.notices);
+      notifyListeners();
+    } catch (_) {}
   }
 
   @override

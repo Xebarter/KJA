@@ -12,11 +12,12 @@ enum AppDestination {
   myClass,
   clubs,
   calendar,
+  resources,
   messages,
   notices,
   card;
 
-  /// Full sidebar order — mirrors /student `studentNav`, plus Chart for the app.
+  /// Full sidebar order — mirrors /student `studentNav`, plus Chart and Resources for the app.
   static const sidebarItems = <AppDestination>[
     home,
     homework,
@@ -27,6 +28,7 @@ enum AppDestination {
     myClass,
     clubs,
     calendar,
+    resources,
     messages,
     notices,
     card,
@@ -50,6 +52,7 @@ String sidebarGroupTitle(AppDestination destination) {
     case AppDestination.myClass:
     case AppDestination.clubs:
     case AppDestination.calendar:
+    case AppDestination.resources:
       return 'My world';
     case AppDestination.messages:
     case AppDestination.notices:
@@ -80,6 +83,8 @@ extension AppDestinationX on AppDestination {
         return 'Clubs';
       case AppDestination.calendar:
         return 'Calendar';
+      case AppDestination.resources:
+        return 'Resources';
       case AppDestination.messages:
         return 'Chat';
       case AppDestination.notices:
@@ -89,35 +94,8 @@ extension AppDestinationX on AppDestination {
     }
   }
 
-  /// Short, friendly labels for the sidebar — easy for primary pupils to scan.
-  String get menuLabel {
-    switch (this) {
-      case AppDestination.timetable:
-        return 'Times';
-      case AppDestination.attendance:
-        return 'My days';
-      case AppDestination.reports:
-        return 'Reports';
-      case AppDestination.myClass:
-        return 'My class';
-      case AppDestination.clubs:
-        return 'Clubs';
-      case AppDestination.calendar:
-        return 'Dates';
-      case AppDestination.messages:
-        return 'Chat';
-      case AppDestination.notices:
-        return 'Notices';
-      case AppDestination.card:
-        return 'My card';
-      case AppDestination.homework:
-        return 'Homework';
-      case AppDestination.home:
-        return 'Home';
-      case AppDestination.chart:
-        return 'My chart';
-    }
-  }
+  /// Sidebar labels — same clear words as the pages themselves.
+  String get menuLabel => label;
 
   IconData get icon {
     switch (this) {
@@ -126,7 +104,7 @@ extension AppDestinationX on AppDestination {
       case AppDestination.home:
         return Icons.home_rounded;
       case AppDestination.chart:
-        return Icons.insights_rounded;
+        return Icons.bar_chart_rounded;
       case AppDestination.timetable:
         return Icons.grid_view_rounded;
       case AppDestination.attendance:
@@ -139,6 +117,8 @@ extension AppDestinationX on AppDestination {
         return Icons.extension_rounded;
       case AppDestination.calendar:
         return Icons.calendar_month_rounded;
+      case AppDestination.resources:
+        return Icons.folder_special_rounded;
       case AppDestination.messages:
         return Icons.chat_rounded;
       case AppDestination.notices:
@@ -169,6 +149,8 @@ extension AppDestinationX on AppDestination {
         return Tone.coral;
       case AppDestination.calendar:
         return Tone.sky;
+      case AppDestination.resources:
+        return Tone.coral;
       case AppDestination.messages:
         return Tone.mint;
       case AppDestination.notices:
@@ -189,6 +171,7 @@ AppDestination? destinationForHref(String? href) {
   if (path.contains('timetable')) return AppDestination.timetable;
   if (path.contains('attendance')) return AppDestination.attendance;
   if (path.contains('report')) return AppDestination.reports;
+  if (path.contains('resource')) return AppDestination.resources;
   if (path.contains('class')) return AppDestination.myClass;
   if (path.contains('club')) return AppDestination.clubs;
   if (path.contains('calendar') || path.contains('/event/')) return AppDestination.calendar;

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../format.dart';
 import '../navigation.dart';
+import '../pupil_photos.dart';
 import '../theme.dart';
 
 /// School crest used in splash, gates, drawer, and student card.
@@ -152,16 +153,30 @@ class HeaderIconButton extends StatelessWidget {
 }
 
 class InitialAvatar extends StatelessWidget {
-  const InitialAvatar({super.key, required this.name, this.color, this.radius = 22, this.photoUrl});
+  const InitialAvatar({
+    super.key,
+    required this.name,
+    this.color,
+    this.radius = 22,
+    this.photoUrl,
+    this.studentId,
+  });
 
   final String name;
   final Color? color;
   final double radius;
   final String? photoUrl;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
-    return PupilFace(name: name, color: color, radius: radius, photoUrl: photoUrl);
+    return PupilFace(
+      name: name,
+      color: color,
+      radius: radius,
+      photoUrl: photoUrl,
+      studentId: studentId,
+    );
   }
 }
 
@@ -447,7 +462,7 @@ class PupilDock extends StatelessWidget {
   }
 }
 
-/// Drawer: pupil header → grouped links → sign out.
+/// Drawer: colourful hello header → big grouped links → clear sign out.
 class PupilMenu extends StatelessWidget {
   const PupilMenu({
     super.key,
@@ -460,11 +475,13 @@ class PupilMenu extends StatelessWidget {
     required this.onSignOut,
     this.house,
     this.photoUrl,
+    this.studentId,
   });
 
   final String displayName;
   final String classLabel;
   final String? photoUrl;
+  final String? studentId;
   final AppDestination current;
   final int messageBadge;
   final int noticeBadge;
@@ -489,26 +506,34 @@ class PupilMenu extends StatelessWidget {
     final items = AppDestination.sidebarItems;
 
     return Drawer(
-      width: 304,
-      child: ColoredBox(
-        color: const Color(0xFFF7FAFC),
+      width: 312,
+      child: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFEEF7FF), Color(0xFFF5FBFF), Color(0xFFFFF8EF)],
+          ),
+        ),
         child: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 8, 14, 10),
+            padding: const EdgeInsets.fromLTRB(14, 6, 14, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 _SideHeader(
                   displayName: displayName,
+                  classLabel: classLabel,
                   avatarColor: avatarColor,
                   photoUrl: photoUrl,
+                  studentId: studentId,
                   onHome: () => _go(context, AppDestination.home),
                   onClose: () => Navigator.pop(context),
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 10),
                 Expanded(
                   child: ListView.builder(
-                    padding: const EdgeInsets.only(top: 4, bottom: 8),
+                    padding: const EdgeInsets.only(bottom: 8),
                     itemCount: items.length,
                     itemBuilder: (context, index) {
                       final destination = items[index];
@@ -530,13 +555,7 @@ class PupilMenu extends StatelessWidget {
                     },
                   ),
                 ),
-                _SideFoot(
-                  displayName: displayName,
-                  classLabel: classLabel,
-                  avatarColor: avatarColor,
-                  photoUrl: photoUrl,
-                  onSignOut: onSignOut,
-                ),
+                _SideFoot(onSignOut: onSignOut),
               ],
             ),
           ),
@@ -549,19 +568,21 @@ class PupilMenu extends StatelessWidget {
 class _SideHeader extends StatelessWidget {
   const _SideHeader({
     required this.displayName,
+    required this.classLabel,
     required this.avatarColor,
     required this.onHome,
     required this.onClose,
     this.photoUrl,
+    this.studentId,
   });
 
   final String displayName;
+  final String classLabel;
   final Color avatarColor;
   final String? photoUrl;
+  final String? studentId;
   final VoidCallback onHome;
   final VoidCallback onClose;
-
-  static const _markSize = 56.0;
 
   @override
   Widget build(BuildContext context) {
@@ -570,112 +591,139 @@ class _SideHeader extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(0, 4, 0, 12),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              // School logo — same size as pupil photo
-              Material(
-                color: Colors.transparent,
-                child: InkWell(
-                  onTap: onHome,
-                  customBorder: const CircleBorder(),
-                  child: Container(
-                    width: _markSize,
-                    height: _markSize,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: Colors.white,
-                      border: Border.all(color: const Color(0xFFE8EDF2)),
-                      boxShadow: [
-                        BoxShadow(
-                          color: KjaColors.ink.withValues(alpha: 0.08),
-                          blurRadius: 10,
-                          offset: const Offset(0, 3),
+        Row(
+          children: [
+            Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onHome,
+                customBorder: const CircleBorder(),
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    border: Border.all(color: KjaColors.sky.withValues(alpha: 0.2)),
+                    boxShadow: [
+                      BoxShadow(color: KjaColors.sky.withValues(alpha: 0.12), blurRadius: 10, offset: const Offset(0, 3)),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: const Padding(
+                    padding: EdgeInsets.all(5),
+                    child: SchoolMark(size: 34),
+                  ),
+                ),
+              ),
+            ),
+            const Spacer(),
+            Material(
+              color: Colors.white,
+              shape: const CircleBorder(),
+              child: InkWell(
+                customBorder: const CircleBorder(),
+                onTap: onClose,
+                child: const SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Icon(Icons.close_rounded, size: 22, color: KjaColors.soft),
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Material(
+          color: Colors.transparent,
+          child: InkWell(
+            onTap: onHome,
+            borderRadius: BorderRadius.circular(22),
+            child: Ink(
+              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [Color(0xFF38BDF8), KjaColors.sky, Color(0xFF0284C7)],
+                ),
+                borderRadius: BorderRadius.circular(22),
+                boxShadow: [
+                  BoxShadow(color: KjaColors.sky.withValues(alpha: 0.28), blurRadius: 14, offset: const Offset(0, 5)),
+                ],
+              ),
+              child: Row(
+                children: [
+                  PupilFace(
+                    name: displayName,
+                    color: avatarColor,
+                    radius: 32,
+                    photoUrl: photoUrl,
+                    studentId: studentId,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Hi, $first!',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            if (classLabel.isNotEmpty)
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: Colors.white.withValues(alpha: 0.22),
+                                  borderRadius: BorderRadius.circular(99),
+                                ),
+                                child: Text(
+                                  classLabel,
+                                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+                                ),
+                              ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.22),
+                                borderRadius: BorderRadius.circular(99),
+                              ),
+                              child: const Text(
+                                'KJA',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 12),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                     ),
-                    clipBehavior: Clip.antiAlias,
-                    child: const Padding(
-                      padding: EdgeInsets.all(6),
-                      child: SchoolMark(size: 44),
-                    ),
                   ),
-                ),
+                ],
               ),
-              const SizedBox(width: 10),
-              // Student name + school name
-              Expanded(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: onHome,
-                    borderRadius: BorderRadius.circular(10),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            first,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 17,
-                              fontWeight: FontWeight.w800,
-                              color: KjaColors.ink,
-                              height: 1.15,
-                              letterSpacing: -0.2,
-                            ),
-                          ),
-                          const SizedBox(height: 3),
-                          const Text(
-                            'Kampala Junior Academy',
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 11.5,
-                              fontWeight: FontWeight.w500,
-                              color: KjaColors.soft,
-                              height: 1.25,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 10),
-              // Student image — fixed size, not inside Expanded
-              PupilFace(
-                name: displayName,
-                color: avatarColor,
-                radius: _markSize / 2,
-                photoUrl: photoUrl,
-              ),
-              IconButton(
-                tooltip: 'Close',
-                onPressed: onClose,
-                visualDensity: VisualDensity.compact,
-                style: IconButton.styleFrom(
-                  foregroundColor: KjaColors.mute,
-                  padding: const EdgeInsets.all(6),
-                  minimumSize: const Size(36, 36),
-                ),
-                icon: const Icon(Icons.close_rounded, size: 20),
-              ),
-            ],
+            ),
           ),
         ),
-        Container(height: 1, color: const Color(0xFFE8EDF2)),
       ],
     );
   }
 }
 
-/// Circular pupil portrait, falling back to initials when no photo URL is ready.
+/// Circular pupil portrait, falling back to initials when no photo is ready.
+///
+/// Prefers in-memory bytes from [PupilPhotoCache], then http(s) via [Image.network]
+/// (Supabase signed URLs or the site proxy). Rebuilds when the cache updates.
 class PupilFace extends StatelessWidget {
   const PupilFace({
     super.key,
@@ -683,18 +731,106 @@ class PupilFace extends StatelessWidget {
     this.color,
     this.radius = 22,
     this.photoUrl,
+    this.studentId,
   });
 
   final String name;
   final Color? color;
   final double radius;
   final String? photoUrl;
+  final String? studentId;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: PupilPhotoCache.instance,
+      builder: (context, _) => _PupilFaceView(
+        name: name,
+        color: color,
+        radius: radius,
+        photoUrl: photoUrl,
+        studentId: studentId,
+      ),
+    );
+  }
+}
+
+class _PupilFaceView extends StatelessWidget {
+  const _PupilFaceView({
+    required this.name,
+    required this.radius,
+    this.color,
+    this.photoUrl,
+    this.studentId,
+  });
+
+  final String name;
+  final Color? color;
+  final double radius;
+  final String? photoUrl;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
     final tone = color ?? KjaColors.sky;
-    final url = photoUrl?.trim() ?? '';
     final size = radius * 2;
+    final fallback = _Initials(name: name, tone: tone, radius: radius);
+    final cached = PupilPhotoCache.bytes(studentId);
+    final url = photoUrl?.trim() ?? '';
+
+    Widget child = fallback;
+    if (cached != null && cached.isNotEmpty) {
+      child = Image.memory(
+        cached,
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    } else if (url.startsWith('memory:')) {
+      final bytes = PupilPhotoCache.bytes(url.substring('memory:'.length));
+      if (bytes != null && bytes.isNotEmpty) {
+        child = Image.memory(
+          bytes,
+          fit: BoxFit.cover,
+          width: size,
+          height: size,
+          gaplessPlayback: true,
+          errorBuilder: (_, _, _) => fallback,
+        );
+      }
+    } else if (url.startsWith('data:')) {
+      try {
+        final data = Uri.parse(url).data;
+        if (data != null) {
+          child = Image.memory(
+            data.contentAsBytes(),
+            fit: BoxFit.cover,
+            width: size,
+            height: size,
+            gaplessPlayback: true,
+            errorBuilder: (_, _, _) => fallback,
+          );
+        }
+      } catch (_) {}
+    } else if (url.startsWith('http')) {
+      child = Image.network(
+        url,
+        key: ValueKey(url),
+        fit: BoxFit.cover,
+        width: size,
+        height: size,
+        gaplessPlayback: true,
+        filterQuality: FilterQuality.medium,
+        errorBuilder: (_, _, _) => fallback,
+        loadingBuilder: (context, image, progress) {
+          if (progress == null) return image;
+          return fallback;
+        },
+      );
+    }
+
     return Container(
       width: size,
       height: size,
@@ -708,24 +844,9 @@ class PupilFace extends StatelessWidget {
             offset: const Offset(0, 3),
           ),
         ],
-        border: Border.all(color: Colors.white, width: 2),
+        border: Border.all(color: Colors.white, width: 2.5),
       ),
-      child: ClipOval(
-        child: url.isEmpty
-            ? _Initials(name: name, tone: tone, radius: radius)
-            : Image.network(
-                url,
-                fit: BoxFit.cover,
-                width: size,
-                height: size,
-                gaplessPlayback: true,
-                errorBuilder: (_, _, _) => _Initials(name: name, tone: tone, radius: radius),
-                loadingBuilder: (context, child, progress) {
-                  if (progress == null) return child;
-                  return _Initials(name: name, tone: tone, radius: radius);
-                },
-              ),
-      ),
+      child: ClipOval(child: child),
     );
   }
 }
@@ -771,14 +892,13 @@ class _SideGroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(10, 12, 10, 4),
+      padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
       child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          color: KjaColors.mute.withValues(alpha: 0.95),
-          fontSize: 11,
-          fontWeight: FontWeight.w800,
-          letterSpacing: 0.9,
+        title,
+        style: const TextStyle(
+          color: KjaColors.ink,
+          fontSize: 13,
+          fontWeight: FontWeight.w900,
         ),
       ),
     );
@@ -802,34 +922,31 @@ class _SideLink extends StatelessWidget {
   Widget build(BuildContext context) {
     final tone = destination.tone;
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 160),
             curve: Curves.easeOutCubic,
-            constraints: const BoxConstraints(minHeight: 52),
+            constraints: const BoxConstraints(minHeight: 56),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: active ? Colors.white : Colors.transparent,
-              borderRadius: BorderRadius.circular(16),
-              border: active ? Border.all(color: KjaColors.gold.withValues(alpha: 0.7), width: 2) : null,
+              color: active ? Colors.white : Colors.white.withValues(alpha: 0.55),
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(
+                color: active ? tone.ink.withValues(alpha: 0.35) : tone.ink.withValues(alpha: 0.1),
+                width: active ? 1.6 : 1,
+              ),
               boxShadow: active
-                  ? [
-                      BoxShadow(
-                        color: KjaColors.ink.withValues(alpha: 0.1),
-                        blurRadius: 14,
-                        offset: const Offset(0, 5),
-                      ),
-                    ]
-                  : null,
+                  ? [BoxShadow(color: tone.ink.withValues(alpha: 0.16), blurRadius: 12, offset: const Offset(0, 4))]
+                  : [BoxShadow(color: tone.ink.withValues(alpha: 0.05), blurRadius: 8, offset: const Offset(0, 2))],
             ),
             child: Row(
               children: [
-                ToneIcon(icon: destination.icon, tone: tone, size: 40, iconSize: 20, active: active),
+                ToneIcon(icon: destination.icon, tone: tone, size: 42, iconSize: 22, active: active),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
@@ -837,33 +954,28 @@ class _SideLink extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: 15.5,
-                      fontWeight: active ? FontWeight.w800 : FontWeight.w700,
-                      color: KjaColors.ink,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w900,
+                      color: active ? tone.ink : KjaColors.ink,
                     ),
                   ),
                 ),
                 if (badge > 0)
                   Container(
-                    constraints: const BoxConstraints(minWidth: 22),
-                    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                    constraints: const BoxConstraints(minWidth: 24),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
                       color: KjaColors.rose,
                       borderRadius: BorderRadius.circular(999),
-                      boxShadow: [
-                        BoxShadow(
-                          color: KjaColors.rose.withValues(alpha: 0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
-                        ),
-                      ],
                     ),
                     alignment: Alignment.center,
                     child: Text(
                       badge > 99 ? '99+' : '$badge',
-                      style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w800),
+                      style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w900),
                     ),
-                  ),
+                  )
+                else if (active)
+                  Icon(Icons.chevron_right_rounded, color: tone.ink.withValues(alpha: 0.7)),
               ],
             ),
           ),
@@ -874,60 +986,43 @@ class _SideLink extends StatelessWidget {
 }
 
 class _SideFoot extends StatelessWidget {
-  const _SideFoot({
-    required this.displayName,
-    required this.classLabel,
-    required this.avatarColor,
-    required this.onSignOut,
-    this.photoUrl,
-  });
+  const _SideFoot({required this.onSignOut});
 
-  final String displayName;
-  final String classLabel;
-  final Color avatarColor;
-  final String? photoUrl;
   final VoidCallback onSignOut;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.only(top: 12),
-      decoration: const BoxDecoration(
-        border: Border(top: BorderSide(color: Color(0xFFE8EDF2))),
-      ),
-      child: Row(
-        children: [
-          PupilFace(name: displayName, color: avatarColor, radius: 18, photoUrl: photoUrl),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onSignOut,
+          borderRadius: BorderRadius.circular(18),
+          child: Ink(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(18),
+              border: Border.all(color: KjaColors.rose.withValues(alpha: 0.2)),
+              boxShadow: [
+                BoxShadow(color: KjaColors.rose.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3)),
+              ],
+            ),
+            child: const Row(
               children: [
-                Text(
-                  displayName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5, color: KjaColors.ink),
-                ),
-                Text(
-                  classLabel.isEmpty ? 'Pupil' : classLabel,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w500, fontSize: 11.5),
+                Icon(Icons.logout_rounded, color: KjaColors.rose, size: 22),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Sign out',
+                    style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: KjaColors.rose),
+                  ),
                 ),
               ],
             ),
           ),
-          IconButton(
-            tooltip: 'Sign out',
-            onPressed: onSignOut,
-            style: IconButton.styleFrom(
-              backgroundColor: const Color(0xFFF1F5F9),
-              foregroundColor: KjaColors.soft,
-            ),
-            icon: const Icon(Icons.logout_rounded, size: 20),
-          ),
-        ],
+        ),
       ),
     );
   }

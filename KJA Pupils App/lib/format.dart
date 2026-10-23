@@ -132,3 +132,21 @@ String timeAgo(DateTime when) {
   if (delta.inDays < 7) return '${delta.inDays}d';
   return shortDate(ymd(when.toUtc().add(const Duration(hours: 3))));
 }
+
+/// Plain text from TipTap / HTML notes for list and sheet previews.
+String stripHtml(String? raw) {
+  final value = (raw ?? '').trim();
+  if (value.isEmpty) return '';
+  return value
+      .replaceAll(RegExp(r'<br\s*/?>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'</p>', caseSensitive: false), '\n')
+      .replaceAll(RegExp(r'<[^>]+>'), ' ')
+      .replaceAll(RegExp(r'&nbsp;', caseSensitive: false), ' ')
+      .replaceAll(RegExp(r'&amp;', caseSensitive: false), '&')
+      .replaceAll(RegExp(r'&lt;', caseSensitive: false), '<')
+      .replaceAll(RegExp(r'&gt;', caseSensitive: false), '>')
+      .replaceAll(RegExp(r'&quot;', caseSensitive: false), '"')
+      .replaceAll(RegExp(r'\s+\n'), '\n')
+      .replaceAll(RegExp(r'[ \t]{2,}'), ' ')
+      .trim();
+}

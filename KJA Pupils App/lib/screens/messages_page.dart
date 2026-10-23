@@ -5,6 +5,7 @@ import '../data/portal_repository.dart';
 import '../data/sample_portal.dart';
 import '../format.dart';
 import '../models.dart';
+import '../pupil_photos.dart';
 import '../state/portal_controller.dart';
 import '../theme.dart';
 import '../widgets/ui.dart';
@@ -41,6 +42,18 @@ String _dayLabel(DateTime when) {
   if (key == yesterday) return 'Yesterday';
   final local = when.toUtc().add(const Duration(hours: 3));
   return '${weekdayShort(local.weekday)} ${local.day} ${monthShort(local.month)}';
+}
+
+String? _peerPhotoUrl(PortalSnapshot portal, String? peerId) {
+  if (peerId == null || peerId.isEmpty) return null;
+  for (final mate in portal.classmates) {
+    if (mate.id == peerId) {
+      final url = mate.photoUrl?.trim() ?? '';
+      if (url.isNotEmpty) return url;
+      return PupilPhotoUrl.siteProxy(studentId: peerId, photoPath: mate.photoPath) ?? portal.faceUrl(peerId);
+    }
+  }
+  return portal.faceUrl(peerId) ?? PupilPhotoUrl.siteProxy(studentId: peerId);
 }
 
 class MessagesPage extends StatelessWidget {
@@ -302,7 +315,8 @@ class _InboxState extends State<_Inbox> {
                 }
                 return _QuickFriendChip(
                   name: mate.displayName,
-                  photoUrl: mate.photoUrl ?? widget.portal.faceUrl(mate.id),
+                  studentId: mate.id,
+                  photoUrl: _peerPhotoUrl(widget.portal, mate.id),
                   color: houseColor(mate.house),
                   busy: _busyPeerId == mate.id,
                   onTap: () => _openPeer(mate, existing),
@@ -339,7 +353,8 @@ class _InboxState extends State<_Inbox> {
             _PeerTile(
               peer: row.peer,
               conversation: row.conversation,
-              photoUrl: row.peer.photoUrl ?? widget.portal.faceUrl(row.peer.id),
+              studentId: row.peer.id,
+              photoUrl: _peerPhotoUrl(widget.portal, row.peer.id),
               busy: _busyPeerId == row.peer.id,
               onTap: () => _openPeer(row.peer, row.conversation),
             ),
@@ -371,11 +386,13 @@ class _QuickFriendChip extends StatelessWidget {
     required this.busy,
     required this.onTap,
     this.photoUrl,
+    this.studentId,
   });
 
   final String name;
   final Color color;
   final String? photoUrl;
+  final String? studentId;
   final bool busy;
   final VoidCallback onTap;
 
@@ -395,7 +412,7 @@ class _QuickFriendChip extends StatelessWidget {
                 children: [
                   Opacity(
                     opacity: busy ? 0.55 : 1,
-                    child: PupilFace(name: name, color: color, radius: 28, photoUrl: photoUrl),
+                    child: PupilFace(name: name, color: color, radius: 28, photoUrl: photoUrl, studentId: studentId),
                   ),
                   Positioned(
                     right: -2,
@@ -649,11 +666,13 @@ class _PeerTile extends StatelessWidget {
     required this.busy,
     required this.onTap,
     this.photoUrl,
+    this.studentId,
   });
 
   final Classmate peer;
   final Conversation? conversation;
   final String? photoUrl;
+  final String? studentId;
   final bool busy;
   final VoidCallback onTap;
 
@@ -687,7 +706,7 @@ class _PeerTile extends StatelessWidget {
               Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  PupilFace(name: peer.displayName, color: tone, radius: 24, photoUrl: photoUrl),
+                  PupilFace(name: peer.displayName, color: tone, radius: 24, photoUrl: photoUrl, studentId: studentId),
                   Positioned(
                     right: -2,
                     bottom: -2,
@@ -985,7 +1004,8 @@ class _ChatThreadState extends State<ChatThread> {
                       name: widget.conversation.title,
                       color: headerTone,
                       radius: 22,
-                      photoUrl: widget.portal.faceUrl(widget.conversation.peerId),
+                      studentId: widget.conversation.peerId,
+                      photoUrl: _peerPhotoUrl(widget.portal, widget.conversation.peerId),
                     ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -1019,7 +1039,8 @@ class _ChatThreadState extends State<ChatThread> {
                   isGroup: isGroup,
                   peerFirst: peerFirst,
                   conversation: widget.conversation,
-                  photoUrl: widget.portal.faceUrl(widget.conversation.peerId),
+                  studentId: widget.conversation.peerId,
+                  photoUrl: _peerPhotoUrl(widget.portal, widget.conversation.peerId),
                   color: headerTone,
                 )
               : ListView(
@@ -1128,6 +1149,7 @@ class _ChatEmpty extends StatelessWidget {
     required this.conversation,
     required this.color,
     this.photoUrl,
+    this.studentId,
   });
 
   final bool isGroup;
@@ -1135,6 +1157,7 @@ class _ChatEmpty extends StatelessWidget {
   final Conversation conversation;
   final Color color;
   final String? photoUrl;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -1147,7 +1170,7 @@ class _ChatEmpty extends StatelessWidget {
             if (isGroup)
               const _GroupAvatar(size: 76)
             else
-              PupilFace(name: conversation.title, color: color, radius: 38, photoUrl: photoUrl),
+              PupilFace(name: conversation.title, color: color, radius: 38, photoUrl: photoUrl, studentId: studentId),
             const SizedBox(height: 16),
             Text(
               isGroup ? 'Say hello to your class!' : 'Say hello to $peerFirst!',

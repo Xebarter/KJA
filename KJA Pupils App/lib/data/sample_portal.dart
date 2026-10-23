@@ -285,6 +285,48 @@ PortalSnapshot samplePortal() {
         lastAt: sampleThreads[dmId]!.last.createdAt,
       ),
     ],
+    resources: [
+      ClassResource(
+        id: 'res-1',
+        kind: 'note',
+        title: 'Fractions — remember the steps',
+        body:
+            '1. Make the bottoms the same.\n2. Add or subtract the tops.\n3. Simplify your answer.\n\nPractice pages 40–42 before tomorrow.',
+        subjectName: 'Mathematics',
+        teacherName: 'Mr Kato',
+        publishedAt: DateTime.now().toUtc().subtract(const Duration(hours: 5)),
+      ),
+      ClassResource(
+        id: 'res-2',
+        kind: 'link',
+        title: 'BBC Bitesize — plant parts',
+        body: 'Watch the short video, then draw and label a flower.',
+        linkUrl: 'https://www.bbc.co.uk/bitesize',
+        subjectName: 'Science',
+        teacherName: 'Mr Mugisha',
+        publishedAt: DateTime.now().toUtc().subtract(const Duration(days: 1)),
+      ),
+      ClassResource(
+        id: 'res-3',
+        kind: 'file',
+        title: 'Spelling list for the week',
+        body: 'Learn these words for Friday’s quiz.',
+        fileName: 'P4A-spellings.pdf',
+        fileMime: 'application/pdf',
+        subjectName: 'English',
+        teacherName: 'Ms Achen',
+        publishedAt: DateTime.now().toUtc().subtract(const Duration(days: 2)),
+      ),
+      ClassResource(
+        id: 'res-4',
+        kind: 'image',
+        title: 'Map of Uganda — study this',
+        body: 'Find Kampala, Lake Victoria and your home district.',
+        subjectName: 'Social studies',
+        teacherName: 'Mrs Namubiru',
+        publishedAt: DateTime.now().toUtc().subtract(const Duration(days: 3)),
+      ),
+    ],
     unreadMessages: 2,
   );
 }

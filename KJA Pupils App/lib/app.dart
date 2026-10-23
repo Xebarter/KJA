@@ -12,23 +12,31 @@ class KjaPupilsApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Keep MaterialApp stable. Swapping [home] on every auth rebuild empties the
+    // Navigator history and crashes with `_history.isNotEmpty`.
+    return MaterialApp(
+      title: 'KJA Pupils',
+      debugShowCheckedModeBanner: false,
+      theme: buildKjaTheme(),
+      home: _PortalGate(controller: controller),
+    );
+  }
+}
+
+class _PortalGate extends StatelessWidget {
+  const _PortalGate({required this.controller});
+
+  final PortalController controller;
+
+  @override
+  Widget build(BuildContext context) {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final snapshot = controller.snapshot;
-        final home = controller.booting
-            ? const SplashScreen()
-            : snapshot != null
-                ? PupilShell(controller: controller)
-                : controller.configured
-                    ? LoginScreen(controller: controller)
-                    : SetupScreen(controller: controller);
-        return MaterialApp(
-          title: 'KJA Pupils',
-          debugShowCheckedModeBanner: false,
-          theme: buildKjaTheme(),
-          home: home,
-        );
+        if (controller.booting) return const SplashScreen();
+        if (controller.snapshot != null) return PupilShell(controller: controller);
+        if (controller.configured) return LoginScreen(controller: controller);
+        return SetupScreen(controller: controller);
       },
     );
   }

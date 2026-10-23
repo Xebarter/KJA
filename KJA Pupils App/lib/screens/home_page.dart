@@ -40,6 +40,7 @@ class HomePage extends StatelessWidget {
           classLabel: portal.classLabel,
           house: portal.pupil?.house,
           photoUrl: portal.photoUrl ?? portal.faceUrl(portal.pupil?.id),
+          studentId: portal.pupil?.id,
           displayName: portal.displayName,
         ),
         const SizedBox(height: 16),
@@ -158,6 +159,7 @@ class _Hello extends StatelessWidget {
     required this.displayName,
     this.house,
     this.photoUrl,
+    this.studentId,
   });
 
   final String name;
@@ -165,6 +167,7 @@ class _Hello extends StatelessWidget {
   final String classLabel;
   final String? house;
   final String? photoUrl;
+  final String? studentId;
 
   @override
   Widget build(BuildContext context) {
@@ -186,6 +189,7 @@ class _Hello extends StatelessWidget {
             color: houseColor(house),
             radius: 26,
             photoUrl: photoUrl,
+            studentId: studentId,
           ),
           const SizedBox(width: 12),
           Expanded(
