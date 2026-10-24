@@ -28,12 +28,16 @@ class PortalRepository {
     late final Pupil? pupil;
     try {
       final settled = await Future.wait<Object?>([
-        _db.from('profiles').select('id, role, full_name, email').eq('id', user.id).maybeSingle(),
+        _one(_db.from('profiles').select('id, role, full_name, email').eq('id', user.id).limit(1)),
         _loadPupil(user.id),
       ]);
       final row = settled[0] as Map<String, dynamic>?;
       profile = row ?? {'id': user.id, 'role': 'student', 'full_name': user.userMetadata?['full_name'], 'email': user.email};
       pupil = settled[1] as Pupil?;
+    } on PortalException {
+      rethrow;
+    } on PostgrestException catch (error) {
+      throw PortalException('Could not open your school record. ${error.message}');
     } catch (_) {
       throw PortalException('Could not reach the school. Check your connection and try again.');
     }
@@ -370,21 +374,55 @@ class PortalRepository {
 
   Future<Pupil?> _loadPupil(String userId) async {
     try {
-      final row = await _db
-          .from('students')
-          .select('id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id, house, sex')
-          .eq('profile_id', userId)
-          .maybeSingle();
+      final row = await _one(
+        _db
+            .from('students')
+            .select('id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id, house, sex')
+            .eq('profile_id', userId)
+            .limit(1),
+      );
       return row == null ? null : _pupil(row);
     } on PostgrestException catch (error) {
       if (!RegExp(r'house|sex', caseSensitive: false).hasMatch(error.message)) rethrow;
-      final row = await _db
-          .from('students')
-          .select('id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id')
-          .eq('profile_id', userId)
-          .maybeSingle();
+      final row = await _one(
+        _db
+            .from('students')
+            .select('id, full_name, preferred_name, class_code, stream, campus, student_number, photo_path, status, profile_id')
+            .eq('profile_id', userId)
+            .limit(1),
+      );
       return row == null ? null : _pupil(row);
     }
+  }
+
+  /// One row, or null when the register has no match.
+  ///
+  /// PostgREST answers a singular request that matches nothing with 406 and
+  /// details "The result contains 0 rows". The Dart client only treats the
+  /// older wording "Results contain 0 rows" as empty, so [maybeSingle] throws
+  /// and login looks like a connection failure.
+  Future<Map<String, dynamic>?> _one(Future<dynamic> query) async {
+    try {
+      final result = await query;
+      if (result == null) return null;
+      if (result is List) {
+        if (result.isEmpty) return null;
+        return _stringKeyMap(result.first);
+      }
+      return _stringKeyMap(result);
+    } on PostgrestException catch (error) {
+      final details = '${error.details}';
+      final empty = error.code == 'PGRST116' && (details.contains('0 rows') || error.message.contains('0 rows'));
+      if (empty) return null;
+      rethrow;
+    }
+  }
+
+  Map<String, dynamic>? _stringKeyMap(Object? value) {
+    if (value == null) return null;
+    if (value is Map<String, dynamic>) return value;
+    if (value is Map) return Map<String, dynamic>.from(value);
+    return null;
   }
 
   Future<List<Classmate>> _classmates() async {
@@ -1217,17 +1255,23 @@ class PortalRepository {
   Pupil _pupil(Map<String, dynamic> row) {
     return Pupil(
       id: row['id'].toString(),
-      fullName: (row['full_name'] as String?) ?? 'Student',
-      preferredName: row['preferred_name'] as String?,
-      classCode: row['class_code'] as String?,
-      stream: row['stream'] as String?,
-      campus: row['campus'] as String?,
-      studentNumber: (row['student_number'] as String?) ?? '',
-      photoPath: row['photo_path'] as String?,
-      status: (row['status'] as String?) ?? 'active',
-      house: row['house'] as String?,
-      sex: row['sex'] as String?,
+      fullName: _text(row['full_name']) ?? 'Student',
+      preferredName: _text(row['preferred_name']),
+      classCode: _text(row['class_code']),
+      stream: _text(row['stream']),
+      campus: _text(row['campus']),
+      studentNumber: _text(row['student_number']) ?? '',
+      photoPath: _text(row['photo_path']),
+      status: _text(row['status']) ?? 'active',
+      house: _text(row['house']),
+      sex: _text(row['sex']),
     );
+  }
+
+  String? _text(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    return text.isEmpty ? null : text;
   }
 
   Classmate _classmate(Map<String, dynamic> row) {

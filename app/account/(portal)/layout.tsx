@@ -1,25 +1,26 @@
 import { AccountShell } from "@/components/account/Shell";
+import { isParentGuardian } from "@/lib/parent-access";
 import { getPortal, getSessionUser } from "@/lib/portal";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
 export default async function PortalLayout({ children }: { children: React.ReactNode }) {
   const portal = await getPortal();
-  const name = portal.profile?.full_name || portal.profile?.email || "Parent";
   const role = portal.profile?.role;
-  let staffLink = role === "admissions" ? { href: "/admissions_office", label: "Admissions office" }
-    : role === "accounts" ? { href: "/accounts", label: "Accounts office" }
-    : role === "academics" ? { href: "/academics_office", label: "Academics office" }
-    : null;
-  if (role === "staff" && portal.profile?.id) {
-    const { supabase } = await getSessionUser();
-    const teacher = supabase
-      ? await supabase.from("teaching_staff").select("id").eq("profile_id", portal.profile.id).eq("active", true).maybeSingle()
-      : null;
-    if (teacher?.data?.id) staffLink = { href: "/academics_office", label: "Academics office" };
+
+  const { supabase } = await getSessionUser();
+  if (portal.user) {
+    if (role === "student") redirect("/student");
+    if (supabase && !(await isParentGuardian(supabase, portal.user.id, role))) {
+      redirect("/account/unavailable");
+    }
   }
+
+  const name = portal.profile?.full_name || portal.profile?.email || "Parent";
+
   return (
-    <AccountShell name={name} unread={portal.unread} staffLink={staffLink}>
+    <AccountShell name={name} unread={portal.unread}>
       {children}
     </AccountShell>
   );

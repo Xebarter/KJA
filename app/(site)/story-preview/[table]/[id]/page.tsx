@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Story preview", robots: { index: fal
 export default async function StoryPreview({ params }: { params: Promise<{ table: string; id: string }> }) {
   const { table, id } = await params;
   if (!isStoryTable(table) || !/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("stories");
   if ("error" in auth) notFound();
   const { data } = await auth.supabase.from(table).select("*").eq("id", id).maybeSingle();
   if (!data) notFound();

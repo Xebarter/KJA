@@ -2,7 +2,8 @@ import { saveSubject } from "@/app/academics_office/(desk)/actions";
 import { SubjectsDesk } from "@/components/academics/SubjectsDesk";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { mapSubject, openAcademics } from "@/lib/academics";
+import { mapSubject } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { SCHOOL_CLASSES } from "@/lib/students";
 
 export const metadata = { title: "Subjects" };

@@ -1,12 +1,20 @@
 import type { NextConfig } from "next";
 
+const isDesktop = process.env.KJA_DESKTOP === "1";
+/** Packaging only — do not enable during `next dev` (desktop or website). */
+const isDesktopPack = process.env.KJA_DESKTOP_PACK === "1";
+
 const nextConfig: NextConfig = {
+  // Desktop and website must not share .next — two `next dev` processes corrupt it.
+  ...(isDesktop ? { distDir: ".next-desktop" } : {}),
+  // Electron packages the standalone server under resources/next-standalone.
+  ...(isDesktopPack ? { output: "standalone" as const } : {}),
   serverExternalPackages: ["exceljs"],
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
     serverActions: { bodySizeLimit: "21mb" },
-    // Revisiting an admin or office page within half a minute uses the copy already loaded.
-    staleTimes: { dynamic: 30 },
+    // Website: 30s. Desktop shell: longer so sidebar hops reuse the RSC payload.
+    staleTimes: { dynamic: isDesktop ? 120 : 30 },
   },
   images: {
     formats: ["image/avif", "image/webp"],

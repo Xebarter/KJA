@@ -2,7 +2,8 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassesDesk, type ClassRow, type ClassesTotals } from "@/components/academics/ClassesDesk";
 import { AcademicsGate } from "@/components/academics/ui";
-import { ACADEMICS_BASE, groupPupils, kampalaToday, loadCurrentTerm, openAcademics, streamQuery } from "@/lib/academics";
+import { ACADEMICS_BASE, groupPupils, kampalaToday, loadCurrentTerm, streamQuery } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { pick } from "@/lib/students";
 

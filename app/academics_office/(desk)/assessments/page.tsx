@@ -3,20 +3,8 @@ import { SetAssessment } from "@/components/academics/SetAssessment";
 import { UploadMarks } from "@/components/academics/UploadMarks";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  ASSESSMENT_KINDS,
-  classLabel,
-  classOrder,
-  classSection,
-  groupPupils,
-  kindLabel,
-  mapSubject,
-  loadCurrentTerm,
-  openAcademics,
-  streamOf,
-  subjectFits,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, ASSESSMENT_KINDS, classLabel, classOrder, classSection, groupPupils, kindLabel, mapSubject, loadCurrentTerm, streamOf, subjectFits } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { groupOf } from "@/lib/accounts-agg";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
@@ -104,12 +92,23 @@ export default async function AssessmentsPage() {
   }
 
   let counts = enteredById;
-  if (!counts && rows.length) {
-    const scoreRows = await fetchAll<{ assessment_id: string }>((from, to) =>
-      supabase.from("assessment_scores").select("assessment_id").in("assessment_id", rows.map((paper) => paper.id)).order("assessment_id").range(from, to),
-    );
-    counts = new Map<string, number>();
-    for (const score of scoreRows) counts.set(score.assessment_id, (counts.get(score.assessment_id) || 0) + 1);
+  // Prefer the aggregate above. If it fails, count by term — never `.in(all paper ids)`,
+  // which blows the request URL once a sitting has many markbooks.
+  if (!counts && term && rows.length) {
+    try {
+      const scoreRows = await fetchAll<{ assessment_id: string }>((from, to) =>
+        supabase
+          .from("assessment_scores")
+          .select("assessment_id, assessments!inner(term_id)")
+          .eq("assessments.term_id", term.id)
+          .order("assessment_id")
+          .range(from, to),
+      );
+      counts = new Map<string, number>();
+      for (const score of scoreRows) counts.set(score.assessment_id, (counts.get(score.assessment_id) || 0) + 1);
+    } catch {
+      counts = new Map<string, number>();
+    }
   }
   counts = counts ?? new Map<string, number>();
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));

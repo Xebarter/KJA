@@ -18,7 +18,7 @@ function receiptFile(form: FormData) {
 }
 
 export async function saveExpense(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("expenses");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user, profile } = auth;
   const id = String(form.get("id") || "");
@@ -88,7 +88,7 @@ export async function saveExpense(form: FormData): Promise<ActionResult> {
 }
 
 export async function decideExpense(id: string, decision: "approved" | "rejected", note: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("expenses");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Expense not found." };
   const { supabase, user, profile } = auth;
@@ -115,7 +115,7 @@ export async function decideExpense(id: string, decision: "approved" | "rejected
 }
 
 export async function markExpensePaid(id: string, form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("expenses");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Expense not found." };
   const { supabase, user } = auth;
@@ -154,7 +154,7 @@ export async function markExpensePaid(id: string, form: FormData): Promise<Actio
 
 /** Removes a request that hasn't been decided yet, with its receipt. */
 export async function withdrawExpense(id: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("expenses");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Expense not found." };
   const { supabase, user, profile } = auth;

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
+import "@/app/account/auth.css";
 
 export function ResetPasswordForm() {
   const router = useRouter();
@@ -12,44 +14,66 @@ export function ResetPasswordForm() {
   return (
     <main className="account-reset">
       <div className="account-reset-card">
-        <div className="account-auth-mark">
-          <img src="/images/kja-logo.png" alt="Kampala Junior Academy" />
+        <header className="account-auth-head">
+          <div className="account-auth-mark">
+            <img src="/images/kja-logo.png" alt="" />
+          </div>
+          <p className="account-auth-brand">Kampala Junior Academy</p>
+        </header>
+
+        <div className="account-auth-title">
+          <h1>Choose a password</h1>
+          <p>Set a new password for your school account, then sign in with your email.</p>
         </div>
-        <h1>Choose a password</h1>
-        <p className="account-reset-note">This sets a password on your existing account. You can then sign in with your email and this password.</p>
-        <form className="account-form" onSubmit={async (event) => {
-          event.preventDefault();
-          const data = new FormData(event.currentTarget);
-          const password = String(data.get("password"));
-          const confirm = String(data.get("confirm"));
-          if (password !== confirm) {
-            setError("Those passwords don't match.");
-            return;
-          }
-          const supabase = createBrowserSupabase();
-          if (!supabase) return;
-          setBusy(true);
-          setError("");
-          const { error: updateError } = await supabase.auth.updateUser({ password });
-          setBusy(false);
-          if (updateError) {
-            setError(updateError.message);
-            return;
-          }
-          router.push("/account");
-          router.refresh();
-        }}>
+
+        <form
+          className="account-form"
+          onSubmit={async (event) => {
+            event.preventDefault();
+            const data = new FormData(event.currentTarget);
+            const password = String(data.get("password"));
+            const confirm = String(data.get("confirm"));
+            if (password !== confirm) {
+              setError("Those passwords don't match.");
+              return;
+            }
+            const supabase = createBrowserSupabase();
+            if (!supabase) return;
+            setBusy(true);
+            setError("");
+            const { error: updateError } = await supabase.auth.updateUser({ password });
+            setBusy(false);
+            if (updateError) {
+              setError(updateError.message);
+              return;
+            }
+            router.push("/account");
+            router.refresh();
+          }}
+        >
           <label>
-            <span className="account-sr">New password</span>
-            <input name="password" type="password" placeholder="New password" autoComplete="new-password" minLength={6} required />
+            <span>New password</span>
+            <input name="password" type="password" placeholder="At least 6 characters" autoComplete="new-password" minLength={6} autoFocus required />
           </label>
           <label>
-            <span className="account-sr">Confirm password</span>
-            <input name="confirm" type="password" placeholder="Confirm password" autoComplete="new-password" minLength={6} required />
+            <span>Confirm password</span>
+            <input name="confirm" type="password" placeholder="Repeat password" autoComplete="new-password" minLength={6} required />
           </label>
-          <button className="account-btn" type="submit" disabled={busy}>{busy ? "…" : "Save password"}</button>
+          <button className="account-btn" type="submit" disabled={busy}>
+            {busy ? "Saving…" : "Save password"}
+          </button>
         </form>
-        {error ? <p className="account-error">{error}</p> : null}
+
+        {error ? (
+          <p className="account-error" role="alert">
+            <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
+            {error}
+          </p>
+        ) : null}
+
+        <p className="account-reset-foot">
+          <Link href="/account">Back to account</Link>
+        </p>
       </div>
     </main>
   );

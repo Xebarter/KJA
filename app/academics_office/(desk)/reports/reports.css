@@ -420,11 +420,11 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
 @media print {
   .rpt-preview-page .admin-hero,
   .rpt-preview-page .rpt-preview-bar { display: none !important; }
-  .rpt-preview-page .rpt-preview { padding: 0; }
+  .rpt-preview-page .rpt-preview { padding: 0; margin: 0; width: 100%; }
   .rpt-preview-page .acd-sheet,
-  .rpt-print-pack .acd-sheet { max-width: none; margin: 0; }
-  .rpt-print-pack { gap: 0; }
-  .rpt-print-sheets { gap: 0; }
+  .rpt-print-pack .acd-sheet { max-width: 100%; margin: 0 auto; }
+  .rpt-print-pack { gap: 0; margin: 0; padding: 0; width: 100%; }
+  .rpt-print-sheets { gap: 0; margin: 0; padding: 0; width: 100%; }
 }
 .rpt-cancel { margin: 0; }
 .rpt-cancel fieldset { display: flex; margin: 0; padding: 0; border: 0; min-inline-size: 0; }

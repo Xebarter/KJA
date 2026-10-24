@@ -299,8 +299,9 @@ export async function loadReportCardPhotos(cards: Pick<StreamReportCard, "id" | 
   const storage = serviceClient();
   if (!storage) return photos;
   const pending = cards.filter((card) => card.photo_path);
-  for (let index = 0; index < pending.length; index += 16) {
-    const slice = pending.slice(index, index + 16);
+  // Wider fan-out — photo downloads dominate pack prep for large streams.
+  for (let index = 0; index < pending.length; index += 32) {
+    const slice = pending.slice(index, index + 32);
     await Promise.all(slice.map(async (card) => {
       const { data, error } = await storage.storage.from(STUDENT_PHOTO_BUCKET).download(card.photo_path as string);
       if (error || !data) return;

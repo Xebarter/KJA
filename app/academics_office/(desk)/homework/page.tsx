@@ -3,28 +3,21 @@ import { AcademicsGate } from "@/components/academics/ui";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { HomeworkDesk } from "@/components/academics/HomeworkDesk";
 import "./homework.css";
-import {
-  classLabel,
-  classSection,
-  groupPupils,
-  loadCurrentTerm,
-  mapSubject,
-  openAcademics,
-  subjectFits,
-} from "@/lib/academics";
+import { classLabel, classSection, groupPupils, loadCurrentTerm, mapSubject, subjectFits } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 
-export const metadata = { title: "Homework" };
+export const metadata = { title: "Homework & resources" };
 
 export default async function HomeworkPage() {
   const opened = await openAcademics();
-  if ("notice" in opened) return <AcademicsGate title="Homework" state={opened} />;
+  if ("notice" in opened) return <AcademicsGate title="Homework & resources" state={opened} />;
   const { supabase, user } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
-  if (termPack.error) return <AcademicsGate title="Homework" state={{ notice: "schema", message: termPack.error }} />;
+  if (termPack.error) return <AcademicsGate title="Homework & resources" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
 
-  const [assignmentsQuery, subjectsQuery, pupils, completionsQuery] = await Promise.all([
+  const [assignmentsQuery, resourcesQuery, subjectsQuery, pupils, completionsQuery] = await Promise.all([
     term
       ? supabase
           .from("homework_assignments")
@@ -32,6 +25,11 @@ export default async function HomeworkPage() {
           .eq("term_id", term.id)
           .order("due_on", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
+    supabase
+      .from("class_resources")
+      .select("id, class_code, stream, subject_id, kind, title, body, link_url, file_path, file_name, teacher_name, published_at, created_at")
+      .order("created_at", { ascending: false })
+      .limit(200),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     loadRoll(supabase, user.id),
     term
@@ -42,8 +40,20 @@ export default async function HomeworkPage() {
   if (assignmentsQuery.error) {
     return (
       <AcademicsGate
-        title="Homework"
+        title="Homework & resources"
         state={{ notice: "schema", message: `${assignmentsQuery.error.message} — run supabase/0029_student_portal.sql` }}
+      />
+    );
+  }
+
+  const resourcesMissing = Boolean(
+    resourcesQuery.error && /class_resources|schema cache|does not exist/i.test(resourcesQuery.error.message),
+  );
+  if (resourcesQuery.error && !resourcesMissing) {
+    return (
+      <AcademicsGate
+        title="Homework & resources"
+        state={{ notice: "schema", message: resourcesQuery.error.message }}
       />
     );
   }
@@ -89,13 +99,45 @@ export default async function HomeworkPage() {
     };
   });
 
+  const resources = resourcesMissing
+    ? []
+    : (resourcesQuery.data || []).map((row) => {
+        const classKey = `${row.class_code}|${row.stream || ""}`;
+        const kind = (["note", "file", "image", "link"].includes(row.kind) ? row.kind : "note") as
+          | "note"
+          | "file"
+          | "image"
+          | "link";
+        return {
+          id: row.id,
+          kind,
+          title: row.title,
+          body: row.body,
+          link_url: row.link_url,
+          file_path: row.file_path || null,
+          file_name: row.file_name,
+          published_at: row.published_at,
+          created_at: row.created_at,
+          subject_name: row.subject_id ? subjectName.get(row.subject_id) || null : null,
+          class_label: classLabel(row.class_code, row.stream),
+          class_key: classKey,
+          teacher_name: row.teacher_name,
+        };
+      });
+
   return (
     <div className="app-page ahw-page">
       <PageHeader
         kicker="Daily"
         icon="fa-book"
-        title="Homework"
-        description={term ? `Set work for ${term.label}. Pupils with a student login will see published homework.` : "Set a current term first."}
+        title="Homework & resources"
+        description={
+          term
+            ? resourcesMissing
+              ? `Assign work for ${term.label}. Run supabase/0040_class_resources.sql to unlock class resources.`
+              : `Assign homework and share notes, files or links for ${term.label} — all on the Pupils App.`
+            : "Set a current term first."
+        }
       />
       {!term ? (
         <p className="admin-empty">Mark a fee term as current in Accounts before setting homework.</p>
@@ -111,6 +153,7 @@ export default async function HomeworkPage() {
           }))}
           classes={classOptions}
           rows={rows}
+          resources={resources}
           createAction={createHomework}
           publishAction={publishHomework}
         />

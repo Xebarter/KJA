@@ -23,16 +23,21 @@ class PortalController extends ChangeNotifier {
   bool _supabaseReady = false;
 
   Future<void> boot() async {
-    final config = await AppConfig.load();
-    configured = config.isReady;
-    if (configured) {
-      await _start(config.url, config.anonKey);
-      if (_supabaseReady && Supabase.instance.client.auth.currentSession != null) {
-        await _load(quiet: true);
+    try {
+      final config = await AppConfig.load();
+      configured = config.isReady;
+      if (configured) {
+        await _start(config.url, config.anonKey);
+        if (_supabaseReady && Supabase.instance.client.auth.currentSession != null) {
+          await _load(quiet: true);
+        }
       }
+    } catch (_) {
+      banner ??= 'Could not finish starting the app.';
+    } finally {
+      booting = false;
+      notifyListeners();
     }
-    booting = false;
-    notifyListeners();
   }
 
   Future<String?> saveConnection(String url, String anonKey) async {

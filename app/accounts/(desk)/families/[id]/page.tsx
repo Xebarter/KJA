@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { RecordPaymentButton } from "@/components/accounts/PaymentForm";
+import { RecordFamilyPaymentButton, RecordPaymentButton } from "@/components/accounts/PaymentForm";
 import { Statement } from "@/components/accounts/Statement";
 import { Money, Progress, Stat, notReady } from "@/components/accounts/ui";
 import { Panel } from "@/components/office/ui";
@@ -58,9 +58,19 @@ export default async function FamilyAccountPage({ params }: { params: Promise<{ 
         title={title}
         description={<>Family {family.family_code}{family.home_area ? ` · ${family.home_area}` : ""} · {children.length} child{children.length === 1 ? "" : "ren"} on record</>}
         actions={
-          <a className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/families/${id}/statement`} target="_blank" rel="noreferrer">
-            <i className="fa-solid fa-file-pdf" aria-hidden="true" /> Family statement
-          </a>
+          <>
+            {terms.length && children.some((child) => child.status === "active") ? (
+              <RecordFamilyPaymentButton
+                terms={termOptions}
+                termId={current?.id ?? terms[0].id}
+                familyId={id}
+                familyName={title}
+              />
+            ) : null}
+            <a className="admin-hero-btn" href={`${ACCOUNTS_BASE}/families/${id}/statement`} target="_blank" rel="noreferrer">
+              <i className="fa-solid fa-file-pdf" aria-hidden="true" /> Family statement
+            </a>
+          </>
         }
       />
       <div className="acc-hero-figures">

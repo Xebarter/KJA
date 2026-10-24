@@ -6,6 +6,7 @@ import { groupOf } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "../invoices.css";
 
 export const metadata = { title: "Generate term invoices" };
 
@@ -33,13 +34,20 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
   const activeByClass = Object.fromEntries([...(pupils ?? [])].filter(([code]) => code));
 
   return (
-    <div className="app-page ofc-page acc-page ofc-narrow">
+    <div className="app-page ofc-page acc-page inv-page inv-wizard-page ofc-narrow">
+      <p className="acc-crumbs">
+        <Link href={`${ACCOUNTS_BASE}/invoices`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Invoices</Link>
+      </p>
       <PageHeader
         kicker="Invoices"
-        icon="fa-file-invoice"
+        icon="fa-wand-magic-sparkles"
         title="Generate term invoices"
         description="Bill a whole term in one go. You'll see exactly what will be created before anything is saved."
-        actions={<Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/settings#rates`}><i className="fa-solid fa-sliders" aria-hidden="true" /> Check the fees</Link>}
+        actions={
+          <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/settings#rates`}>
+            <i className="fa-solid fa-sliders" aria-hidden="true" /> Check the fees
+          </Link>
+        }
       />
       <InvoiceWizard
         terms={terms.map((term) => ({ id: term.id, label: term.label, due_on: term.due_on, billed: billedByTerm[term.id] ?? 0 }))}

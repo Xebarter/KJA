@@ -6,9 +6,13 @@ import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
 import { AdminProcess } from "@/components/admin/AdminProcess";
 import { searchAdmin } from "@/app/admin/(panel)/search/actions";
+import { DashboardSwitch } from "@/components/DashboardSwitch";
+import { DeskWarmup } from "@/components/DeskWarmup";
+import { DesktopSyncBar } from "@/components/DesktopSyncBar";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { contentGroups, resourceLabel } from "@/lib/admin";
 import { initials } from "@/lib/applications";
+import { CONTENT_KEY_PAGE, pageIdForPath } from "@/lib/dashboard-access";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 const GROUP_ICONS: Record<string, string> = {
@@ -72,12 +76,22 @@ export function AdminShell({
   newApplications = 0,
   unreadMessages = 0,
   newJobApplications = 0,
+  pages = null,
+  canSwitch = false,
+  fullAdmin = true,
+  home = "/admin",
+  offices,
 }: {
   children: React.ReactNode;
   admin: { name: string; email: string };
   newApplications?: number;
   unreadMessages?: number;
   newJobApplications?: number;
+  pages?: string[] | null;
+  canSwitch?: boolean;
+  fullAdmin?: boolean;
+  home?: string;
+  offices?: { href: string; label: string; icon: string }[];
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -104,27 +118,47 @@ export function AdminShell({
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
+  const defaultOffices = [
+    { href: "/admissions_office", label: "Admissions office", icon: "fa-building-user" },
+    { href: "/accounts", label: "Accounts office", icon: "fa-calculator" },
+    { href: "/academics_office", label: "Academics office", icon: "fa-graduation-cap" },
+  ];
+  const officeNav = offices ?? defaultOffices;
+  const officeHrefs = new Set(officeNav.map((item) => item.href));
+  function allowed(href: string) {
+    if (href === "/admin/team" || href.startsWith("/admin/team/")) return fullAdmin;
+    if (pages === null) return true;
+    const id = pageIdForPath("admin", href);
+    return Boolean(id && pages.includes(id));
+  }
+  const groups = contentGroups
+    .map((group) => ({
+      ...group,
+      keys: group.keys.filter((key) => pages === null || (CONTENT_KEY_PAGE[key] ? pages.includes(CONTENT_KEY_PAGE[key]) : false)),
+    }))
+    .filter((group) => group.keys.length > 0);
   const sections = [
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/applications", label: "Applications" },
     { href: "/admin/team", label: "Team" },
     { href: "/admin/students", label: "Students" },
     { href: "/admin/inbox/messages", label: "Messages" },
-    { href: "/admissions_office", label: "Admissions office" },
-    { href: "/accounts", label: "Accounts office" },
-    { href: "/academics_office", label: "Academics office" },
+    ...officeNav.map((item) => ({ href: item.href, label: item.label })),
     { href: "/admin/stories", label: "Stories" },
     { href: "/admin/inbox/newsletter", label: "Newsletter" },
     { href: "/admin/images", label: "Images" },
     { href: "/admin/settings", label: "Site settings" },
-    ...contentGroups.flatMap((group) => group.keys.map((key) => ({ href: `/admin/content/${key}`, label: resourceLabel(key) }))),
-  ];
+    ...groups.flatMap((group) => group.keys.map((key) => ({ href: `/admin/content/${key}`, label: resourceLabel(key) }))),
+  ].filter((section) => officeHrefs.has(section.href) || allowed(section.href));
   const current = sections.find((section) => isActive(pathname, section.href))?.label ?? "Dashboard";
+  const places = ADMIN_PLACES.filter((place) => (defaultOffices.some((item) => item.href === place.href) ? officeHrefs.has(place.href) : allowed(place.href)));
 
   return (
     <div className={`admin-shell${open ? " is-nav-open" : ""}`}>
+      <DesktopSyncBar />
+      <DeskWarmup hrefs={sections.map((section) => section.href)} />
       <header className="admin-topbar">
-        <Link href="/admin" className="admin-topbar-brand">
+        <Link href={home} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>KJA Admin</strong>
@@ -145,7 +179,7 @@ export function AdminShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="admin-side" className="admin-side">
-        <Link href="/admin" className="admin-brand">
+        <Link href={home} className="admin-brand">
           <Seal />
           <span>
             <strong>KJA Admin</strong>
@@ -158,7 +192,7 @@ export function AdminShell({
           label="Search the admin"
           placeholder="Pages, people, stories, messages"
           inputRef={search}
-          places={ADMIN_PLACES}
+          places={places}
           recordsLabel="Records"
           browseLabel="See matching applications"
           browseHref={(q) => `/admin/applications?q=${encodeURIComponent(q)}`}
@@ -167,34 +201,28 @@ export function AdminShell({
         />
 
         <nav className="admin-nav" aria-label="Admin">
-          <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink>
+          {allowed("/admin") ? <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink> : null}
 
           <hr className="admin-nav-rule" />
-          <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink>
-          <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink>
-          <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink>
-          <NavLink href="/admin/inbox/messages" icon="fa-envelope" badge={unreadMessages}>Messages</NavLink>
+          {allowed("/admin/applications") ? <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink> : null}
+          {fullAdmin ? <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink> : null}
+          {allowed("/admin/students") ? <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink> : null}
+          {allowed("/admin/inbox/messages") ? <NavLink href="/admin/inbox/messages" icon="fa-envelope" badge={unreadMessages}>Messages</NavLink> : null}
+
+          {officeNav.length ? <hr className="admin-nav-rule" /> : null}
+          {officeNav.map((item) => (
+            <a key={item.href} href={item.href}>
+              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+              <span>{item.label}</span>
+            </a>
+          ))}
 
           <hr className="admin-nav-rule" />
-          <a href="/admissions_office">
-            <i className="fa-solid fa-building-user" aria-hidden="true" />
-            <span>Admissions office</span>
-          </a>
-          <a href="/accounts">
-            <i className="fa-solid fa-calculator" aria-hidden="true" />
-            <span>Accounts office</span>
-          </a>
-          <a href="/academics_office">
-            <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
-            <span>Academics office</span>
-          </a>
-
-          <hr className="admin-nav-rule" />
-          <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink>
-          <NavLink href="/admin/inbox/newsletter" icon="fa-paper-plane">Newsletter</NavLink>
-          <NavLink href="/admin/images" icon="fa-images">Images</NavLink>
-          <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink>
-          {contentGroups.map((group) => {
+          {allowed("/admin/stories") ? <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink> : null}
+          {allowed("/admin/inbox/newsletter") ? <NavLink href="/admin/inbox/newsletter" icon="fa-paper-plane">Newsletter</NavLink> : null}
+          {allowed("/admin/images") ? <NavLink href="/admin/images" icon="fa-images">Images</NavLink> : null}
+          {allowed("/admin/settings") ? <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink> : null}
+          {groups.map((group) => {
             const inGroup = group.keys.some((key) => isActive(pathname, `/admin/content/${key}`));
             const groupBadge = group.keys.some((key) => key === "vacancies") ? newJobApplications : 0;
             return (
@@ -224,6 +252,7 @@ export function AdminShell({
         </nav>
 
         <div className="admin-side-foot">
+          <DashboardSwitch show={canSwitch} />
           <a className="admin-side-link" href="/" target="_blank" rel="noopener noreferrer">
             <i className="fa-solid fa-globe" aria-hidden="true" />
             <span>View website</span>
@@ -242,7 +271,7 @@ export function AdminShell({
               title="Sign out"
               onClick={async () => {
                 await signOut();
-                router.push("/");
+                router.push("/admin/login");
                 router.refresh();
               }}
             >

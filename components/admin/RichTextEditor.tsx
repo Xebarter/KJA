@@ -12,6 +12,7 @@ type Props = {
   onUpload: (file: File) => Promise<string>;
   startInSource?: boolean;
   complex?: boolean;
+  placeholder?: string;
 };
 
 function ToolButton({
@@ -43,7 +44,7 @@ function ToolButton({
   );
 }
 
-export function RichTextEditor({ initialHtml, onChange, onUpload, startInSource, complex }: Props) {
+export function RichTextEditor({ initialHtml, onChange, onUpload, startInSource, complex, placeholder }: Props) {
   const [source, setSource] = useState(initialHtml);
   const [mode, setMode] = useState<"visual" | "html">(startInSource ? "html" : "visual");
   const [uploading, setUploading] = useState(false);
@@ -64,7 +65,9 @@ export function RichTextEditor({ initialHtml, onChange, onUpload, startInSource,
         link: { openOnClick: false, autolink: true, defaultProtocol: "https" },
       }),
       Image,
-      Placeholder.configure({ placeholder: "Tell the story… Use headings to break it into sections." }),
+      Placeholder.configure({
+        placeholder: placeholder || "Tell the story… Use headings to break it into sections.",
+      }),
     ],
     content: initialHtml,
     editorProps: { attributes: { class: "rte-prose", spellcheck: "true" } },

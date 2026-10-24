@@ -99,7 +99,7 @@ export default function Preview() {
   return (
     <div className="kja-admin kja-office">
       <OfficeShell person={{ name: "Enock Mutebi", email: "enock@kja.ac.ug", role: "Admissions officer" }} badges={{ applications: 21, visits: 5, quality: 9 }}>
-        <Overview supabase={supabase} user={{ email: "enock@kja.ac.ug" } as never} profile={{ full_name: "Enock Mutebi" } as never} />
+        <Overview supabase={supabase} user={{ email: "enock@kja.ac.ug" } as never} profile={{ full_name: "Enock Mutebi" } as never} grants={[{ dashboard: "admissions", pages: [] }]} />
       </OfficeShell>
     </div>
   );

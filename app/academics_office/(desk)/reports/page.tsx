@@ -3,7 +3,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { StudentFace } from "@/components/StudentFace";
-import { ACADEMICS_BASE, classLabel, groupPupils, loadCurrentTerm, openAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, groupPupils, loadCurrentTerm, streamFromQuery, streamQuery } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadReportSittings, type ReportSitting } from "@/lib/academics-reports";
 import { loadRoll, type RollPupil } from "@/lib/academics-roll";
 

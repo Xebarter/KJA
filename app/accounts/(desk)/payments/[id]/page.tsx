@@ -10,6 +10,7 @@ import { dateTime, day, ugx, type AccountActivity, type Payment } from "@/lib/ac
 import { loadPeople } from "@/lib/admin-applications";
 import { className, isUuid } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "../payments.css";
 
 export const metadata = { title: "Payment" };
 
@@ -36,28 +37,32 @@ export default async function PaymentPage({ params }: { params: Promise<{ id: st
   const people = await loadPeople(supabase, [payment.received_by, payment.voided_by, ...activity.map((row) => row.actor_id)]);
   const family = (student?.families ?? null) as unknown as { family_code: string | null; mailing_name: string | null } | null;
   const voided = Boolean(payment.voided_at);
-  const receipt = `${ACCOUNTS_BASE}/payments/${id}/receipt`;
+  const batchId = payment.batch_id || null;
+  const receipt = batchId
+    ? `${ACCOUNTS_BASE}/payments/batch/${batchId}/receipt`
+    : `${ACCOUNTS_BASE}/payments/${id}/receipt`;
   const studentHref = `${ACCOUNTS_BASE}/students/${payment.student_id}`;
   const billed = Number(balance?.invoiced ?? 0);
   const paid = Number(balance?.paid ?? 0);
   const left = Number(balance?.balance ?? 0);
 
   return (
-    <div className="app-page ofc-page acc-page">
+    <div className="app-page ofc-page acc-page pay-page pay-detail-page">
       <p className="acc-crumbs">
         <Link href={`${ACCOUNTS_BASE}/payments`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Payments</Link>
         <span aria-hidden="true">/</span>
         <Link href={studentHref}>{student?.full_name ?? "Pupil"}</Link>
       </p>
       <PageHeader
-        kicker={voided ? "Voided receipt" : "Receipt"}
+        kicker={voided ? "Voided receipt" : batchId ? "Family allocation" : "Receipt"}
         icon="fa-receipt"
         title={payment.receipt_no}
         description={<>{ugx(payment.amount)} from {payment.payer_name || family?.mailing_name || "the family"} for {student?.full_name ?? "a pupil"} · {day(payment.paid_on)}</>}
         actions={
           <>
-            <a className="admin-hero-btn is-primary" href={receipt} target="_blank" rel="noreferrer"><i className="fa-solid fa-print" aria-hidden="true" /> Print receipt</a>
+            <a className="admin-hero-btn is-primary" href={receipt} target="_blank" rel="noreferrer"><i className="fa-solid fa-print" aria-hidden="true" /> Print {batchId ? "family receipt" : "receipt"}</a>
             <a className="admin-hero-btn" href={`${receipt}?download=1`}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a>
+            {batchId ? <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/payments/batch/${batchId}`}><i className="fa-solid fa-people-roof" aria-hidden="true" /> Family receipt</Link> : null}
             <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/payments/new?student=${payment.student_id}&term=${payment.term_id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Another payment</Link>
           </>
         }

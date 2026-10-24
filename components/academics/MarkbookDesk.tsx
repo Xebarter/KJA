@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { reopenAssessment, saveScores } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
@@ -19,6 +19,7 @@ export type MarkbookPupil = {
 
 export type MarkbookBand = { id: string; label: string; midpoint: number };
 
+type MarkOutcome = { error?: string; ok?: string };
 type Entry = { score: string; band: string; missed: boolean };
 type Focus = "all" | "blank" | "marked" | "missed";
 
@@ -26,6 +27,11 @@ const nf = (value: number) => value.toLocaleString("en-GB");
 
 function countLabel(count: number, one: string, many: string) {
   return `${nf(count)} ${count === 1 ? one : many}`;
+}
+
+function pupilIdFromField(field: HTMLElement) {
+  const name = field.getAttribute("name") || "";
+  return name.startsWith("pupil:") ? name.slice(6) : "";
 }
 
 export function MarkbookDesk({
@@ -39,6 +45,7 @@ export function MarkbookDesk({
   locked,
   phase = "open",
   office,
+  saveAction,
 }: {
   assessmentId: string;
   pupils: MarkbookPupil[];
@@ -50,11 +57,19 @@ export function MarkbookDesk({
   locked: boolean;
   phase?: "open" | "submitted" | "approved";
   office: boolean;
+  /** Defaults to academics office saveScores. Teacher desk passes saveTeacherScores. */
+  saveAction?: (formData: FormData) => Promise<MarkOutcome>;
 }) {
+  const onSave = saveAction || saveScores;
+  const rapid = !office;
+  const tableRef = useRef<HTMLDivElement>(null);
+  const focusedOnce = useRef(false);
+
   const [entries, setEntries] = useState<Record<string, Entry>>(() =>
     Object.fromEntries(pupils.map((pupil) => [pupil.id, { score: pupil.score, band: pupil.band, missed: pupil.missed }])),
   );
   const [search, setSearch] = useState("");
+  // Keep "all" while entering so rows don't vanish under the caret as marks are typed.
   const [focus, setFocus] = useState<Focus>("all");
 
   const rows = useMemo(() => pupils.map((pupil) => {
@@ -94,20 +109,96 @@ export function MarkbookDesk({
     setEntries((current) => ({ ...current, [id]: { ...current[id], score: "", band: "", missed: false, ...next } }));
   }
 
-  function move(event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
-    if (event.key !== "Enter" && event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
-    const fields = [...event.currentTarget.closest(".mkb-table")?.querySelectorAll<HTMLElement>("li:not([hidden]) .mkb-field:not(:read-only)") || []];
-    const index = fields.indexOf(event.currentTarget);
-    const next = fields[index + (event.key === "ArrowUp" ? -1 : 1)];
-    if (!next) return;
-    event.preventDefault();
-    next.focus();
-    if (next instanceof HTMLInputElement) next.select();
+  function fieldList() {
+    return [
+      ...(tableRef.current?.querySelectorAll<HTMLElement>("li:not([hidden]) .mkb-field:not(:disabled):not([readonly])") || []),
+    ];
   }
+
+  function focusField(field: HTMLElement | undefined | null) {
+    if (!field) return;
+    field.focus();
+    if (field instanceof HTMLInputElement) field.select();
+  }
+
+  function advanceFrom(current: HTMLElement, delta: number) {
+    const fields = fieldList();
+    const index = fields.indexOf(current);
+    if (index < 0) return;
+    focusField(fields[index + delta]);
+  }
+
+  function focusNextAfter(li: Element | null | undefined, skipId?: string) {
+    requestAnimationFrame(() => {
+      let sibling = li?.nextElementSibling as HTMLElement | null;
+      while (sibling) {
+        if (!sibling.hidden) {
+          const field = sibling.querySelector<HTMLElement>(".mkb-field:not(:disabled):not([readonly])");
+          if (field && (!skipId || pupilIdFromField(field) !== skipId)) {
+            focusField(field);
+            return;
+          }
+        }
+        sibling = sibling.nextElementSibling as HTMLElement | null;
+      }
+      focusField(fieldList()[0]);
+    });
+  }
+
+  function markMissedAndAdvance(current: HTMLElement) {
+    const id = pupilIdFromField(current);
+    if (!id) return;
+    const li = current.closest("li");
+    patch(id, { missed: true });
+    focusNextAfter(li, id);
+  }
+
+  function move(event: React.KeyboardEvent<HTMLInputElement | HTMLSelectElement>) {
+    if (event.key === "Enter" || event.key === "ArrowDown") {
+      event.preventDefault();
+      advanceFrom(event.currentTarget, 1);
+      return;
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      advanceFrom(event.currentTarget, -1);
+      return;
+    }
+    if (locked) return;
+    if (event.key === "-" || event.key === "m" || event.key === "M") {
+      // Number fields: treat "-" / m as "missed" so teachers never hunt for the chip.
+      if (event.currentTarget instanceof HTMLInputElement && event.key === "-" && event.currentTarget.value !== "") return;
+      event.preventDefault();
+      markMissedAndAdvance(event.currentTarget);
+    }
+  }
+
+  function onBandChange(id: string, band: string, current: HTMLSelectElement) {
+    patch(id, { band });
+    if (!rapid || !band) return;
+    requestAnimationFrame(() => advanceFrom(current, 1));
+  }
+
+  useEffect(() => {
+    if (locked || focusedOnce.current) return;
+    const frame = requestAnimationFrame(() => {
+      const firstBlank = tableRef.current?.querySelector<HTMLElement>(
+        "li:not([hidden]).is-blank .mkb-field:not(:disabled):not([readonly])",
+      );
+      const firstAny = tableRef.current?.querySelector<HTMLElement>(
+        "li:not([hidden]) .mkb-field:not(:disabled):not([readonly])",
+      );
+      const target = firstBlank || firstAny;
+      if (!target) return;
+      focusedOnce.current = true;
+      focusField(target);
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [locked, focus, assessmentId]);
 
   return (
     <>
-      <section className="mkb-strip" aria-label="This markbook">
+      <section className={`mkb-strip${rapid ? " is-rapid" : ""}`} aria-label="This markbook">
         <div>
           <span className="mkb-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-group" /></span>
           <span className="mkb-stat-copy"><span>On roll</span><strong>{nf(rows.length)}</strong><small>{heldOn}</small></span>
@@ -126,12 +217,20 @@ export function MarkbookDesk({
         </div>
         <div className="mkb-meter">
           <span className="mkb-meter-bar" aria-hidden="true"><span style={{ width: `${rows.length ? Math.round((marked / rows.length) * 100) : 0}%` }} /></span>
-          <p>{weight ? `${nf(weight)}% of the subject total · ` : ""}{nursery ? "Progress bands" : `Marks out of ${nf(maxScore)}`}.{locked ? "" : " Press Enter to move to the next pupil."}</p>
+          <p>
+            {weight ? `${nf(weight)}% of the subject total · ` : ""}
+            {nursery ? "Progress bands" : `Marks out of ${nf(maxScore)}`}.
+            {locked
+              ? ""
+              : rapid
+                ? " Type a mark, Enter for next, − or M for missed."
+                : " Press Enter to move to the next pupil."}
+          </p>
         </div>
       </section>
 
-      <section className="mkb-sheet" aria-label="Marks">
-        <DeskForm action={saveScores} className="mkb-form">
+      <section className={`mkb-sheet${rapid ? " is-rapid" : ""}`} aria-label="Marks">
+        <DeskForm action={onSave} className="mkb-form">
           <input type="hidden" name="assessment_id" value={assessmentId} />
           <input type="hidden" name="max_score" value={maxScore} />
           {nursery ? <input type="hidden" name="nursery" value="1" /> : null}
@@ -159,18 +258,19 @@ export function MarkbookDesk({
               ))}
             </div>
           </div>
-          <div className="mkb-table">
+          <div className="mkb-table" ref={tableRef}>
             <div className="mkb-cols" aria-hidden="true"><span>Pupil</span><span>{nursery ? "Progress" : "Mark"}</span><span /></div>
             <ul>
               {rows.map((row, index) => {
                 const { pupil, entry } = row;
                 const percent = !nursery && row.valid && row.value !== null && maxScore > 0 ? Math.round((row.value / maxScore) * 100) : null;
+                const rowClass = entry.missed ? "is-missed" : row.blank ? "is-blank" : row.valid ? "is-marked" : "is-bad";
                 return (
-                  <li key={pupil.id} hidden={!shows(row)} className={entry.missed ? "is-missed" : row.blank ? "" : row.valid ? "is-marked" : "is-bad"}>
+                  <li key={pupil.id} hidden={!shows(row)} className={rowClass}>
                     <span className="mkb-who">
                       <StudentFace id={pupil.id} name={pupil.name} photoPath={pupil.photoPath} className="mkb-face" />
                       <span>
-                        <Link href={pupil.href}>{pupil.name}</Link>
+                        <Link href={pupil.href} tabIndex={-1}>{pupil.name}</Link>
                         <small>{String(index + 1).padStart(2, "0")} · {pupil.number}</small>
                       </span>
                     </span>
@@ -182,7 +282,7 @@ export function MarkbookDesk({
                           value={entry.missed ? "" : entry.band}
                           aria-label={`Progress for ${pupil.name}`}
                           disabled={locked || entry.missed}
-                          onChange={(event) => patch(pupil.id, { ...entry, band: event.target.value })}
+                          onChange={(event) => onBandChange(pupil.id, event.target.value, event.currentTarget)}
                           onKeyDown={move}
                         >
                           <option value="">Choose</option>
@@ -192,17 +292,21 @@ export function MarkbookDesk({
                         <input
                           className="mkb-field"
                           name={`pupil:${pupil.id}`}
-                          type="number"
+                          type="text"
                           inputMode="decimal"
-                          min="0"
-                          max={maxScore}
-                          step="0.5"
+                          autoComplete="off"
+                          enterKeyHint="next"
                           value={entry.missed ? "" : entry.score}
                           placeholder="—"
                           aria-label={`Mark for ${pupil.name}, out of ${maxScore}`}
                           readOnly={locked}
                           disabled={entry.missed}
-                          onChange={(event) => patch(pupil.id, { ...entry, score: event.target.value })}
+                          onChange={(event) => {
+                            const raw = event.target.value.replace(/[^\d.]/g, "");
+                            const parts = raw.split(".");
+                            const clean = parts.length > 1 ? `${parts[0]}.${parts.slice(1).join("").slice(0, 2)}` : parts[0];
+                            patch(pupil.id, { score: clean });
+                          }}
                           onKeyDown={move}
                           onFocus={(event) => event.currentTarget.select()}
                         />
@@ -219,7 +323,12 @@ export function MarkbookDesk({
                           value="1"
                           checked={entry.missed}
                           disabled={locked}
-                          onChange={(event) => patch(pupil.id, { ...entry, missed: event.target.checked })}
+                          onChange={(event) => {
+                            const on = event.target.checked;
+                            const li = event.currentTarget.closest("li");
+                            patch(pupil.id, { missed: on });
+                            if (rapid && on) focusNextAfter(li, pupil.id);
+                          }}
                         />
                         Missed
                       </label>
@@ -242,7 +351,13 @@ export function MarkbookDesk({
         </DeskForm>
         {locked ? (
           <footer className="mkb-foot">
-            <p>{phase === "approved" ? "Approved and locked." : "Submitted for approval. Marks stay locked until the office unlocks this markbook."}</p>
+            <p>
+              {phase === "approved"
+                ? "Approved and locked."
+                : office
+                  ? "Submitted for approval. Marks stay locked until unlocked."
+                  : "Submitted. Marks stay locked until the office unlocks this markbook."}
+            </p>
             {office ? (
               <DeskForm action={reopenAssessment} className="mkb-reopen">
                 <input type="hidden" name="assessment_id" value={assessmentId} />

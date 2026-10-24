@@ -196,7 +196,19 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                       <span className="asm-progress-bar" aria-hidden="true"><span style={{ width: `${places ? Math.min(100, Math.round((entered / places) * 100)) : 0}%` }} /></span>
                       <span>{places ? `${nf(entered)} of ${nf(places)} marked` : countLabel(sitting.papers.length, "paper", "papers")}</span>
                     </span>
-                    <em className={`asm-pill${locked ? " is-approved" : pending ? " is-submitted" : ""}`}>{locked ? "Locked" : pending ? "To approve" : approved ? `${nf(approved)} locked` : waiting ? `${nf(waiting)} submitted` : "Open"}</em>
+                    <em className={`asm-pill${locked ? " is-approved" : pending ? " is-submitted" : ""}`}>
+                      {locked
+                        ? "Locked"
+                        : pending
+                          ? office
+                            ? "To approve"
+                            : "Submitted"
+                          : approved
+                            ? `${nf(approved)} locked`
+                            : waiting
+                              ? `${nf(waiting)} submitted`
+                              : "Open"}
+                    </em>
                   </button>
                   {sample ? (
                     <button
@@ -247,7 +259,9 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                       const progress = classApproved === group.papers.length
                         ? "Locked"
                         : classWaiting
-                          ? `${nf(classWaiting)} to approve`
+                          ? office
+                            ? `${nf(classWaiting)} to approve`
+                            : `${nf(classWaiting)} submitted`
                           : classApproved
                             ? `${nf(classApproved)} locked`
                             : "Open";
@@ -257,7 +271,7 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                             <strong>{group.label}</strong>
                             <span className="asm-class-meta">
                               <span>{countLabel(group.papers.length, "subject", "subjects")} · {progress}</span>
-                              {sample ? (
+                              {office && sample ? (
                                 <Link className="asm-marksheet" href={marksheetHref({ name: sample.name, kind: sample.kind, classCode: sample.classCode, stream: sample.stream, heldOn: sample.heldOnIso })}>
                                   <i className="fa-solid fa-table-cells" aria-hidden="true" /> Marksheet
                                 </Link>

@@ -7,7 +7,7 @@ import { isUuid } from "@/lib/students";
 
 /** Gives a pupil a bursary or other discount. It applies to tuition when term invoices are generated. */
 export async function addStudentDiscount(studentId: string, form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Pupil not found." };
   const { supabase, user } = auth;
@@ -45,7 +45,7 @@ export async function addStudentDiscount(studentId: string, form: FormData): Pro
 }
 
 export async function removeStudentDiscount(id: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Discount not found." };
   const { supabase, user } = auth;
@@ -59,7 +59,7 @@ export async function removeStudentDiscount(id: string): Promise<ActionResult> {
 
 /** A note on the pupil's fee account, e.g. a payment plan agreed with the parents. */
 export async function addAccountNote(studentId: string, form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Pupil not found." };
   const body = field(form, "body", 1000);

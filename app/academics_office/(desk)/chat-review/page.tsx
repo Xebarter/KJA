@@ -2,7 +2,8 @@ import { hideStudentMessage } from "@/app/academics_office/(desk)/chat-review/ac
 import { AcademicsGate } from "@/components/academics/ui";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ChatReviewDesk } from "@/components/academics/ChatReviewDesk";
-import { classLabel, groupPupils, openAcademics } from "@/lib/academics";
+import { classLabel, groupPupils } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import "./chat-review.css";
 

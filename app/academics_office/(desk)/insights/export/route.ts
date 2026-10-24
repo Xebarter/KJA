@@ -1,5 +1,6 @@
 import { loadAcademicPicture } from "@/lib/academics-insights";
-import { kampalaToday, mapTerm, requireAcademics } from "@/lib/academics";
+import { kampalaToday, mapTerm } from "@/lib/academics";
+import { requireAcademics } from "@/lib/academics-access";
 import { csvResponse, fetchAll } from "@/lib/students";
 
 export const dynamic = "force-dynamic";

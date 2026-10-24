@@ -18,7 +18,7 @@ function familyPath(id: string) {
 }
 
 export async function updateFamily(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   if (!isUuid(id)) return { error: "This family could not be found." };
@@ -38,7 +38,7 @@ export async function updateFamily(formData: FormData): Promise<ActionResult> {
 }
 
 export async function saveGuardian(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const id = String(formData.get("id") || "");
@@ -100,7 +100,7 @@ export async function saveGuardian(formData: FormData): Promise<ActionResult> {
 }
 
 export async function deleteGuardian(id: string, familyId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id) || !isUuid(familyId)) return { error: "This record could not be found." };
   const { data: guardian } = await auth.supabase.from("guardians").select("full_name, relationship").eq("id", id).maybeSingle();
@@ -112,7 +112,7 @@ export async function deleteGuardian(id: string, familyId: string): Promise<Acti
 }
 
 export async function saveContact(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const id = String(formData.get("id") || "");
@@ -153,7 +153,7 @@ export async function saveContact(formData: FormData): Promise<ActionResult> {
 }
 
 export async function deleteContact(id: string, familyId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id) || !isUuid(familyId)) return { error: "This contact could not be found." };
   const { data: contact } = await auth.supabase.from("family_contacts").select("kind, value").eq("id", id).maybeSingle();
@@ -166,7 +166,7 @@ export async function deleteContact(id: string, familyId: string): Promise<Actio
 
 /** Marks a contact the import flagged as checked. */
 export async function resolveContact(id: string, familyId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id) || !isUuid(familyId)) return { error: "This contact could not be found." };
   const { data: contact } = await auth.supabase.from("family_contacts").select("kind, value").eq("id", id).maybeSingle();
@@ -178,7 +178,7 @@ export async function resolveContact(id: string, familyId: string): Promise<Acti
 }
 
 export async function moveContact(id: string, familyId: string, direction: "up" | "down"): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("families");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id) || !isUuid(familyId)) return { error: "This contact could not be found." };
   const { data } = await auth.supabase.from("family_contacts").select("id, position").eq("family_id", familyId).order("position").order("created_at");

@@ -1,0 +1,270 @@
+/* Staff desk chooser — pairs with admin login gate. */
+
+.cd {
+  --navy: #19232b;
+  --muted: #5d6670;
+  --paper: #fffdf8;
+  --line: rgba(25, 35, 43, .08);
+  position: relative;
+  isolation: isolate;
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: grid;
+  place-items: center;
+  padding: 2rem 1.15rem;
+  overflow: hidden;
+  background: #141d24;
+  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
+}
+
+.cd-stage {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+
+.cd-photo {
+  position: absolute;
+  inset: 0;
+  background: url("/images/hero07.jpg") center / cover no-repeat;
+  transform: scale(1.04);
+  filter: saturate(1.05) contrast(1.04);
+  animation: cd-ken 18s ease-in-out alternate infinite;
+}
+
+.cd-veil {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, rgba(20, 29, 36, .9) 0%, rgba(25, 35, 43, .74) 48%, rgba(228, 36, 53, .34) 100%),
+    linear-gradient(180deg, rgba(20, 29, 36, .28) 0%, rgba(20, 29, 36, .58) 100%);
+}
+
+.cd-glow {
+  position: absolute;
+  width: 48vmax;
+  height: 48vmax;
+  right: -14vmax;
+  bottom: -20vmax;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(253, 163, 27, .2) 0%, rgba(253, 163, 27, 0) 68%);
+}
+
+@keyframes cd-ken {
+  from { transform: scale(1.04) translate3d(0, 0, 0); }
+  to { transform: scale(1.1) translate3d(-1.4%, -.8%, 0); }
+}
+
+.cd-panel {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  padding: 1.75rem 1.45rem 1.25rem;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, .32);
+  background: rgba(255, 253, 248, .96);
+  box-shadow:
+    0 30px 60px rgba(0, 0, 0, .28),
+    0 0 0 1px rgba(25, 35, 43, .04);
+  backdrop-filter: blur(10px);
+  text-align: center;
+  animation: cd-rise .45s cubic-bezier(.2, .7, .2, 1) both;
+}
+
+.cd-brand {
+  display: grid;
+  justify-items: center;
+  gap: .55rem;
+  margin-bottom: .85rem;
+}
+
+.cd-brand img {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  display: block;
+}
+
+.cd-kicker {
+  margin: 0;
+  color: #9a5b00;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.cd-panel h1 {
+  margin: 0;
+  color: var(--navy);
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+}
+
+.cd-lede {
+  margin: .3rem 0 1.15rem;
+  color: var(--muted);
+  font-size: .95rem;
+}
+
+.cd-list {
+  display: grid;
+  gap: .55rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  text-align: left;
+}
+
+.cd-list li {
+  animation: cd-rise .4s cubic-bezier(.2, .7, .2, 1) both;
+  animation-delay: calc(.08s + var(--i, 0) * .05s);
+}
+
+.cd-tile {
+  --accent: #19232b;
+  --soft: #eceef0;
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  padding: .85rem .9rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  color: var(--navy);
+  text-decoration: none;
+  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+  transition:
+    border-color .16s ease,
+    background-color .16s ease,
+    transform .16s ease,
+    box-shadow .16s ease;
+}
+
+.cd-tile.is-admin { --accent: #19232b; --soft: #eceef0; }
+.cd-tile.is-admissions { --accent: #0d6e66; --soft: #e1f5f2; }
+.cd-tile.is-accounts { --accent: #9a5b00; --soft: #fff1d6; }
+.cd-tile.is-academics { --accent: #c81e2d; --soft: #fdecee; }
+
+.cd-tile:hover,
+.cd-tile:focus-visible {
+  border-color: color-mix(in srgb, var(--accent) 35%, #ebe5d9);
+  background: #fcfaf7;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -12px rgba(25, 35, 43, .28);
+  outline: none;
+}
+
+.cd-tile:focus-visible {
+  outline: 2px solid #fda31b;
+  outline-offset: 2px;
+}
+
+.cd-tile-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  background: var(--soft);
+  color: var(--accent);
+  font-size: .95rem;
+  transition: background-color .16s ease, color .16s ease;
+}
+
+.cd-tile:hover .cd-tile-icon,
+.cd-tile:focus-visible .cd-tile-icon {
+  background: var(--accent);
+  color: #fff;
+}
+
+.cd-tile-copy {
+  display: grid;
+  gap: .12rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.cd-tile-copy strong {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.cd-tile-copy small {
+  color: var(--muted);
+  font-size: .78rem;
+  line-height: 1.35;
+}
+
+.cd-tile-go {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  color: #8a8174;
+  font-size: .72rem;
+  transition: color .16s ease, transform .16s ease, background-color .16s ease;
+}
+
+.cd-tile:hover .cd-tile-go,
+.cd-tile:focus-visible .cd-tile-go {
+  color: var(--accent);
+  background: var(--soft);
+  transform: translateX(2px);
+}
+
+.cd-out {
+  margin-top: 1rem;
+}
+
+.cd-out button {
+  border: 0;
+  background: transparent;
+  color: #8a8174;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: .35rem .6rem;
+  border-radius: 8px;
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.cd-out button:hover,
+.cd-out button:focus-visible {
+  color: var(--navy);
+  background: rgba(25, 35, 43, .05);
+  outline: none;
+}
+
+@keyframes cd-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cd-photo,
+  .cd-panel,
+  .cd-list li {
+    animation: none;
+  }
+  .cd-tile,
+  .cd-tile-icon,
+  .cd-tile-go {
+    transition: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .cd-panel { padding: 1.45rem 1.1rem 1.1rem; }
+  .cd-tile { padding: .75rem .8rem; }
+  .cd-tile-copy small { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+}

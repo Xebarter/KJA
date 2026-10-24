@@ -13,7 +13,7 @@ const MAX_FAMILIES = 150;
 
 /** Emails each family once with what every one of their children owes. */
 export async function sendReminders(studentIds: string[], message: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("debtors");
   if ("error" in auth) return { error: auth.error };
   const problem = emailSetupProblem();
   if (problem) return { error: problem };

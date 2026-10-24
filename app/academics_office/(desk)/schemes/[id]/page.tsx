@@ -4,7 +4,8 @@ import { markLessonTaught, saveLesson, setSchemeStatus } from "@/app/academics_o
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate } from "@/components/academics/ui";
-import { ACADEMICS_BASE, classLabel, kampalaToday, openAcademics } from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, kampalaToday } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { isUuid } from "@/lib/students";
 
 export const metadata = { title: "Scheme" };

@@ -22,7 +22,7 @@ export type GenerateResult = ActionResult & { rows?: GenerateRow[] };
 
 /** Runs the term billing in the database. With dryRun it only reports what would happen. */
 export async function generateInvoices(termId: string, classes: string[], dryRun: boolean, status: "issued" | "draft"): Promise<GenerateResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(termId)) return { error: "Choose a term." };
   const picked = classes.filter(isClassCode);
@@ -46,7 +46,7 @@ export async function generateInvoices(termId: string, classes: string[], dryRun
 }
 
 export async function issueInvoices(ids: string[]): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   const clean = ids.filter(isUuid);
   if (!clean.length) return { error: "Choose the invoices to issue." };
@@ -62,7 +62,7 @@ export async function issueInvoices(ids: string[]): Promise<ActionResult> {
 
 /** Issues every draft in a term at once. */
 export async function issueAllDrafts(termId: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(termId)) return { error: "Choose a term." };
   const { supabase, user } = auth;
@@ -75,7 +75,7 @@ export async function issueAllDrafts(termId: string): Promise<ActionResult> {
 }
 
 export async function voidInvoice(id: string, reason: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Invoice not found." };
   const why = reason.replace(/\s+/g, " ").trim().slice(0, 300);
@@ -93,7 +93,7 @@ export async function voidInvoice(id: string, reason: string): Promise<ActionRes
 
 /** Adds a charge or a discount to a draft invoice. */
 export async function addInvoiceLine(invoiceId: string, form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(invoiceId)) return { error: "Invoice not found." };
   const description = field(form, "description", 120);
@@ -119,7 +119,7 @@ export async function addInvoiceLine(invoiceId: string, form: FormData): Promise
 }
 
 export async function removeInvoiceLine(lineId: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(lineId)) return { error: "Line not found." };
   const { supabase } = auth;
@@ -135,7 +135,7 @@ export async function removeInvoiceLine(lineId: string): Promise<ActionResult> {
 
 /** A one-off bill for a pupil, e.g. uniform or a school trip, on top of the term invoice. */
 export async function createExtraInvoice(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("invoices");
   if ("error" in auth) return { error: auth.error };
   const studentId = String(form.get("student_id") || "");
   const termId = String(form.get("term_id") || "");

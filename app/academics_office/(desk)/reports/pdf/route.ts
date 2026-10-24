@@ -1,8 +1,9 @@
-import { ACADEMICS_BASE, classSection, loadCurrentTerm, requireAcademics, streamFromQuery, streamQuery } from "@/lib/academics";
+import { ACADEMICS_BASE, classSection, loadCurrentTerm, streamFromQuery, streamQuery } from "@/lib/academics";
+import { requireAcademics } from "@/lib/academics-access";
 import { pdfResponse } from "@/lib/accounts-pdf";
 import { loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
 import { buildReportPrintHtml } from "@/lib/report-cards-print-html";
-import { buildReportCardsPdfFromHtml } from "@/lib/report-cards-print-pdf";
+import { buildReportCardsPdfFromHtmlChunks, reportPdfChunkSize } from "@/lib/report-cards-print-pdf";
 import { isClassCode } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
@@ -28,13 +29,16 @@ export async function GET(request: Request) {
     });
     if (!cards.length) return new Response("Generate the report cards before downloading them.", { status: 404 });
     const photos = await loadReportCardPhotos(cards);
-    const html = await buildReportPrintHtml({
-      origin: url.origin,
-      nursery: classSection(classCode) === "nursery",
-      cards,
-      photos,
-    });
-    const bytes = await buildReportCardsPdfFromHtml(html);
+    const nursery = classSection(classCode) === "nursery";
+    const size = reportPdfChunkSize(cards.length);
+    const slices: typeof cards[] = [];
+    for (let index = 0; index < cards.length; index += size) slices.push(cards.slice(index, index + size));
+    // Warm CSS/crest cache on the first slice, then render the rest together.
+    const [firstHtml, ...restHtml] = await Promise.all([
+      buildReportPrintHtml({ origin: url.origin, nursery, cards: slices[0], photos }),
+      ...slices.slice(1).map((slice) => buildReportPrintHtml({ origin: url.origin, nursery, cards: slice, photos })),
+    ]);
+    const bytes = await buildReportCardsPdfFromHtmlChunks([firstHtml, ...restHtml]);
     return pdfResponse(bytes, `${classCode}-${stream || "class"}-report-cards.pdf`, false);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't build the report cards.";

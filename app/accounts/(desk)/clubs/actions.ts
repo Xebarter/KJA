@@ -9,7 +9,7 @@ import { isUuid } from "@/lib/students";
 import type { ActionResult } from "@/lib/office-forms";
 
 export async function saveClub(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("clubs");
   if ("error" in auth) return { error: auth.error };
   const id = String(form.get("id") || "");
   if (!isUuid(id)) return { error: "Choose a club to edit." };
@@ -42,7 +42,7 @@ export async function saveClub(form: FormData): Promise<ActionResult> {
 }
 
 export async function createClub(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("clubs");
   if ("error" in auth) return { error: auth.error };
   const title = field(form, "title", 80);
   const category = field(form, "category", 80);
@@ -88,7 +88,7 @@ export async function createClub(form: FormData): Promise<ActionResult> {
 }
 
 export async function recordClubPayment(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("clubs");
   if ("error" in auth) return { error: auth.error };
   const studentId = String(form.get("student_id") || "");
   const clubId = String(form.get("club_id") || "");

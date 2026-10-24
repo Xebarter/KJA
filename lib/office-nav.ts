@@ -12,6 +12,7 @@ export const ROLE_LABELS: Record<string, string> = {
   admissions: "Admissions officer",
   accounts: "Accounts officer",
   academics: "Academics officer",
+  officer: "Team member",
   staff: "Teacher",
 };
 

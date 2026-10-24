@@ -4,7 +4,9 @@ import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { revalidatePath } from "next/cache";
 import type { ImageTarget } from "@/lib/admin-images";
+import { requireAdmin } from "@/lib/admin-applications";
 import { campusDataPath, loadCampusData } from "@/lib/campus-pages";
+import { CONTENT_TABLE_PAGE } from "@/lib/dashboard-access";
 import { ALUMNI_QUESTIONS } from "@/lib/forms";
 import { refreshSite } from "@/lib/site-cache";
 import { createClient } from "@/lib/supabase/server";
@@ -27,14 +29,10 @@ const TABLES = new Set([
   "vacancies",
 ]);
 
-async function adminClient() {
-  const supabase = await createClient();
-  if (!supabase) throw new Error("Add your Supabase keys to .env.local first.");
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) throw new Error("Sign in required.");
-  const { data } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-  if (data?.role !== "admin") throw new Error("This account is not an admin.");
-  return supabase;
+async function adminClient(...pages: string[]) {
+  const auth = await requireAdmin(...pages);
+  if ("error" in auth) throw new Error(auth.error);
+  return auth.supabase;
 }
 
 function clean(value: FormDataEntryValue | null) {
@@ -43,8 +41,9 @@ function clean(value: FormDataEntryValue | null) {
 }
 
 export async function saveRecord(table: string, formData: FormData) {
-  if (!TABLES.has(table)) throw new Error("Unknown collection.");
-  const supabase = await adminClient();
+  const page = CONTENT_TABLE_PAGE[table];
+  if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
+  const supabase = await adminClient(page);
   const id = clean(formData.get("id"));
   const payload: Record<string, unknown> = {};
   for (const [key, value] of formData.entries()) {
@@ -67,16 +66,18 @@ export async function saveRecord(table: string, formData: FormData) {
 }
 
 export async function deleteRecord(table: string, id: string) {
-  if (!TABLES.has(table)) throw new Error("Unknown collection.");
-  const supabase = await adminClient();
+  const page = CONTENT_TABLE_PAGE[table];
+  if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
+  const supabase = await adminClient(page);
   const { error } = await supabase.from(table).delete().eq("id", id);
   if (error) throw new Error(error.message);
   refreshSite();
 }
 
 export async function reorderRecords(table: string, ids: string[]) {
-  if (!TABLES.has(table)) throw new Error("Unknown collection.");
-  const supabase = await adminClient();
+  const page = CONTENT_TABLE_PAGE[table];
+  if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
+  const supabase = await adminClient(page);
   const results = await Promise.all(ids.map((id, index) => supabase.from(table).update({ sort_order: index }).eq("id", id)));
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
@@ -84,7 +85,7 @@ export async function reorderRecords(table: string, ids: string[]) {
 }
 
 export async function saveSettings(formData: FormData) {
-  const supabase = await adminClient();
+  const supabase = await adminClient("settings");
   const jsonFields = ["counters", "hero_slides", "features", "choose_items", "socials"] as const;
   const payload: Record<string, unknown> = { id: 1 };
   for (const [key, value] of formData.entries()) {
@@ -103,7 +104,7 @@ export async function saveSettings(formData: FormData) {
 }
 
 export async function uploadMedia(formData: FormData) {
-  const supabase = await adminClient();
+  const supabase = await adminClient("images", "stories", "content-website", "content-people", "content-events", "content-alumni", "content-careers");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image.");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
@@ -125,7 +126,7 @@ function setPointer(root: Record<string, unknown>, pointer: Array<string | numbe
 }
 
 export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
-  const supabase = await adminClient();
+  const supabase = await adminClient("images");
   if (target.kind === "public-file") {
     refreshSite();
     revalidatePath("/admin");
@@ -172,7 +173,7 @@ export async function replaceImage(formData: FormData) {
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image.");
   if (target.kind === "public-file") {
-    await adminClient();
+    await adminClient("images");
     const dest = path.join(process.cwd(), "public", ...target.path.split("/"));
     await mkdir(path.dirname(dest), { recursive: true });
     await writeFile(dest, Buffer.from(await file.arrayBuffer()));

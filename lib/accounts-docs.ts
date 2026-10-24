@@ -17,6 +17,7 @@ import {
   type Invoice,
   type InvoiceLine,
   type Payment,
+  type PaymentBatch,
   type Term,
 } from "@/lib/accounts-format";
 import { className } from "@/lib/students";
@@ -179,6 +180,8 @@ export async function invoicePdf(supabase: SupabaseClient, id: string, requestUr
 export async function receiptPdf(supabase: SupabaseClient, id: string, requestUrl: string) {
   const { data: payment } = await supabase.from("payments").select("*").eq("id", id).maybeSingle<Payment>();
   if (!payment) return null;
+  if (payment.batch_id) return familyReceiptPdf(supabase, payment.batch_id, requestUrl);
+
   const [{ data: term }, pupils, { data: termTotals }, { data: receiver }] = await Promise.all([
     supabase.from("fee_terms").select("id, label").eq("id", payment.term_id).maybeSingle(),
     loadPupils(supabase, [payment.student_id]),
@@ -240,6 +243,94 @@ export async function receiptPdf(supabase: SupabaseClient, id: string, requestUr
     footer: "This receipt was produced by the KJA accounts office. Keep it as proof of payment.",
   };
   return { bytes: await render(doc, requestUrl), filename: `KJA-Receipt-${payment.receipt_no}.pdf` };
+}
+
+/** One receipt for a family payment, listing how the amount was shared across children. */
+export async function familyReceiptPdf(supabase: SupabaseClient, batchId: string, requestUrl: string) {
+  const { data: batch } = await supabase.from("payment_batches").select("*").eq("id", batchId).maybeSingle<PaymentBatch>();
+  if (!batch) return null;
+
+  const [{ data: family }, { data: lines }, { data: receiver }] = await Promise.all([
+    supabase.from("families").select("id, family_code, mailing_name").eq("id", batch.family_id).maybeSingle(),
+    supabase
+      .from("payments")
+      .select("id, student_id, term_id, amount, receipt_no")
+      .eq("batch_id", batchId)
+      .order("created_at"),
+    batch.received_by
+      ? supabase.from("profiles").select("full_name").eq("id", batch.received_by).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const payments = (lines || []) as Pick<Payment, "id" | "student_id" | "term_id" | "amount" | "receipt_no">[];
+  const pupils = await loadPupils(supabase, payments.map((row) => row.student_id));
+  const termIds = [...new Set(payments.map((row) => row.term_id))];
+  const { data: termRows } = termIds.length
+    ? await supabase.from("fee_terms").select("id, label").in("id", termIds)
+    : { data: [] as { id: string; label: string }[] };
+  const termLabel = new Map((termRows || []).map((row) => [row.id, row.label]));
+  const method = methodInfo(batch.method);
+  const voided = Boolean(batch.voided_at);
+  const familyName = family?.mailing_name || family?.family_code || "the family";
+
+  const doc: AccountsDoc = {
+    tag: "OFFICIAL RECEIPT",
+    number: batch.receipt_no,
+    issued: `Paid ${day(batch.paid_on)}`,
+    title: "Family fee payment receipt",
+    intro: voided
+      ? `This receipt was cancelled${batch.void_reason ? `: ${batch.void_reason}` : "."}`
+      : `Received with thanks from ${batch.payer_name || familyName}. Shared across ${payments.length} ${payments.length === 1 ? "pupil account" : "pupil accounts"}.`,
+    status: voided ? { label: "Void", tone: "grey" } : { label: "Received", tone: "green" },
+    hero: {
+      label: "Amount received",
+      amount: batch.amount,
+      words: true,
+      facts: [
+        ["Method", method.label],
+        ["Reference", batch.reference || "-"],
+        ["Date", day(batch.paid_on)],
+      ],
+    },
+    parties: [
+      {
+        title: "Family",
+        rows: [
+          ["Name", familyName],
+          ["Family no.", family?.family_code || "-"],
+          ["Children", String(payments.length)],
+        ],
+      },
+      {
+        title: "Payment",
+        rows: [
+          ["Paid by", batch.payer_name || familyName],
+          ["Received by", receiver?.full_name || "Accounts office"],
+          ["Recorded", day(batch.created_at)],
+        ],
+      },
+    ],
+    table: {
+      headers: ["Applied to", "Term", "Amount (UGX)"],
+      widths: [0.46, 0.28, 0.26],
+      right: [2],
+      rows: payments.map((row) => {
+        const pupil = pupils.get(row.student_id);
+        return {
+          cells: [
+            pupil ? `${pupil.full_name}${pupil.class_code ? ` · ${className(pupil.class_code)}` : ""}` : "Pupil",
+            termLabel.get(row.term_id) ?? "-",
+            amount(row.amount),
+          ],
+        };
+      }),
+    },
+    notes: batch.notes ? { title: "Notes", lines: [batch.notes] } : undefined,
+    stamp: voided
+      ? { top: "KJA ACCOUNTS", middle: "VOID", bottom: day(batch.voided_at), tone: "red" }
+      : { top: "KJA ACCOUNTS", middle: "PAID", bottom: day(batch.paid_on), tone: "green" },
+    footer: "This receipt was produced by the KJA accounts office. Keep it as proof of payment.",
+  };
+  return { bytes: await render(doc, requestUrl), filename: `KJA-Family-Receipt-${batch.receipt_no}.pdf` };
 }
 
 // ---------------------------------------------------------------- statement

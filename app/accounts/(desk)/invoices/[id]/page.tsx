@@ -12,6 +12,7 @@ import { amount, dateTime, day, overdueText, ugx, type AccountActivity, type Inv
 import { loadPeople } from "@/lib/admin-applications";
 import { className, isUuid } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "../invoices.css";
 
 export const metadata = { title: "Invoice" };
 
@@ -54,7 +55,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const pdf = `${ACCOUNTS_BASE}/invoices/${id}/pdf`;
 
   return (
-    <div className="app-page ofc-page acc-page">
+    <div className="app-page ofc-page acc-page inv-page inv-detail-page">
       <p className="acc-crumbs">
         <Link href={`${ACCOUNTS_BASE}/invoices`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Invoices</Link>
         <span aria-hidden="true">/</span>
@@ -72,13 +73,13 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         }
         actions={
           <>
-            <a className="admin-hero-btn" href={pdf} target="_blank" rel="noreferrer"><i className="fa-solid fa-file-pdf" aria-hidden="true" /> View PDF</a>
-            <a className="admin-hero-btn" href={`${pdf}?download=1`}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a>
             {!isVoid ? (
               <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/payments/new?student=${invoice.student_id}&term=${invoice.term_id}`}>
                 <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Record payment
               </Link>
             ) : null}
+            <a className="admin-hero-btn" href={pdf} target="_blank" rel="noreferrer"><i className="fa-solid fa-file-pdf" aria-hidden="true" /> View PDF</a>
+            <a className="admin-hero-btn" href={`${pdf}?download=1`}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a>
           </>
         }
       />

@@ -104,6 +104,26 @@ export type Payment = {
   voided_at: string | null;
   voided_by: string | null;
   void_reason: string | null;
+  /** When set, this row is one allocation of a family receipt (`payment_batches`). */
+  batch_id?: string | null;
+};
+
+export type PaymentBatch = {
+  id: string;
+  receipt_no: string;
+  family_id: string;
+  amount: number;
+  method: PaymentMethod;
+  reference: string | null;
+  paid_on: string;
+  payer_name: string | null;
+  notes: string | null;
+  source: "manual" | "online";
+  received_by: string | null;
+  created_at: string;
+  voided_at: string | null;
+  voided_by: string | null;
+  void_reason: string | null;
 };
 
 export type ExpenseStatus = "pending" | "approved" | "rejected" | "paid";
@@ -310,6 +330,17 @@ export function day(iso: string | null | undefined, withYear = true) {
     ...(withYear ? { year: "numeric" } : {}),
     timeZone: "UTC",
   });
+}
+
+/** Human label for a custom date window, e.g. "1 Feb – 15 Mar 2026". Safe for client components. */
+export function dateRangeLabel(from: string, to: string) {
+  if (from && to) {
+    const sameYear = from.slice(0, 4) === to.slice(0, 4);
+    return `${day(from, !sameYear)} – ${day(to)}`;
+  }
+  if (from) return `From ${day(from)}`;
+  if (to) return `Up to ${day(to)}`;
+  return "Custom dates";
 }
 
 export function dateTime(iso: string | null | undefined) {

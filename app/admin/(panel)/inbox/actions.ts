@@ -15,7 +15,7 @@ function ids(list: string[]) {
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 export async function setMessagesRead(list: string[], read: boolean): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("messages");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one message." };
@@ -27,7 +27,7 @@ export async function setMessagesRead(list: string[], read: boolean): Promise<Ac
 }
 
 export async function markAllMessagesRead(): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("messages");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("contact_messages").update({ read: true }).eq("read", false);
   if (error) return { error: error.message };
@@ -37,7 +37,7 @@ export async function markAllMessagesRead(): Promise<ActionResult> {
 }
 
 export async function deleteMessages(list: string[]): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("messages");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one message." };
@@ -49,7 +49,7 @@ export async function deleteMessages(list: string[]): Promise<ActionResult> {
 }
 
 export async function deleteSubscribers(list: string[]): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("newsletter");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one subscriber." };

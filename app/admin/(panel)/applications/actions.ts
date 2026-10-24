@@ -2,8 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { forgetPrefix } from "@/lib/remember";
-import { loadPeople } from "@/lib/admin-applications";
-import { requireOffice } from "@/lib/office";
+import { loadPeople, requireApplicationDesk } from "@/lib/admin-applications";
 import { buildParentEmail } from "@/lib/admission-emails";
 import { formatDateTime, fromKampalaInput, isStatus, statusInfo } from "@/lib/applications";
 import { getContent } from "@/lib/content";
@@ -28,7 +27,7 @@ export type MoveInput = {
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function moveApplication(input: MoveInput): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk("applications", "visits");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const id = String(input.id);
@@ -128,7 +127,7 @@ function ids(list: string[]) {
 }
 
 export async function updateApplication(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
 
@@ -175,7 +174,7 @@ export async function updateApplication(formData: FormData): Promise<ActionResul
 }
 
 export async function addApplicationNote(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   const body = String(formData.get("body") || "").trim().slice(0, 4000);
@@ -189,7 +188,7 @@ export async function addApplicationNote(formData: FormData): Promise<ActionResu
 }
 
 export async function deleteApplicationNote(noteId: string, applicationId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase
     .from("application_activity").delete().eq("id", noteId).eq("actor_id", auth.user.id).eq("kind", "note");
@@ -202,7 +201,7 @@ export async function bulkUpdateApplications(
   list: string[],
   change: { status?: string; assigned_to?: string | null; read?: boolean },
 ): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const targets = ids(list);
@@ -241,7 +240,7 @@ export async function bulkUpdateApplications(
 }
 
 export async function deleteApplications(list: string[]): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one application." };
@@ -252,7 +251,7 @@ export async function deleteApplications(list: string[]): Promise<ActionResult> 
 }
 
 export async function recheckPayment(id: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   const row = await loadPayment(String(id));
   if (!row) return { error: "This payment could not be found. Check that SUPABASE_SERVICE_ROLE_KEY is set." };
@@ -264,7 +263,7 @@ export async function recheckPayment(id: string): Promise<ActionResult> {
 }
 
 export async function markPaymentFollowedUp(id: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return { error: auth.error };
   if (!/^[0-9a-f-]{36}$/i.test(String(id))) return { error: "This payment could not be found." };
   const db = serviceClient();

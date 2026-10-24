@@ -1,4 +1,5 @@
-import { bandMidpoint, classLabel, classOrder, classSection, kampalaToday, kindLabel, mapBand, markbookClosed, num, requireAcademics, streamOf } from "@/lib/academics";
+import { bandMidpoint, classLabel, classOrder, classSection, kampalaToday, kindLabel, mapBand, markbookClosed, num, streamOf } from "@/lib/academics";
+import { requireAcademics } from "@/lib/academics-access";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
 import { buildMarksWorkbook, marksWorkbookFilename, MarksBookError, type MarksBookBand, type MarksBookPaper, type MarksBookScore } from "@/lib/marks-workbook";

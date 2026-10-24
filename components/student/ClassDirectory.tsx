@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { startStudentChat } from "@/app/student/actions";
 import { StudentFace } from "@/components/StudentFace";
+import { TeacherFace } from "@/components/TeacherFace";
 import { displayName, type StudentClassmate, type StudentTeacher } from "@/lib/student";
 
 const TEACHER_TONES = ["sky", "mint", "sun", "rose", "gold", "teal"] as const;
@@ -128,9 +129,13 @@ export function ClassDirectory({
         </header>
         {classTeacher ? (
           <article className="mc-lead-teacher">
-            <span className="mc-lead-avatar" aria-hidden="true">
-              <i className="fa-solid fa-chalkboard-user" />
-            </span>
+            <TeacherFace
+              id={classTeacher.staff_id}
+              name={classTeacher.full_name}
+              photoPath={classTeacher.photo_path}
+              className="mc-lead-avatar"
+              fallback={<i className="fa-solid fa-chalkboard-user" />}
+            />
             <div className="mc-lead-text">
               <strong>{classTeacher.full_name}</strong>
               <span>{classTeacher.title || "Class teacher"}</span>
@@ -164,9 +169,13 @@ export function ClassDirectory({
                   className={`mc-teacher mc-teacher--${tone}`}
                   style={{ animationDelay: `${Math.min(index, 8) * 0.04}s` }}
                 >
-                  <span className="mc-teacher-icon" aria-hidden="true">
-                    <i className={`fa-solid ${subjectIcon(teacher.subject_name)}`} />
-                  </span>
+                  <TeacherFace
+                    id={teacher.staff_id}
+                    name={teacher.full_name}
+                    photoPath={teacher.photo_path}
+                    className="mc-teacher-icon"
+                    fallback={<i className={`fa-solid ${subjectIcon(teacher.subject_name)}`} />}
+                  />
                   <div>
                     <strong>{teacher.full_name}</strong>
                     <span>{[teacher.subject_name, teacher.title].filter(Boolean).join(" · ") || "Teacher"}</span>

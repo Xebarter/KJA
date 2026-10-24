@@ -8,7 +8,9 @@ begin;
 -- ---------------------------------------------------------------- role
 
 alter table public.profiles drop constraint if exists profiles_role_check;
-alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'admissions', 'accounts', 'academics', 'staff', 'parent'));
+-- Include student so this script stays safe to re-run after 0029_student_portal.sql.
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('admin', 'admissions', 'accounts', 'academics', 'staff', 'parent', 'student'));
 
 create or replace function public.is_academics_staff()
 returns boolean
@@ -67,7 +69,7 @@ create table if not exists public.subjects (
   code text not null unique,
   name text not null,
   section text not null check (section in ('nursery', 'primary', 'both')),
-  kind text not null default 'core' check (kind in ('core', 'other')),
+  kind text not null default 'core' check (kind in ('core', 'cocurricular')),
   sort_order integer not null default 0,
   applies_from integer,
   applies_to integer,
@@ -244,8 +246,9 @@ insert into public.subjects (code, name, section, kind, sort_order, applies_from
   ('LL', 'Local language', 'primary', 'core', 16, null, null),
   ('CAPE', 'Creative arts', 'primary', 'core', 17, null, null),
   ('PE', 'Physical education', 'primary', 'core', 18, null, null),
-  ('FRE', 'French', 'primary', 'other', 30, null, null),
-  ('ICT', 'Computer', 'primary', 'other', 31, null, null)
+  -- Academic electives (legacy kind 'other' was folded into core by 0028).
+  ('FRE', 'French', 'primary', 'core', 30, null, null),
+  ('ICT', 'Computer', 'primary', 'core', 31, null, null)
 on conflict (code) do nothing;
 
 insert into public.grade_bands (section, label, min_score, max_score, points, sort_order) values

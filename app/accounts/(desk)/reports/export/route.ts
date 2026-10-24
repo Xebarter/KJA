@@ -1,6 +1,7 @@
 import { loadTerms, requireAccounts } from "@/lib/accounts";
 import { expenseStatusInfo } from "@/lib/accounts-format";
-import { loadAccountsReport, rateText, type AccountsReport } from "@/lib/accounts-reports";
+import { buildReconciliationWorkbook, reconciliationWorkbookFilename } from "@/lib/accounts-reconciliation-workbook";
+import { loadAccountsReport, parseReportDates, rateText, type AccountsReport } from "@/lib/accounts-reports";
 import { csvResponse, pick, studentStatusInfo } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
@@ -111,11 +112,33 @@ export async function GET(request: Request) {
   const auth = await requireAccounts();
   if ("error" in auth) return new Response(auth.error, { status: 401 });
   const params = Object.fromEntries(new URL(request.url).searchParams.entries());
+  const kind = pick(params, "kind") || "collections";
+  const dates = parseReportDates({ from: pick(params, "from"), to: pick(params, "to") });
   const { terms, current, error } = await loadTerms(auth.supabase);
   if (error) return new Response(error, { status: 500 });
   try {
-    const report = await loadAccountsReport(auth.supabase, terms, current, pick(params, "term"));
-    return csvFor(pick(params, "kind") || "collections", report);
+    const report = await loadAccountsReport(auth.supabase, terms, current, pick(params, "term"), dates);
+    if (kind === "workbook" || kind === "reconciliation") {
+      const preparedBy = auth.profile.full_name || auth.profile.email || "Accounts office";
+      const generatedAt = new Date().toLocaleString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Africa/Kampala",
+      });
+      const bytes = await buildReconciliationWorkbook({ report, preparedBy, generatedAt });
+      const filename = reconciliationWorkbookFilename(report.periodLabel, report.today);
+      return new Response(new Uint8Array(bytes), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    }
+    return csvFor(kind, report);
   } catch (loadError) {
     return new Response(loadError instanceof Error ? loadError.message : "Export failed.", { status: 500 });
   }

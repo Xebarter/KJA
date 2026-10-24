@@ -130,8 +130,12 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
         description={term ? <>Term bills and extra charges for <strong>{term.label}</strong>. Issue a draft to put it on the balance and in the parent portal.</> : <>Every term bill and extra charge on file.</>}
         actions={
           <>
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/students`}><i className="fa-solid fa-plus" aria-hidden="true" /> Bill one pupil</Link>
-            <Link className="admin-hero-btn is-primary" href={`${BASE}/generate${term ? `?term=${term.id}` : ""}`}><i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate term invoices</Link>
+            <Link className="admin-hero-btn is-primary" href={`${BASE}/generate${term ? `?term=${term.id}` : ""}`}>
+              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate term invoices
+            </Link>
+            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/students`}>
+              <i className="fa-solid fa-user" aria-hidden="true" /> Bill one pupil
+            </Link>
           </>
         }
       />
@@ -252,18 +256,18 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
             <button className="inv-search" type="submit">Search</button>
           </div>
           {active.length ? (
-            <div className="ofc-finder-active">
-              <span>Showing</span>
+            <div className="ofc-finder-active" aria-label="Active filters">
+              <span>Filtered by</span>
               <ul>
                 {active.map((entry) => (
                   <li key={entry.key}>
-                    <Link href={entry.href} scroll={false} aria-label={`Remove ${entry.label}`}>
+                    <Link href={entry.href} scroll={false} aria-label={`Remove filter ${entry.label}`}>
                       {entry.label} <i className="fa-solid fa-xmark" aria-hidden="true" />
                     </Link>
                   </li>
                 ))}
               </ul>
-              <Link className="ofc-finder-clear" href={clearHref} scroll={false}>Clear</Link>
+              {active.length > 1 ? <Link className="ofc-finder-clear" href={clearHref} scroll={false}>Clear all</Link> : null}
             </div>
           ) : null}
         </AutoSubmit>
@@ -295,6 +299,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                   <th scope="col" className="is-num">Amount</th>
                   <th scope="col">Account</th>
                   <th scope="col">Status</th>
+                  <th scope="col" className="ofc-col-go"><span className="visually-hidden">Open</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -348,6 +353,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
                           )}
                       </td>
                       <td data-label="Status"><InvoiceStatus status={row.status} /></td>
+                      <td className="ofc-col-go" aria-hidden="true"><i className="fa-solid fa-chevron-right" /></td>
                     </ClickRow>
                   );
                 })}

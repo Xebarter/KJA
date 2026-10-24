@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, kampalaToday, loadCurrentTerm, openAcademics } from "@/lib/academics";
+import { ACADEMICS_BASE, kampalaToday, loadCurrentTerm } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 
 export const metadata = { title: "Activity" };
 

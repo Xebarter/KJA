@@ -154,12 +154,14 @@ export function UploadMarks({
   otherCatalogue = [],
   otherPaperCount = 0,
   otherFillNote = "",
+  sheetPath = "/academics_office/assessments/sheet",
 }: {
   papers: Paper[];
   office: boolean;
   otherCatalogue?: { id: string; name: string; skillCount: number }[];
   otherPaperCount?: number;
   otherFillNote?: string;
+  sheetPath?: string;
 }) {
   const router = useRouter();
   const sittings = useMemo(() => groupSittings(papers), [papers]);
@@ -278,7 +280,7 @@ export function UploadMarks({
     setError("");
     setOk("");
     try {
-      const response = await fetch("/academics_office/assessments/sheet", {
+      const response = await fetch(sheetPath, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ papers: chosen.map((paper) => paper.id) }),

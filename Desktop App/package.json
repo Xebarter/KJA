@@ -1,0 +1,90 @@
+{
+  "name": "kja-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "description": "KJA Staff Desktop — Electron shell over the Next.js office desks",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "pack:next": "node scripts/pack-next.mjs",
+    "pack": "npm run pack:next && npm run build && electron-builder --win nsis",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "sql.js": "^1.15.1",
+    "uuid": "^11.1.0",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.30",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@types/sql.js": "^1.4.11",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "electron": "^37.2.0",
+    "electron-builder": "^26.0.12",
+    "electron-vite": "^4.0.0",
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  },
+  "build": {
+    "appId": "ug.kja.desktop",
+    "productName": "KJA Staff Desktop",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "out/**/*",
+      "package.json",
+      "node_modules/sql.js/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../.next-desktop/standalone",
+        "to": "next-standalone",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../.next-desktop/static",
+        "to": "next-standalone/.next/static",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "../public",
+        "to": "next-standalone/public",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/icon.png",
+        "to": "icon.png"
+      }
+    ],
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        "nsis"
+      ],
+      "artifactName": "KJA-Staff-Desktop-Setup-${version}.${ext}"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
+    }
+  }
+}

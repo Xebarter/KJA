@@ -9,7 +9,7 @@ const PAGE = `${ACCOUNTS_BASE}/budgeting`;
 
 /** Sets or clears the monthly plan for one expense category. The same amount is used every month. */
 export async function saveMonthlyBudget(id: string, raw: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("budgeting");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose a category." };
   const text = raw.trim();

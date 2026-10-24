@@ -198,7 +198,7 @@ export async function submitJobApplication(formData: FormData): Promise<JobActio
 }
 
 export async function updateJobApplication(formData: FormData): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
 
@@ -249,7 +249,7 @@ export async function updateJobApplication(formData: FormData): Promise<JobActio
 }
 
 export async function setJobStage(list: string[], stage: string): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   if (!isJobStage(stage)) return { error: "Choose a valid stage." };
   const targets = ids(list);
@@ -268,7 +268,7 @@ export async function setJobStage(list: string[], stage: string): Promise<JobAct
 }
 
 export async function assignJobApplications(list: string[], owner: string | null): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one application." };
@@ -284,7 +284,7 @@ export async function assignJobApplications(list: string[], owner: string | null
 }
 
 export async function markJobApplicationsRead(list: string[], read: boolean): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one application." };
@@ -295,7 +295,7 @@ export async function markJobApplicationsRead(list: string[], read: boolean): Pr
 }
 
 export async function rateJobApplication(id: string, rating: number | null): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   if (!isId(id)) return { error: "This application could not be found." };
   if (rating !== null && (!Number.isInteger(rating) || rating < 1 || rating > 5)) return { error: "Ratings go from 1 to 5 stars." };
@@ -310,7 +310,7 @@ export async function rateJobApplication(id: string, rating: number | null): Pro
 }
 
 export async function addJobNote(formData: FormData): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   if (!isId(id)) return { error: "This application could not be found." };
@@ -323,7 +323,7 @@ export async function addJobNote(formData: FormData): Promise<JobActionResult> {
 }
 
 export async function deleteJobNote(noteId: string, applicationId: string): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase
     .from("job_application_activity").delete().eq("id", noteId).eq("actor_id", auth.user.id).eq("kind", "note");
@@ -333,7 +333,7 @@ export async function deleteJobNote(noteId: string, applicationId: string): Prom
 }
 
 export async function deleteJobApplications(list: string[]): Promise<JobActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
   if (!targets.length) return { error: "Select at least one application." };

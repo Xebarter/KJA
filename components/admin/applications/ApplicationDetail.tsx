@@ -9,8 +9,7 @@ import {
   PaymentBadge,
   StatusBadge,
 } from "@/components/admin/Applications";
-import { loadPeople, loadTeam } from "@/lib/admin-applications";
-import { requireOffice } from "@/lib/office";
+import { loadPeople, loadTeam, requireApplicationDesk } from "@/lib/admin-applications";
 import { EnrolPanel } from "./EnrolPanel";
 import {
   ageFrom,
@@ -54,7 +53,7 @@ function Detail({ label, children }: { label: string; children: React.ReactNode 
 export async function ApplicationDetail({ params, base }: { params: Promise<{ id: string }>; base: string }) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) {
     return <div className="admin-card app-notice"><h2>Not available</h2><p>{auth.error}</p></div>;
   }

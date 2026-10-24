@@ -3,7 +3,8 @@ import { InterventionsDesk, type InterventionCase } from "@/components/academics
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, INTERVENTION_REASONS, classLabel, kampalaToday, loadCurrentTerm, openAcademics, reasonLabel } from "@/lib/academics";
+import { ACADEMICS_BASE, INTERVENTION_REASONS, classLabel, kampalaToday, loadCurrentTerm, reasonLabel } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Interventions" };

@@ -1,32 +1,8 @@
 "use server";
 
-import {
-  ACADEMICS_BASE,
-  ATTENDANCE_STATUSES,
-  CONDUCT,
-  DATE_KINDS,
-  INTERVENTION_REASONS,
-  WEEKDAYS,
-  bandMidpoint,
-  classLabel,
-  classSection,
-  groupPupils,
-  kindWeight,
-  kampalaToday,
-  logAcademics,
-  markbookClosed,
-  mapBand,
-  mapSubject,
-  num,
-  refreshAcademics,
-  refreshSubjectCatalogue,
-  requireAcademics,
-  streamOf,
-  streamQuery,
-  subjectFits,
-  type AssessmentKind,
-  type AttendanceStatus,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, ATTENDANCE_STATUSES, CONDUCT, DATE_KINDS, INTERVENTION_REASONS, WEEKDAYS, bandMidpoint, classLabel, classSection, groupPupils, kindWeight, kampalaToday, logAcademics, markbookClosed, mapBand, mapSubject, num, streamOf, streamQuery, subjectFits, type AssessmentKind, type AttendanceStatus } from "@/lib/academics";
+import { requireAcademics } from "@/lib/academics-access";
+import { refreshAcademics, refreshSubjectCatalogue } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
 import { classMarkbooksReady, prepareClassReports } from "@/lib/academics-reports";
 import {
@@ -42,19 +18,26 @@ import { emailSetupProblem, sendEmail } from "@/lib/email/send";
 import { getContent } from "@/lib/content";
 import { SITE_URL } from "@/lib/newsroom";
 import { dateField, EMAIL } from "@/lib/office-forms";
+import {
+  ensureTeacherPortalAccess,
+  linkTeacherPortalLogin,
+  matchTeacherPasswords,
+  resetTeacherPortalPassword,
+  unlinkTeacherPortalLogin,
+} from "@/lib/teacher-portal-login";
 import { formatReportDate, nextTermSlot } from "@/lib/report-closing";
 import { serviceClient } from "@/lib/supabase/service";
 import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
 import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
 
-type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string };
+type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string; email?: string; password?: string; temporary?: boolean };
 
 const KINDS = new Set(["bot", "midterm", "endterm", "test"]);
 const STATUSES = new Set(ATTENDANCE_STATUSES.map((entry) => entry.value));
 
-async function gate() {
-  const auth = await requireAcademics();
+async function gate(...pages: string[]) {
+  const auth = await requireAcademics(...pages);
   if ("error" in auth) return { auth: null, error: auth.error };
   return { auth, error: undefined as string | undefined };
 }
@@ -143,32 +126,246 @@ export async function searchAcademics(raw: string): Promise<{ error?: string; hi
 }
 
 export async function saveStaff(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("staff");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
   const id = text(formData, "id", 40);
   const fullName = text(formData, "full_name", 120);
   if (fullName.length < 2) return { error: "Enter the teacher's name." };
+  const emailRaw = text(formData, "email", 160);
+  if (emailRaw && !EMAIL.test(emailRaw.trim().toLowerCase())) return { error: "Enter a valid email address." };
+  const initialsRaw = text(formData, "initials", 12).replace(/[^A-Za-z]/g, "").toUpperCase().slice(0, 8);
+  if (!initialsRaw) return { error: "Enter the teacher's initials for report cards." };
+  if (initialsRaw.length < 2) return { error: "Initials should be at least 2 letters." };
   const row = {
     full_name: fullName,
+    initials: initialsRaw,
     title: text(formData, "title", 80) || null,
     campus: text(formData, "campus", 80) || null,
-    email: text(formData, "email", 160) || null,
+    email: emailRaw ? emailRaw.trim().toLowerCase() : null,
     phone: text(formData, "phone", 40) || null,
     active: formData.get("active") !== "0",
-    profile_id: formData.get("link_me") === "1" ? opened.auth.user.id : formData.get("clear_link") === "1" ? null : text(formData, "profile_id", 40) || null,
+    profile_id: id ? text(formData, "profile_id", 40) || null : null,
   };
+  const password = String(formData.get("password") || "");
+  const confirm = String(formData.get("confirm") || "");
+  if (!id && row.email) {
+    const mismatch = matchTeacherPasswords(password, confirm);
+    if (mismatch) return { error: mismatch };
+  }
   if (id) {
+    const { data: before } = await opened.auth.supabase
+      .from("teaching_staff")
+      .select("id, profile_id, email, active")
+      .eq("id", id)
+      .maybeSingle();
     const { error } = await opened.auth.supabase.from("teaching_staff").update(row).eq("id", id);
-    if (error) return { error: error.message };
+    if (error) {
+      return {
+        error: /initials|schema cache|does not exist/i.test(error.message)
+          ? `${error.message} — run supabase/0043_teacher_initials.sql`
+          : error.message,
+      };
+    }
+    const profileId = row.profile_id || (before?.profile_id as string | null) || null;
+    if (row.active && (row.email || profileId)) {
+      const access = await ensureTeacherPortalAccess({
+        staffId: id,
+        email: row.email,
+        displayName: fullName,
+        profileId,
+        active: row.active,
+        password: password || undefined,
+      });
+      refreshAcademics(`${ACADEMICS_BASE}/staff`);
+      if (access.error) {
+        return {
+          error: profileId
+            ? `Teacher updated, but the teacher desk login needs attention. ${access.error}`
+            : `Teacher updated, but the teacher desk sign-in was not created. ${access.error}`,
+        };
+      }
+      if (access.created) {
+        return {
+          ok: `Teacher updated. ${access.ok}`,
+          email: access.email,
+          password: access.password,
+          temporary: access.temporary,
+        };
+      }
+      return { ok: "Teacher updated. They can sign in to the teacher desk." };
+    }
     refreshAcademics(`${ACADEMICS_BASE}/staff`);
     return { ok: "Teacher updated." };
   }
   const { data, error } = await opened.auth.supabase.from("teaching_staff").insert(row).select("id").single();
-  if (error || !data) return { error: error?.message || "The teacher could not be added." };
+  if (error || !data) {
+    return {
+      error: error
+        ? /initials|schema cache|does not exist/i.test(error.message)
+          ? `${error.message} — run supabase/0043_teacher_initials.sql`
+          : error.message
+        : "The teacher could not be added.",
+    };
+  }
+  const href = `${ACADEMICS_BASE}/staff?member=${data.id}`;
+  if (row.email) {
+    const login = await linkTeacherPortalLogin({
+      staffId: data.id,
+      email: row.email,
+      displayName: fullName,
+      password: password || undefined,
+    });
+    refreshAcademics(`${ACADEMICS_BASE}/staff`);
+    if (login.error) return { error: `${fullName} was added, but the sign-in was not created. ${login.error}`, href };
+    return { ok: login.ok, href, email: login.email, password: login.password, temporary: login.temporary };
+  }
   refreshAcademics(`${ACADEMICS_BASE}/staff`);
-  return { ok: `${fullName} added.`, href: `${ACADEMICS_BASE}/staff?member=${data.id}` };
+  return { ok: `${fullName} added.`, href };
+}
+
+export async function issueTeacherLogin(formData: FormData): Promise<Result> {
+  const opened = await gate("staff");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (!isUuid(id)) return { error: "Choose a teacher." };
+  const { data: staff, error } = await opened.auth.supabase
+    .from("teaching_staff")
+    .select("id, full_name, email, profile_id, active")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+  if (!staff.active) return { error: "Show this teacher on the roll before issuing a sign-in." };
+  if (staff.profile_id) return { error: "This teacher already has a sign-in. Revoke it before issuing a new one." };
+  const email = String(staff.email || "").trim();
+  if (!email) return { error: "Save an email on this teacher first." };
+  const password = String(formData.get("password") || "");
+  const confirm = String(formData.get("confirm") || "");
+  const mismatch = matchTeacherPasswords(password, confirm);
+  if (mismatch) return { error: mismatch };
+  const login = await linkTeacherPortalLogin({
+    staffId: id,
+    email,
+    displayName: String(staff.full_name || "Teacher"),
+    password: password || undefined,
+  });
+  if (login.error) return { error: login.error };
+  refreshAcademics(`${ACADEMICS_BASE}/staff`);
+  return { ok: login.ok, email: login.email, password: login.password, temporary: login.temporary };
+}
+
+export async function resetTeacherLogin(formData: FormData): Promise<Result> {
+  const opened = await gate("staff");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (!isUuid(id)) return { error: "Choose a teacher." };
+  const { data: staff, error } = await opened.auth.supabase
+    .from("teaching_staff")
+    .select("id, full_name, email, profile_id, active")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+  if (!staff.profile_id) return { error: "This teacher has no sign-in." };
+  if (!staff.active) return { error: "Show this teacher on the roll before resetting the password." };
+  const temporary = formData.get("temporary") === "1";
+  const password = temporary ? "" : String(formData.get("password") || "");
+  const confirm = temporary ? "" : String(formData.get("confirm") || "");
+  if (!temporary) {
+    if (!password) return { error: "Enter a new password, or generate a temporary one." };
+    const mismatch = matchTeacherPasswords(password, confirm);
+    if (mismatch) return { error: mismatch };
+  }
+  const login = await resetTeacherPortalPassword({
+    profileId: String(staff.profile_id),
+    email: staff.email,
+    displayName: String(staff.full_name || "Teacher"),
+    password: password || undefined,
+  });
+  if (login.error) return { error: login.error };
+  refreshAcademics(`${ACADEMICS_BASE}/staff`);
+  return { ok: login.ok, email: login.email, password: login.password, temporary: login.temporary };
+}
+
+export async function revokeTeacherLogin(formData: FormData): Promise<Result> {
+  const opened = await gate("staff");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (!isUuid(id)) return { error: "Choose a teacher." };
+  const { data: staff, error } = await opened.auth.supabase.from("teaching_staff").select("id, profile_id").eq("id", id).maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+  if (!staff.profile_id) return { error: "This teacher has no sign-in." };
+  const result = await unlinkTeacherPortalLogin(String(staff.profile_id), id);
+  if (result.error) return { error: result.error };
+  refreshAcademics(`${ACADEMICS_BASE}/staff`);
+  return { ok: result.ok };
+}
+
+/**
+ * Remove a teacher from the roll without deleting their work.
+ * Homework, class resources, schemes, timetable rows, and markbooks stay;
+ * only sign-in and current class/subject posts are cleared.
+ */
+export async function deleteStaff(formData: FormData): Promise<Result> {
+  const opened = await gate("staff");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (!isUuid(id)) return { error: "Choose a teacher." };
+
+  const { data: staff, error } = await opened.auth.supabase
+    .from("teaching_staff")
+    .select("id, full_name, profile_id")
+    .eq("id", id)
+    .maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+
+  if (staff.profile_id) {
+    const login = await unlinkTeacherPortalLogin(String(staff.profile_id), id);
+    if (login.error) return { error: login.error };
+  }
+
+  const { supabase } = opened.auth;
+  const [classPosts, subjectPosts, slots] = await Promise.all([
+    supabase.from("class_teachers").delete().eq("staff_id", id),
+    supabase.from("subject_teachers").delete().eq("staff_id", id),
+    supabase.from("timetable_slots").update({ staff_id: null }).eq("staff_id", id),
+  ]);
+  if (classPosts.error) return { error: classPosts.error.message };
+  if (subjectPosts.error) return { error: subjectPosts.error.message };
+  if (slots.error && !/timetable_slots|schema cache|does not exist/i.test(slots.error.message)) {
+    return { error: slots.error.message };
+  }
+
+  const archivedAt = new Date().toISOString();
+  const { error: archiveError } = await supabase
+    .from("teaching_staff")
+    .update({ active: false, profile_id: null, deleted_at: archivedAt })
+    .eq("id", id);
+
+  if (archiveError) {
+    // 0044 not applied yet: remove the staff row. Homework/resources/schemes stay (FKs set null).
+    if (/deleted_at|schema cache|does not exist/i.test(archiveError.message)) {
+      const { error: deleteError } = await supabase.from("teaching_staff").delete().eq("id", id);
+      if (deleteError) return { error: deleteError.message };
+    } else {
+      return { error: archiveError.message };
+    }
+  }
+
+  const name = String(staff.full_name || "Teacher").trim() || "Teacher";
+  refreshAcademics(`${ACADEMICS_BASE}/staff`);
+  return {
+    ok: `${name} was removed from the staff list. Their homework, resources, and other past work stay on the system.`,
+    href: `${ACADEMICS_BASE}/staff`,
+  };
 }
 
 function holderName(value: { full_name?: string } | { full_name?: string }[] | null) {
@@ -177,7 +374,7 @@ function holderName(value: { full_name?: string } | { full_name?: string }[] | n
 }
 
 export async function assignTeacherPosts(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("staff");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -191,7 +388,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
 
   const { supabase } = opened.auth;
   const [staffQuery, termQuery, subjectQuery, pupilQuery, heldQuery, leadQuery] = await Promise.all([
-    supabase.from("teaching_staff").select("id, full_name, active").eq("id", staffId).maybeSingle(),
+    supabase.from("teaching_staff").select("id, full_name, email, profile_id, active").eq("id", staffId).maybeSingle(),
     supabase.from("fee_terms").select("id").eq("id", termId).eq("is_current", true).maybeSingle(),
     supabase.from("subjects").select("*").eq("active", true),
     supabase.from("students").select("stream").eq("class_code", classCode).eq("status", "active").limit(2000),
@@ -205,6 +402,22 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   if (!staff?.active) return { error: "That teacher is not on the roll." };
   if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
   if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream)) return { error: "That stream has no pupils." };
+
+  // Class/subject posts only help if they can open /teacher — ensure Auth + profiles.role=staff + link.
+  const portal = await ensureTeacherPortalAccess({
+    staffId,
+    email: staff.email as string | null,
+    displayName: String(staff.full_name || "Teacher"),
+    profileId: staff.profile_id as string | null,
+    active: Boolean(staff.active),
+  });
+  if (portal.error) {
+    return {
+      error: portal.error.includes("email")
+        ? `${portal.error} Add an email on the teacher record first.`
+        : `Give this teacher a desk sign-in before assigning posts. ${portal.error}`,
+    };
+  }
 
   const fitting = ((subjectQuery.data || []) as Record<string, unknown>[]).map(mapSubject).filter((subject) => subjectFits(subject, classCode));
   const fittingIds = new Set(fitting.map((subject) => subject.id));
@@ -269,11 +482,19 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   }
 
   refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
+  if (portal.created && portal.password && portal.email) {
+    return {
+      ok: `${staff.full_name} assigned to ${classLabel(classCode, stream)}. Teacher desk sign-in was created — share the password now.`,
+      email: portal.email,
+      password: portal.password,
+      temporary: portal.temporary,
+    };
+  }
   return { ok: `${staff.full_name} assigned to ${classLabel(classCode, stream)}.` };
 }
 
 export async function releaseTeacherPost(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("staff");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -297,7 +518,7 @@ export async function releaseTeacherPost(formData: FormData): Promise<Result> {
 }
 
 export async function saveSubject(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("subjects");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -354,8 +575,37 @@ async function removeSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>[
   return { ok: `${name} deleted.`, removedId: id };
 }
 
+async function ensurePortalForStaffId(
+  supabase: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>["supabase"],
+  staffId: string,
+): Promise<Result & { created?: boolean }> {
+  if (!isUuid(staffId)) return { error: "Choose a teacher." };
+  const { data: staff, error } = await supabase
+    .from("teaching_staff")
+    .select("id, full_name, email, profile_id, active")
+    .eq("id", staffId)
+    .maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+  if (!staff.active) return { error: "That teacher is not on the roll." };
+  const portal = await ensureTeacherPortalAccess({
+    staffId,
+    email: staff.email as string | null,
+    displayName: String(staff.full_name || "Teacher"),
+    profileId: staff.profile_id as string | null,
+    active: Boolean(staff.active),
+  });
+  if (portal.error) {
+    return {
+      error: portal.error.includes("email")
+        ? `${portal.error} Add an email on Academics → Staff first.`
+        : `Give this teacher a desk sign-in before assigning. ${portal.error}`,
+    };
+  }
+  return portal;
+}
+
 export async function saveClassTeacher(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("classes");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -365,19 +615,30 @@ export async function saveClassTeacher(formData: FormData): Promise<Result> {
   if (!staffId) {
     const { error } = await opened.auth.supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream);
     if (error) return { error: error.message };
-  } else {
-    const { error } = await opened.auth.supabase.from("class_teachers").upsert(
-      { term_id: termId, class_code: classCode, stream, staff_id: staffId },
-      { onConflict: "term_id,class_code,stream" },
-    );
-    if (error) return { error: error.message };
+    refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
+    return { ok: "Class teacher saved." };
   }
+  const portal = await ensurePortalForStaffId(opened.auth.supabase, staffId);
+  if (portal.error) return { error: portal.error };
+  const { error } = await opened.auth.supabase.from("class_teachers").upsert(
+    { term_id: termId, class_code: classCode, stream, staff_id: staffId },
+    { onConflict: "term_id,class_code,stream" },
+  );
+  if (error) return { error: error.message };
   refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
+  if (portal.created && portal.password && portal.email) {
+    return {
+      ok: "Class teacher saved. Teacher desk sign-in was created — share the password now.",
+      email: portal.email,
+      password: portal.password,
+      temporary: portal.temporary,
+    };
+  }
   return { ok: "Class teacher saved." };
 }
 
 export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("classes");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -394,19 +655,43 @@ export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
       .eq("stream", stream)
       .eq("subject_id", subjectId);
     if (error) return { error: error.message };
-  } else {
-    const { error } = await opened.auth.supabase.from("subject_teachers").upsert(
-      { term_id: termId, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId },
-      { onConflict: "term_id,class_code,stream,subject_id" },
-    );
-    if (error) return { error: error.message };
+    refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
+    return { ok: "Subject teacher saved." };
   }
+  const portal = await ensurePortalForStaffId(opened.auth.supabase, staffId);
+  if (portal.error) return { error: portal.error };
+  const { error } = await opened.auth.supabase.from("subject_teachers").upsert(
+    { term_id: termId, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId },
+    { onConflict: "term_id,class_code,stream,subject_id" },
+  );
+  if (error) return { error: error.message };
   refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
+  if (portal.created && portal.password && portal.email) {
+    return {
+      ok: "Subject teacher saved. Teacher desk sign-in was created — share the password now.",
+      email: portal.email,
+      password: portal.password,
+      temporary: portal.temporary,
+    };
+  }
   return { ok: "Subject teacher saved." };
 }
 
+/**
+ * Create desk logins for teachers who already have class/subject posts but no profile_id.
+ * Safe to call from Academics → Staff or Admin → Team.
+ */
+export async function repairAssignedTeacherDeskLogins() {
+  const opened = await gate("staff");
+  if (!opened.auth) return { issued: [], linked: 0, repaired: 0, errors: [opened.error || "Not signed in."] };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return { issued: [], linked: 0, repaired: 0, errors: [blocked.error || "Not allowed."] };
+  const { syncAssignedTeacherDeskLogins } = await import("@/lib/teacher-desk-sync");
+  return syncAssignedTeacherDeskLogins();
+}
+
 export async function saveAttendance(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("attendance");
   if (!opened.auth) return { error: opened.error };
   const date = text(formData, "date", 10);
   const termId = text(formData, "term_id", 40) || null;
@@ -442,7 +727,7 @@ export async function saveAttendance(formData: FormData): Promise<Result> {
 }
 
 export async function cancelRegister(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("attendance");
   if (!opened.auth) return { error: opened.error };
   const date = text(formData, "date", 10);
   const termId = text(formData, "term_id", 40);
@@ -474,7 +759,7 @@ export async function cancelRegister(formData: FormData): Promise<Result> {
 }
 
 export async function setAssessments(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -572,7 +857,7 @@ export async function setAssessments(formData: FormData): Promise<Result> {
 }
 
 export async function deleteAssessmentSet(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -606,7 +891,7 @@ export async function deleteAssessmentSet(formData: FormData): Promise<Result> {
 }
 
 export async function setAssessmentShare(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -634,7 +919,7 @@ export async function setAssessmentShare(formData: FormData): Promise<Result> {
 }
 
 export async function saveScores(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const assessmentId = text(formData, "assessment_id", 40);
   const nursery = formData.get("nursery") === "1";
@@ -705,7 +990,7 @@ export async function saveScores(formData: FormData): Promise<Result> {
 }
 
 export async function reopenAssessment(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -736,7 +1021,7 @@ function joinNames(names: string[]) {
 }
 
 export async function setMarksheetLocks(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("assessments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -883,7 +1168,7 @@ function reportSetsFrom(formData: FormData) {
 }
 
 export async function prepareReports(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -922,7 +1207,7 @@ export async function prepareReports(formData: FormData): Promise<Result> {
 }
 
 export async function approveReports(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -940,7 +1225,7 @@ export async function approveReports(formData: FormData): Promise<Result> {
 }
 
 export async function cancelReportPreparation(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -963,7 +1248,7 @@ export async function cancelReportPreparation(formData: FormData): Promise<Resul
 }
 
 export async function reopenReports(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1004,7 +1289,7 @@ async function notifyStudentsOfReports(
 }
 
 export async function publishReports(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1027,7 +1312,7 @@ export async function publishReports(formData: FormData): Promise<Result> {
 }
 
 export async function postReports(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1068,7 +1353,7 @@ export async function postReports(formData: FormData): Promise<Result> {
 }
 
 export async function saveReport(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1174,7 +1459,7 @@ export async function saveReport(formData: FormData): Promise<Result> {
 }
 
 export async function generateReportComments(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports", "comments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1194,7 +1479,7 @@ export async function generateReportComments(formData: FormData): Promise<Result
 }
 
 export async function generateClassComments(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("reports", "comments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1222,7 +1507,7 @@ export async function generateClassComments(formData: FormData): Promise<Result>
 }
 
 export async function saveCommentTemplate(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("comments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1268,7 +1553,7 @@ export async function saveCommentTemplate(formData: FormData): Promise<Result> {
 }
 
 export async function previewCommentEngine(_formData?: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("comments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1282,7 +1567,7 @@ export async function previewCommentEngine(_formData?: FormData): Promise<Result
 }
 
 export async function saveBand(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("settings");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1313,7 +1598,7 @@ export async function saveBand(formData: FormData): Promise<Result> {
 }
 
 export async function saveDivisionBand(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("settings");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1349,7 +1634,7 @@ export async function saveDivisionBand(formData: FormData): Promise<Result> {
 }
 
 export async function saveSlot(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("timetable");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1405,7 +1690,7 @@ export async function saveSlot(formData: FormData): Promise<Result> {
 }
 
 export async function saveScheme(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("schemes");
   if (!opened.auth) return { error: opened.error };
   const posted = group(formData);
   const combined = text(formData, "class_subject", 90);
@@ -1446,7 +1731,7 @@ async function loadScheme(auth: NonNullable<Awaited<ReturnType<typeof gate>>["au
 }
 
 export async function saveLesson(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("schemes");
   if (!opened.auth) return { error: opened.error };
   const schemeId = text(formData, "scheme_id", 40);
   const loaded = await loadScheme(opened.auth, schemeId);
@@ -1481,7 +1766,7 @@ export async function saveLesson(formData: FormData): Promise<Result> {
 }
 
 export async function markLessonTaught(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("schemes");
   if (!opened.auth) return { error: opened.error };
   const schemeId = text(formData, "scheme_id", 40);
   const id = text(formData, "id", 40);
@@ -1496,7 +1781,7 @@ export async function markLessonTaught(formData: FormData): Promise<Result> {
 }
 
 export async function setSchemeStatus(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("schemes");
   if (!opened.auth) return { error: opened.error };
   const schemeId = text(formData, "scheme_id", 40);
   const intent = text(formData, "intent", 20);
@@ -1536,7 +1821,7 @@ export async function setSchemeStatus(formData: FormData): Promise<Result> {
 
 /** The date printed beside the fees on every report card. Stored on the following term. */
 export async function saveNextTermStart(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("settings");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1560,7 +1845,7 @@ export async function saveNextTermStart(formData: FormData): Promise<Result> {
 }
 
 export async function saveDate(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("calendar");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1601,7 +1886,7 @@ export async function saveDate(formData: FormData): Promise<Result> {
 }
 
 export async function saveIntervention(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("interventions", "classes");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
@@ -1637,7 +1922,7 @@ export async function saveIntervention(formData: FormData): Promise<Result> {
 }
 
 export async function remindTeachers(formData: FormData): Promise<Result> {
-  const opened = await gate();
+  const opened = await gate("insights");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;

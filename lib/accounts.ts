@@ -1,9 +1,11 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { cache } from "react";
 import { ACCOUNTS_BASE, isAccountsRole } from "@/lib/accounts-nav";
 import { forgetAccountsRoll } from "@/lib/accounts-roll";
 import { pickCurrentTerm, sortTerms, type Term } from "@/lib/accounts-format";
+import { loadGrants } from "@/lib/dashboard-access";
+import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { everyWord, searchNeedle, searchWords } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
 
@@ -11,15 +13,19 @@ export { ACCOUNTS_BASE, ACCOUNTS_ROLES, accountsNav, isAccountsRole } from "@/li
 
 export const EXPENSE_RECEIPTS = "expense-receipts";
 
-export const requireAccounts = cache(async function requireAccounts() {
+export async function requireAccounts(...pages: string[]) {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Your session has expired. Sign in again." } as const;
   const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile || !isAccountsRole(profile.role)) return { error: "This account doesn't have access to the accounts office." } as const;
-  return { supabase, user, profile } as const;
-});
+  if (!profile) return { error: "This account doesn't have access to the accounts office." } as const;
+  const grants = await loadGrants(supabase, user.id, profile.role);
+  if (!(await dashboardAllowed(grants, "accounts", pages))) {
+    return { error: pages.length ? "This account doesn't have access to that page." : "This account doesn't have access to the accounts office." } as const;
+  }
+  return { supabase, user, profile, grants } as const;
+}
 
 export function refreshAccounts(...paths: string[]) {
   forgetAccountsRoll();

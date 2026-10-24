@@ -64,7 +64,8 @@ article.acd-sheet .acd-sheet-banner {
   position: relative;
   isolation: isolate;
   display: grid;
-  grid-template-columns: 5.5rem minmax(0, 1fr) 4.7rem;
+  /* Equal side rails so the school name sits on the true page centre. */
+  grid-template-columns: 5.2rem minmax(0, 1fr) 5.2rem;
   grid-template-areas: "crest brand portrait";
   align-items: center;
   column-gap: 1.05rem;
@@ -141,14 +142,15 @@ article.acd-sheet .acd-sheet-school::after {
 }
 article.acd-sheet .acd-sheet-kampala,
 article.acd-sheet .acd-sheet-academy { display: block; }
+/* Letter-spacing leaves a trailing gap; pull it back so centred titles stay centred (no padding-left). */
 article.acd-sheet .acd-sheet-kampala {
-  padding-left: .12em;
   font-size: clamp(1.55rem, 8.6cqi, 2.2rem);
   letter-spacing: .12em;
+  margin-right: -.12em;
 }
 article.acd-sheet .acd-sheet-academy {
   margin-top: .34rem;
-  padding-left: .34em;
+  margin-right: -.34em;
   color: var(--sheet-red-deep);
   font-size: clamp(.84rem, 3.7cqi, 1.02rem);
   font-weight: 600;
@@ -205,7 +207,7 @@ article.acd-sheet .acd-sheet-title h2 {
   line-height: 1.2;
   text-transform: uppercase;
 }
-article.acd-sheet .acd-sheet-title h2 span { padding-left: .26em; }
+article.acd-sheet .acd-sheet-title h2 span { margin-right: -.26em; }
 article.acd-sheet .acd-sheet-title h2::before,
 article.acd-sheet .acd-sheet-title h2::after {
   content: "";
@@ -353,11 +355,9 @@ article.acd-sheet .acd-sheet-record > .acd-sheet-kicker {
 }
 article.acd-sheet .acd-sheet-table-wrap {
   overflow-x: auto;
-  border: 1px solid rgba(18, 165, 75, .35);
+  border: 1px solid rgba(11, 125, 56, .28);
   border-radius: 10px;
-  background:
-    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold), var(--sheet-red)) top / 100% 3px no-repeat,
-    #fff;
+  background: #fff;
   box-shadow: 0 8px 22px rgba(11, 125, 56, .06);
 }
 article.acd-sheet .acd-sheet-record table {
@@ -374,16 +374,25 @@ article.acd-sheet td {
   vertical-align: middle;
 }
 article.acd-sheet .acd-sheet-record thead th {
-  padding: .42rem .32rem .32rem;
-  border-bottom: 1px solid rgba(212, 160, 23, .5);
-  background: linear-gradient(180deg, #dcf7e8, #fff4cc 52%, #ffe0e8);
-  color: var(--sheet-green-deep);
+  padding: .48rem .32rem .38rem;
+  border-bottom: 1px solid rgba(11, 125, 56, .35);
+  background: var(--sheet-green);
+  color: #fff;
   font-size: calc(.68rem + 1pt);
   font-weight: 800;
   letter-spacing: .06em;
   line-height: 1.2;
   text-transform: uppercase;
   vertical-align: bottom;
+}
+article.acd-sheet .acd-sheet-record thead th:first-child {
+  border-radius: 9px 0 0 0;
+}
+article.acd-sheet .acd-sheet-record thead th:last-child {
+  border-radius: 0 9px 0 0;
+}
+article.acd-sheet .acd-sheet-record thead th.is-set small {
+  color: rgba(255, 255, 255, .92);
 }
 article.acd-sheet thead th {
   padding-top: 0;
@@ -1051,14 +1060,18 @@ article.acd-sheet .acd-sheet-draft.is-approved {
   article.acd-sheet .acd-sheet-figures > div:nth-child(odd) { border-left: 0; }
   article.acd-sheet .acd-sheet-figures > div:nth-child(n + 3) { padding-top: .65rem; }
   article.acd-sheet .acd-sheet-identity { flex-direction: column; align-items: stretch; }
-  article.acd-sheet .acd-sheet-kampala { letter-spacing: .08em; }
-  article.acd-sheet .acd-sheet-academy { letter-spacing: .18em; padding-left: .18em; }
+  article.acd-sheet .acd-sheet-kampala { letter-spacing: .08em; margin-right: -.08em; }
+  article.acd-sheet .acd-sheet-academy { letter-spacing: .18em; margin-right: -.18em; }
   article.acd-sheet .acd-sheet-title h2 { letter-spacing: .14em; font-size: .7rem; }
-  article.acd-sheet .acd-sheet-title h2 span { padding-left: .14em; }
+  article.acd-sheet .acd-sheet-title h2 span { margin-right: -.14em; }
   article.acd-sheet .acd-sheet-record { padding-right: .85rem; padding-left: .85rem; }
 }
 @page { size: A4 portrait; margin: 0; }
 @media print {
+  html, body {
+    width: 100% !important;
+    overflow: hidden !important;
+  }
   html, body, .admin-shell, .account-shell, .admin-main, .account-main, .app-page, .ov {
     height: auto !important;
     min-height: 0 !important;
@@ -1067,14 +1080,27 @@ article.acd-sheet .acd-sheet-draft.is-approved {
     background: #fff !important;
   }
   .admin-side, .admin-topbar, .admin-nav-scrim, .account-side, .account-topbar, .acd-noprint { display: none !important; }
-  .admin-shell, .account-shell { display: block !important; }
-  .admin-main, .account-main { margin: 0 !important; padding: 0 !important; }
+  /* Collapse the office grid so an empty sidebar track cannot shove the sheet right. */
+  .admin-shell, .account-shell {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+  }
+  .admin-main, .account-main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+  .rpt-print-pack, .rpt-print-sheets, .rpt-preview, .rpt-detail {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
   article.acd-sheet {
     box-sizing: border-box;
     width: 210mm;
+    max-width: 100%;
     height: 297mm;
-    max-width: none;
-    margin: 0;
+    margin: 0 auto;
     border: 0;
     border-radius: 0;
     padding: 3.5mm 0 0;
@@ -1083,6 +1109,11 @@ article.acd-sheet .acd-sheet-draft.is-approved {
     box-shadow: none;
     break-inside: avoid;
     page-break-inside: avoid;
+  }
+  article.acd-sheet .acd-sheet-banner {
+    grid-template-columns: 5.2rem minmax(0, 1fr) 5.2rem;
+    padding-left: 1.2rem;
+    padding-right: 1.2rem;
   }
   article.acd-sheet .acd-sheet-edge {
     height: 100%;

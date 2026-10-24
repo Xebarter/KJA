@@ -13,11 +13,13 @@ import "../../academics_office/(desk)/staff/staff.css";
 const grace: StaffMember = {
   id: "grace",
   full_name: "Grace Namukasa",
+  initials: "GN",
   title: "Class teacher",
   campus: "Kitante",
   email: "grace@kja.ug",
   phone: "+256700000001",
   profile_id: "linked",
+  photo_path: null,
   active: true,
   classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A" }],
   subjects: [{
@@ -44,11 +46,13 @@ const grace: StaffMember = {
 const peter: StaffMember = {
   id: "peter",
   full_name: "Peter Okello",
+  initials: "PO",
   title: null,
   campus: "Najjanankumbi",
   email: null,
   phone: null,
   profile_id: null,
+  photo_path: null,
   active: true,
   classes: [],
   subjects: [],
@@ -104,6 +108,7 @@ export default function StaffPreview() {
         save={async () => ({ ok: "Saved" })}
         assign={async () => ({ ok: "Saved" })}
         release={async () => ({ ok: "Saved" })}
+        remove={async () => ({ ok: "Removed", href: "/academics-preview/staff" })}
       />
     </div>
   );

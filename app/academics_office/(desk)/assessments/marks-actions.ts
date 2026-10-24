@@ -1,6 +1,8 @@
 "use server";
 
-import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, logAcademics, mapBand, markbookClosed, num, refreshAcademics, requireAcademics, streamOf } from "@/lib/academics";
+import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, logAcademics, mapBand, markbookClosed, num, streamOf } from "@/lib/academics";
+import { requireAcademics } from "@/lib/academics-access";
+import { refreshAcademics } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
 import { mergeActivitySkills } from "@/lib/comment-engine/skills";
 import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-workbook";
@@ -43,7 +45,7 @@ function nf(value: number) {
 }
 
 export async function importMarks(formData: FormData): Promise<MarksImportResult> {
-  const auth = await requireAcademics();
+  const auth = await requireAcademics("assessments");
   if ("error" in auth) return { error: auth.error };
   const file = formData.get("file");
   if (!(file instanceof File) || !file.size) return { error: "Choose the completed marks workbook." };
@@ -68,6 +70,25 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   if (!papers.length) return { error: "This workbook does not match any markbooks still on the list." };
   const signature = new Set(papers.map((paper) => `${paper.term_id}|${paper.name}|${paper.kind}|${paper.held_on || ""}`));
   if (signature.size !== 1) return { error: "This workbook mixes more than one assessment. Download a fresh sheet." };
+
+  if (!auth.office) {
+    if (!auth.staffId) return { error: "This account is not a teacher sign-in." };
+    const termId = papers[0].term_id;
+    const posts = await auth.supabase
+      .from("subject_teachers")
+      .select("class_code, stream, subject_id")
+      .eq("term_id", termId)
+      .eq("staff_id", auth.staffId);
+    if (posts.error) return { error: posts.error.message };
+    const allowed = new Set(
+      (posts.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}|${row.subject_id}`),
+    );
+    const mine = papers.filter((paper) => allowed.has(`${paper.class_code}|${streamOf(paper.stream)}|${paper.subject_id}`));
+    if (!mine.length) return { error: "None of the markbooks in this workbook are subjects you teach." };
+    if (mine.length !== papers.length) {
+      return { error: "This workbook includes subjects you do not teach. Download a sheet from your teacher desk instead." };
+    }
+  }
 
   const nursery = papers.some((paper) => classSection(paper.class_code) === "nursery");
   const [roll, bandsQuery] = await Promise.all([
@@ -251,7 +272,11 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   const extra = [
     missed && scores ? `${nf(missed)} ${missed === 1 ? "pupil was" : "pupils were"} marked absent.` : "",
     cleared ? `${nf(cleared)} ${cleared === 1 ? "saved mark was" : "saved marks were"} removed.` : "",
-    submitIds.length ? "They are submitted on the class marksheet." : "",
+    submitIds.length
+      ? auth.office
+        ? "They are submitted on the class marksheet."
+        : "They are submitted for the office to approve."
+      : "",
   ].filter(Boolean).join(" ");
   await logAcademics(auth.supabase, auth.user.id, {
     kind: "marks",

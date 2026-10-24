@@ -13,21 +13,8 @@ import {
   type ReportView,
 } from "@/components/academics/PupilDesk";
 import { AcademicsGate } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  ATTENDANCE_STATUSES,
-  INTERVENTION_REASONS,
-  classLabel,
-  kampalaToday,
-  kindLabel,
-  mapTerm,
-  num,
-  openAcademics,
-  reasonLabel,
-  streamOf,
-  streamQuery,
-  type AttendanceStatus,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, ATTENDANCE_STATUSES, INTERVENTION_REASONS, classLabel, kampalaToday, kindLabel, mapTerm, num, reasonLabel, streamOf, streamQuery, type AttendanceStatus } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { OFFICE, isUuid, splitName, studentAge } from "@/lib/students";
 
 export const metadata = { title: "Pupil" };

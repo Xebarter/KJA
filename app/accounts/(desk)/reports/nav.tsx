@@ -24,7 +24,9 @@ export function ReportDesk({
   children: React.ReactNode;
 }) {
   const [current, setCurrent] = useState(items[0]?.href ?? "");
+  const [pending, setPending] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const chromeRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<Array<HTMLButtonElement | null>>([]);
   const fromStat = useRef(false);
   const shouldScroll = useRef(false);
@@ -38,6 +40,24 @@ export function ReportDesk({
     const next = known(hash) ? hash : known(saved) ? saved : "";
     if (next) setCurrent(next);
   }, [items]);
+
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    const chrome = chromeRef.current;
+    if (!root || !chrome) return;
+    const sync = () => {
+      const height = Math.ceil(chrome.getBoundingClientRect().height);
+      root.style.setProperty("--acr-sticky", `${height + 12}px`);
+    };
+    sync();
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(sync) : null;
+    observer?.observe(chrome);
+    window.addEventListener("resize", sync);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", sync);
+    };
+  }, []);
 
   useEffect(() => {
     window.sessionStorage.setItem(TAB_KEY, current);
@@ -54,12 +74,13 @@ export function ReportDesk({
     const panel = document.getElementById(current.slice(1));
     if (shouldScroll.current && panel) {
       shouldScroll.current = false;
-      const bar = root.querySelector(".acr-nav")?.getBoundingClientRect().bottom ?? 72;
+      const bar = chromeRef.current?.getBoundingClientRect().bottom ?? 72;
       const top = panel.getBoundingClientRect().top;
       const inView = top >= bar - 8 && top < window.innerHeight - 80;
       if (!inView) {
         const smooth = !window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-        panel.scrollIntoView({ behavior: smooth ? "smooth" : "auto", block: "start" });
+        const y = window.scrollY + top - bar - 10;
+        window.scrollTo({ top: Math.max(0, y), behavior: smooth ? "smooth" : "auto" });
       }
     }
     if (!fromStat.current) return;
@@ -86,6 +107,18 @@ export function ReportDesk({
     return () => root.removeEventListener("click", onClick);
   }, [items]);
 
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const syncPending = () => setPending(Boolean(root.querySelector(".acr-period-pending")));
+    syncPending();
+    const observer = typeof MutationObserver !== "undefined"
+      ? new MutationObserver(syncPending)
+      : null;
+    observer?.observe(root, { subtree: true, childList: true, attributes: true, attributeFilter: ["class"] });
+    return () => observer?.disconnect();
+  }, [currentPeriod]);
+
   function move(index: number) {
     const next = items[index];
     if (!next) return;
@@ -107,53 +140,64 @@ export function ReportDesk({
   }
 
   return (
-    <div ref={rootRef} className="acr-desk" data-section={current.slice(1)}>
-      <div className="acr-controls no-print">
-        <div className="acr-terms" role="group" aria-label="Report period">
-          <span>Period</span>
-          <div>
-            {periods.map((period) => (
-              <PeriodLink key={period.value || "current"} href={`${period.href}${current}`} on={currentPeriod === period.value}>
-                {period.label}
-              </PeriodLink>
-            ))}
-          </div>
-        </div>
-        <p className="acr-asof">
-          <i className="fa-regular fa-clock" aria-hidden="true" /> As of {asOf}
-        </p>
-      </div>
-
+    <div
+      ref={rootRef}
+      className="acr-desk"
+      data-section={current.slice(1)}
+      data-pending={pending ? "true" : undefined}
+      aria-busy={pending || undefined}
+    >
       <div className="acr-summary">{summary}</div>
 
-      <nav className="acr-nav no-print" role="tablist" aria-label="Report sections">
-        {items.map((item, index) => {
-          const on = current === item.href;
-          return (
-            <button
-              key={item.href}
-              ref={(node) => {
-                tabsRef.current[index] = node;
-              }}
-              type="button"
-              role="tab"
-              id={`acr-tab-${item.href.slice(1)}`}
-              aria-selected={on}
-              aria-controls={item.href.slice(1)}
-              tabIndex={on ? 0 : -1}
-              className={on ? "is-on" : ""}
-              onClick={() => {
-                if (item.href === current) return;
-                shouldScroll.current = true;
-                setCurrent(item.href);
-              }}
-              onKeyDown={(event) => onKey(event, index)}
-            >
-              <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.label}
-            </button>
-          );
-        })}
-      </nav>
+      <div ref={chromeRef} className="acr-chrome no-print">
+        <div className="acr-controls">
+          <div className="acr-terms" role="group" aria-label="Report period">
+            <span>Period</span>
+            <div>
+              {periods.map((period) => (
+                <PeriodLink key={period.value || "current"} href={`${period.href}${current}`} on={currentPeriod === period.value}>
+                  {period.label}
+                </PeriodLink>
+              ))}
+            </div>
+          </div>
+          <p className="acr-asof">
+            <i className="fa-regular fa-clock" aria-hidden="true" /> As of {asOf}
+          </p>
+        </div>
+
+        <nav className="acr-nav" role="tablist" aria-label="Report sections">
+          {items.map((item, index) => {
+            const on = current === item.href;
+            return (
+              <button
+                key={item.href}
+                ref={(node) => {
+                  tabsRef.current[index] = node;
+                }}
+                type="button"
+                role="tab"
+                id={`acr-tab-${item.href.slice(1)}`}
+                aria-label={item.label}
+                aria-selected={on}
+                aria-controls={item.href.slice(1)}
+                tabIndex={on ? 0 : -1}
+                className={on ? "is-on" : ""}
+                onClick={() => {
+                  if (item.href === current) return;
+                  shouldScroll.current = true;
+                  setCurrent(item.href);
+                }}
+                onKeyDown={(event) => onKey(event, index)}
+              >
+                <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+                <span>{item.label}</span>
+              </button>
+            );
+          })}
+        </nav>
+        {pending ? <span className="visually-hidden" role="status">Updating report</span> : null}
+      </div>
 
       <div className="acr-panels">{children}</div>
     </div>

@@ -10,7 +10,7 @@ const SETUP = `${ACCOUNTS_BASE}/settings`;
 // ---------------------------------------------------------------- terms
 
 export async function saveTerm(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   const id = String(form.get("id") || "");
   const year = Number(form.get("year"));
@@ -41,7 +41,7 @@ export async function saveTerm(form: FormData): Promise<ActionResult> {
 }
 
 export async function setCurrentTerm(id: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose a term." };
   const { supabase, user } = auth;
@@ -57,7 +57,7 @@ export async function setCurrentTerm(id: string): Promise<ActionResult> {
 }
 
 export async function deleteTerm(id: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose a term." };
   const { supabase, user } = auth;
@@ -79,7 +79,7 @@ export async function deleteTerm(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------- fee items
 
 export async function saveItem(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   const id = String(form.get("id") || "");
   const name = field(form, "name", 80);
@@ -98,7 +98,7 @@ export async function saveItem(form: FormData): Promise<ActionResult> {
 }
 
 export async function toggleItem(id: string, active: boolean): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose an item." };
   const { error } = await auth.supabase.from("fee_items").update({ active }).eq("id", id);
@@ -113,7 +113,7 @@ export type RateInput = { item_id: string; class_code: string; amount: number | 
 
 /** Replaces the rates for one term and campus with what is in the grid. Empty cells remove the rate. */
 export async function saveRates(termId: string, campus: string, rates: RateInput[]): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(termId)) return { error: "Choose a term." };
   const place = campus.trim().slice(0, 60);
@@ -136,7 +136,7 @@ export async function saveRates(termId: string, campus: string, rates: RateInput
 }
 
 export async function copyRates(fromTerm: string, toTerm: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(fromTerm) || !isUuid(toTerm) || fromTerm === toTerm) return { error: "Choose two different terms." };
   const { supabase, user } = auth;
@@ -155,7 +155,7 @@ export async function copyRates(fromTerm: string, toTerm: string): Promise<Actio
 // ---------------------------------------------------------------- discount rules
 
 export async function saveDiscountRule(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   const id = String(form.get("id") || "");
   const name = field(form, "name", 80);
@@ -183,7 +183,7 @@ export async function saveDiscountRule(form: FormData): Promise<ActionResult> {
 }
 
 export async function deleteDiscountRule(id: string): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose a discount." };
   const { error } = await auth.supabase.from("discount_rules").delete().eq("id", id);
@@ -195,7 +195,7 @@ export async function deleteDiscountRule(id: string): Promise<ActionResult> {
 // ---------------------------------------------------------------- expense categories
 
 export async function saveCategory(form: FormData): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   const id = String(form.get("id") || "");
   const name = field(form, "name", 80);
@@ -214,7 +214,7 @@ export async function saveCategory(form: FormData): Promise<ActionResult> {
 }
 
 export async function toggleCategory(id: string, active: boolean): Promise<ActionResult> {
-  const auth = await requireAccounts();
+  const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "Choose a category." };
   const { error } = await auth.supabase.from("expense_categories").update({ active }).eq("id", id);

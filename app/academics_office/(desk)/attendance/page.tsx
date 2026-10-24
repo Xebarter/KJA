@@ -4,18 +4,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { OpenRegisters } from "@/components/academics/OpenRegisters";
 import { RegisterDesk } from "@/components/academics/RegisterDesk";
 import { AcademicsGate } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  classLabel,
-  groupPupils,
-  kampalaToday,
-  loadCurrentTerm,
-  openAcademics,
-  streamFromQuery,
-  streamQuery,
-  streamOf,
-  type AttendanceStatus,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, groupPupils, kampalaToday, loadCurrentTerm, streamFromQuery, streamQuery, streamOf, type AttendanceStatus } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Attendance" };

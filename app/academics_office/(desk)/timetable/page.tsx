@@ -3,22 +3,8 @@ import { saveSlot } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassJump, TimetableDesk, type TimetableClash, type TimetableLesson } from "@/components/academics/TimetableDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  PERIODS,
-  WEEKDAYS,
-  classLabel,
-  groupPupils,
-  mapStaff,
-  mapSubject,
-  loadCurrentTerm,
-  openAcademics,
-  streamFromQuery,
-  streamOf,
-  streamQuery,
-  subjectFits,
-  type ClassGroup,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, PERIODS, WEEKDAYS, classLabel, groupPupils, mapStaff, mapSubject, loadCurrentTerm, streamFromQuery, streamOf, streamQuery, subjectFits, type ClassGroup } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 
 export const metadata = { title: "Timetable" };

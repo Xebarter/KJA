@@ -665,17 +665,25 @@ export async function loadSubjectInitials(
   const marks = new Map<string, string>();
   const { data, error } = await supabase
     .from("subject_teachers")
-    .select("subject_id, teaching_staff(full_name)")
+    .select("subject_id, teaching_staff(full_name, initials)")
     .eq("term_id", input.termId)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream);
   if (error || !data) return marks;
   for (const row of data) {
-    const name = staffName(row.teaching_staff);
-    const mark = name ? teacherInitials(name) : "";
+    const mark = staffInitials(row.teaching_staff);
     if (mark && row.subject_id) marks.set(String(row.subject_id), mark);
   }
   return marks;
+}
+
+function staffInitials(value: { full_name?: string; initials?: string | null } | { full_name?: string; initials?: string | null }[] | null) {
+  const row = Array.isArray(value) ? value[0] : value;
+  if (!row || typeof row !== "object") return "";
+  const saved = typeof row.initials === "string" ? row.initials.trim() : "";
+  if (saved) return saved.toUpperCase().slice(0, 8);
+  const name = typeof row.full_name === "string" ? row.full_name : "";
+  return name ? teacherInitials(name) : "";
 }
 
 function teacherInitials(name: string) {

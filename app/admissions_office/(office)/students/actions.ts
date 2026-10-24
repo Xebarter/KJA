@@ -136,7 +136,7 @@ function guardianFromForm(form: FormData, prefix: "father" | "mother" | "guardia
 }
 
 export async function createStudent(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const { values, errors } = studentFields(formData);
@@ -249,7 +249,7 @@ export async function createStudent(formData: FormData): Promise<ActionResult> {
 }
 
 export async function updateStudent(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const id = String(formData.get("id") || "");
@@ -297,7 +297,7 @@ export async function updateStudent(formData: FormData): Promise<ActionResult> {
 export type StatusChange = { id: string; status: string; date?: string; reason?: string; classCode?: string };
 
 export async function changeStudentStatus(input: StatusChange): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   if (!isUuid(input.id)) return { error: "This student could not be found." };
@@ -331,7 +331,7 @@ export async function changeStudentStatus(input: StatusChange): Promise<ActionRe
 export type BulkChange = { class_code?: string; stream?: string; house?: string; campus?: string; status?: string };
 
 export async function bulkUpdateStudents(list: string[], change: BulkChange): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const { supabase, user } = auth;
   const targets = [...new Set(list.filter(isUuid))].slice(0, MAX_BULK);
@@ -377,7 +377,7 @@ export async function bulkUpdateStudents(list: string[], change: BulkChange): Pr
 }
 
 export async function setStudentFamily(id: string, familyId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id) || !isUuid(familyId)) return { error: "Choose a family." };
   const { data: family } = await auth.supabase.from("families").select("family_code, mailing_name").eq("id", familyId).maybeSingle();
@@ -390,7 +390,7 @@ export async function setStudentFamily(id: string, familyId: string): Promise<Ac
 }
 
 export async function addStudentNote(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   const body = longField(formData, "body", 4000);
@@ -403,7 +403,7 @@ export async function addStudentNote(formData: FormData): Promise<ActionResult> 
 }
 
 export async function deleteStudentNote(noteId: string, studentId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("student_activity").delete().eq("id", noteId).eq("actor_id", auth.user.id).eq("kind", "note");
   if (error) return { error: error.message };
@@ -415,7 +415,7 @@ const PHOTO_TYPES: Record<string, string> = { "image/webp": "webp", "image/jpeg"
 
 /** Replaces a student's photo. The browser shrinks it to a small square before sending. */
 export async function setStudentPhoto(formData: FormData): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const id = String(formData.get("id") || "");
   const photo = formData.get("photo");
@@ -450,7 +450,7 @@ export async function setStudentPhoto(formData: FormData): Promise<ActionResult>
 
 /** Clears the import warnings on a student once someone has checked the record. */
 export async function resolveStudentReview(id: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students", "data-quality");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(id)) return { error: "This student could not be found." };
   const { data: current } = await auth.supabase.from("students").select("import_notes").eq("id", id).maybeSingle();
@@ -464,7 +464,7 @@ export async function resolveStudentReview(id: string): Promise<ActionResult> {
 }
 
 export async function dismissDuplicate(a: string, b: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students", "data-quality");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(a) || !isUuid(b) || a === b) return { error: "Choose two different students." };
   const [first, second] = a < b ? [a, b] : [b, a];
@@ -489,7 +489,7 @@ export type FamilyMatch = {
 
 /** Finds families by family code, parent name, phone, email or a child's name. Used by the family picker. */
 export async function searchFamilies(raw: string): Promise<{ error?: string; items: FamilyMatch[] }> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students", "families");
   if ("error" in auth) return { error: auth.error, items: [] };
   const { supabase } = auth;
   const needle = searchNeedle(String(raw || "")).slice(0, 60);
@@ -586,7 +586,7 @@ export type IssueLoginResult = ActionResult & { email?: string; password?: strin
 
 /** Create a student portal login and link it to the pupil record. */
 export async function issueStudentLogin(studentId: string, formData: FormData): Promise<IssueLoginResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Invalid student." };
 
@@ -618,7 +618,7 @@ export async function issueStudentLogin(studentId: string, formData: FormData): 
 
 /** Unlink and disable a student portal login. */
 export async function revokeStudentLogin(studentId: string): Promise<ActionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Invalid student." };
 

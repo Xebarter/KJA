@@ -1,4 +1,5 @@
 import { OfficeShell } from "@/components/office/Shell";
+import { loadShellAccess } from "@/lib/dashboard-guard";
 import { EMPTY_OFFICE_BADGES } from "@/lib/office-badges";
 import { createClient } from "@/lib/supabase/server";
 
@@ -19,8 +20,15 @@ export default async function OfficeLayout({ children }: { children: React.React
       };
     }
   }
+  const access = await loadShellAccess("admissions");
   return (
-    <OfficeShell person={person} badges={EMPTY_OFFICE_BADGES}>
+    <OfficeShell
+      person={person}
+      badges={EMPTY_OFFICE_BADGES}
+      pages={access.known ? access.pages : null}
+      canSwitch={access.canSwitch}
+      home={access.home}
+    >
       {children}
     </OfficeShell>
   );

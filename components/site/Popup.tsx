@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useAuthDialog } from "@/components/account/AuthDialog";
 
 type Phase = "hidden" | "open" | "collapsing" | "closing" | "fab";
 
@@ -15,7 +16,7 @@ function reducedMotion() {
 
 export function AdmissionsPopup({ title, body, label, href }: { title: string; body: string; label: string; href: string }) {
   const pathname = usePathname();
-  const [signingIn, setSigningIn] = useState(false);
+  const { authOpen } = useAuthDialog();
   const [phase, setPhase] = useState<Phase>("hidden");
   const cardRef = useRef<HTMLDivElement>(null);
   const fabRef = useRef<HTMLAnchorElement>(null);
@@ -24,12 +25,8 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
   const [morphed, setMorphed] = useState(false);
 
   useEffect(() => {
-    setSigningIn(new URLSearchParams(window.location.search).has("login"));
-  }, [pathname]);
-
-  useEffect(() => {
-    if (pathname !== "/" || dialogShown || signingIn) {
-      setPhase((current) => (current === "hidden" ? "fab" : current));
+    if (pathname !== "/" || dialogShown || authOpen) {
+      setPhase((current) => (current === "hidden" ? "fab" : current === "open" && authOpen ? "fab" : current));
       return;
     }
     const timer = setTimeout(() => {
@@ -39,7 +36,7 @@ export function AdmissionsPopup({ title, body, label, href }: { title: string; b
       setPhase("open");
     }, 400);
     return () => clearTimeout(timer);
-  }, [pathname, signingIn]);
+  }, [pathname, authOpen]);
 
   const modal = phase === "open" || phase === "collapsing" || phase === "closing";
 

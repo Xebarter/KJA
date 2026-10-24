@@ -1,68 +1,122 @@
-/* Sign-in dialog. Loaded only when the dialog opens. */
+/* Sign-in / reset dialog — loaded with AuthForm and ResetPasswordForm */
+
+.account-auth,
+.account-reset {
+  --auth-ink: #19232b;
+  --auth-soft: #5d6670;
+  --auth-mute: #8a8174;
+  --auth-line: rgba(25, 35, 43, 0.1);
+  --auth-wash: #f6f3ee;
+  --auth-paper: #ffffff;
+  --auth-accent: #fda31b;
+  --auth-ok: #127238;
+  --auth-danger: #a12626;
+  --auth-radius: 18px;
+  --auth-ease: cubic-bezier(0.22, 0.8, 0.24, 1);
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
+}
+
 .account-auth {
-  --navy: #19232b;
-  --gold: #c9a227;
-  --muted: #8a8174;
-  --line: #e6e1d6;
-  --paper: #faf8f4;
   position: fixed;
   inset: 0;
   z-index: 12000;
   display: grid;
   place-items: center;
   padding: 1.25rem 1rem;
-  background: rgba(25, 35, 43, .52);
-  backdrop-filter: blur(10px);
+  background:
+    radial-gradient(80% 60% at 50% 0%, rgba(253, 163, 27, 0.12), transparent 55%),
+    rgba(18, 24, 30, 0.58);
+  backdrop-filter: blur(14px) saturate(1.1);
   overflow: auto;
   cursor: pointer;
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
-  animation: account-auth-in .22s ease;
+  animation: account-auth-in 0.28s var(--auth-ease) both;
 }
+
 @keyframes account-auth-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
-.account-auth-card {
+
+.account-auth-card,
+.account-reset-card {
   position: relative;
-  width: min(380px, 100%);
-  padding: 1.65rem 1.45rem 1.4rem;
-  border: 1px solid var(--line);
-  border-top: 3px solid var(--gold);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 18px 48px rgba(25, 35, 43, .16);
+  width: min(400px, 100%);
+  padding: 1.75rem 1.55rem 1.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: var(--auth-radius);
+  background:
+    linear-gradient(180deg, #fffefb 0%, var(--auth-paper) 42%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 24px 56px -20px rgba(12, 18, 24, 0.45),
+    0 8px 20px -12px rgba(12, 18, 24, 0.28);
   cursor: default;
-  animation: account-auth-card-in .26s ease;
+  color: var(--auth-ink);
 }
+
+.account-auth-card {
+  animation: account-auth-card-in 0.34s var(--auth-ease) both;
+}
+
 @keyframes account-auth-card-in {
-  from { opacity: 0; transform: translateY(10px) scale(.98); }
-  to { opacity: 1; transform: none; }
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.975);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
+
 .account-auth-close {
   position: absolute;
-  top: .7rem;
-  right: .7rem;
+  top: 0.85rem;
+  right: 0.85rem;
   display: grid;
   place-items: center;
-  width: 32px;
-  height: 32px;
+  width: 2.25rem;
+  height: 2.25rem;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  color: var(--muted);
-  font-size: .95rem;
+  color: var(--auth-mute);
+  font-size: 0.95rem;
   cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease;
 }
-.account-auth-close:hover { background: var(--paper); color: var(--navy); }
+
+.account-auth-close:hover {
+  background: var(--auth-wash);
+  color: var(--auth-ink);
+}
+
+.account-auth-close:focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 2px;
+}
+
+.account-auth-head {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  margin-bottom: 1.15rem;
+}
+
 .account-auth-mark {
-  width: 72px;
-  height: 72px;
-  margin: 0 auto .9rem;
+  width: 4.25rem;
+  height: 4.25rem;
   overflow: hidden;
   border-radius: 50%;
   background: #fff;
-  border: 1px solid var(--line);
+  border: 1px solid var(--auth-line);
+  box-shadow: 0 8px 20px -14px rgba(25, 35, 43, 0.35);
 }
+
 .account-auth-mark img {
   display: block;
   height: 100%;
@@ -70,34 +124,51 @@
   max-width: none;
   margin: 0 auto;
 }
-.account-auth-title {
-  margin: 0 0 1.05rem;
+
+.account-auth-brand {
+  margin: 0;
+  color: var(--auth-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.account-auth-title,
+.account-auth-lead {
+  margin: 0 0 1.1rem;
   text-align: center;
 }
+
 .account-auth-title h1,
-.account-auth-lead h2 {
+.account-auth-lead h2,
+.account-reset-card .account-auth-title h1 {
   margin: 0;
-  color: var(--navy);
-  font-family: Yantramanav, Roboto, sans-serif;
-  font-size: 1.45rem;
-  font-weight: 700;
-  letter-spacing: -.02em;
+  color: var(--auth-ink);
+  font-size: 1.55rem;
+  font-weight: 750;
+  letter-spacing: -0.03em;
   line-height: 1.15;
 }
+
 .account-auth-title p,
-.account-auth-lead p {
-  margin: .3rem 0 0;
-  color: var(--muted);
-  font-size: .9rem;
-  line-height: 1.45;
+.account-auth-lead p,
+.account-reset-card .account-auth-title p {
+  margin: 0.4rem 0 0;
+  color: var(--auth-soft);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  font-weight: 450;
 }
+
 .account-auth-or {
-  margin: .4rem 0 0;
-  color: var(--muted);
-  font-size: .9rem;
+  margin: 0.4rem 0 0;
+  color: var(--auth-soft);
+  font-size: 0.92rem;
   text-align: center;
-  line-height: 1.45;
+  line-height: 1.5;
 }
+
 .account-sr {
   position: absolute;
   width: 1px;
@@ -105,140 +176,313 @@
   overflow: hidden;
   clip: rect(0, 0, 0, 0);
 }
+
 .account-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: .25rem;
-  margin-bottom: 1rem;
-  padding: .25rem;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--paper);
+  gap: 0.2rem;
+  margin-bottom: 1.15rem;
+  padding: 0.22rem;
+  border-radius: 12px;
+  background: var(--auth-wash);
 }
+
 .account-tabs button {
-  height: 36px;
+  height: 2.35rem;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
-  color: var(--muted);
+  color: var(--auth-soft);
   font: inherit;
-  font-size: .88rem;
+  font-size: 0.88rem;
   font-weight: 650;
   cursor: pointer;
-  transition: background-color .15s ease, color .15s ease;
+  transition: background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
 }
-.account-tabs button:hover { color: var(--navy); }
+
+.account-tabs button:hover {
+  color: var(--auth-ink);
+}
+
 .account-tabs button.active {
   background: #fff;
-  color: var(--navy);
-  box-shadow: 0 1px 2px rgba(25, 35, 43, .06);
+  color: var(--auth-ink);
+  box-shadow: 0 1px 3px rgba(25, 35, 43, 0.08);
 }
-.account-auth .account-form {
+
+.account-tabs button:focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 1px;
+}
+
+.account-auth .account-form,
+.account-reset .account-form {
   display: grid;
-  gap: .65rem;
+  gap: 0.75rem;
+  animation: account-auth-form-in 0.28s var(--auth-ease) both;
 }
-.account-auth .account-form label { display: grid; gap: .3rem; }
-.account-auth .account-form input {
+
+@keyframes account-auth-form-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.account-auth .account-form label,
+.account-reset .account-form label {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.account-auth .account-form label > span,
+.account-reset .account-form label > span {
+  color: var(--auth-soft);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.account-auth .account-form input,
+.account-reset .account-form input {
   width: 100%;
-  height: 42px;
-  padding: 0 .85rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  height: 2.85rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--auth-line);
+  border-radius: 12px;
   background: #fff;
-  color: var(--navy);
+  color: var(--auth-ink);
   font: inherit;
-  font-size: .95rem;
-  transition: border-color .15s ease, box-shadow .15s ease;
+  font-size: 0.98rem;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, background 0.16s ease;
 }
-.account-auth .account-form input::placeholder { color: #b0a89c; }
-.account-auth .account-form input:focus {
+
+.account-auth .account-form input::placeholder,
+.account-reset .account-form input::placeholder {
+  color: #b0b6bc;
+}
+
+.account-auth .account-form input:hover,
+.account-reset .account-form input:hover {
+  border-color: rgba(25, 35, 43, 0.2);
+}
+
+.account-auth .account-form input:focus,
+.account-reset .account-form input:focus {
   outline: none;
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px rgba(201, 162, 39, .22);
+  border-color: rgba(25, 35, 43, 0.45);
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(253, 163, 27, 0.2);
 }
-.account-auth .account-btn {
+
+.account-auth .account-btn,
+.account-reset .account-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: .45rem;
+  gap: 0.45rem;
   width: 100%;
-  height: 42px;
-  margin-top: .2rem;
+  height: 2.85rem;
+  margin-top: 0.2rem;
   padding: 0 1rem;
-  border: 1px solid var(--navy);
-  border-radius: 8px;
-  background: var(--navy);
+  border: 0;
+  border-radius: 12px;
+  background: var(--auth-ink);
   color: #fff;
   font: inherit;
-  font-size: .92rem;
-  font-weight: 650;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   cursor: pointer;
-  transition: background-color .15s ease, border-color .15s ease;
+  transition: background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
 }
-.account-auth .account-btn:hover { background: #24303a; border-color: #24303a; }
-.account-auth .account-btn:disabled {
-  opacity: .65;
+
+.account-auth .account-btn:hover:not(:disabled),
+.account-reset .account-btn:hover:not(:disabled) {
+  background: #24313b;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -14px rgba(25, 35, 43, 0.55);
+}
+
+.account-auth .account-btn:active:not(:disabled),
+.account-reset .account-btn:active:not(:disabled) {
+  transform: none;
+}
+
+.account-auth .account-btn:disabled,
+.account-reset .account-btn:disabled {
+  opacity: 0.65;
   cursor: progress;
+  transform: none;
+  box-shadow: none;
 }
-.account-auth-link,
-.account-auth-back {
+
+.account-auth .account-btn:focus-visible,
+.account-reset .account-btn:focus-visible {
+  outline: 2px solid var(--auth-accent);
+  outline-offset: 2px;
+}
+
+.account-auth-link {
+  justify-self: end;
+  margin-top: -0.15rem;
   border: 0;
-  background: none;
   padding: 0;
-  color: var(--muted);
+  background: none;
+  color: var(--auth-soft);
   font: inherit;
-  font-size: .86rem;
+  font-size: 0.86rem;
   font-weight: 650;
   cursor: pointer;
+  transition: color 0.16s ease;
 }
-.account-auth-link { justify-self: end; margin-top: -.1rem; }
-.account-auth-link:hover,
-.account-auth-back:hover { color: var(--navy); }
-.account-auth-reset { display: grid; }
-.account-auth-lead {
+
+.account-auth-link:hover {
+  color: var(--auth-ink);
+}
+
+.account-auth-reset {
   display: grid;
-  gap: .25rem;
-  margin-bottom: .95rem;
-  text-align: center;
 }
+
+.account-auth-lead.is-sent {
+  margin-bottom: 0.35rem;
+}
+
 .account-auth-sent {
-  width: 44px;
-  height: 44px;
-  margin: 0 auto .2rem;
+  width: 3.25rem;
+  height: 3.25rem;
+  margin: 0 auto 0.55rem;
   display: grid;
   place-items: center;
   border-radius: 50%;
-  background: #eef5ec;
-  color: #3c6b34;
-  font-size: 1.05rem;
+  background: #e7f4ec;
+  color: var(--auth-ok);
+  font-size: 1.15rem;
+  box-shadow: 0 8px 18px -14px rgba(18, 114, 56, 0.45);
 }
+
 .account-auth-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
   justify-self: center;
-  margin-top: .95rem;
-  height: 36px;
-  padding: 0 .85rem;
-  border: 1px solid var(--line);
-  border-radius: 8px;
+  min-height: 2.35rem;
+  margin-top: 1rem;
+  padding: 0 0.95rem;
+  border: 1px solid var(--auth-line);
+  border-radius: 999px;
   background: #fff;
+  color: var(--auth-soft);
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 650;
+  cursor: pointer;
+  transition: background 0.16s ease, color 0.16s ease, border-color 0.16s ease;
 }
-.account-auth-back:hover { background: var(--paper); }
-.account-error {
-  margin: .75rem 0 0;
-  padding: .65rem .75rem;
-  border-radius: 8px;
+
+.account-auth-back:hover {
+  background: var(--auth-wash);
+  color: var(--auth-ink);
+  border-color: rgba(25, 35, 43, 0.18);
+}
+
+.account-auth .account-error,
+.account-reset .account-error {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0.85rem 0 0;
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
   background: #fdf2f2;
-  color: #a12626;
-  font-size: .86rem;
+  color: var(--auth-danger);
+  font-size: 0.86rem;
   line-height: 1.4;
 }
-@media (max-height: 720px) {
-  .account-auth-mark { width: 56px; height: 56px; margin-bottom: .7rem; }
-  .account-auth-card { padding: 1.25rem 1.15rem 1.1rem; }
+
+.account-auth .account-error i,
+.account-reset .account-error i {
+  margin-top: 0.12rem;
+  flex: none;
+  font-size: 0.9rem;
 }
+
+/* Full-page reset (email link destination) */
+.account-reset {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem 1.1rem;
+  background:
+    radial-gradient(70% 50% at 50% -10%, rgba(253, 163, 27, 0.16), transparent 55%),
+    linear-gradient(180deg, #f3eee5 0%, #ebe4d7 100%);
+}
+
+.account-reset-card {
+  animation: account-auth-card-in 0.34s var(--auth-ease) both;
+}
+
+.account-reset-foot {
+  margin: 1.1rem 0 0;
+  text-align: center;
+}
+
+.account-reset-foot a {
+  color: var(--auth-soft);
+  font-size: 0.86rem;
+  font-weight: 650;
+  text-decoration: none;
+  transition: color 0.16s ease;
+}
+
+.account-reset-foot a:hover {
+  color: var(--auth-ink);
+}
+
+@media (max-height: 720px) {
+  .account-auth-mark {
+    width: 3.5rem;
+    height: 3.5rem;
+  }
+
+  .account-auth-card,
+  .account-reset-card {
+    padding: 1.35rem 1.2rem 1.2rem;
+  }
+
+  .account-auth-head {
+    margin-bottom: 0.9rem;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .account-auth,
-  .account-auth-card { animation: none; }
+  .account-auth-card,
+  .account-reset-card,
+  .account-auth .account-form,
+  .account-reset .account-form {
+    animation: none;
+  }
+
   .account-tabs button,
   .account-auth .account-form input,
-  .account-auth .account-btn { transition: none; }
+  .account-reset .account-form input,
+  .account-auth .account-btn,
+  .account-reset .account-btn,
+  .account-auth-close,
+  .account-auth-back,
+  .account-auth-link {
+    transition: none;
+  }
+
+  .account-auth .account-btn:hover:not(:disabled),
+  .account-reset .account-btn:hover:not(:disabled) {
+    transform: none;
+  }
 }

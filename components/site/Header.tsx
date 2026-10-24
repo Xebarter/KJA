@@ -95,12 +95,13 @@ export function Header({ campuses, socials, phone, email, address, mapUrl }: {
   const onAccount = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
     closeMenu();
-    // Session is known from AuthDialog (kept warm in the background). No await on click.
-    if (signedIn === false) {
-      openAuth("/account");
+    // Only go to the portal when a session is confirmed. While checking (null) or signed out,
+    // open the dialog — never soft-navigate to /account (that redirect was dropping the dialog).
+    if (signedIn === true) {
+      router.push("/account");
       return;
     }
-    router.push("/account");
+    openAuth("/account");
   };
 
   useEffect(() => {

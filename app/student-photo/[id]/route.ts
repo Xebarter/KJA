@@ -1,3 +1,4 @@
+import { createClient as createSupabaseClient, type SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import { isUuid } from "@/lib/students";
@@ -9,23 +10,59 @@ export const dynamic = "force-dynamic";
 const DAY = 60 * 60 * 24;
 const cached = new Map<string, { bytes: Uint8Array; type: string }>();
 
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type, If-None-Match",
+  "Access-Control-Max-Age": "86400",
+} as const;
+
 function notFound() {
-  return new NextResponse(null, { status: 404, headers: { "Cache-Control": "private, no-store" } });
+  return new NextResponse(null, { status: 404, headers: { "Cache-Control": "private, no-store", ...cors } });
 }
 
-/** Private passport photo. Staff and the child's parents may load it; everyone else gets 404. */
+/** Bearer or ?access_token= for the Pupils app (Flutter web cannot set img Authorization headers). */
+function tokenFromRequest(request: Request): string | null {
+  const header = request.headers.get("authorization");
+  if (header?.toLowerCase().startsWith("bearer ")) {
+    const token = header.slice(7).trim();
+    if (token) return token;
+  }
+  const query = new URL(request.url).searchParams.get("access_token")?.trim();
+  return query || null;
+}
+
+function clientFromAccessToken(token: string): SupabaseClient | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) return null;
+  return createSupabaseClient(url, key, {
+    global: { headers: { Authorization: `Bearer ${token}` } },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: { ...cors } });
+}
+
+/**
+ * Private passport photo for staff, parents, and linked classmates.
+ * Cookie session (website) or access_token / Bearer (Pupils app) both work.
+ */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!isUuid(id)) return notFound();
-  const supabase = await createClient();
+
+  const accessToken = tokenFromRequest(request);
+  let supabase: SupabaseClient | null = accessToken ? clientFromAccessToken(accessToken) : null;
+  if (!supabase) supabase = await createClient();
   if (!supabase) return notFound();
-  // Prefer local JWT verification so each avatar doesn't wait on a Supabase Auth round trip.
-  const { data: claims } = await supabase.auth.getClaims();
-  const userId = typeof claims?.claims?.sub === "string" ? claims.claims.sub : null;
-  if (!userId) {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return notFound();
-  }
+
+  const { data: userData, error: userError } = accessToken
+    ? await supabase.auth.getUser(accessToken)
+    : await supabase.auth.getUser();
+  if (userError || !userData.user) return notFound();
 
   const { data: student } = await supabase.from("students").select("photo_path").eq("id", id).maybeSingle();
   const path = typeof student?.photo_path === "string" ? student.photo_path : "";
@@ -33,7 +70,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 
   const etag = `"${path.replace(/"/g, "")}"`;
   if (request.headers.get("if-none-match") === etag) {
-    return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": `private, max-age=${DAY}` } });
+    return new NextResponse(null, { status: 304, headers: { ETag: etag, "Cache-Control": `private, max-age=${DAY}`, ...cors } });
   }
 
   let photo = cached.get(path);
@@ -50,6 +87,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       "Content-Type": photo.type,
       "Cache-Control": `private, max-age=${DAY}`,
       ETag: etag,
+      ...cors,
     },
   });
 }

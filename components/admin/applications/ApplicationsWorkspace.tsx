@@ -2,8 +2,7 @@
 import type { ApplicationItem } from "@/components/admin/applications/types";
 import { WorkspaceView, type QuickView } from "@/components/admin/applications/WorkspaceView";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { applicationsQuery, loadPeople, loadStageSince, loadTeam } from "@/lib/admin-applications";
-import { requireOffice } from "@/lib/office";
+import { applicationsQuery, loadPeople, loadStageSince, loadTeam, requireApplicationDesk } from "@/lib/admin-applications";
 import {
   APPLICATION_STATUSES,
   ATTENTION_DAYS,
@@ -77,7 +76,7 @@ export async function ApplicationsWorkspace({
   if (!supabaseConfigured()) {
     return <Notice title="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code> to receive applications here.</p></Notice>;
   }
-  const [auth, params] = await Promise.all([requireOffice(), searchParams]);
+  const [auth, params] = await Promise.all([requireApplicationDesk(), searchParams]);
   if ("error" in auth) return <Notice title="Not available"><p>{auth.error}</p></Notice>;
   const { supabase, user } = auth;
   const filters = parseFilters(params);

@@ -3,7 +3,7 @@ import { CommentsDesk } from "@/app/academics_office/(desk)/comments/CommentsDes
 import { PageHeader } from "@/components/admin/PageHeader";
 import { friendlyCheck, templateReadout, toRuleCard, type DeskRule, type DeskTemplate, type DeskType } from "@/components/academics/comment-model";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { openAcademics } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadActiveCommentConfig, validateConfiguration } from "@/lib/comment-engine";
 import { buildSamplePreview } from "@/lib/comment-engine/preview";
 import "./comments.css";

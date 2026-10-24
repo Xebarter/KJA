@@ -1,12 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { revalidatePath } from "next/cache";
-import { cache } from "react";
-import { ACADEMICS_BASE, isAcademicsRole } from "@/lib/academics-nav";
-import { forgetPrefix, remember } from "@/lib/remember";
+import { ACADEMICS_BASE } from "@/lib/academics-nav";
+import { remember } from "@/lib/remember";
 import { normalizeSubjectKind, type SubjectKind } from "@/lib/subject-kind";
 import { subjectFits as subjectFitsClass } from "@/lib/subject-bands";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
-import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export { ACADEMICS_BASE, ACADEMICS_ROLES, academicsNav, academicsSchemaScript, isAcademicsRole } from "@/lib/academics-nav";
 export type { AcademicsBadge, AcademicsNavItem } from "@/lib/academics-nav";
@@ -14,94 +11,6 @@ export type { SubjectKind } from "@/lib/subject-kind";
 export { isAcademicSubject, isCocurricularSubject, normalizeSubjectKind, subjectKindLabel } from "@/lib/subject-kind";
 
 const TZ = "Africa/Kampala";
-const SESSION_MS = 60_000;
-
-type AcademicsProfile = { id: string; role: string; full_name: string | null; email: string | null };
-type AcademicsAccess =
-  | { profile: AcademicsProfile; office: true; staffId: null }
-  | { profile: AcademicsProfile; office: false; staffId: string };
-
-/** Profile and teacher link, reused across page clicks. The request's Supabase client stays outside the cache. */
-async function loadAcademicsAccess(supabase: SupabaseClient, userId: string): Promise<AcademicsAccess | null> {
-  const { data } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", userId).maybeSingle();
-  if (!data) return null;
-  const profile: AcademicsProfile = {
-    id: String(data.id),
-    role: String(data.role ?? ""),
-    full_name: (data.full_name as string | null) ?? null,
-    email: (data.email as string | null) ?? null,
-  };
-  if (isAcademicsRole(profile.role)) return { profile, office: true, staffId: null };
-  if (profile.role === "staff") {
-    const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", userId).eq("active", true).maybeSingle();
-    if (teacher?.id) return { profile, office: false, staffId: String(teacher.id) };
-  }
-  return null;
-}
-
-export const requireAcademics = cache(async function requireAcademics() {
-  const supabase = await createClient();
-  if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  const { data: claimsData } = await supabase.auth.getClaims();
-  const claims = claimsData?.claims;
-  const userId = typeof claims?.sub === "string" ? claims.sub : null;
-  if (!userId) return { error: "Your session has expired. Sign in again." } as const;
-  let access: AcademicsAccess;
-  try {
-    access = await remember(`academics-session:${userId}`, SESSION_MS, async () => {
-      const loaded = await loadAcademicsAccess(supabase, userId);
-      if (!loaded) throw new Error("no-academics-access");
-      return loaded;
-    });
-  } catch {
-    return { error: "This account doesn't have access to the academics office." } as const;
-  }
-  const claimEmail = claims && typeof claims.email === "string" ? claims.email : "";
-  const email = access.profile.email || claimEmail;
-  const user = { id: userId, email };
-  const profile = { ...access.profile, email: email || access.profile.email };
-  if (access.office) return { supabase, user, profile, office: true as const, staffId: null as string | null };
-  return { supabase, user, profile, office: false as const, staffId: access.staffId };
-});
-
-export async function openAcademics(): Promise<
-  | { notice: "config" | "auth" | "schema"; message?: string }
-  | { auth: Exclude<Awaited<ReturnType<typeof requireAcademics>>, { error: string }> }
-> {
-  if (!supabaseConfigured()) return { notice: "config" as const };
-  const auth = await requireAcademics();
-  if ("error" in auth) return { notice: "auth" as const, message: auth.error };
-  try {
-    await remember("academics-schema", 120_000, async () => {
-      const probe = await auth.supabase.from("subjects").select("id").limit(1);
-      if (probe.error) throw new Error(probe.error.message);
-      return true;
-    });
-  } catch (error) {
-    return { notice: "schema" as const, message: error instanceof Error ? error.message : "Academics tables are missing." };
-  }
-  return { auth };
-}
-
-export function refreshAcademics(...paths: string[]) {
-  // Bust live desk caches without wiping schema/profile remembers or revalidating the whole
-  // desk layout (badges load client-side; layout revalidation was blocking soft nav).
-  forgetPrefix("academics-badges");
-  forgetPrefix("academics-roll");
-  forgetPrefix("academics-today");
-  forgetPrefix("academics-closures");
-  forgetPrefix("academics-picture");
-  forgetPrefix("academics-staff");
-  for (const path of paths) revalidatePath(path);
-  revalidatePath(ACADEMICS_BASE);
-  revalidatePath("/account/reports");
-}
-
-/** The subject list changed. Leave the pupil roll and sidebar counts in place. */
-export function refreshSubjectCatalogue() {
-  forgetPrefix("academics-staff");
-  revalidatePath(`${ACADEMICS_BASE}/subjects`);
-}
 
 /** True when the error means an academics SQL script hasn't been run yet. */
 export function missingAcademicsSchema(message: string | null | undefined) {
@@ -170,11 +79,13 @@ import type { BandRow } from "@/lib/grading-scale";
 export type StaffRow = {
   id: string;
   full_name: string;
+  initials: string | null;
   title: string | null;
   campus: string | null;
   email: string | null;
   phone: string | null;
   profile_id: string | null;
+  photo_path: string | null;
   active: boolean;
 };
 
@@ -491,11 +402,13 @@ export function mapStaff(row: Record<string, unknown>): StaffRow {
   return {
     id: String(row.id),
     full_name: String(row.full_name),
+    initials: (row.initials as string | null) ?? null,
     title: (row.title as string | null) ?? null,
     campus: (row.campus as string | null) ?? null,
     email: (row.email as string | null) ?? null,
     phone: (row.phone as string | null) ?? null,
     profile_id: (row.profile_id as string | null) ?? null,
+    photo_path: (row.photo_path as string | null) ?? null,
     active: Boolean(row.active),
   };
 }

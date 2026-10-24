@@ -36,7 +36,7 @@ function withoutExtended(payload: Record<string, unknown>) {
 }
 
 export async function saveStory(formData: FormData): Promise<StoryActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("stories");
   if ("error" in auth) return { error: auth.error };
   const { supabase } = auth;
 
@@ -123,7 +123,7 @@ export async function saveStory(formData: FormData): Promise<StoryActionResult> 
 
 export async function setStoryFlag(table: string, id: string, field: "published" | "featured", value: boolean): Promise<StoryActionResult> {
   if (!isStoryTable(table) || !isId(id)) return { error: "Unknown story." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("stories");
   if ("error" in auth) return { error: auth.error };
   const patch: Record<string, unknown> = { [field]: value };
   if (field === "published" && value) {
@@ -139,7 +139,7 @@ export async function setStoryFlag(table: string, id: string, field: "published"
 
 export async function duplicateStory(table: string, id: string): Promise<StoryActionResult> {
   if (!isStoryTable(table) || !isId(id)) return { error: "Unknown story." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("stories");
   if ("error" in auth) return { error: auth.error };
   const { supabase } = auth;
   const { data, error } = await supabase.from(table).select("*").eq("id", id).maybeSingle();
@@ -163,7 +163,7 @@ export async function duplicateStory(table: string, id: string): Promise<StoryAc
 
 export async function deleteStory(table: string, id: string): Promise<StoryActionResult> {
   if (!isStoryTable(table) || !isId(id)) return { error: "Unknown story." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("stories");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from(table).delete().eq("id", id);
   if (error) return { error: friendly(error, table) };

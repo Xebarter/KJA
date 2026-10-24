@@ -141,7 +141,8 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
           <div className="acc-wizard-foot">
             <Link className="admin-btn admin-btn-ghost" href={`${ACCOUNTS_BASE}/invoices`}>Cancel</Link>
             <button type="button" className="admin-btn" disabled={pending || !classes.length || !term} onClick={() => runRpc(true)}>
-              {pending ? "Working it out…" : "Preview invoices"} <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+              <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-magnifying-glass-dollar"}`} aria-hidden="true" />
+              {pending ? "Working it out…" : "Preview invoices"}
             </button>
           </div>
         </section>
@@ -228,6 +229,7 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
                 runRpc(false);
               }}
             >
+              <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : status === "draft" ? "fa-file" : "fa-paper-plane"}`} aria-hidden="true" />
               {pending ? "Creating invoices…" : `${status === "draft" ? "Save" : "Issue"} ${totals.toBill.toLocaleString("en-GB")} invoices`}
             </button>
           </div>

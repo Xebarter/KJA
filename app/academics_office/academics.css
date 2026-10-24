@@ -319,7 +319,12 @@
 
 @media print {
   .admin-side, .admin-topbar, .admin-nav-scrim, .account-side, .account-topbar, .acd-noprint { display: none !important; }
-  .admin-shell, .account-shell { display: block !important; }
-  .admin-main, .account-main { margin: 0 !important; padding: 0 !important; }
+  .admin-shell, .account-shell {
+    display: block !important;
+    width: 100% !important;
+    grid-template-columns: none !important;
+    grid-template-rows: none !important;
+  }
+  .admin-main, .account-main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
   .acd-sheet { border: 0; box-shadow: none; }
 }

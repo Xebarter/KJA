@@ -1,5 +1,6 @@
 import { AccountsShell } from "@/components/accounts/Shell";
 import { requireAccounts } from "@/lib/accounts";
+import { shellPages } from "@/lib/dashboard-access";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { createClient } from "@/lib/supabase/server";
 
@@ -25,9 +26,15 @@ export default async function AccountsLayout({ children }: { children: React.Rea
       person = {
         name: auth.profile.full_name?.trim() || auth.user.user_metadata?.full_name || email || person.name,
         email,
-        role: ROLE_LABELS[auth.profile.role ?? ""] ?? person.role,
+        role: ROLE_LABELS[auth.profile.role ?? ""] ?? (auth.profile.role === "officer" ? "Team member" : person.role),
       };
     }
+    const shell = !("error" in auth) ? shellPages(auth.grants, "accounts") : null;
+    return (
+      <AccountsShell person={person} badges={badges} term={term} pages={shell?.pages ?? null} canSwitch={shell?.canSwitch ?? false} home={shell?.home}>
+        {children}
+      </AccountsShell>
+    );
   }
   return (
     <AccountsShell person={person} badges={badges} term={term}>

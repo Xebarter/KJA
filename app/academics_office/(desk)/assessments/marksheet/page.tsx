@@ -2,23 +2,8 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { MarksheetDesk, type MarksheetMark, type MarksheetPupil, type MarksheetStatus, type MarksheetSubject } from "@/components/academics/MarksheetDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  ASSESSMENT_KINDS,
-  bandMidpoint,
-  classLabel,
-  classSection,
-  kindLabel,
-  loadCurrentTerm,
-  mapBand,
-  num,
-  openAcademics,
-  ranks,
-  streamFromQuery,
-  streamOf,
-  weightedPercent,
-  type BandRow,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, ASSESSMENT_KINDS, bandMidpoint, classLabel, classSection, kindLabel, loadCurrentTerm, mapBand, num, ranks, streamFromQuery, streamOf, weightedPercent, type BandRow } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { fetchAll, isClassCode } from "@/lib/students";
 

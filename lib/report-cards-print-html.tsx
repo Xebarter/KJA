@@ -15,22 +15,57 @@ async function renderMarkup(element: ReactElement) {
 }
 
 let cachedCss: string | null = null;
+let cachedCrest: string | null = null;
+let cssReady: Promise<string> | null = null;
+let crestReady: Promise<string> | null = null;
+
+async function inlineFontUrls(css: string) {
+  const publicDir = path.join(process.cwd(), "public");
+  const found = [...css.matchAll(/url\((\/fonts\/[^)]+\.woff2?)\)/g)].map((match) => match[1]);
+  const unique = [...new Set(found)];
+  if (!unique.length) return css;
+  const dataUris = new Map<string, string>();
+  await Promise.all(
+    unique.map(async (fileUrl) => {
+      try {
+        const bytes = await readFile(path.join(publicDir, fileUrl.replace(/^\//, "")));
+        const mime = fileUrl.endsWith(".woff") ? "font/woff" : "font/woff2";
+        dataUris.set(fileUrl, `data:${mime};base64,${bytes.toString("base64")}`);
+      } catch {
+        // Leave the original URL; the PDF offline router will abort it.
+      }
+    }),
+  );
+  return css.replace(/url\((\/fonts\/[^)]+\.woff2?)\)/g, (full, fileUrl: string) => {
+    const data = dataUris.get(fileUrl);
+    return data ? `url(${data})` : full;
+  });
+}
 
 async function printStyles() {
   if (cachedCss) return cachedCss;
-  const root = process.cwd();
-  const [sheet, fonts] = await Promise.all([
-    readFile(path.join(root, "components/academics/report-sheet.css"), "utf8"),
-    readFile(path.join(root, "public/css/fonts.css"), "utf8"),
-  ]);
-  cachedCss = [
-    fonts,
-    sheet,
-    `.rpt-print-sheets .acd-sheet + .acd-sheet { break-before: page; page-break-before: always; }`,
-    `.rpt-print-sheets { display: grid; gap: 0; }`,
-    `@media print { .rpt-print-pack .acd-sheet { max-width: none; margin: 0; } }`,
-  ].join("\n");
-  return cachedCss;
+  if (cssReady) return cssReady;
+  cssReady = (async () => {
+    const root = process.cwd();
+    const [sheet, fonts] = await Promise.all([
+      readFile(path.join(root, "components/academics/report-sheet.css"), "utf8"),
+      readFile(path.join(root, "public/css/fonts.css"), "utf8"),
+    ]);
+    const inlinedFonts = await inlineFontUrls(fonts);
+    cachedCss = [
+      inlinedFonts,
+      sheet,
+      `.rpt-print-sheets .acd-sheet + .acd-sheet { break-before: page; page-break-before: always; }`,
+      `.rpt-print-sheets { display: grid; gap: 0; }`,
+      `html, body { margin: 0; padding: 0; width: 100%; }`,
+      `.rpt-print-pack, .rpt-print-sheets { margin: 0; padding: 0; width: 100%; }`,
+      `@media print { .rpt-print-pack .acd-sheet { max-width: 100%; margin: 0 auto; } }`,
+    ].join("\n");
+    return cachedCss;
+  })().finally(() => {
+    cssReady = null;
+  });
+  return cssReady;
 }
 
 function portraitFromBytes(bytes: Uint8Array | undefined, name: string) {
@@ -50,12 +85,20 @@ function portraitFromBytes(bytes: Uint8Array | undefined, name: string) {
 }
 
 async function crestDataUri() {
-  try {
-    const bytes = await readFile(path.join(process.cwd(), "public/images/icon.png"));
-    return `data:image/png;base64,${bytes.toString("base64")}`;
-  } catch {
-    return "/images/icon.png";
-  }
+  if (cachedCrest) return cachedCrest;
+  if (crestReady) return crestReady;
+  crestReady = (async () => {
+    try {
+      const bytes = await readFile(path.join(process.cwd(), "public/images/icon.png"));
+      cachedCrest = `data:image/png;base64,${bytes.toString("base64")}`;
+    } catch {
+      cachedCrest = "/images/icon.png";
+    }
+    return cachedCrest;
+  })().finally(() => {
+    crestReady = null;
+  });
+  return crestReady;
 }
 
 /** Self-contained HTML for Playwright — same ReportSheet look, no office shell. */
@@ -101,7 +144,6 @@ export async function buildReportPrintHtml(input: {
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<base href="${input.origin.replace(/\/+$/, "")}/" />
 <style>${css}</style>
 </head>
 <body>${withCrest}</body>

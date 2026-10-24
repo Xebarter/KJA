@@ -4,7 +4,8 @@ import { AgingBar, ColumnChart, notReady } from "@/components/accounts/ui";
 import { PrintButton } from "@/components/office/client";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { amount, day, hrefWith, overdueText, percent, ugx, ugxShort } from "@/lib/accounts-format";
-import { loadAccountsReport, rateText, reportSelection, type AccountsReport, type ReportClass } from "@/lib/accounts-reports";
+import { WorkbookExport } from "@/components/accounts/WorkbookExport";
+import { defaultWorkbookDates, loadAccountsReport, rateText, reportSelection, type AccountsReport, type ReportClass } from "@/lib/accounts-reports";
 import { StudentFace } from "@/components/StudentFace";
 import { isClassCode, pick, studentStatusInfo } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
@@ -35,8 +36,10 @@ function Section({ id, title, description, children }: {
   return (
     <section id={id} className="acr-section" role="tabpanel" aria-labelledby={`acr-tab-${id}`} tabIndex={-1}>
       <header className="acr-section-head">
-        <h2 id={`${id}-title`}>{title}</h2>
-        {description ? <p>{description}</p> : null}
+        <div>
+          <h2 id={`${id}-title`}>{title}</h2>
+          {description ? <p>{description}</p> : null}
+        </div>
       </header>
       {children}
     </section>
@@ -79,8 +82,18 @@ function Meter({ value, max, label }: { value: number; max: number; label: strin
   );
 }
 
-function EmptyLine({ children }: { children: React.ReactNode }) {
-  return <p className="acr-empty">{children}</p>;
+function EmptyLine({ icon = "fa-folder-open", children, action }: {
+  icon?: string;
+  children: React.ReactNode;
+  action?: React.ReactNode;
+}) {
+  return (
+    <div className="acr-blank">
+      <i className={`fa-regular ${icon}`} aria-hidden="true" />
+      <p>{children}</p>
+      {action}
+    </div>
+  );
 }
 
 export default async function ReportsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
@@ -120,6 +133,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   const preparedBy = profile.full_name || profile.email || "Accounts office";
   const generated = new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Africa/Kampala" });
+  const workbookDefaults = defaultWorkbookDates(term, report.today);
+  const workbookTermParam = filters.term || (term ? "" : "all");
+  const workbookTermLabel = term?.label ?? "All terms";
   const classTotals = {
     onRoll: sum(report.classes, "onRoll"),
     notBilled: sum(report.classes, "notBilled"),
@@ -217,11 +233,24 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         kicker="Insights"
         icon="fa-chart-column"
         title="Reports"
-        description={<>Billing, collections, debtors and spending for <strong>{report.periodLabel}</strong>. The summary stays in view. Open a section for the detail, or print the full report.</>}
+        description={<>Billing, collections, debtors and spending for <strong>{report.periodLabel}</strong>. Download the Excel workbook for bank and cash reconciliation, or pick a section below.</>}
         actions={
           <>
+            <a
+              className="admin-hero-btn is-primary"
+              href={hrefWith(`${ACCOUNTS_BASE}/reports/export`, {
+                ...filters,
+                kind: "workbook",
+                from: workbookDefaults.from,
+                to: workbookDefaults.to,
+              })}
+            >
+              <i className="fa-solid fa-file-excel" aria-hidden="true" /> Download Excel
+            </a>
             <PrintButton label="Print" />
-            <a className="admin-hero-btn is-primary" href={exportHref("position")}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export summary</a>
+            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/debtors`}>
+              <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors
+            </Link>
           </>
         }
       />
@@ -269,6 +298,14 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </div>
       ) : null}
 
+      <WorkbookExport
+        termParam={workbookTermParam}
+        termLabel={workbookTermLabel}
+        defaultFrom={workbookDefaults.from}
+        defaultTo={workbookDefaults.to}
+        today={report.today}
+      />
+
           </>
         }
       >
@@ -304,7 +341,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 legend={["Fees received", "Spending"]}
               />
             ) : (
-              <EmptyLine>Nothing to compare in this period.</EmptyLine>
+              <EmptyLine icon="fa-chart-column">Nothing to compare in this period.</EmptyLine>
             )}
           </Card>
         </div>
@@ -370,7 +407,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </table>
             </div>
           ) : (
-            <EmptyLine>No pupils or invoices in this period.</EmptyLine>
+            <EmptyLine icon="fa-users">No pupils or invoices in this period.</EmptyLine>
           )}
         </Card>
       </Section>
@@ -381,26 +418,40 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           description={[report.columnNote, report.busiestDay ? `Busiest day ${day(report.busiestDay.date)}, ${ugx(report.busiestDay.total)} across ${n(report.busiestDay.count)} receipts.` : ""].filter(Boolean).join(" ")}
           csv={exportHref("days")}
         >
-          {report.columns.length ? <ColumnChart columns={report.columns} label="Collections over time" format={ugxShort} /> : <EmptyLine>No payments in this period.</EmptyLine>}
+          {report.columns.length ? (
+            <ColumnChart columns={report.columns} label="Collections over time" format={ugxShort} />
+          ) : (
+            <EmptyLine icon="fa-money-bill-wave" action={<Link className="acr-text-btn" href={`${ACCOUNTS_BASE}/payments`}>Open payments</Link>}>
+              No payments in this period.
+            </EmptyLine>
+          )}
         </Card>
 
         <div className="acr-grid">
           <Card title="By payment method" csv={exportHref("methods")}>
             {report.methods.length ? (
               <ul className="acr-rows">
-                {report.methods.map((method) => (
-                  <li key={method.value}>
-                    <Link href={paymentsHref({ method: method.value })}>
-                      <span className="acr-row-icon"><i className={`fa-solid ${method.icon}`} aria-hidden="true" /></span>
-                      <span className="acr-row-name"><strong>{method.label}</strong><small>{n(method.count)} receipts</small></span>
-                      <Meter value={method.total} max={report.collected || method.total} label={`${method.label} share`} />
-                      <strong>{ugxShort(method.total)}</strong>
-                      <span className="acr-share">{percent(method.total, report.collected)}%</span>
-                    </Link>
-                  </li>
-                ))}
+                {report.methods.map((method) => {
+                  const share = percent(method.total, report.collected);
+                  return (
+                    <li key={method.value}>
+                      <Link href={paymentsHref({ method: method.value })}>
+                        <span className="acr-row-icon"><i className={`fa-solid ${method.icon}`} aria-hidden="true" /></span>
+                        <span className="acr-row-name">
+                          <strong>{method.label}</strong>
+                          <small>{n(method.count)} receipts<span className="acr-share-inline"> · {share}%</span></small>
+                        </span>
+                        <Meter value={method.total} max={report.collected || method.total} label={`${method.label} share`} />
+                        <strong>{ugxShort(method.total)}</strong>
+                        <span className="acr-share">{share}%</span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : <EmptyLine>No payments yet.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-money-bill-wave">No payments yet.</EmptyLine>
+            )}
           </Card>
 
           <Card title="Who recorded them" csv={exportHref("cashiers")}>
@@ -413,19 +464,27 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             ) : null}
             {report.cashiers.length ? (
               <ul className="acr-rows">
-                {report.cashiers.map((row, index) => (
-                  <li key={`${row.name}-${index}`}>
-                    <div className="acr-row">
-                      <span className="acr-row-icon"><i className="fa-solid fa-user" aria-hidden="true" /></span>
-                      <span className="acr-row-name"><strong>{row.name}</strong><small>{n(row.count)} receipts</small></span>
-                      <Meter value={row.total} max={report.collected || row.total} label={`${row.name} share`} />
-                      <strong>{ugxShort(row.total)}</strong>
-                      <span className="acr-share">{percent(row.total, report.collected)}%</span>
-                    </div>
-                  </li>
-                ))}
+                {report.cashiers.map((row, index) => {
+                  const share = percent(row.total, report.collected);
+                  return (
+                    <li key={`${row.name}-${index}`}>
+                      <div className="acr-row">
+                        <span className="acr-row-icon"><i className="fa-solid fa-user" aria-hidden="true" /></span>
+                        <span className="acr-row-name">
+                          <strong>{row.name}</strong>
+                          <small>{n(row.count)} receipts<span className="acr-share-inline"> · {share}%</span></small>
+                        </span>
+                        <Meter value={row.total} max={report.collected || row.total} label={`${row.name} share`} />
+                        <strong>{ugxShort(row.total)}</strong>
+                        <span className="acr-share">{share}%</span>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : <EmptyLine>No payments yet.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-user">No payments yet.</EmptyLine>
+            )}
           </Card>
         </div>
 
@@ -516,7 +575,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 <p className="acr-note">{ugx(report.overdue)} is overdue. {n(report.pupilsClear)} billed pupils are clear{report.pupilsCredit ? `, and ${n(report.pupilsCredit)} are in credit` : ""}.</p>
               </>
             ) : (
-              <EmptyLine>No outstanding balances in this period.</EmptyLine>
+              <EmptyLine icon="fa-circle-check">No outstanding balances in this period.</EmptyLine>
             )}
           </Card>
 
@@ -535,14 +594,20 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 ))}
               </ul>
             ) : (
-              <EmptyLine>No active pupil owes anything in this period.</EmptyLine>
+              <EmptyLine icon="fa-circle-check">No active pupil owes anything in this period.</EmptyLine>
             )}
             {report.leaversOwing ? <p className="acr-note">{n(report.leaversOwing)} former {report.leaversOwing === 1 ? "pupil still owes" : "pupils still owe"} {ugx(report.leaversOwed)}.</p> : null}
           </Card>
         </div>
 
         {report.debtors.length ? (
-          <Card title="Everyone who owes" description="Active pupils and former pupils, largest balance first." csv={exportHref("debtors")} flush>
+          <Card
+            title="Everyone who owes"
+            description={`${n(report.debtors.length)} ${report.debtors.length === 1 ? "pupil" : "pupils"}, largest balance first.`}
+            csv={exportHref("debtors")}
+            link={{ href: `${ACCOUNTS_BASE}/debtors`, label: "Open register" }}
+            flush
+          >
             <div className="acr-scroll">
               <table className="acr-table">
                 <thead>
@@ -572,7 +637,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 </tbody>
               </table>
             </div>
-            {report.debtors.length > 12 ? <p className="acr-note">{n(report.debtors.length - 12)} more on the CSV and the debtors list.</p> : null}
+            {report.debtors.length > 12 ? (
+              <p className="acr-note">
+                Showing 12 of {n(report.debtors.length)}.{" "}
+                <Link href={`${ACCOUNTS_BASE}/debtors`}>See everyone on the debtors register</Link>
+                {" "}or download the CSV.
+              </p>
+            ) : null}
           </Card>
         ) : null}
       </Section>
@@ -582,19 +653,29 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <Card title="By category" csv={exportHref("categories")}>
             {periodCategories.length ? (
               <ul className="acr-rows">
-                {periodCategories.map((row) => (
-                  <li key={row.id || "none"}>
-                    <Link href={row.id ? `${ACCOUNTS_BASE}/expenses?category=${row.id}&month=all` : `${ACCOUNTS_BASE}/expenses?month=all`}>
-                      <span className="acr-row-icon"><i className={`fa-solid ${row.icon}`} aria-hidden="true" /></span>
-                      <span className="acr-row-name"><strong>{row.name}</strong><small>{n(row.count)} expenses</small></span>
-                      <Meter value={row.amount} max={categoryMax} label={`${row.name} spending`} />
-                      <strong>{ugxShort(row.amount)}</strong>
-                      <span className="acr-share">{percent(row.amount, report.spent)}%</span>
-                    </Link>
-                  </li>
-                ))}
+                {periodCategories.map((row) => {
+                  const share = percent(row.amount, report.spent);
+                  return (
+                    <li key={row.id || "none"}>
+                      <Link href={row.id ? `${ACCOUNTS_BASE}/expenses?category=${row.id}&month=all` : `${ACCOUNTS_BASE}/expenses?month=all`}>
+                        <span className="acr-row-icon"><i className={`fa-solid ${row.icon}`} aria-hidden="true" /></span>
+                        <span className="acr-row-name">
+                          <strong>{row.name}</strong>
+                          <small>{n(row.count)} expenses<span className="acr-share-inline"> · {share}%</span></small>
+                        </span>
+                        <Meter value={row.amount} max={categoryMax} label={`${row.name} spending`} />
+                        <strong>{ugxShort(row.amount)}</strong>
+                        <span className="acr-share">{share}%</span>
+                      </Link>
+                    </li>
+                  );
+                })}
               </ul>
-            ) : <EmptyLine>No approved or paid expenses in this period.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-wallet" action={<Link className="acr-text-btn" href={`${ACCOUNTS_BASE}/expenses`}>Open expenses</Link>}>
+                No approved or paid expenses in this period.
+              </EmptyLine>
+            )}
           </Card>
 
           <Card title={`Budgets in ${report.budgetMonthLabel}`} description="This calendar month, whichever term the report is set to." link={{ href: `${ACCOUNTS_BASE}/settings#categories`, label: "Edit" }}>
@@ -607,7 +688,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                     <li key={row.id} className={row.monthSpend > budget ? "is-over" : ""}>
                       <div className="acr-row">
                         <span className="acr-row-icon"><i className={`fa-solid ${row.icon}`} aria-hidden="true" /></span>
-                        <span className="acr-row-name"><strong>{row.name}</strong><small>{amount(row.monthSpend)} of {amount(budget)}</small></span>
+                        <span className="acr-row-name">
+                          <strong>{row.name}</strong>
+                          <small>
+                            {amount(row.monthSpend)} of {amount(budget)}
+                            {used !== null ? <span className="acr-share-inline"> · {used}%</span> : null}
+                          </small>
+                        </span>
                         <Meter value={row.monthSpend} max={budget} label={`${row.name} budget`} />
                         <strong>{ugxShort(row.monthSpend)}</strong>
                         <span className="acr-share">{used === null ? "–" : `${used}%`}</span>
@@ -616,7 +703,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   );
                 })}
               </ul>
-            ) : <EmptyLine>Set a monthly budget on an expense category in Fee setup.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-sliders" action={<Link className="acr-text-btn" href={`${ACCOUNTS_BASE}/settings#categories`}>Set budgets</Link>}>
+                Set a monthly budget on an expense category in Fee setup.
+              </EmptyLine>
+            )}
           </Card>
         </div>
 
@@ -636,7 +727,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   </li>
                 ))}
               </ul>
-            ) : <EmptyLine>No expenses in this period.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-wallet">No expenses in this period.</EmptyLine>
+            )}
           </Card>
 
           <Card title="Largest expenses" link={{ href: `${ACCOUNTS_BASE}/expenses`, label: "All expenses" }}>
@@ -653,24 +746,32 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                   </li>
                 ))}
               </ul>
-            ) : <EmptyLine>No approved or paid expenses in this period.</EmptyLine>}
+            ) : (
+              <EmptyLine icon="fa-receipt">No approved or paid expenses in this period.</EmptyLine>
+            )}
           </Card>
         </div>
 
         {report.expenseCampuses.length > 1 ? (
           <Card title="Spending by campus">
             <ul className="acr-rows">
-              {report.expenseCampuses.map((row) => (
-                <li key={row.campus}>
-                  <div className="acr-row">
-                    <span className="acr-row-icon"><i className="fa-solid fa-location-dot" aria-hidden="true" /></span>
-                    <span className="acr-row-name"><strong>{row.campus}</strong><small>{n(row.count)} expenses</small></span>
-                    <Meter value={row.amount} max={Math.max(...report.expenseCampuses.map((entry) => entry.amount), 1)} label={`${row.campus} spending`} />
-                    <strong>{ugxShort(row.amount)}</strong>
-                    <span className="acr-share">{percent(row.amount, report.spent)}%</span>
-                  </div>
-                </li>
-              ))}
+              {report.expenseCampuses.map((row) => {
+                const share = percent(row.amount, report.spent);
+                return (
+                  <li key={row.campus}>
+                    <div className="acr-row">
+                      <span className="acr-row-icon"><i className="fa-solid fa-location-dot" aria-hidden="true" /></span>
+                      <span className="acr-row-name">
+                        <strong>{row.campus}</strong>
+                        <small>{n(row.count)} expenses<span className="acr-share-inline"> · {share}%</span></small>
+                      </span>
+                      <Meter value={row.amount} max={Math.max(...report.expenseCampuses.map((entry) => entry.amount), 1)} label={`${row.campus} spending`} />
+                      <strong>{ugxShort(row.amount)}</strong>
+                      <span className="acr-share">{share}%</span>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </Card>
         ) : null}
@@ -715,7 +816,9 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 </tbody>
               </table>
             </div>
-          ) : <EmptyLine>No terms have bills, receipts or spending yet.</EmptyLine>}
+          ) : (
+            <EmptyLine icon="fa-calendar">No terms have bills, receipts or spending yet.</EmptyLine>
+          )}
           <p className="acr-note">
             A term needs both a start and an end date before spending can land in it.
             {report.outsideSpend ? ` ${ugx(report.outsideSpend)} of spending falls outside every term.` : ""}

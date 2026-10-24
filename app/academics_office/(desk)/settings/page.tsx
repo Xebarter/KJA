@@ -1,12 +1,8 @@
 import { PageHeader } from "@/components/admin/PageHeader";
 import { GradingDesk } from "@/components/academics/GradingDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import {
-  loadCurrentTerm,
-  mapBand,
-  mapDivisionBand,
-  openAcademics,
-} from "@/lib/academics";
+import { loadCurrentTerm, mapBand, mapDivisionBand } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { nextTermSlot } from "@/lib/report-closing";
 import { serviceClient } from "@/lib/supabase/service";
 

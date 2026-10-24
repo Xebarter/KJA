@@ -5,8 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { searchAcademics } from "@/app/academics_office/(desk)/actions";
 import { signOut } from "@/app/actions";
+import { DashboardSwitch } from "@/components/DashboardSwitch";
+import { DeskWarmup } from "@/components/DeskWarmup";
+import { DesktopSyncBar } from "@/components/DesktopSyncBar";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
+import { pageIdForPath } from "@/lib/dashboard-access";
+import { isDesktopClient } from "@/lib/desktop";
 import {
   ACADEMICS_BASE,
   academicsNav,
@@ -43,20 +48,34 @@ export function AcademicsShell({
   person: initialPerson,
   badges: initialBadges = EMPTY_ACADEMICS_BADGES,
   office: initialOffice = true,
+  pages = null,
+  canSwitch = false,
+  home = ACADEMICS_BASE,
 }: {
   children: React.ReactNode;
   person: AcademicsShellPerson;
   badges?: AcademicsBadgeCounts;
   office?: boolean;
+  pages?: string[] | null;
+  canSwitch?: boolean;
+  home?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const [badges, setBadges] = useState(initialBadges);
   const [person, setPerson] = useState(initialPerson);
   const [office, setOffice] = useState(initialOffice);
   const search = useRef<HTMLInputElement>(null);
-  const nav = academicsNav.filter((item) => office || !item.office);
+  useEffect(() => setDesktop(isDesktopClient()), []);
+  const linkPrefetch = desktop ? undefined : false;
+  const show = (href: string) => {
+    if (pages === null) return true;
+    const id = pageIdForPath("academics", href);
+    return Boolean(id && pages.includes(id));
+  };
+  const nav = academicsNav.filter((item) => (office || !item.office) && show(item.href));
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
@@ -115,8 +134,15 @@ export function AcademicsShell({
 
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
+      <DesktopSyncBar />
+      <DeskWarmup
+        hrefs={[
+          ...nav.map((item) => item.href),
+          ...(show(`${ACADEMICS_BASE}/attendance`) ? [`${ACADEMICS_BASE}/attendance`] : []),
+        ]}
+      />
       <header className="admin-topbar">
-        <Link href={ACADEMICS_BASE} className="admin-topbar-brand" prefetch={false}>
+        <Link href={home} className="admin-topbar-brand" prefetch={linkPrefetch}>
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -137,7 +163,7 @@ export function AcademicsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="academics-side" className="admin-side">
-        <Link href={ACADEMICS_BASE} className="admin-brand" prefetch={false}>
+        <Link href={home} className="admin-brand" prefetch={linkPrefetch}>
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -150,7 +176,7 @@ export function AcademicsShell({
           label="Find a pupil"
           placeholder="Name or student number"
           inputRef={search}
-          places={placesFor(office)}
+          places={placesFor(office).filter((place) => show(place.href))}
           recordsLabel="Pupils"
           browseLabel="See classes"
           browseHref={() => `${ACADEMICS_BASE}/classes`}
@@ -166,7 +192,7 @@ export function AcademicsShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined} prefetch={false}>
+                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined} prefetch={linkPrefetch}>
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -175,13 +201,16 @@ export function AcademicsShell({
             );
           })}
           <hr className="admin-nav-rule" />
-          <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""} prefetch={false}>
-            <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
-            <span>Take a register</span>
-          </Link>
+          {show(`${ACADEMICS_BASE}/attendance`) ? (
+            <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""} prefetch={linkPrefetch}>
+              <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
+              <span>Take a register</span>
+            </Link>
+          ) : null}
         </nav>
 
         <div className="admin-side-foot">
+          <DashboardSwitch show={canSwitch} />
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">
@@ -195,7 +224,7 @@ export function AcademicsShell({
               title="Sign out"
               onClick={async () => {
                 await signOut();
-                router.push("/");
+                router.push("/admin/login");
                 router.refresh();
               }}
             >

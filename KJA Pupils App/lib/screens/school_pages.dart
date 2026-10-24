@@ -1116,7 +1116,7 @@ class _ClassPageState extends State<ClassPage> {
           )
         else
           SizedBox(
-            height: 132,
+            height: 176,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: portal.teachers.length,
@@ -1493,56 +1493,110 @@ class _SubjectTeacherChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final cached = PupilPhotoCache.bytes(staffId);
-    final hasPhoto = (photoUrl ?? '').trim().isNotEmpty || (cached != null && cached.isNotEmpty);
     return Container(
-      width: 148,
-      padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+      width: 128,
       decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.22)),
+        borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          BoxShadow(color: color.withValues(alpha: 0.12), blurRadius: 12, offset: const Offset(0, 5)),
+          BoxShadow(color: color.withValues(alpha: 0.16), blurRadius: 14, offset: const Offset(0, 6)),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          if (hasPhoto)
-            InitialAvatar(
-              name: name,
-              color: color,
-              radius: 18,
-              photoUrl: photoUrl,
-              studentId: staffId,
-            )
-          else
-            Container(
-              width: 36,
-              height: 36,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(22),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            _TeacherPhotoFill(color: color, icon: icon, staffId: staffId, photoUrl: photoUrl),
+            const DecoratedBox(
               decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [Color(0x00000000), Color(0x14000000), Color(0xE0121A24)],
+                  stops: [0.28, 0.52, 1],
+                ),
               ),
-              child: Icon(icon, color: color, size: 18),
             ),
-          const Spacer(),
-          Text(
-            subject,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(color: color, fontWeight: FontWeight.w800, fontSize: 12),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            firstNameOf(name),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5, color: KjaColors.ink),
-          ),
-        ],
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 12, 12, 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Text(
+                    subject,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 12, height: 1.1),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    firstNameOf(name),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 15, height: 1.1),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+class _TeacherPhotoFill extends StatelessWidget {
+  const _TeacherPhotoFill({
+    required this.color,
+    required this.icon,
+    this.staffId,
+    this.photoUrl,
+  });
+
+  final Color color;
+  final IconData icon;
+  final String? staffId;
+  final String? photoUrl;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: PupilPhotoCache.instance,
+      builder: (context, _) {
+        final url = photoUrl?.trim() ?? '';
+        final cached = PupilPhotoCache.bytes(staffId);
+        ImageProvider? provider;
+        if (cached != null && cached.isNotEmpty) {
+          provider = MemoryImage(cached);
+        } else if (url.startsWith('memory:')) {
+          final bytes = PupilPhotoCache.bytes(url.substring('memory:'.length));
+          if (bytes != null && bytes.isNotEmpty) provider = MemoryImage(bytes);
+        } else if (url.startsWith('http')) {
+          provider = NetworkImage(url);
+        }
+        if (provider == null) return _fallback();
+        return Image(
+          image: provider,
+          fit: BoxFit.cover,
+          width: double.infinity,
+          height: double.infinity,
+          gaplessPlayback: true,
+          filterQuality: FilterQuality.medium,
+          frameBuilder: (context, child, frame, wasSynchronouslyLoaded) {
+            if (wasSynchronouslyLoaded || frame != null) return child;
+            return _fallback();
+          },
+          errorBuilder: (_, _, _) => _fallback(),
+        );
+      },
+    );
+  }
+
+  Widget _fallback() {
+    return ColoredBox(
+      color: color,
+      child: Center(child: Icon(icon, color: Colors.white.withValues(alpha: 0.92), size: 40)),
     );
   }
 }

@@ -40,12 +40,14 @@ export function ChatReviewDesk({
   flaggedOnly,
   rows,
   hideAction,
+  basePath = "/academics_office/chat-review",
 }: {
   classes: ClassOption[];
   selected: string;
   flaggedOnly: boolean;
   rows: Row[];
   hideAction: (id: string) => Promise<{ error?: string; ok?: string }>;
+  basePath?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -77,7 +79,7 @@ export function ChatReviewDesk({
   function goClass(value: string) {
     const params = new URLSearchParams();
     if (value) params.set("class", value);
-    router.push(`/academics_office/chat-review?${params.toString()}`);
+    router.push(`${basePath}?${params.toString()}`);
   }
 
   function hideMessage(id: string) {

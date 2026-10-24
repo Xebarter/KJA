@@ -1,6 +1,6 @@
 import { Overview } from "@/components/academics/Overview";
 import { AcademicsGate } from "@/components/academics/ui";
-import { openAcademics } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 
 export const metadata = { title: "Overview" };
 

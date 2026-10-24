@@ -5,19 +5,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassRoster } from "@/components/academics/ClassRoster";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  classLabel,
-  classSection,
-  kampalaToday,
-  mapStaff,
-  mapSubject,
-  loadCurrentTerm,
-  openAcademics,
-  streamFromQuery,
-  streamQuery,
-  subjectFits,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, classSection, kampalaToday, mapStaff, mapSubject, loadCurrentTerm, streamFromQuery, streamQuery, subjectFits } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { isClassCode } from "@/lib/students";
 

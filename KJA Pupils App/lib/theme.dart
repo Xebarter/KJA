@@ -42,8 +42,10 @@ class Tone {
 }
 
 ThemeData buildKjaTheme() {
+  const family = 'Nunito';
   final base = ThemeData(
     useMaterial3: true,
+    fontFamily: family,
     colorScheme: ColorScheme.fromSeed(
       seedColor: KjaColors.sky,
       primary: KjaColors.navy,
@@ -52,11 +54,14 @@ ThemeData buildKjaTheme() {
     ),
     scaffoldBackgroundColor: KjaColors.paper,
   );
+  final text = base.textTheme.apply(
+    fontFamily: family,
+    bodyColor: KjaColors.ink,
+    displayColor: KjaColors.ink,
+  );
   return base.copyWith(
-    textTheme: base.textTheme.apply(
-      bodyColor: KjaColors.ink,
-      displayColor: KjaColors.ink,
-    ),
+    textTheme: text,
+    primaryTextTheme: text,
     appBarTheme: const AppBarTheme(
       backgroundColor: Colors.white,
       foregroundColor: KjaColors.ink,
@@ -67,6 +72,7 @@ ThemeData buildKjaTheme() {
       titleSpacing: 8,
       toolbarHeight: 64,
       titleTextStyle: TextStyle(
+        fontFamily: family,
         color: KjaColors.ink,
         fontSize: 16,
         fontWeight: FontWeight.w800,

@@ -1,9 +1,18 @@
-import { assignTeacherPosts, releaseTeacherPost, saveStaff } from "@/app/academics_office/(desk)/actions";
+import {
+  assignTeacherPosts,
+  deleteStaff,
+  issueTeacherLogin,
+  releaseTeacherPost,
+  resetTeacherLogin,
+  revokeTeacherLogin,
+  saveStaff,
+} from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StaffDesk } from "@/components/academics/StaffDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { openAcademics } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadStaffDesk } from "@/lib/academics-staff";
+import { syncAssignedTeacherDeskLogins } from "@/lib/teacher-desk-sync";
 
 export const metadata = { title: "Staff" };
 
@@ -19,6 +28,17 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
     const message = error instanceof Error ? error.message : "Could not load the staff list.";
     return <AcademicsGate title="Staff" state={{ notice: "schema", message }} />;
   }
+
+  // Assigned teachers without a desk login get Auth + profiles.role=staff so they can open /teacher and appear on /admin/team.
+  const repair = await syncAssignedTeacherDeskLogins();
+  if (repair.linked) {
+    try {
+      data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id);
+    } catch {
+      // Keep the first load if refresh fails; issued passwords still surface below.
+    }
+  }
+
   const requested = query.member || "";
   const initialId = requested === "new" || data.members.some((member) => member.id === requested) ? requested : "";
 
@@ -33,7 +53,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         kicker="Teaching"
         icon="fa-chalkboard-user"
         title="Staff"
-        description={data.term ? <>{data.term.label} · <strong>{nf(active.length)}</strong> teachers on the roll.</> : "Teachers who can be assigned to a class or a subject. Set a current term to see their load."}
+        description={data.term ? <>{data.term.label} · find a teacher, assign classes, or fill open posts.</> : "Add teachers, then set a current term to assign classes and subjects."}
       />
       <section className="stf-strip" aria-label="This term">
         <div>
@@ -63,9 +83,15 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
         termId={data.term?.id ?? null}
         termLabel={data.term?.label ?? null}
         initialId={initialId}
+        initialIssued={repair.issued}
+        loginNotes={repair.errors}
         save={saveStaff}
         assign={assignTeacherPosts}
         release={releaseTeacherPost}
+        issue={issueTeacherLogin}
+        reset={resetTeacherLogin}
+        revoke={revokeTeacherLogin}
+        remove={deleteStaff}
       />
     </div>
   );

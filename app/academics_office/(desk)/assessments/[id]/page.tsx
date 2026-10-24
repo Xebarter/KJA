@@ -3,18 +3,8 @@ import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { MarkbookDesk } from "@/components/academics/MarkbookDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  bandMidpoint,
-  classLabel,
-  classSection,
-  kindLabel,
-  mapBand,
-  num,
-  openAcademics,
-  streamOf,
-  streamQuery,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, mapBand, num, streamOf, streamQuery } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { marksheetHref } from "@/lib/marksheet";
 import { isUuid } from "@/lib/students";

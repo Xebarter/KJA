@@ -35,7 +35,7 @@ function withoutExtended(payload: Record<string, unknown>) {
 }
 
 export async function saveVacancy(formData: FormData): Promise<VacancyActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { supabase } = auth;
 
@@ -101,7 +101,7 @@ export async function saveVacancy(formData: FormData): Promise<VacancyActionResu
 
 export async function setVacancyPublished(id: string, value: boolean): Promise<VacancyActionResult> {
   if (!isId(id)) return { error: "Unknown vacancy." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("vacancies").update({ published: value }).eq("id", id);
   if (error) return { error: friendly(error) };
@@ -113,7 +113,7 @@ export async function setVacancyPublished(id: string, value: boolean): Promise<V
 export async function setVacancyDeadline(id: string, closesOn: string | null): Promise<VacancyActionResult> {
   if (!isId(id)) return { error: "Unknown vacancy." };
   if (closesOn !== null && !isDate(closesOn)) return { error: "The closing date isn't valid." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("vacancies").update({ closes_on: closesOn }).eq("id", id);
   if (error) return { error: friendly(error) };
@@ -123,7 +123,7 @@ export async function setVacancyDeadline(id: string, closesOn: string | null): P
 
 export async function duplicateVacancy(id: string): Promise<VacancyActionResult> {
   if (!isId(id)) return { error: "Unknown vacancy." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { supabase } = auth;
   const { data, error } = await supabase.from("vacancies").select("*").eq("id", id).maybeSingle();
@@ -139,7 +139,7 @@ export async function duplicateVacancy(id: string): Promise<VacancyActionResult>
 
 export async function deleteVacancy(id: string): Promise<VacancyActionResult> {
   if (!isId(id)) return { error: "Unknown vacancy." };
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("content-careers");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("vacancies").delete().eq("id", id);
   if (error) return { error: friendly(error) };

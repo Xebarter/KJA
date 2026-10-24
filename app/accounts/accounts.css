@@ -317,22 +317,180 @@
 .acc-text-btn:hover { color: var(--admin-red); }
 
 .acc-picker { position: relative; }
-.acc-picker-box { width: 100%; }
-.acc-picker-list {
-  position: absolute; z-index: 20; top: calc(100% + .35rem); left: 0; right: 0; max-height: 320px; overflow: auto;
-  margin: 0; padding: .35rem; list-style: none; border: 1px solid var(--admin-line); border-radius: 14px; background: #fff;
-  box-shadow: 0 16px 40px rgba(25, 35, 43, .12);
+.acc-picker-box {
+  position: relative;
+  width: 100%;
+  min-height: 48px;
+  border-radius: 14px;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
-.acc-picker-list li { display: flex; align-items: center; gap: .65rem; padding: .55rem .6rem; border-radius: 10px; cursor: pointer; }
-.acc-picker-list li.is-active, .acc-picker-list li:hover { background: var(--acc-soft); }
-.acc-picker-list small, .acc-picked small { display: block; color: var(--admin-muted); }
-.acc-picker-list em { margin-left: auto; font-style: normal; font-size: .82rem; white-space: nowrap; }
-.acc-picker-list em.is-owing, .acc-picked-balance.is-owing { color: var(--acc-danger); font-weight: 700; }
-.acc-picker-empty { color: var(--admin-muted); cursor: default; }
-.acc-picked { display: flex; align-items: center; gap: .75rem; padding: .7rem .8rem; border: 1px solid var(--admin-line); border-radius: 14px; background: var(--acc-soft); }
-.acc-picked-avatar { display: grid; place-items: center; flex: none; width: 36px; height: 36px; border-radius: 12px; background: var(--admin-navy); color: #fff; font-size: .78rem; font-weight: 800; overflow: hidden; }
+.acc-picker.is-open .acc-picker-box,
+.acc-picker-box:focus-within {
+  border-color: rgba(25, 35, 43, .28);
+  box-shadow: 0 0 0 3px rgba(253, 163, 27, .18);
+  background: #fff;
+}
+.acc-picker-clear {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.6rem;
+  height: 1.6rem;
+  margin: 0 .2rem 0 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #efe8da;
+  color: var(--admin-muted);
+  cursor: pointer;
+}
+.acc-picker-clear:hover { background: #e4dccb; color: var(--admin-navy); }
+.acc-picker-list {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + .4rem);
+  left: 0;
+  right: 0;
+  max-height: min(22rem, 58vh);
+  overflow: auto;
+  margin: 0;
+  padding: .4rem;
+  list-style: none;
+  border: 1px solid #ebe5d9;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, .98);
+  box-shadow: 0 18px 40px -18px rgba(25, 35, 43, .45), 0 1px 2px rgba(25, 35, 43, .05);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  animation: acc-picker-in .16s cubic-bezier(.2, .7, .2, 1);
+  scrollbar-width: thin;
+}
+.acc-picker-list.is-stale { opacity: .62; transition: opacity .14s ease; }
+.acc-picker-list li {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  min-width: 0;
+  padding: .62rem .7rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background-color .14s ease, transform .14s ease;
+}
+.acc-picker-list li.is-active,
+.acc-picker-list li:hover {
+  background: #fcf5e8;
+}
+.acc-picker-list li.is-active {
+  box-shadow: inset 2px 0 0 var(--admin-gold);
+}
+.acc-picker-copy { display: grid; gap: .12rem; min-width: 0; flex: 1; }
+.acc-picker-copy strong {
+  overflow: hidden;
+  color: var(--admin-navy);
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-picker-list small,
+.acc-picked small {
+  overflow: hidden;
+  color: var(--admin-muted);
+  font-size: .78rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.acc-picker-kids { opacity: .92; }
+.acc-picker-num {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  letter-spacing: .01em;
+}
+.acc-picker-list mark {
+  padding: 0 .08em;
+  border-radius: 3px;
+  background: #ffe4a8;
+  color: inherit;
+  font: inherit;
+}
+.acc-picker-list em {
+  margin-left: auto;
+  color: var(--admin-muted);
+  font-style: normal;
+  font-size: .82rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.acc-picker-list em.is-owing,
+.acc-picked-balance.is-owing { color: var(--acc-danger); }
+.acc-picker-list em.is-credit,
+.acc-picked-balance.is-credit { color: var(--acc-ok, #127238); }
+.acc-picker-empty {
+  display: grid;
+  justify-items: center;
+  gap: .4rem;
+  padding: 1.1rem .85rem !important;
+  color: var(--admin-muted);
+  font-size: .88rem;
+  text-align: center;
+  cursor: default !important;
+  box-shadow: none !important;
+  background: transparent !important;
+}
+.acc-picker-empty i { color: var(--admin-gold); font-size: 1.05rem; }
+.acc-picker-empty.is-loading {
+  display: grid;
+  gap: .45rem;
+  padding: .7rem .55rem !important;
+}
+.acc-picker-empty.is-loading > span {
+  display: block;
+  height: 2.6rem;
+  border-radius: 12px;
+  background: linear-gradient(90deg, #f3eee5 20%, #faf7f1 45%, #f3eee5 70%);
+  background-size: 200% 100%;
+  animation: acc-picker-shimmer 1s ease-in-out infinite;
+}
+.acc-picked {
+  display: flex;
+  align-items: center;
+  gap: .75rem;
+  padding: .8rem .9rem;
+  border: 1px solid #ebe5d9;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffefb, #faf7f1);
+  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+  animation: acc-picker-in .18s cubic-bezier(.2, .7, .2, 1);
+}
+.acc-picked-avatar {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--admin-navy);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 800;
+  overflow: hidden;
+}
 .acc-picked-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: inherit; }
-.acc-picked-balance { margin-left: auto; font-size: .85rem; }
+.acc-picked-balance { margin-left: auto; font-size: .85rem; font-weight: 750; font-variant-numeric: tabular-nums; white-space: nowrap; }
+@keyframes acc-picker-in {
+  from { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes acc-picker-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .acc-picker-list,
+  .acc-picked,
+  .acc-picker-empty.is-loading > span { animation: none; }
+  .acc-picker-list li { transition: none; }
+}
 .acc-quick-amounts { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .45rem; }
 .acc-quick-amounts button { padding: .3rem .6rem; border: 1px solid var(--admin-line); border-radius: 999px; background: #fff; font: inherit; font-size: .8rem; cursor: pointer; }
 .acc-quick-amounts button.is-on { background: var(--admin-navy); color: #fff; border-color: var(--admin-navy); }

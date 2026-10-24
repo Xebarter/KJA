@@ -3,7 +3,6 @@ export default function ReportsLoading() {
     <div className="app-page ofc-page acc-page acr-page acc-skel acr-loading" aria-busy="true" aria-live="polite">
       <span className="visually-hidden">Loading the report</span>
       <i className="acr-skel-hero" />
-      <i className="acr-skel-bar" />
       <div className="acr-skel-stats">
         <i />
         <i />
@@ -11,7 +10,7 @@ export default function ReportsLoading() {
         <i />
         <i />
       </div>
-      <i className="acr-skel-tabs" />
+      <i className="acr-skel-chrome" />
       <div className="acr-skel-grid">
         <i />
         <i />

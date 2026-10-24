@@ -33,11 +33,14 @@
     "**/*.tsx",
     ".next-agent/types/**/*.ts",
     ".next-hdrtest/types/**/*.ts",
+    ".next-perf/types/**/*.ts",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    ".next-perf/types/**/*.ts"
+    ".next-desktop/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "Desktop App",
+    "Desktop App1"
   ]
 }

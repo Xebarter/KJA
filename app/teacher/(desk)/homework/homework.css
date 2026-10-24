@@ -1,0 +1,240 @@
+/* Teacher homework desk — cleaner, tighter on the teacher chrome */
+
+.tch-hw-page {
+  gap: 1.15rem;
+}
+
+.tch-hw-lede {
+  margin: 0.35rem 0 0;
+  max-width: 34rem;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.tch-hw-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.tch-hw-page .ahw {
+  gap: 0.95rem;
+}
+
+.tch-hw-page .ahw-strip {
+  border-radius: 16px;
+  box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
+}
+
+.tch-hw-page .ahw-stat {
+  padding: 0.95rem 1.05rem 0.9rem;
+}
+
+.tch-hw-page .ahw-stat-copy strong {
+  font-size: 1.4rem;
+}
+
+.tch-hw-page .ahw-card {
+  border-radius: 16px;
+  box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
+}
+
+.tch-hw-page .ahw-card-head {
+  padding: 0.85rem 1rem;
+  background:
+    linear-gradient(#fda31b, #fda31b) top / 100% 3px no-repeat,
+    linear-gradient(180deg, #fffdf8 0%, #fff 100%);
+}
+
+.tch-hw-page .ahw-set {
+  background: #19232b;
+}
+
+.tch-hw-page .ahw-set:hover {
+  background: #2b3844;
+}
+
+.tch-hw-page .ahw-set.is-on {
+  background: #fff1d6;
+  color: #9a5b00;
+}
+
+.tch-hw-page .ahw-set.is-on:hover {
+  background: #ffe7b8;
+}
+
+.tch-hw-page .ahw-modes button.is-on {
+  background: #19232b;
+}
+
+.tch-hw-page .ahw-filters button.is-on {
+  background: #19232b;
+  border-color: #19232b;
+}
+
+.tch-hw-page .ahw-composer {
+  background:
+    radial-gradient(1000px 220px at 8% 0%, rgba(253, 163, 27, 0.1), transparent 55%),
+    #fcfbf8;
+}
+
+.tch-hw-page .ahw-kicker {
+  color: #9a5b00;
+}
+
+.tch-hw-page .ahw-actions {
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  margin-top: 0.85rem;
+  padding: 0.95rem 1.15rem 1.1rem;
+  border-top: 1px solid #efeae2;
+  background: rgba(255, 253, 248, 0.94);
+  backdrop-filter: blur(8px);
+}
+
+.tch-hw-page .ahw-save {
+  background: #19232b;
+}
+
+.tch-hw-page .ahw-save:hover:not(:disabled) {
+  background: #2b3844;
+}
+
+.tch-hw-page .ahw-publish button.is-on {
+  background: #19232b;
+  border-color: #19232b;
+  color: #fff;
+}
+
+.tch-hw-page .ahw-item {
+  transition: background-color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.tch-hw-page .ahw-item:hover {
+  background: #fffcf7;
+}
+
+.tch-hw-page .ahw-item.is-open {
+  background: #fffdf8;
+  box-shadow: inset 3px 0 0 #fda31b;
+}
+
+.tch-hw-page .ahw-res-card.is-open {
+  border-color: #e2c48a;
+  box-shadow: 0 14px 32px -20px rgba(25, 35, 43, 0.32), inset 0 0 0 1px rgba(253, 163, 27, 0.18);
+}
+
+.tch-hw-page .ahw-res-status.is-live {
+  background: rgba(18, 114, 56, 0.9);
+}
+
+.tch-hw-page .ahw-publish-row {
+  background: #19232b;
+  color: #fff;
+}
+
+.tch-hw-page .ahw-publish-row:hover:not(:disabled) {
+  background: #2b3844;
+}
+
+.tch-hw-page .ahw-empty {
+  padding: 2.4rem 1.4rem;
+}
+
+.tch-hw-page .ahw-empty button {
+  background: #19232b;
+}
+
+.tch-hw-page .ahw-empty button:hover {
+  background: #2b3844;
+}
+
+/* Shared due-date chips (also used on office desk) */
+.ahw-due-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+}
+
+.ahw-due-presets button {
+  height: 28px;
+  padding: 0 0.7rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 999px;
+  background: #fff;
+  color: #6d6458;
+  font: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
+}
+
+.ahw-due-presets button:hover {
+  border-color: #19232b;
+  color: #19232b;
+  background: #f7f4ee;
+}
+
+.ahw-due-presets button.is-on {
+  border-color: #19232b;
+  background: #19232b;
+  color: #fff;
+}
+
+.ahw.is-teacher .ahw-class-picks {
+  max-height: none;
+}
+
+.ahw.is-teacher .ahw-kinds {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@media (min-width: 720px) {
+  .ahw.is-teacher .ahw-kinds {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 860px) {
+  .tch-hw-page .ahw-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .tch-hw-page .ahw-stat:nth-child(3),
+  .tch-hw-page .ahw-stat:nth-child(4) {
+    border-top: 1px solid #efeae2;
+  }
+
+  .tch-hw-page .ahw-stat:nth-child(3) {
+    border-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .tch-hw-lede {
+    font-size: 0.9rem;
+  }
+
+  .tch-hw-page .ahw-card-head {
+    gap: 0.65rem;
+  }
+
+  .tch-hw-page .ahw-set {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .tch-hw-page .ahw-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tch-hw-page .ahw-actions .ahw-save {
+    width: 100%;
+  }
+}

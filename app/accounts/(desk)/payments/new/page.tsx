@@ -6,6 +6,7 @@ import type { PupilHit } from "../actions";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "../payments.css";
 
 export const metadata = { title: "Record a payment" };
 
@@ -19,6 +20,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
   if (error) return notReady("Record a payment", { kind: "schema", message: error });
 
   const studentId = pick(params, "student");
+  const familyId = pick(params, "family");
   const termParam = pick(params, "term");
   let pupil: PupilHit | null = null;
   if (isUuid(studentId)) {
@@ -30,9 +32,10 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
     if (data) pupil = { ...(data as PupilHit), balance: Number(data.balance) };
   }
   const termId = terms.find((term) => term.id === termParam)?.id ?? current?.id ?? "";
+  const familyMode = isUuid(familyId);
 
   return (
-    <div className="app-page ofc-page acc-page">
+    <div className="app-page ofc-page acc-page pay-page pay-form-page">
       <p className="acc-crumbs">
         <Link href={`${ACCOUNTS_BASE}/payments`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Payments</Link>
       </p>
@@ -40,11 +43,17 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
         kicker="Payments"
         icon="fa-hand-holding-dollar"
         title="Record a payment"
-        description="Find the pupil, enter what was received and how. A numbered receipt is ready to print as soon as you save."
+        description="Record for one pupil, or for a whole family — the amount is shared across the children and printed as a single receipt."
       />
       {terms.length ? (
-        <section className="admin-card ofc-narrow acc-form-card">
-          <PaymentForm terms={terms.map((term) => ({ id: term.id, label: term.label }))} termId={termId} pupil={pupil} />
+        <section className="admin-card ofc-narrow acc-form-card is-family-pay">
+          <PaymentForm
+            terms={terms.map((term) => ({ id: term.id, label: term.label }))}
+            termId={termId}
+            pupil={pupil}
+            familyId={familyMode ? familyId : ""}
+            mode={familyMode ? "family" : "pupil"}
+          />
         </section>
       ) : (
         <div className="acc-banner is-warn">

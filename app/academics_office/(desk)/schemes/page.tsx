@@ -3,18 +3,8 @@ import { SchemesDesk, type SchemeCard } from "@/components/academics/SchemesDesk
 import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import {
-  ACADEMICS_BASE,
-  classLabel,
-  groupPupils,
-  kampalaToday,
-  mapStaff,
-  mapSubject,
-  loadCurrentTerm,
-  openAcademics,
-  streamOf,
-  subjectFits,
-} from "@/lib/academics";
+import { ACADEMICS_BASE, classLabel, groupPupils, kampalaToday, mapStaff, mapSubject, loadCurrentTerm, streamOf, subjectFits } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { SCHOOL_CLASSES } from "@/lib/students";
 

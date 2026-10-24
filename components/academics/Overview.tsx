@@ -17,7 +17,7 @@ import {
 } from "@/lib/academics";
 import { loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
 import { loadDayMarks, loadRoll } from "@/lib/academics-roll";
-import type { requireAcademics } from "@/lib/academics";
+import type { requireAcademics } from "@/lib/academics-access";
 import { className } from "@/lib/students";
 
 type Session = Exclude<Awaited<ReturnType<typeof requireAcademics>>, { error: string }>;

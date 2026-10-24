@@ -1,85 +1,104 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { forgetPrefix } from "@/lib/remember";
 import { sendTestAlert } from "@/lib/admin-alerts";
-import { requireAdmin } from "@/lib/admin-applications";
-import { ROLE_LABELS } from "@/lib/office-nav";
-
-type ActionResult = { error?: string; ok?: string };
-
-const TEAM_ROLES = ["admin", "admissions", "accounts", "academics"] as const;
+import { requireFullAdmin } from "@/lib/admin-applications";
+import { forgetPrefix } from "@/lib/remember";
+import { serviceClient } from "@/lib/supabase/service";
+import { removeTeamLogin, resetTeamPassword, saveTeamLogin, type TeamLoginResult } from "@/lib/team-login";
+import { ensureTeacherPortalAccess, resetTeacherPortalPassword } from "@/lib/teacher-portal-login";
 
 function refresh() {
   forgetPrefix("admin-badges");
   forgetPrefix("office-badges");
   revalidatePath("/admin", "layout");
+  revalidatePath("/admin/team");
   revalidatePath("/admissions_office", "layout");
   revalidatePath("/accounts", "layout");
   revalidatePath("/academics_office", "layout");
+  revalidatePath("/teacher");
+  revalidatePath("/choose-dashboard");
 }
 
-export async function addAdmin(formData: FormData): Promise<ActionResult> {
-  const auth = await requireAdmin();
+export async function saveTeamMember(formData: FormData): Promise<TeamLoginResult> {
+  const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
-  const email = String(formData.get("email") || "").trim().toLowerCase();
-  const role = String(formData.get("role") || "admin");
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: "Enter a valid email address." };
-  if (!TEAM_ROLES.includes(role as (typeof TEAM_ROLES)[number])) return { error: "Choose a role." };
-
-  const { data: profile, error } = await auth.supabase
-    .from("profiles").select("id, role, full_name").eq("email", email).maybeSingle();
-  if (error) return { error: error.message };
-  if (!profile) {
-    return { error: `No account uses ${email} yet. Ask them to create one with "Parent portal" on the website, then add them here.` };
-  }
-  const name = profile.full_name || email;
-  if (profile.role === role) return { ok: `${name} is already an ${ROLE_LABELS[role].toLowerCase()}.` };
-  if (profile.role === "admin") {
-    const { count } = await auth.supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "admin");
-    if ((count ?? 0) <= 1) return { error: "Keep at least one admin." };
-  }
-  const { error: saveError } = await auth.supabase.from("profiles").update({ role }).eq("id", profile.id);
-  if (saveError) return { error: saveError.message };
-  refresh();
-  return {
-    ok: role === "admin"
-      ? `${name} can now sign in to the admin dashboard.`
-      : role === "accounts"
-        ? `${name} can now sign in to the accounts office at /accounts.`
-        : role === "academics"
-          ? `${name} can now sign in to the academics office at /academics_office.`
-          : `${name} can now sign in to the admissions office at /admissions_office.`,
-  };
+  const result = await saveTeamLogin(formData);
+  if (!result.error) refresh();
+  return result;
 }
 
-export async function removeAdmin(id: string): Promise<ActionResult> {
-  const auth = await requireAdmin();
+export async function issueTeamPassword(id: string): Promise<TeamLoginResult> {
+  const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
-  const { data: target } = await auth.supabase.from("profiles").select("role").eq("id", id).maybeSingle();
-  if (!target) return { error: "This person could not be found." };
-  if (target.role === "admin") {
-    const { count } = await auth.supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "admin");
-    if ((count ?? 0) <= 1) return { error: "Keep at least one admin." };
-  }
-  const { error } = await auth.supabase.from("profiles").update({ role: "parent" }).eq("id", id);
-  if (error) return { error: error.message };
-  refresh();
-  if (id === auth.user.id) return { ok: "You are no longer an admin." };
-  return {
-    ok: target.role === "admin"
-      ? "Admin access removed."
-      : target.role === "accounts"
-        ? "Accounts office access removed."
-        : target.role === "academics"
-          ? "Academics office access removed."
-          : "Admissions office access removed.",
-  };
+  const result = await resetTeamPassword(id);
+  if (!result.error) refresh();
+  return result;
 }
 
-export async function sendTestEmail(): Promise<ActionResult> {
-  const auth = await requireAdmin();
+export async function removeTeamMember(id: string): Promise<TeamLoginResult> {
+  const auth = await requireFullAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const result = await removeTeamLogin(id);
+  if (!result.error) refresh();
+  return result;
+}
+
+export async function sendTestEmail(): Promise<TeamLoginResult> {
+  const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
   const email = auth.profile.email || auth.user.email || "";
   return sendTestAlert({ id: auth.user.id, email, name: auth.profile.full_name });
+}
+
+/** Create or reset a teacher desk password for someone on Academics → Staff. */
+export async function issueTeacherDeskPassword(staffId: string): Promise<TeamLoginResult> {
+  const auth = await requireFullAdmin();
+  if ("error" in auth) return { error: auth.error };
+  const service = serviceClient();
+  if (!service) return { error: "Service role is not configured. Add SUPABASE_SERVICE_ROLE_KEY." };
+  if (!staffId) return { error: "Choose a teacher." };
+
+  const { data: staff, error } = await service
+    .from("teaching_staff")
+    .select("id, full_name, email, profile_id, active")
+    .eq("id", staffId)
+    .maybeSingle();
+  if (error || !staff) return { error: error?.message || "Teacher not found." };
+  if (!staff.active) return { error: "Show this teacher on the Academics staff roll first." };
+
+  const name = String(staff.full_name || "Teacher");
+  if (!staff.profile_id) {
+    const created = await ensureTeacherPortalAccess({
+      staffId,
+      email: staff.email as string | null,
+      displayName: name,
+      profileId: null,
+      active: true,
+    });
+    if (created.error) return { error: created.error };
+    refresh();
+    return {
+      ok: created.ok,
+      email: created.email,
+      password: created.password,
+      temporary: created.temporary,
+      name,
+    };
+  }
+
+  const reset = await resetTeacherPortalPassword({
+    profileId: String(staff.profile_id),
+    email: staff.email as string | null,
+    displayName: name,
+  });
+  if (reset.error) return { error: reset.error };
+  refresh();
+  return {
+    ok: reset.ok,
+    email: reset.email,
+    password: reset.password,
+    temporary: reset.temporary,
+    name,
+  };
 }

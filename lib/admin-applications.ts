@@ -1,17 +1,51 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { cache } from "react";
 import { ATTENTION_DAYS, OPEN_STATUSES, personName, type ApplicationFilters, type TeamMember } from "@/lib/applications";
+import { isFullAdmin, loadGrants } from "@/lib/dashboard-access";
+import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { requireOffice } from "@/lib/office";
 import { createClient } from "@/lib/supabase/server";
 
-export const requireAdmin = cache(async function requireAdmin() {
+async function adminSession() {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return { error: "Your session has expired. Sign in again." } as const;
   const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (profile?.role !== "admin") return { error: "This account is not an admin." } as const;
-  return { supabase, user, profile } as const;
-});
+  if (!profile) return { error: "This account is not an admin." } as const;
+  const grants = await loadGrants(supabase, user.id, profile.role);
+  return { supabase, user, profile, grants } as const;
+}
+
+export async function requireAdmin(...pages: string[]) {
+  const session = await adminSession();
+  if ("error" in session) return session;
+  // Existing administrators keep every admin page.
+  if (session.profile.role === "admin") return session;
+  if (!(await dashboardAllowed(session.grants, "admin", pages))) {
+    return { error: pages.length ? "This account doesn't have access to that page." : "This account is not an admin." } as const;
+  }
+  return session;
+}
+
+/** Team management: every dashboard and every page, not a single admin screen. */
+export async function requireFullAdmin() {
+  const session = await adminSession();
+  if ("error" in session) return session;
+  if (session.profile.role !== "admin" && !isFullAdmin(session.grants)) {
+    return { error: "Only a full administrator can do that." } as const;
+  }
+  if (!isFullAdmin(session.grants)) return { error: "Only a full administrator can do that." } as const;
+  return session;
+}
+
+/** The admin applications desk and the admissions office share these screens. */
+export async function requireApplicationDesk(...admissionsPages: string[]) {
+  const pages = admissionsPages.length ? admissionsPages : ["applications"];
+  const [admin, office] = await Promise.all([requireAdmin("applications"), requireOffice(...pages)]);
+  if (!("error" in admin)) return admin;
+  if (!("error" in office)) return office;
+  return { error: "This account doesn't have access to applications." } as const;
+}
 
 export function applicationsQuery(
   supabase: SupabaseClient,
@@ -74,8 +108,18 @@ export async function loadStageSince(supabase: SupabaseClient, rows: { id: strin
 }
 
 export async function loadTeam(supabase: SupabaseClient): Promise<TeamMember[]> {
-  const { data } = await supabase.from("profiles").select("id, full_name, email").in("role", ["admin", "admissions"]).order("full_name");
-  return (data || []).map((row) => ({ id: row.id, name: personName(row), email: row.email }));
+  const { data } = await supabase.from("profiles").select("id, full_name, email, role").in("role", ["admin", "admissions", "officer"]).order("full_name");
+  const rows = data || [];
+  const { data: grants, error } = await supabase.from("dashboard_access").select("profile_id, dashboard").in("dashboard", ["admin", "admissions"]);
+  if (error) {
+    return rows
+      .filter((row) => row.role === "admin" || row.role === "admissions")
+      .map((row) => ({ id: row.id, name: personName(row), email: row.email }));
+  }
+  const allowed = new Set((grants || []).map((row) => row.profile_id as string));
+  return rows
+    .filter((row) => row.role === "admin" || row.role === "admissions" || allowed.has(row.id as string))
+    .map((row) => ({ id: row.id, name: personName(row), email: row.email }));
 }
 
 export async function loadPeople(supabase: SupabaseClient, ids: Array<string | null | undefined>) {

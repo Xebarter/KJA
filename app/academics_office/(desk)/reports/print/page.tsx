@@ -1,6 +1,7 @@
 import { ReportSheet } from "@/components/academics/ReportSheet";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { classLabel, classSection, loadCurrentTerm, openAcademics, streamFromQuery } from "@/lib/academics";
+import { classLabel, classSection, loadCurrentTerm, streamFromQuery } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
 import { isClassCode } from "@/lib/students";
 

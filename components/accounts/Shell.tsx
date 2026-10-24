@@ -5,9 +5,13 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
 import { searchFeeAccounts } from "@/app/accounts/(desk)/payments/actions";
+import { DashboardSwitch } from "@/components/DashboardSwitch";
+import { DeskWarmup } from "@/components/DeskWarmup";
+import { DesktopSyncBar } from "@/components/DesktopSyncBar";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { ACCOUNTS_BASE, accountsNav, type AccountsBadge } from "@/lib/accounts-nav";
+import { pageIdForPath } from "@/lib/dashboard-access";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 const ACCOUNTS_PLACES: SidebarHit[] = [
@@ -33,21 +37,35 @@ export function AccountsShell({
   person,
   badges,
   term,
+  pages = null,
+  canSwitch = false,
+  home = ACCOUNTS_BASE,
 }: {
   children: React.ReactNode;
   person: { name: string; email: string; role: string };
   badges: Record<AccountsBadge, number>;
   term: string | null;
+  pages?: string[] | null;
+  canSwitch?: boolean;
+  home?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const search = useRef<HTMLInputElement>(null);
-  const current = [...accountsNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
+  const show = (href: string) => {
+    if (pages === null) return true;
+    const id = pageIdForPath("accounts", href);
+    return Boolean(id && pages.includes(id));
+  };
+  const nav = accountsNav.filter((item) => show(item.href));
+  const places = ACCOUNTS_PLACES.filter((place) => show(place.href));
+  const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
+    // Website keeps eager nav prefetch; DeskWarmup covers the desktop shell.
     for (const item of accountsNav) router.prefetch(item.href);
     router.prefetch(`${ACCOUNTS_BASE}/payments/new`);
     router.prefetch(`${ACCOUNTS_BASE}/expenses/new`);
@@ -78,8 +96,16 @@ export function AccountsShell({
 
   return (
     <div className={`admin-shell ofc-shell acc-shell${open ? " is-nav-open" : ""}`}>
+      <DesktopSyncBar />
+      <DeskWarmup
+        hrefs={[
+          ...nav.map((item) => item.href),
+          `${ACCOUNTS_BASE}/payments/new`,
+          `${ACCOUNTS_BASE}/expenses/new`,
+        ]}
+      />
       <header className="admin-topbar">
-        <Link href={ACCOUNTS_BASE} className="admin-topbar-brand">
+        <Link href={home} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -100,7 +126,7 @@ export function AccountsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="accounts-side" className="admin-side">
-        <Link href={ACCOUNTS_BASE} className="admin-brand">
+        <Link href={home} className="admin-brand">
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -108,7 +134,7 @@ export function AccountsShell({
           </span>
         </Link>
 
-        {term ? (
+        {term && show(`${ACCOUNTS_BASE}/settings`) ? (
           <Link href={`${ACCOUNTS_BASE}/settings#terms`} className="acc-term-pill" title="Change the current term in Fee setup">
             <i className="fa-regular fa-calendar" aria-hidden="true" />
             <span>
@@ -123,7 +149,7 @@ export function AccountsShell({
           label="Find a fee account"
           placeholder="Pupil, number or family"
           inputRef={search}
-          places={ACCOUNTS_PLACES}
+          places={places}
           recordsLabel="Pupils"
           browseLabel="See all fee accounts"
           browseHref={(q) => `${ACCOUNTS_BASE}/students?status=all&q=${encodeURIComponent(q)}`}
@@ -132,7 +158,7 @@ export function AccountsShell({
         />
 
         <nav className="admin-nav" aria-label="Accounts office">
-          {accountsNav.map((item) => {
+          {nav.map((item) => {
             const active = isActive(pathname, item.href);
             const badge = item.badge ? badges[item.badge] : 0;
             return (
@@ -143,17 +169,22 @@ export function AccountsShell({
               </Link>
             );
           })}
-          <Link href={`${ACCOUNTS_BASE}/payments/new`} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
-            <i className="fa-solid fa-cash-register" aria-hidden="true" />
-            <span>Record a payment</span>
-          </Link>
-          <Link href={`${ACCOUNTS_BASE}/expenses/new`} className={pathname === `${ACCOUNTS_BASE}/expenses/new` ? "active" : ""}>
-            <i className="fa-solid fa-file-circle-plus" aria-hidden="true" />
-            <span>Add an expense</span>
-          </Link>
+          {show(`${ACCOUNTS_BASE}/payments/new`) ? (
+            <Link href={`${ACCOUNTS_BASE}/payments/new`} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
+              <i className="fa-solid fa-cash-register" aria-hidden="true" />
+              <span>Record a payment</span>
+            </Link>
+          ) : null}
+          {show(`${ACCOUNTS_BASE}/expenses/new`) ? (
+            <Link href={`${ACCOUNTS_BASE}/expenses/new`} className={pathname === `${ACCOUNTS_BASE}/expenses/new` ? "active" : ""}>
+              <i className="fa-solid fa-file-circle-plus" aria-hidden="true" />
+              <span>Add an expense</span>
+            </Link>
+          ) : null}
         </nav>
 
         <div className="admin-side-foot">
+          <DashboardSwitch show={canSwitch} />
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">
@@ -167,7 +198,7 @@ export function AccountsShell({
               title="Sign out"
               onClick={async () => {
                 await signOut();
-                router.push("/");
+                router.push("/admin/login");
                 router.refresh();
               }}
             >

@@ -2,12 +2,13 @@ import { saveDate } from "@/app/academics_office/(desk)/actions";
 import { CalendarDesk, type CalendarDate } from "@/components/academics/CalendarDesk";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { DATE_KINDS, kampalaToday, loadCurrentTerm, openAcademics } from "@/lib/academics";
+import { DATE_KINDS, kampalaToday, loadCurrentTerm } from "@/lib/academics";
+import { openAcademics } from "@/lib/academics-access";
 import { loadCampuses } from "@/lib/accounts";
 
 export const metadata = { title: "Calendar" };
 
-type DateRow = { id: string; title: string; kind: string; starts_on: string; ends_on: string | null; campus: string | null; note: string | null };
+type DateRow = { id: string; title: string; kind: string; starts_on: string; ends_on: string | null; campus: string | null; note: string | null; class_code?: string | null };
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
@@ -19,11 +20,16 @@ export default async function CalendarPage() {
   if (termPack.error) return <AcademicsGate title="Calendar" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const datesQuery = term
-    ? await supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus, note").eq("term_id", term.id).order("starts_on")
+    ? await supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus, note, class_code, stream").eq("term_id", term.id).order("starts_on")
     : { data: [], error: null };
-  if (datesQuery.error) return <AcademicsGate title="Calendar" state={{ notice: "schema", message: datesQuery.error.message }} />;
-  const rows = (datesQuery.data || []) as DateRow[];
-  const dates: CalendarDate[] = rows.map((row) => ({
+  const datesFallback = datesQuery.error && term && /class_code|schema cache/i.test(datesQuery.error.message)
+    ? await supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus, note").eq("term_id", term.id).order("starts_on")
+    : null;
+  const datesError = datesFallback ? datesFallback.error : datesQuery.error;
+  if (datesError) return <AcademicsGate title="Calendar" state={{ notice: "schema", message: datesError.message }} />;
+  const rows = ((datesFallback ? datesFallback.data : datesQuery.data) || []) as DateRow[];
+  const schoolRows = rows.filter((row) => !row.class_code);
+  const dates: CalendarDate[] = schoolRows.map((row) => ({
     id: row.id,
     title: row.title,
     kind: row.kind,

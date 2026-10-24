@@ -1,9 +1,34 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
-import { searchPupils, type PupilHit } from "@/app/accounts/(desk)/payments/actions";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { type PupilHit } from "@/app/accounts/(desk)/payments/actions";
 import { StudentFace } from "@/components/StudentFace";
-import { ugx } from "@/lib/accounts-format";
+import { ACCOUNTS_BASE, ugx } from "@/lib/accounts-format";
+import { searchWords } from "@/lib/students";
+
+const DEBOUNCE_MS = 140;
+
+/** Wraps matching characters in <mark> for the live search list. */
+function Highlight({ text, words }: { text: string; words: string[] }) {
+  if (!words.length || !text) return <>{text}</>;
+  const lower = text.toLowerCase();
+  const marks = new Array<boolean>(text.length).fill(false);
+  for (const word of words) {
+    if (!word) continue;
+    let at = lower.indexOf(word);
+    while (at !== -1) {
+      for (let i = at; i < at + word.length && i < text.length; i += 1) marks[i] = true;
+      at = lower.indexOf(word, at + word.length);
+    }
+  }
+  const parts: { text: string; on: boolean }[] = [];
+  for (let i = 0; i < text.length; i += 1) {
+    const last = parts[parts.length - 1];
+    if (last && last.on === marks[i]) last.text += text[i];
+    else parts.push({ text: text[i], on: marks[i] });
+  }
+  return <>{parts.map((part, index) => (part.on ? <mark key={index}>{part.text}</mark> : <span key={index}>{part.text}</span>))}</>;
+}
 
 /** Search-as-you-type pupil finder. Arrow keys move, Enter picks, Escape closes. */
 export function StudentPicker({ value, onChange, autoFocus = false }: {
@@ -17,29 +42,60 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
   const [active, setActive] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [searched, setSearched] = useState(false);
   const input = useRef<HTMLInputElement>(null);
+  const root = useRef<HTMLDivElement>(null);
   const listId = useId();
-  const latest = useRef(0);
+  const words = useMemo(() => searchWords(query), [query]);
 
   useEffect(() => {
     const text = query.trim();
     if (text.length < 2) {
       setRows([]);
       setLoading(false);
+      setSearched(false);
+      setError("");
       return;
     }
+
+    const controller = new AbortController();
     setLoading(true);
-    const ticket = ++latest.current;
     const timer = window.setTimeout(async () => {
-      const result = await searchPupils(text).catch(() => ({ error: "Search failed. Check your connection.", rows: [] as PupilHit[] }));
-      if (ticket !== latest.current) return;
-      setRows(result.rows);
-      setError(result.error ?? "");
-      setActive(0);
-      setLoading(false);
-    }, 220);
-    return () => window.clearTimeout(timer);
+      try {
+        const response = await fetch(
+          `${ACCOUNTS_BASE}/payments/search?kind=pupil&q=${encodeURIComponent(text)}`,
+          { signal: controller.signal, headers: { Accept: "application/json" } },
+        );
+        const result = (await response.json()) as { error?: string; rows?: PupilHit[] };
+        if (controller.signal.aborted) return;
+        setRows(result.rows ?? []);
+        setError(result.error ?? "");
+        setActive(0);
+        setSearched(true);
+        setOpen(true);
+      } catch (err) {
+        if ((err as Error)?.name === "AbortError") return;
+        setError("Search failed. Check your connection.");
+        setRows([]);
+        setSearched(true);
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, DEBOUNCE_MS);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
+    };
   }, [query]);
+
+  useEffect(() => {
+    const onPointer = (event: MouseEvent) => {
+      if (!root.current?.contains(event.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", onPointer);
+    return () => document.removeEventListener("mousedown", onPointer);
+  }, []);
 
   if (value) {
     return (
@@ -52,7 +108,7 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
             {value.campus ? ` · ${value.campus}` : ""}{value.status !== "active" ? ` · ${value.status}` : ""}
           </small>
         </div>
-        <span className={`acc-picked-balance${value.balance > 0 ? " is-owing" : ""}`}>
+        <span className={`acc-picked-balance${value.balance > 0 ? " is-owing" : value.balance < 0 ? " is-credit" : ""}`}>
           {value.balance > 0 ? <>Owes {ugx(value.balance)}</> : value.balance < 0 ? <>Credit {ugx(-value.balance)}</> : "Cleared"}
         </span>
         <button
@@ -75,8 +131,10 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
     setOpen(false);
   };
 
+  const showList = open && query.trim().length >= 2;
+
   return (
-    <div className="acc-picker">
+    <div ref={root} className={`acc-picker${loading ? " is-loading" : ""}${showList ? " is-open" : ""}`}>
       <label className="ofc-finder-search acc-picker-box">
         <i className={`fa-solid ${loading ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`} aria-hidden="true" />
         <span className="visually-hidden">Find a pupil</span>
@@ -84,25 +142,24 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
           ref={input}
           type="search"
           role="combobox"
-          aria-expanded={open && rows.length > 0}
+          aria-expanded={showList}
           aria-controls={listId}
           aria-autocomplete="list"
-          aria-activedescendant={open && rows[active] ? `${listId}-${active}` : undefined}
+          aria-activedescendant={showList && rows[active] ? `${listId}-${active}` : undefined}
           autoComplete="off"
           autoFocus={autoFocus}
-          placeholder="Pupil name, student number or family number"
+          placeholder="Name, student number, family number or parent"
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
             setOpen(true);
           }}
           onFocus={() => setOpen(true)}
-          onBlur={() => window.setTimeout(() => setOpen(false), 150)}
           onKeyDown={(event) => {
             if (event.key === "ArrowDown") {
               event.preventDefault();
               setOpen(true);
-              setActive((n) => Math.min(rows.length - 1, n + 1));
+              setActive((n) => Math.min(Math.max(rows.length - 1, 0), n + 1));
             } else if (event.key === "ArrowUp") {
               event.preventDefault();
               setActive((n) => Math.max(0, n - 1));
@@ -114,9 +171,25 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
             }
           }}
         />
+        {query ? (
+          <button
+            type="button"
+            className="acc-picker-clear"
+            aria-label="Clear search"
+            onClick={() => {
+              setQuery("");
+              setRows([]);
+              setSearched(false);
+              input.current?.focus();
+            }}
+          >
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        ) : null}
       </label>
-      {open && query.trim().length >= 2 ? (
-        <ul className="acc-picker-list" id={listId} role="listbox">
+
+      {showList ? (
+        <ul className={`acc-picker-list${loading && rows.length ? " is-stale" : ""}`} id={listId} role="listbox" aria-label="Matching pupils">
           {rows.map((row, index) => (
             <li
               key={row.student_id}
@@ -131,17 +204,32 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
               onMouseEnter={() => setActive(index)}
             >
               <StudentFace id={row.student_id} name={row.full_name} className="acc-picked-avatar" />
-              <span>
-                <strong>{row.full_name}</strong>
+              <span className="acc-picker-copy">
+                <strong><Highlight text={row.full_name} words={words} /></strong>
                 <small>
-                  {row.student_number} · {row.class_code ?? "No class"}{row.stream ? ` ${row.stream}` : ""}
-                  {row.family_code ? ` · Family ${row.family_code}` : ""}{row.status !== "active" ? ` · ${row.status}` : ""}
+                  <span className="acc-picker-num"><Highlight text={row.student_number} words={words} /></span>
+                  {" · "}
+                  {row.class_code ?? "No class"}{row.stream ? ` ${row.stream}` : ""}
+                  {row.family_code ? <> · Family <Highlight text={row.family_code} words={words} /></> : null}
+                  {row.status !== "active" ? ` · ${row.status}` : ""}
                 </small>
               </span>
-              <em className={row.balance > 0 ? "is-owing" : ""}>{row.balance > 0 ? ugx(row.balance) : row.balance < 0 ? "In credit" : "Cleared"}</em>
+              <em className={row.balance > 0 ? "is-owing" : row.balance < 0 ? "is-credit" : ""}>
+                {row.balance > 0 ? ugx(row.balance) : row.balance < 0 ? "In credit" : "Cleared"}
+              </em>
             </li>
           ))}
-          {!rows.length && !loading ? <li className="acc-picker-empty">{error || "No pupils match. Try a surname or the student number."}</li> : null}
+          {loading && !rows.length ? (
+            <li className="acc-picker-empty is-loading" aria-hidden="true">
+              <span /><span /><span />
+            </li>
+          ) : null}
+          {!loading && searched && !rows.length ? (
+            <li className="acc-picker-empty">
+              <i className="fa-regular fa-face-meh" aria-hidden="true" />
+              {error || `No pupils match “${query.trim()}”. Try a surname or the student number.`}
+            </li>
+          ) : null}
         </ul>
       ) : null}
     </div>

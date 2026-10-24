@@ -36,7 +36,7 @@ const ICONS: Record<string, string> = {
 };
 
 export function CalendarDesk({
-  dates, kinds, campuses, office, today, termId, termStart, termEnd, save,
+  dates, kinds, campuses, office, today, termId, termStart, termEnd, save, showCampus = true, scope = null,
 }: {
   dates: CalendarDate[];
   kinds: CalendarKind[];
@@ -47,6 +47,8 @@ export function CalendarDesk({
   termStart: string | null;
   termEnd: string | null;
   save: Save;
+  showCampus?: boolean;
+  scope?: { classCode: string; stream: string } | null;
 }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const focusTitle = useRef(false);
@@ -194,6 +196,8 @@ export function CalendarDesk({
             {badRange ? <p className="cal-warn"><i className="fa-solid fa-triangle-exclamation" aria-hidden="true" /> The end date is before the start.</p> : null}
             <DeskForm key={formKey} action={onSave} className="cal-form">
               <input type="hidden" name="term_id" value={termId} />
+              {scope ? <input type="hidden" name="class_code" value={scope.classCode} /> : null}
+              {scope ? <input type="hidden" name="stream" value={scope.stream} /> : null}
               {draft.id ? <input type="hidden" name="id" value={draft.id} /> : null}
               <div className="ofc-fields">
                 <label className="ofc-field cal-span"><span>Title</span>
@@ -204,12 +208,14 @@ export function CalendarDesk({
                     {kinds.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}
                   </select>
                 </label>
-                <label className="ofc-field cal-span"><span>Campus</span>
-                  <select name="campus" value={draft.campus} onChange={(event) => patch({ campus: event.target.value })}>
-                    <option value="">Every campus</option>
-                    {campuses.map((name) => <option key={name} value={name}>{name}</option>)}
-                  </select>
-                </label>
+                {showCampus ? (
+                  <label className="ofc-field cal-span"><span>Campus</span>
+                    <select name="campus" value={draft.campus} onChange={(event) => patch({ campus: event.target.value })}>
+                      <option value="">Every campus</option>
+                      {campuses.map((name) => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                  </label>
+                ) : null}
                 <label className="ofc-field"><span>Starts</span>
                   <input name="starts_on" type="date" required value={draft.startsOn} onChange={(event) => patch({ startsOn: event.target.value })} />
                 </label>

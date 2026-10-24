@@ -2,7 +2,7 @@ import { readFile } from "fs/promises";
 import path from "path";
 import { getContent } from "@/lib/content";
 import { isAccountsRole } from "@/lib/accounts-nav";
-import { isOfficeRole } from "@/lib/office";
+import { isOfficeRole } from "@/lib/office-nav";
 import { loadPayment, refreshPayment, tokenMatches } from "@/lib/payments/admission";
 import { buildReceiptPdf } from "@/lib/payments/receipt";
 import { getSessionUser } from "@/lib/portal";

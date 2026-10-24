@@ -1,0 +1,95 @@
+import { BrowserWindow, shell, session } from "electron";
+import { join } from "node:path";
+import { DESKTOP_COOKIE, NEXT_URL, SESSION_PARTITION } from "../shared/ports";
+import { loadAppIcon } from "./icon";
+
+export function createSplashWindow(): BrowserWindow {
+  const win = new BrowserWindow({
+    width: 460,
+    height: 560,
+    resizable: false,
+    maximizable: false,
+    fullscreenable: false,
+    frame: false,
+    show: false,
+    backgroundColor: "#19232B",
+    icon: loadAppIcon(),
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+    },
+  });
+
+  win.once("ready-to-show", () => win.show());
+  return win;
+}
+
+export async function createDeskWindow(): Promise<BrowserWindow> {
+  const ses = session.fromPartition(SESSION_PARTITION);
+  // Next may surface as 127.0.0.1 or localhost — set the desktop cookie on both.
+  for (const url of [NEXT_URL, NEXT_URL.replace("127.0.0.1", "localhost")]) {
+    await ses.cookies.set({
+      url,
+      name: "kja-desktop",
+      value: "1",
+      path: "/",
+      httpOnly: false,
+      secure: false,
+      sameSite: "lax",
+    });
+  }
+
+  const win = new BrowserWindow({
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
+    minHeight: 700,
+    show: false,
+    // Match the staff login gate so the first paint does not flash cream.
+    backgroundColor: "#141D24",
+    title: "KJA Staff Desktop",
+    icon: loadAppIcon(),
+    webPreferences: {
+      preload: join(__dirname, "../preload/index.js"),
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: false,
+      partition: SESSION_PARTITION,
+      spellcheck: true,
+    },
+  });
+
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (isInAppUrl(url)) {
+      win.loadURL(url);
+      return { action: "deny" };
+    }
+    void shell.openExternal(url);
+    return { action: "deny" };
+  });
+
+  win.webContents.on("will-navigate", (event, url) => {
+    if (isInAppUrl(url)) return;
+    event.preventDefault();
+    void shell.openExternal(url);
+  });
+
+  return win;
+}
+
+export function isInAppUrl(url: string): boolean {
+  try {
+    const u = new URL(url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+    if (u.hostname === "127.0.0.1" || u.hostname === "localhost") {
+      return u.port === new URL(NEXT_URL).port || !u.port;
+    }
+    return false;
+  } catch {
+    return false;
+  }
+}
+
+export { DESKTOP_COOKIE };

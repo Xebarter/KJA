@@ -53,6 +53,11 @@ export function BillingBoard({
   const filtering = kind !== "all" || needle.length > 0;
   const covered = coverage && coverage.onRoll > 0 ? Math.round((coverage.billedPupils / coverage.onRoll) * 100) : 0;
 
+  function clearFilters() {
+    setKind("all");
+    setQuery("");
+  }
+
   return (
     <div className="acr-bill">
       {coverage ? (
@@ -188,36 +193,63 @@ export function BillingBoard({
                   <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
                   <span className="visually-hidden">Find a charge</span>
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Find an item" />
+                  {query ? (
+                    <button type="button" className="acr-bill-clear" onClick={() => setQuery("")} aria-label="Clear search">
+                      <i className="fa-solid fa-xmark" aria-hidden="true" />
+                    </button>
+                  ) : null}
                 </label>
               ) : null}
-              {filtering ? <p aria-live="polite">{count(visible.length)} of {count(charges.length)}</p> : null}
+              {filtering ? (
+                <p aria-live="polite">
+                  {count(visible.length)} of {count(charges.length)}
+                  {visible.length === 0 || kind !== "all" || needle ? (
+                    <>
+                      {" · "}
+                      <button type="button" className="acr-text-btn" onClick={clearFilters}>Clear</button>
+                    </>
+                  ) : null}
+                </p>
+              ) : null}
             </div>
             {visible.length ? (
               <ul className="acr-rows">
                 {charges.map((row) => {
                   const on = (kind === "all" || row.kind === kind) && (!needle || row.name.toLowerCase().includes(needle));
+                  const share = percent(row.amount, chargeTotal);
                   return (
-                    <li key={row.name} className={on ? "" : "is-off"}>
+                    <li key={row.name} className={on ? "" : "is-off"} aria-hidden={on ? undefined : true}>
                       <div className="acr-row">
                         <span className="acr-row-icon"><i className={`fa-solid ${row.icon}`} aria-hidden="true" /></span>
                         <span className="acr-row-name">
                           <strong>{row.name}</strong>
-                          <small>{kind === "all" ? `${row.kind} · ` : ""}{count(row.count)} lines</small>
+                          <small>
+                            {kind === "all" ? `${row.kind} · ` : ""}
+                            {count(row.count)} lines
+                            <span className="acr-share-inline"> · {share}%</span>
+                          </small>
                         </span>
                         <Meter value={row.amount} max={chargeTotal || row.amount} label={`${row.name} share of charges`} />
                         <strong>{ugxShort(row.amount)}</strong>
-                        <span className="acr-share">{percent(row.amount, chargeTotal)}%</span>
+                        <span className="acr-share">{share}%</span>
                       </div>
                     </li>
                   );
                 })}
               </ul>
             ) : (
-              <p className="acr-empty no-print">Nothing matches.</p>
+              <div className="acr-blank no-print">
+                <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                <p>Nothing matches that filter.</p>
+                <button type="button" className="acr-text-btn" onClick={clearFilters}>Clear filters</button>
+              </div>
             )}
           </>
         ) : (
-          <p className="acr-empty">{linesLoaded ? "No charges on issued invoices in this period." : "Fee lines could not be loaded."}</p>
+          <div className="acr-blank">
+            <i className="fa-regular fa-file-lines" aria-hidden="true" />
+            <p>{linesLoaded ? "No charges on issued invoices in this period." : "Fee lines could not be loaded."}</p>
+          </div>
         )}
       </article>
     </div>

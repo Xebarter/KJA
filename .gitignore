@@ -3,6 +3,7 @@
 
 # Next.js
 /.next/
+/.next-desktop/
 /out/
 /build/
 .vercel
@@ -30,3 +31,12 @@ supabase/0010_student_register/
 # Local certificates and OS files
 *.pem
 .DS_Store
+Thumbs.db
+
+# Supabase CLI local cache
+supabase/.temp/
+
+# Cursor: keep project rules, ignore the rest of the IDE folder
+.cursor/*
+!.cursor/rules/
+!.cursor/rules/**

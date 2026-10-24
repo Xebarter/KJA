@@ -11,7 +11,7 @@ function clean(list: string[]) {
 }
 
 export async function runPromotion(exclude: string[], confirmation: string, expected: number): Promise<PromotionResult> {
-  const auth = await requireOffice();
+  const auth = await requireOffice("promotions");
   if ("error" in auth) return { error: auth.error };
   if (String(confirmation).trim() !== String(expected)) return { error: `Type ${expected} to confirm.` };
   const { data, error } = await auth.supabase.rpc("promote_students", { p_exclude: clean(exclude), p_dry_run: false });

@@ -5,6 +5,7 @@ import {
   EXPENSE_STATUSES,
   PAYMENT_METHODS,
   agingOf,
+  dateRangeLabel,
   day,
   daysBetween,
   itemKindInfo,
@@ -14,6 +15,8 @@ import {
   type Term,
 } from "@/lib/accounts-format";
 import { SCHOOL_CLASSES, className, fetchAll } from "@/lib/students";
+
+export { dateRangeLabel };
 
 /** Stop a report from trying to pull an unbounded register into memory. */
 const CAP = 60000;
@@ -25,6 +28,11 @@ function asOne<T>(value: T | T[] | null | undefined): T | null {
   return value ?? null;
 }
 
+const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Optional cash-window for reconciliation exports. Empty strings are ignored. */
+export type ReportDates = { from?: string; to?: string };
+
 /** The term a report is about. An empty param means the current term; "all" means every term. */
 export function reportSelection(terms: Term[], current: Term | null, termParam: string) {
   const term = termParam === "all" ? null : terms.find((entry) => entry.id === termParam) ?? current;
@@ -32,6 +40,22 @@ export function reportSelection(terms: Term[], current: Term | null, termParam: 
     term,
     filters: { term: termParam === "all" ? "all" : term && term.id !== current?.id ? term.id : "" },
   };
+}
+
+/** Validates and normalises from/to query values. Swaps them if reversed. */
+export function parseReportDates(raw: { from?: string; to?: string } | null | undefined): { from: string; to: string } | null {
+  const from = ISO_DATE.test(raw?.from || "") ? String(raw!.from) : "";
+  const to = ISO_DATE.test(raw?.to || "") ? String(raw!.to) : "";
+  if (!from && !to) return null;
+  if (from && to && from > to) return { from: to, to: from };
+  return { from, to };
+}
+
+/** Default workbook dates for the selected term (start → today or term end). */
+export function defaultWorkbookDates(term: Term | null, today = kampalaToday()) {
+  if (!term?.starts_on) return { from: "", to: "" };
+  const end = term.ends_on && term.ends_on < today ? term.ends_on : today;
+  return { from: term.starts_on, to: end };
 }
 
 export function monthLabel(key: string) {
@@ -57,6 +81,12 @@ function inPeriod(iso: string, term: Term | null) {
   if (!term) return true;
   if (term.starts_on && iso < term.starts_on) return false;
   if (term.ends_on && iso > term.ends_on) return false;
+  return true;
+}
+
+function inDateRange(iso: string, from: string, to: string) {
+  if (from && iso < from) return false;
+  if (to && iso > to) return false;
   return true;
 }
 
@@ -171,6 +201,9 @@ export type ReportExpense = {
 export type AccountsReport = {
   periodLabel: string;
   termId: string | null;
+  /** Set when the report was narrowed to a cash date window (reconciliation workbook). */
+  dateFrom: string | null;
+  dateTo: string | null;
   today: string;
   truncated: boolean;
   linesLoaded: boolean;
@@ -244,16 +277,33 @@ const SOURCES = [
 
 const COUNTS = new Set(["approved", "paid"]);
 
-export async function loadAccountsReport(supabase: SupabaseClient, terms: Term[], current: Term | null, termParam: string): Promise<AccountsReport> {
+export async function loadAccountsReport(
+  supabase: SupabaseClient,
+  terms: Term[],
+  current: Term | null,
+  termParam: string,
+  dates?: ReportDates | null,
+): Promise<AccountsReport> {
   const { term } = reportSelection(terms, current, termParam);
   const today = kampalaToday();
+  const window = parseReportDates(dates);
   const termLabels = new Map(terms.map((entry) => [entry.id, entry.label]));
+  const cashFrom = window?.from || "";
+  const cashTo = window?.to || "";
+  const hasCashWindow = Boolean(cashFrom || cashTo);
 
   let voidedQuery = supabase.from("payments").select("id", { count: "exact", head: true }).not("voided_at", "is", null);
   if (term) voidedQuery = voidedQuery.eq("term_id", term.id);
+  if (cashFrom) voidedQuery = voidedQuery.gte("paid_on", cashFrom);
+  if (cashTo) voidedQuery = voidedQuery.lte("paid_on", cashTo);
   let reminderQuery = supabase.from("fee_reminders").select("id", { count: "exact", head: true });
-  if (term?.starts_on) reminderQuery = reminderQuery.gte("sent_at", term.starts_on);
-  if (term?.ends_on) reminderQuery = reminderQuery.lte("sent_at", `${term.ends_on}T23:59:59+03:00`);
+  if (hasCashWindow) {
+    if (cashFrom) reminderQuery = reminderQuery.gte("sent_at", cashFrom);
+    if (cashTo) reminderQuery = reminderQuery.lte("sent_at", `${cashTo}T23:59:59+03:00`);
+  } else {
+    if (term?.starts_on) reminderQuery = reminderQuery.gte("sent_at", term.starts_on);
+    if (term?.ends_on) reminderQuery = reminderQuery.lte("sent_at", `${term.ends_on}T23:59:59+03:00`);
+  }
 
   const [payments, expenses, balances, invoices, lineRows, pupils, categories, voidedResult, reminderResult] = await Promise.all([
     fetchAll<Pay>((from, to) => supabase.from("payments").select("receipt_no, amount, method, paid_on, term_id, source, received_by, students!inner(full_name, class_code, campus)").is("voided_at", null).order("id").range(from, to), CAP),
@@ -287,8 +337,11 @@ export async function loadAccountsReport(supabase: SupabaseClient, terms: Term[]
   const pupilOf = new Map(pupils.map((pupil) => [pupil.id, pupil]));
   const people = await loadPeople(supabase, payments.map((row) => row.received_by));
 
-  const periodPays = term ? payments.filter((row) => row.term_id === term.id) : payments;
-  const periodExp = expenses.filter((row) => inPeriod(row.spent_on, term));
+  let periodPays = term ? payments.filter((row) => row.term_id === term.id) : payments;
+  if (hasCashWindow) periodPays = periodPays.filter((row) => inDateRange(row.paid_on, cashFrom, cashTo));
+  const periodExp = expenses.filter((row) => (
+    hasCashWindow ? inDateRange(row.spent_on, cashFrom, cashTo) : inPeriod(row.spent_on, term)
+  ));
   const countedExp = periodExp.filter((row) => COUNTS.has(row.status));
 
   const rolls = new Map<string, { invoiced: number; paid: number; balance: number; due: string | null }>();
@@ -349,7 +402,7 @@ export async function loadAccountsReport(supabase: SupabaseClient, terms: Term[]
     byDay.set(row.paid_on, cur);
   }
   const busiest = [...byDay.entries()].sort((a, b) => b[1].total - a[1].total)[0];
-  const chart = chartColumns(byDay, term, today);
+  const chart = chartColumns(byDay, term, today, window);
 
   const monthMap = new Map<string, { income: number; spend: number }>();
   for (const row of periodPays) {
@@ -525,9 +578,14 @@ export async function loadAccountsReport(supabase: SupabaseClient, terms: Term[]
   const pupilName = (row: Pay) => asOne(row.students)?.full_name?.trim() || "Pupil";
   const sourceLabel = (value: string) => SOURCES.find((source) => source.value === value)?.label ?? "At the office";
 
+  const rangeLabel = hasCashWindow ? dateRangeLabel(cashFrom, cashTo) : "";
   return {
-    periodLabel: term ? term.label : "All terms",
+    periodLabel: hasCashWindow
+      ? (term ? `${rangeLabel} · ${term.label}` : rangeLabel)
+      : (term ? term.label : "All terms"),
     termId: term?.id ?? null,
+    dateFrom: cashFrom || null,
+    dateTo: cashTo || null,
     today,
     truncated: [payments, expenses, balances, invoices, pupils].some((rows) => rows.length >= CAP) || (lineRows?.length ?? 0) >= CAP,
     linesLoaded,
@@ -672,7 +730,12 @@ export async function loadAccountsReport(supabase: SupabaseClient, terms: Term[]
   };
 }
 
-function chartColumns(byDay: Map<string, { total: number; count: number }>, term: Term | null, today: string) {
+function chartColumns(
+  byDay: Map<string, { total: number; count: number }>,
+  term: Term | null,
+  today: string,
+  window: { from: string; to: string } | null = null,
+) {
   const dates = [...byDay.keys()].sort();
   const daily = (keys: string[], note: string) => ({
     grain: "day" as const,
@@ -686,13 +749,12 @@ function chartColumns(byDay: Map<string, { total: number; count: number }>, term
     })),
   });
 
-  if (term?.starts_on && term.ends_on) {
-    const end = term.ends_on < today ? term.ends_on : today;
-    if (term.starts_on <= end && daysBetween(term.starts_on, end) <= 20) {
-      const keys: string[] = [];
-      for (let iso = term.starts_on; iso <= end && keys.length < 21; iso = new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) keys.push(iso);
-      return daily(keys, "Every day from the start of the term through today.");
-    }
+  const start = window?.from || term?.starts_on || "";
+  const end = window?.to || (term?.ends_on && term.ends_on < today ? term.ends_on : today);
+  if (start && end && start <= end && daysBetween(start, end) <= 20) {
+    const keys: string[] = [];
+    for (let iso = start; iso <= end && keys.length < 21; iso = new Date(Date.parse(`${iso}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10)) keys.push(iso);
+    return daily(keys, window ? "Every day in the chosen date range." : "Every day from the start of the term through today.");
   }
   if (dates.length <= 18) return daily(dates, dates.length ? "Each day a receipt was written." : "");
 

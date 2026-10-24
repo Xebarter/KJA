@@ -1,0 +1,34 @@
+---
+description: Desktop App must host the web office dashboards (Electron + Next), not reinvent them
+globs: Desktop App/**/*.{ts,tsx,js,mjs}, components/**/Shell.tsx, components/DeskWarmup.tsx, components/DesktopSyncBar.tsx, next.config.ts, lib/desktop.ts
+alwaysApply: false
+---
+
+# Desktop ↔ web dashboard parity
+
+The Desktop App is an **Electron shell** over the existing Next.js staff desks. It must not redraw Admin / Admissions / Accounts / Academics / Teacher pages in a second UI kit.
+
+## Source of truth
+
+- Desk UI lives under `app/admin`, `app/admissions_office`, `app/accounts`, `app/academics_office`, `app/teacher` and shared components (`components/admin`, `components/office`, …).
+- Desktop process code lives in `Desktop App/` (Electron main, splash, Supabase loopback proxy, outbox).
+
+## When editing desks
+
+1. Change the web `page.tsx` + CSS / shared components.
+2. Desktop picks up the same pages via the local Next host (`KJA_DESKTOP=1`).
+3. Desktop-only chrome is limited to: splash, sync/offline bar, prefetch warmup, proxy/outbox.
+
+## Desktop-gated website hooks
+
+- `next.config.ts` — `output: 'standalone'` and longer `staleTimes` only when `KJA_DESKTOP=1`
+- `components/DeskWarmup.tsx` + `components/DesktopSyncBar.tsx` — only when `kja-desktop=1` cookie
+- Shell prefetch: Academics / Teacher keep `prefetch={false}` on the public website; desktop enables prefetch
+
+## Offline / performance
+
+- Reads: loopback proxy SQLite cache (stale-while-revalidate)
+- Writes: plain PostgREST table mutations may queue offline; RPC, storage, and service-role stay online-only
+- Follow `Desktop App/README.md` for ports, env (`KJA_UPSTREAM_SUPABASE_URL`), and packaging
+
+A desk page is “done” when it looks and behaves like the website in the Electron window, with instant sidebar revisits after warmup.

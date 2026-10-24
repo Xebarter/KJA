@@ -20,6 +20,26 @@ import {
 } from "@/lib/student";
 import type { Article } from "@/lib/types";
 
+async function loadAcademicDateRows(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  termId: string,
+) {
+  const scoped = await supabase
+    .from("academic_dates")
+    .select("id, title, kind, starts_on, ends_on, campus, note, class_code, stream")
+    .eq("term_id", termId)
+    .order("starts_on");
+  if (scoped.error && /class_code|schema cache|does not exist/i.test(scoped.error.message)) {
+    const plain = await supabase
+      .from("academic_dates")
+      .select("id, title, kind, starts_on, ends_on, campus, note")
+      .eq("term_id", termId)
+      .order("starts_on");
+    return plain.data || [];
+  }
+  return scoped.data || [];
+}
+
 async function rows<T>(query: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
   try {
     const { data } = await query;
@@ -277,15 +297,7 @@ export async function getStudentPortal() {
             .eq("stream", student.stream || ""),
         )
       : Promise.resolve([]),
-    termId
-      ? rows<StudentAcademicDate>(
-          supabase
-            .from("academic_dates")
-            .select("id, title, kind, starts_on, ends_on, campus, note")
-            .eq("term_id", termId)
-            .order("starts_on"),
-        )
-      : Promise.resolve([]),
+    termId ? loadAcademicDateRows(supabase, termId) : Promise.resolve([]),
   ]);
 
   const classmates = classmateRows
@@ -357,20 +369,33 @@ export async function getStudentPortal() {
       ...subjectTeacherRows.map((row) => row.staff_id),
     ]),
   ];
-  const staffRows = staffIds.length
-    ? await rows<{ id: string; full_name: string; title: string | null }>(
+  let staffRows: { id: string; full_name: string; title: string | null; photo_path: string | null }[] = [];
+  if (staffIds.length) {
+    const withPhoto = await supabase
+      .from("teaching_staff")
+      .select("id, full_name, title, photo_path")
+      .in("id", staffIds)
+      .eq("active", true);
+    if (withPhoto.error && /photo_path|schema cache|does not exist/i.test(withPhoto.error.message)) {
+      const fallback = await rows<{ id: string; full_name: string; title: string | null }>(
         supabase.from("teaching_staff").select("id, full_name, title").in("id", staffIds).eq("active", true),
-      )
-    : [];
+      );
+      staffRows = fallback.map((row) => ({ ...row, photo_path: null }));
+    } else {
+      staffRows = ((withPhoto.data || []) as { id: string; full_name: string; title: string | null; photo_path: string | null }[]);
+    }
+  }
   const staffById = new Map(staffRows.map((row) => [row.id, row]));
 
   const classTeacherStaff = classTeacherRows[0] ? staffById.get(classTeacherRows[0].staff_id) : null;
   const classTeacher: StudentTeacher | null = classTeacherStaff
     ? {
         id: classTeacherStaff.id,
+        staff_id: classTeacherStaff.id,
         full_name: classTeacherStaff.full_name,
         title: classTeacherStaff.title,
         subject_name: null,
+        photo_path: classTeacherStaff.photo_path,
         role: "class",
       }
     : null;
@@ -381,19 +406,31 @@ export async function getStudentPortal() {
       if (!staff) return null;
       return {
         id: `${staff.id}:${row.subject_id}`,
+        staff_id: staff.id,
         full_name: staff.full_name,
         title: staff.title,
         subject_name: subjectName.get(row.subject_id) || "Subject",
+        photo_path: staff.photo_path,
         role: "subject" as const,
       };
     })
     .filter(Boolean) as StudentTeacher[];
 
   const academicDates = academicDateRows
-    .filter((row) => !row.campus || !student.campus || row.campus === student.campus || /all/i.test(row.campus))
+    .filter((row) => {
+      const classCode = "class_code" in row ? row.class_code : null;
+      const stream = "stream" in row ? row.stream : null;
+      if (classCode && (classCode !== student.class_code || (stream || "") !== (student.stream || ""))) return false;
+      return !row.campus || !student.campus || row.campus === student.campus || /all/i.test(row.campus || "");
+    })
     .map((row) => ({
-      ...row,
+      id: row.id,
+      title: row.title,
       kind: row.kind as StudentAcademicDate["kind"],
+      starts_on: row.starts_on,
+      ends_on: row.ends_on,
+      campus: row.campus,
+      note: row.note,
     }));
 
   let unreadMessages = 0;

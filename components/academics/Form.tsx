@@ -4,7 +4,14 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
 
-type Outcome = { error?: string; ok?: string; href?: string };
+type Outcome = {
+  error?: string;
+  ok?: string;
+  href?: string;
+  email?: string;
+  password?: string;
+  temporary?: boolean;
+};
 
 const STATUS: Record<string, string> = {
   Generate: "Generating reports",
@@ -45,6 +52,7 @@ export function DeskForm({
   className = "ofc-form",
   refresh = true,
   status,
+  onIssued,
 }: {
   action: (formData: FormData) => Promise<Outcome>;
   children: React.ReactNode;
@@ -53,6 +61,8 @@ export function DeskForm({
   refresh?: boolean;
   /** Sentence shown in the progress ring. Falls back to the button that was pressed. */
   status?: string;
+  /** When an action returns a one-time password (teacher desk login). */
+  onIssued?: (issued: { email: string; password: string; temporary?: boolean }) => void;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -71,6 +81,9 @@ export function DeskForm({
         setBusyLabel(status || phrase(button));
         startTransition(async () => {
           const outcome: Outcome = await action(data).catch(() => ({ error: "Something went wrong. Try again." }));
+          if (outcome.email && outcome.password && onIssued) {
+            onIssued({ email: outcome.email, password: outcome.password, temporary: outcome.temporary });
+          }
           if (outcome.href) {
             router.push(outcome.href);
             router.refresh();
@@ -86,6 +99,13 @@ export function DeskForm({
       </fieldset>
       {result?.error ? <p className="acd-feedback is-error" role="alert"><i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {result.error}</p> : null}
       {result?.ok ? <p className="acd-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p> : null}
+      {result?.email && result?.password && !onIssued ? (
+        <div className="acd-feedback acd-issued-inline" role="status">
+          <p><strong>Teacher desk sign-in</strong> — share now; it will not be shown again.</p>
+          <p>Email: <code>{result.email}</code></p>
+          <p>{result.temporary ? "Temporary password" : "Password"}: <code>{result.password}</code></p>
+        </div>
+      ) : null}
       <ProcessStatus active={pending} label={busyLabel} />
     </form>
   );

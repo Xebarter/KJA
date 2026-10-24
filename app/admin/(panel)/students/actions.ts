@@ -26,7 +26,7 @@ async function uniqueFamilyCode(supabase: SupabaseClient, studentNumber: string)
 
 /** Slim pupil create for portal access (placeholder family + optional login). */
 export async function createStudentForPortal(formData: FormData): Promise<ActionResult & PortalLoginResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("students");
   if ("error" in auth) return { error: auth.error };
 
   const surname = field(formData, "surname", 80);
@@ -124,7 +124,7 @@ export async function createStudentForPortal(formData: FormData): Promise<Action
 }
 
 export async function issueAdminStudentLogin(studentId: string, formData: FormData): Promise<PortalLoginResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Invalid student." };
 
@@ -150,7 +150,7 @@ export async function issueAdminStudentLogin(studentId: string, formData: FormDa
 }
 
 export async function revokeAdminStudentLogin(studentId: string): Promise<ActionResult> {
-  const auth = await requireAdmin();
+  const auth = await requireAdmin("students");
   if ("error" in auth) return { error: auth.error };
   if (!isUuid(studentId)) return { error: "Invalid student." };
 

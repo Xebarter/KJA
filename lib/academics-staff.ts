@@ -110,12 +110,21 @@ async function rowsOf<T>(run: PromiseLike<{ data: T[] | null; error: { message: 
 }
 
 export function loadStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
-  return remember(`academics-staff:v2:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
+  return remember(`academics-staff:v4:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
+}
+
+async function loadTeachingStaff(supabase: SupabaseClient) {
+  const archived = await supabase.from("teaching_staff").select("*").is("deleted_at", null).order("full_name");
+  if (!archived.error) return archived;
+  if (/deleted_at|schema cache|does not exist/i.test(archived.error.message)) {
+    return supabase.from("teaching_staff").select("*").order("full_name");
+  }
+  return archived;
 }
 
 async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
   const [staffQuery, termPack, subjectQuery] = await Promise.all([
-    supabase.from("teaching_staff").select("*").order("full_name"),
+    loadTeachingStaff(supabase),
     loadCurrentTerm(supabase),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
   ]);

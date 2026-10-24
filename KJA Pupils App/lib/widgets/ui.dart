@@ -6,7 +6,7 @@ import '../pupil_photos.dart';
 import '../theme.dart';
 
 /// School crest used in splash, gates, drawer, and student card.
-/// Clipped to a circle so the page colour shows around the crest (no white square).
+/// The source file is a circle on a white square; clip it so the corners disappear.
 class SchoolMark extends StatelessWidget {
   const SchoolMark({super.key, this.size = 44});
 
@@ -19,15 +19,20 @@ class SchoolMark extends StatelessWidget {
     return SizedBox(
       width: size,
       height: size,
-      child: Image.asset(
-        assetPath,
-        width: size,
-        height: size,
-        fit: BoxFit.contain,
-        filterQuality: FilterQuality.high,
-        gaplessPlayback: true,
-        semanticLabel: 'Kampala Junior Academy',
-        errorBuilder: (context, error, stackTrace) => Icon(Icons.school_rounded, size: size * 0.55, color: KjaColors.navy),
+      child: ClipOval(
+        child: Image.asset(
+          assetPath,
+          width: size,
+          height: size,
+          fit: BoxFit.cover,
+          filterQuality: FilterQuality.high,
+          gaplessPlayback: true,
+          semanticLabel: 'Kampala Junior Academy',
+          errorBuilder: (context, error, stackTrace) => ColoredBox(
+            color: Colors.white,
+            child: Icon(Icons.school_rounded, size: size * 0.55, color: KjaColors.navy),
+          ),
+        ),
       ),
     );
   }

@@ -9,6 +9,9 @@ export function isAcademicsRole(role: string | null | undefined) {
 
 /** Which script to run when a query fails because the database is behind the app. */
 export function academicsSchemaScript(message: string | null | undefined) {
+  if (message && /class_notices|notify_my_class|class_teacher_sees_conversation|academic_dates_class_scope|0041_teacher/i.test(message)) {
+    return "supabase/0041_teacher_dashboard.sql";
+  }
   if (message && /subjects_kind_check|0028_subject_kinds|default_skills/i.test(message)) {
     return "supabase/0028_subject_kinds_academic_other.sql";
   }
@@ -65,7 +68,7 @@ export const academicsNav: AcademicsNavItem[] = [
   { href: `${ACADEMICS_BASE}/timetable`, label: "Timetable", icon: "fa-table-cells", group: "Teaching" },
   { href: `${ACADEMICS_BASE}/schemes`, label: "Schemes", icon: "fa-list-check", group: "Teaching", badge: "schemes" },
   { href: `${ACADEMICS_BASE}/attendance`, label: "Attendance", icon: "fa-clipboard-user", group: "Daily", badge: "registers" },
-  { href: `${ACADEMICS_BASE}/homework`, label: "Homework", icon: "fa-book", group: "Daily" },
+  { href: `${ACADEMICS_BASE}/homework`, label: "Homework & resources", icon: "fa-book", group: "Daily" },
   { href: `${ACADEMICS_BASE}/chat-review`, label: "Chat review", icon: "fa-shield-halved", group: "Daily", office: true },
   { href: `${ACADEMICS_BASE}/assessments`, label: "Assessments", icon: "fa-pen-to-square", group: "Assessment" },
   { href: `${ACADEMICS_BASE}/reports`, label: "Report cards", icon: "fa-file-lines", group: "Assessment", badge: "drafts", office: true },

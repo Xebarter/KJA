@@ -136,9 +136,11 @@ export type StudentClub = {
 
 export type StudentTeacher = {
   id: string;
+  staff_id: string;
   full_name: string;
   title: string | null;
   subject_name: string | null;
+  photo_path: string | null;
   role: "class" | "subject";
 };
 

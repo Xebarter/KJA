@@ -1,6 +1,7 @@
 import { AdminShell } from "@/components/admin/Shell";
 import "@/app/admin/cms-desk.css";
 import { loadUnpaidApplications } from "@/lib/admission-followups";
+import { loadShellAccess } from "@/lib/dashboard-guard";
 import { remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
 
@@ -45,8 +46,25 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     const email = user?.email ?? "";
     admin = { name: profile || user?.user_metadata?.full_name || email || admin.name, email };
   }
+  const access = await loadShellAccess("admin");
+  const officeNav = [
+    { id: "admissions", href: "/admissions_office", label: "Admissions office", icon: "fa-building-user" },
+    { id: "accounts", href: "/accounts", label: "Accounts office", icon: "fa-calculator" },
+    { id: "academics", href: "/academics_office", label: "Academics office", icon: "fa-graduation-cap" },
+  ];
+  const offices = access.known ? officeNav.filter((item) => access.grants.some((grant) => grant.dashboard === item.id)) : undefined;
   return (
-    <AdminShell admin={admin} newApplications={newApplications} unreadMessages={unreadMessages} newJobApplications={newJobApplications}>
+    <AdminShell
+      admin={admin}
+      newApplications={newApplications}
+      unreadMessages={unreadMessages}
+      newJobApplications={newJobApplications}
+      pages={access.known ? access.pages : null}
+      canSwitch={access.canSwitch}
+      fullAdmin={access.known ? access.fullAdmin : true}
+      home={access.home}
+      offices={offices}
+    >
       {children}
     </AdminShell>
   );

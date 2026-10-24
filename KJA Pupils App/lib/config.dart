@@ -49,28 +49,35 @@ class AppConfig {
 
   static Future<AppConfig> load() async {
     await loadDotenv();
-    final prefs = await SharedPreferences.getInstance();
+    // Preferences are only a device override. A failure here must not block
+    // the keys already loaded from .env or dart-define.
+    SharedPreferences? prefs;
+    try {
+      prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 8));
+    } catch (_) {
+      prefs = null;
+    }
 
     final url = _firstNonEmpty([
       defineUrl,
       defineUrlAlias,
       _env('SUPABASE_URL'),
       _env('NEXT_PUBLIC_SUPABASE_URL'),
-      prefs.getString('supabase_url'),
+      prefs?.getString('supabase_url'),
     ]);
     final key = _firstNonEmpty([
       defineKey,
       defineKeyAlias,
       _env('SUPABASE_ANON_KEY'),
       _env('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
-      prefs.getString('supabase_anon_key'),
+      prefs?.getString('supabase_anon_key'),
     ]);
     siteUrl = _firstNonEmpty([
       defineSiteUrl,
       defineSiteUrlAlias,
       _env('KJA_SITE_URL'),
       _env('NEXT_PUBLIC_SITE_URL'),
-      prefs.getString('kja_site_url'),
+      prefs?.getString('kja_site_url'),
       'https://kja.ug',
     ]);
 

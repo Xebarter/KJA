@@ -2,15 +2,22 @@
  * Build the stream PDF from the same ReportSheet HTML/CSS used on
  * /academics_office/reports/[id], so Download PDF matches on-screen print.
  *
- * Fast path: render HTML in-process + reuse a warm Chromium/Edge. Avoids
- * launching a browser per download and reloading the office shell/print page.
+ * Fast path: self-contained HTML + warm Chromium/Edge. Large classes are
+ * rendered in parallel chunks then merged, so Chromium never lays out the
+ * whole stream in one pass.
  */
 import { readFile } from "fs/promises";
 import path from "path";
-import { chromium, type Browser, type Page } from "playwright-core";
+import { PDFDocument } from "pdf-lib";
+import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 
 let shared: Browser | null = null;
 let launching: Promise<Browser> | null = null;
+
+/** Cards per Chromium pass — smaller packs layout much faster than a full stream. */
+const CHUNK_SIZE = 6;
+/** Concurrent Chromium contexts (each owns one chunk). */
+const CHUNK_CONCURRENCY = 3;
 
 async function launchBrowser(): Promise<Browser> {
   const errors: string[] = [];
@@ -19,7 +26,14 @@ async function launchBrowser(): Promise<Browser> {
       return await chromium.launch({
         channel,
         headless: true,
-        args: ["--disable-dev-shm-usage", "--no-sandbox"],
+        args: [
+          "--disable-dev-shm-usage",
+          "--no-sandbox",
+          "--disable-gpu",
+          "--disable-extensions",
+          "--disable-background-networking",
+          "--mute-audio",
+        ],
       });
     } catch (error) {
       errors.push(`${channel}: ${error instanceof Error ? error.message : String(error)}`);
@@ -49,6 +63,9 @@ async function getBrowser(): Promise<Browser> {
   return launching;
 }
 
+/** Warm Chromium as soon as this module loads so the first download is not a cold start. */
+void getBrowser().catch(() => {});
+
 const MIME: Record<string, string> = {
   ".css": "text/css; charset=utf-8",
   ".woff2": "font/woff2",
@@ -59,7 +76,7 @@ const MIME: Record<string, string> = {
   ".svg": "image/svg+xml",
 };
 
-/** Serve /css, /fonts, /images from disk so PDF gen does not wait on Next.js. */
+/** Serve /css, /fonts, /images from disk (legacy print-pack path). */
 async function attachPublicAssetRouter(page: Page) {
   const publicDir = path.join(process.cwd(), "public");
   await page.route("**/*", async (route) => {
@@ -71,7 +88,6 @@ async function attachPublicAssetRouter(page: Page) {
       return route.abort();
     }
     if (!/^\/(css|fonts|images)\//.test(pathname)) {
-      // Document is already set; block leftover app/HMR traffic.
       if (route.request().resourceType() === "document") return route.continue();
       return route.abort();
     }
@@ -91,30 +107,95 @@ async function attachPublicAssetRouter(page: Page) {
   });
 }
 
-/** Print HTML already built in-process (preferred fast path). */
-export async function buildReportCardsPdfFromHtml(html: string): Promise<Uint8Array> {
-  const browser = await getBrowser();
-  const context = await browser.newContext({
-    viewport: { width: 1200, height: 1600 },
-    deviceScaleFactor: 1,
+/** Self-contained HTML: block stray network; fonts/images are already data URIs. */
+async function attachOfflineRouter(page: Page) {
+  await page.route("**/*", async (route) => {
+    if (route.request().resourceType() === "document") return route.continue();
+    return route.abort();
   });
+}
+
+async function pdfFromHtml(browser: Browser, html: string, offline: boolean): Promise<Uint8Array> {
+  let context: BrowserContext | null = null;
   try {
-    const page = await context.newPage();
-    await attachPublicAssetRouter(page);
-    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 60_000 });
-    await page.evaluate(async () => {
-      if (document.fonts?.ready) await document.fonts.ready;
+    context = await browser.newContext({
+      viewport: { width: 794, height: 1123 },
+      deviceScaleFactor: 1,
+      javaScriptEnabled: false,
     });
+    const page = await context.newPage();
+    if (offline) await attachOfflineRouter(page);
+    else await attachPublicAssetRouter(page);
+    await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 45_000 });
+    // Fonts/images are data URIs in the fast path — a short settle beats fonts.ready on large packs.
+    if (!offline) {
+      await page.evaluate(async () => {
+        if (document.fonts?.ready) await document.fonts.ready;
+      });
+    }
     await page.emulateMedia({ media: "print" });
-    const bytes = await page.pdf({
+    return await page.pdf({
       printBackground: true,
       preferCSSPageSize: true,
       margin: { top: "0", right: "0", bottom: "0", left: "0" },
     });
-    return bytes;
   } finally {
-    await context.close();
+    await context?.close();
   }
+}
+
+async function mapPool<T>(items: T[], concurrency: number, work: (item: T) => Promise<void>) {
+  if (!items.length) return;
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      await work(items[index]);
+    }
+  });
+  await Promise.all(workers);
+}
+
+async function mergePdfs(parts: Uint8Array[]): Promise<Uint8Array> {
+  if (parts.length === 1) return parts[0];
+  const merged = await PDFDocument.create();
+  for (const bytes of parts) {
+    const doc = await PDFDocument.load(bytes);
+    const pages = await merged.copyPages(doc, doc.getPageIndices());
+    for (const page of pages) merged.addPage(page);
+  }
+  return merged.save();
+}
+
+/** Print HTML already built in-process (preferred fast path). */
+export async function buildReportCardsPdfFromHtml(html: string): Promise<Uint8Array> {
+  const browser = await getBrowser();
+  return pdfFromHtml(browser, html, true);
+}
+
+/**
+ * Render several self-contained HTML packs in parallel and stitch the PDFs.
+ * Keeps Chromium layout cost linear in chunk size instead of class size.
+ */
+export async function buildReportCardsPdfFromHtmlChunks(htmlChunks: string[]): Promise<Uint8Array> {
+  if (!htmlChunks.length) throw new Error("No report cards to print.");
+  if (htmlChunks.length === 1) return buildReportCardsPdfFromHtml(htmlChunks[0]);
+  const browser = await getBrowser();
+  const parts: Uint8Array[] = new Array(htmlChunks.length);
+  await mapPool(
+    htmlChunks.map((html, index) => ({ html, index })),
+    CHUNK_CONCURRENCY,
+    async ({ html, index }) => {
+      parts[index] = await pdfFromHtml(browser, html, true);
+    },
+  );
+  return mergePdfs(parts);
+}
+
+export function reportPdfChunkSize(cardCount: number) {
+  if (cardCount <= CHUNK_SIZE) return cardCount || 1;
+  return CHUNK_SIZE;
 }
 
 function cookieHeaderToJar(header: string, origin: string) {
@@ -153,7 +234,7 @@ export async function buildReportCardsPdfFromPrintPack(input: {
 
   const browser = await getBrowser();
   const context = await browser.newContext({
-    viewport: { width: 1200, height: 1600 },
+    viewport: { width: 794, height: 1123 },
     deviceScaleFactor: 1,
   });
   try {

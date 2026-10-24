@@ -5,37 +5,99 @@ import '../state/portal_controller.dart';
 import '../theme.dart';
 import '../widgets/ui.dart';
 
-class SplashScreen extends StatelessWidget {
+class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
   @override
+  State<SplashScreen> createState() => _SplashScreenState();
+}
+
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late final AnimationController _enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 720))
+    ..forward();
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      body: GateBackdrop(
+    final curve = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
+    return Scaffold(
+      backgroundColor: const Color(0xFFFFFBF6),
+      body: DecoratedBox(
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0xFFFFFBF6), Color(0xFFF4F8FB), Color(0xFFEAF3F8)],
+          ),
+        ),
         child: Center(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SchoolMark(size: 128),
-              SizedBox(height: 22),
-              Text(
-                'KJA Pupils',
-                style: TextStyle(
-                  color: KjaColors.ink,
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  letterSpacing: -0.4,
-                ),
+          child: FadeTransition(
+            opacity: curve,
+            child: AnimatedBuilder(
+              animation: curve,
+              builder: (context, child) => Transform.translate(offset: Offset(0, (1 - curve.value) * 14), child: child),
+              child: const Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _SplashMark(),
+                  SizedBox(height: 18),
+                  Text(
+                    'KJA Pupils',
+                    style: TextStyle(
+                      color: KjaColors.ink,
+                      fontSize: 26,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.4,
+                      height: 1,
+                    ),
+                  ),
+                  SizedBox(height: 6),
+                  Text(
+                    'Kampala Junior Academy',
+                    style: TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 14, height: 1.2),
+                  ),
+                  SizedBox(height: 28),
+                  SizedBox(
+                    width: 22,
+                    height: 22,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: KjaColors.navy),
+                  ),
+                ],
               ),
-              SizedBox(height: 8),
-              Text(
-                'Kampala Junior Academy',
-                style: TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600),
-              ),
-            ],
+            ),
           ),
         ),
       ),
+    );
+  }
+}
+
+class _SplashMark extends StatelessWidget {
+  const _SplashMark();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 88,
+      height: 88,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: KjaColors.navy.withValues(alpha: 0.08),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(5),
+      child: const SchoolMark(size: 78),
     );
   }
 }

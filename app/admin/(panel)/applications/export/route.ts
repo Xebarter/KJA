@@ -1,5 +1,4 @@
-import { applicationsQuery, loadPeople } from "@/lib/admin-applications";
-import { requireOffice } from "@/lib/office";
+import { applicationsQuery, loadPeople, requireApplicationDesk } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, parseFilters, statusInfo, type Application } from "@/lib/applications";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +10,7 @@ function cell(value: unknown) {
 }
 
 export async function GET(request: Request) {
-  const auth = await requireOffice();
+  const auth = await requireApplicationDesk();
   if ("error" in auth) return new Response(auth.error, { status: 403 });
   const { supabase, user } = auth;
   const params = new URL(request.url).searchParams;

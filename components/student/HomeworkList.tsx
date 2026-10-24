@@ -40,6 +40,10 @@ function plural(count: number, word: string) {
   return `${count} ${word}${count === 1 ? "" : "s"}`;
 }
 
+function looksLikeHtml(value: string) {
+  return /<\/?[a-z][\s\S]*>/i.test(value);
+}
+
 export function HomeworkList({ items, filter }: { items: StudentHomework[]; filter: "open" | "done" | "all" }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -173,7 +177,13 @@ export function HomeworkList({ items, filter }: { items: StudentHomework[]; filt
                     {row.done && row.done_at ? ` · finished ${shortDate(row.done_at.slice(0, 10))}` : null}
                     {!row.done && (overdueItem || dueSoon) ? ` · due ${shortDate(row.due_on)}` : null}
                   </p>
-                  {row.instructions ? <p className="hw-instructions">{row.instructions}</p> : null}
+                  {row.instructions ? (
+                    looksLikeHtml(row.instructions) ? (
+                      <div className="hw-instructions hw-prose" dangerouslySetInnerHTML={{ __html: row.instructions }} />
+                    ) : (
+                      <p className="hw-instructions">{row.instructions}</p>
+                    )
+                  ) : null}
                 </div>
                 <div className="hw-actions">
                   <button

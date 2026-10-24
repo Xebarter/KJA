@@ -5,8 +5,12 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useRef, useState } from "react";
 import { signOut } from "@/app/actions";
 import { searchOffice } from "@/app/admissions_office/(office)/students/actions";
+import { DashboardSwitch } from "@/components/DashboardSwitch";
+import { DeskWarmup } from "@/components/DeskWarmup";
+import { DesktopSyncBar } from "@/components/DesktopSyncBar";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
+import { pageIdForPath, pageVisible } from "@/lib/dashboard-access";
 import { EMPTY_OFFICE_BADGES, type OfficeBadgeCounts } from "@/lib/office-badges";
 import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
 import type { SidebarHit } from "@/lib/sidebar-search";
@@ -34,10 +38,16 @@ export function OfficeShell({
   children,
   person: initialPerson,
   badges: initialBadges = EMPTY_OFFICE_BADGES,
+  pages = null,
+  canSwitch = false,
+  home = OFFICE_BASE,
 }: {
   children: React.ReactNode;
   person: Person;
   badges?: OfficeBadgeCounts;
+  pages?: string[] | null;
+  canSwitch?: boolean;
+  home?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -45,7 +55,10 @@ export function OfficeShell({
   const [badges, setBadges] = useState(initialBadges);
   const [person, setPerson] = useState(initialPerson);
   const search = useRef<HTMLInputElement>(null);
-  const current = [...officeNav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
+  const show = (href: string) => pages === null || pageVisible(pages, pageIdForPath("admissions", href) || "");
+  const nav = officeNav.filter((item) => show(item.href));
+  const places = OFFICE_PLACES.filter((place) => show(place.href));
+  const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
   useEffect(() => setOpen(false), [pathname]);
 
@@ -94,8 +107,10 @@ export function OfficeShell({
 
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
+      <DesktopSyncBar />
+      <DeskWarmup hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
-        <Link href={OFFICE_BASE} className="admin-topbar-brand">
+        <Link href={home} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -116,7 +131,7 @@ export function OfficeShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="office-side" className="admin-side">
-        <Link href={OFFICE_BASE} className="admin-brand">
+        <Link href={home} className="admin-brand">
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -129,7 +144,7 @@ export function OfficeShell({
           label="Find a student"
           placeholder="Name, number or parent phone"
           inputRef={search}
-          places={OFFICE_PLACES}
+          places={places}
           recordsLabel="Students"
           browseLabel="See all students"
           browseHref={(q) => `${OFFICE_BASE}/students?status=all&q=${encodeURIComponent(q)}`}
@@ -138,10 +153,10 @@ export function OfficeShell({
         />
 
         <nav className="admin-nav" aria-label="Admissions office">
-          {officeNav.map((item, index) => {
+          {nav.map((item, index) => {
             const active = isActive(pathname, item.href);
             const badge = item.badge ? badges[item.badge] : 0;
-            const divided = index > 0 && item.group !== officeNav[index - 1].group;
+            const divided = index > 0 && item.group !== nav[index - 1].group;
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
@@ -154,13 +169,16 @@ export function OfficeShell({
             );
           })}
           <hr className="admin-nav-rule" />
-          <Link href={`${OFFICE_BASE}/students/new`} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
-            <i className="fa-solid fa-user-plus" aria-hidden="true" />
-            <span>Enrol a student</span>
-          </Link>
+          {show(`${OFFICE_BASE}/students/new`) ? (
+            <Link href={`${OFFICE_BASE}/students/new`} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
+              <i className="fa-solid fa-user-plus" aria-hidden="true" />
+              <span>Enrol a student</span>
+            </Link>
+          ) : null}
         </nav>
 
         <div className="admin-side-foot">
+          <DashboardSwitch show={canSwitch} />
           <div className="admin-user">
             <span className="admin-user-avatar" aria-hidden="true">{initials(person.name)}</span>
             <span className="admin-user-text">
@@ -174,7 +192,7 @@ export function OfficeShell({
               title="Sign out"
               onClick={async () => {
                 await signOut();
-                router.push("/");
+                router.push("/admin/login");
                 router.refresh();
               }}
             >
