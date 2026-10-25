@@ -5,7 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 import { signOut } from "@/app/actions";
 import { DeskWarmup } from "@/components/DeskWarmup";
-import { DesktopSyncBar } from "@/components/DesktopSyncBar";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { isDesktopClient } from "@/lib/desktop";
 import { TEACHER_BASE, teacherNav } from "@/lib/teacher";
 
@@ -66,7 +66,7 @@ export function TeacherShell({
 
   return (
     <div className={`admin-shell ofc-shell tch-shell${open ? " is-nav-open" : ""}`}>
-      <DesktopSyncBar />
+      <DesktopChrome desk="Teacher desk" />
       <DeskWarmup hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
         <Link href={homeHref} className="admin-topbar-brand" prefetch={linkPrefetch}>

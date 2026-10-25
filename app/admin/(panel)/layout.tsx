@@ -13,7 +13,8 @@ const PROFILE_MS = 60_000;
 export default async function PanelLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient();
   let newApplications = 0;
-  let unreadMessages = 0;
+  let unreadEnquiries = 0;
+  let unreadCommunications = 0;
   let newJobApplications = 0;
   let admin = { name: "Administrator", email: "" };
   if (supabase) {
@@ -21,15 +22,17 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     const user = session?.user;
     const [badges, profile] = await Promise.all([
       remember(`admin-badges:${user?.id ?? "anon"}`, BADGES_MS, async () => {
-        const [apps, unpaid, notes, jobs] = await Promise.all([
+        const [apps, unpaid, notes, parentOut, jobs] = await Promise.all([
           supabase.from("applications").select("id", { count: "exact", head: true }).eq("status", "received"),
           loadUnpaidApplications(supabase),
           supabase.from("contact_messages").select("id", { count: "exact", head: true }).eq("read", false),
+          supabase.from("parent_messages").select("id", { count: "exact", head: true }).eq("direction", "out").eq("read", false),
           supabase.from("job_applications").select("id", { count: "exact", head: true }).eq("status", "new"),
         ]);
         return {
           newApplications: (apps.count ?? 0) + unpaid.items.length,
-          unreadMessages: notes.count ?? 0,
+          unreadEnquiries: notes.count ?? 0,
+          unreadCommunications: parentOut.count ?? 0,
           newJobApplications: jobs.count ?? 0,
         };
       }),
@@ -41,7 +44,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
         : Promise.resolve(""),
     ]);
     newApplications = badges.newApplications;
-    unreadMessages = badges.unreadMessages;
+    unreadEnquiries = badges.unreadEnquiries;
+    unreadCommunications = badges.unreadCommunications;
     newJobApplications = badges.newJobApplications;
     const email = user?.email ?? "";
     admin = { name: profile || user?.user_metadata?.full_name || email || admin.name, email };
@@ -57,7 +61,8 @@ export default async function PanelLayout({ children }: { children: React.ReactN
     <AdminShell
       admin={admin}
       newApplications={newApplications}
-      unreadMessages={unreadMessages}
+      unreadEnquiries={unreadEnquiries}
+      unreadCommunications={unreadCommunications}
       newJobApplications={newJobApplications}
       pages={access.known ? access.pages : null}
       canSwitch={access.canSwitch}

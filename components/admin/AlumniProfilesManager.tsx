@@ -125,7 +125,7 @@ export function AlumniProfilesManager({ profiles, editable }: { profiles: Alumni
             <a className="admin-hero-btn" href="/alumni-profiles" target="_blank" rel="noopener noreferrer">
               <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> Profiles page
             </a>
-            <Link className="admin-hero-btn" href="/admin/inbox/messages">
+            <Link className="admin-hero-btn" href="/admin/inbox/enquiries">
               <i className="fa-solid fa-inbox" aria-hidden="true" /> Alumni submissions
             </Link>
           </>

@@ -7,7 +7,7 @@ import { signOut } from "@/app/actions";
 import { searchFeeAccounts } from "@/app/accounts/(desk)/payments/actions";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
-import { DesktopSyncBar } from "@/components/DesktopSyncBar";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { ACCOUNTS_BASE, accountsNav, type AccountsBadge } from "@/lib/accounts-nav";
@@ -96,7 +96,7 @@ export function AccountsShell({
 
   return (
     <div className={`admin-shell ofc-shell acc-shell${open ? " is-nav-open" : ""}`}>
-      <DesktopSyncBar />
+      <DesktopChrome desk="Accounts" />
       <DeskWarmup
         hrefs={[
           ...nav.map((item) => item.href),

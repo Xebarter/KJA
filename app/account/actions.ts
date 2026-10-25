@@ -16,6 +16,8 @@ async function parentClient() {
 
 function refresh() {
   revalidatePath("/account", "layout");
+  revalidatePath("/account/communications");
+  revalidatePath("/admin/communications");
 }
 
 export async function updateParentProfile(formData: FormData) {
@@ -79,11 +81,31 @@ export async function cancelClubSignup(formData: FormData) {
 
 export async function sendParentMessage(formData: FormData) {
   const { user, supabase } = await parentClient();
+  const subject = clean(formData.get("subject"));
+  const body = clean(formData.get("body"));
+  if (!subject || !body) throw new Error("Add a subject and message.");
+
+  const rawThread = clean(formData.get("thread_id"));
+  const threadId = rawThread && /^[0-9a-f-]{36}$/i.test(rawThread) ? rawThread : crypto.randomUUID();
+
+  const { data: guardian } = await supabase
+    .from("guardians")
+    .select("family_id")
+    .eq("user_id", user.id)
+    .not("family_id", "is", null)
+    .limit(1)
+    .maybeSingle();
+
   const { error } = await supabase.from("parent_messages").insert({
     user_id: user.id,
-    subject: clean(formData.get("subject")),
-    body: clean(formData.get("body")),
+    subject,
+    body,
     direction: "out",
+    read: false,
+    thread_id: threadId,
+    family_id: guardian?.family_id ?? null,
+    audience: "direct",
+    created_by: user.id,
   });
   if (error) throw new Error(error.message);
   refresh();

@@ -2,6 +2,7 @@
 
 import { useSearchParams } from "next/navigation";
 import { useState } from "react";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 function isStaffDestination(path: string) {
@@ -22,7 +23,9 @@ export function LoginForm({ desktop }: { desktop: boolean }) {
   const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   return (
-    <main className={`admin-login${desktop ? " is-desktop" : ""}`}>
+    <>
+      {desktop ? <DesktopChrome desk="Staff sign-in" showSync={false} /> : null}
+      <main className={`admin-login${desktop ? " is-desktop" : ""}`}>
       <div className="admin-login-stage" aria-hidden="true">
         {desktop ? (
           <>
@@ -122,5 +125,6 @@ export function LoginForm({ desktop }: { desktop: boolean }) {
         {desktop ? <p className="login-footnote">Confidential · Staff only</p> : null}
       </div>
     </main>
+    </>
   );
 }

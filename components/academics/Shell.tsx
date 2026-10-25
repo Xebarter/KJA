@@ -7,7 +7,7 @@ import { searchAcademics } from "@/app/academics_office/(desk)/actions";
 import { signOut } from "@/app/actions";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
-import { DesktopSyncBar } from "@/components/DesktopSyncBar";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { pageIdForPath } from "@/lib/dashboard-access";
@@ -134,7 +134,7 @@ export function AcademicsShell({
 
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
-      <DesktopSyncBar />
+      <DesktopChrome desk="Academics" />
       <DeskWarmup
         hrefs={[
           ...nav.map((item) => item.href),

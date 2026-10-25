@@ -28,7 +28,8 @@ export const contentGroups = [
 ] as const;
 
 export const inboxLinks = [
-  { href: "/admin/inbox/messages", label: "Messages" },
+  { href: "/admin/communications", label: "Communications" },
+  { href: "/admin/inbox/enquiries", label: "Enquiries" },
   { href: "/admin/inbox/newsletter", label: "Newsletter" },
 ];
 

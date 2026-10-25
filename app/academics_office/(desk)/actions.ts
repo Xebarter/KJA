@@ -30,6 +30,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
 import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
+import { notifyStudentParents } from "@/lib/parent-notify";
 
 type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string; email?: string; password?: string; temporary?: boolean };
 
@@ -1286,6 +1287,13 @@ async function notifyStudentsOfReports(
       p_kind: "reports",
     });
   }
+  await notifyStudentParents(supabase, {
+    studentIds,
+    title: "Report card ready",
+    body: "Open Reports in the parent portal to view it.",
+    href: "/account/reports",
+    kind: "reports",
+  }).catch(() => undefined);
 }
 
 export async function publishReports(formData: FormData): Promise<Result> {
@@ -1307,8 +1315,8 @@ export async function publishReports(formData: FormData): Promise<Result> {
   if (!data?.length) return { error: "Approve the class before publishing. Draft cards stay with the office." };
   await notifyStudentsOfReports(opened.auth.supabase, data);
   await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Published report cards for ${classLabel(classCode, stream)}.` });
-  refreshAcademics(`${ACADEMICS_BASE}/reports`);
-  return { ok: "Approved report cards published. Parents can open them now." };
+  refreshAcademics(`${ACADEMICS_BASE}/reports`, "/account/notifications");
+  return { ok: "Approved report cards published. Pupils and parents are notified." };
 }
 
 export async function postReports(formData: FormData): Promise<Result> {
@@ -1344,9 +1352,9 @@ export async function postReports(formData: FormData): Promise<Result> {
     if (!posted?.length) return { error: "There were no report cards to post." };
     await notifyStudentsOfReports(opened.auth.supabase, posted);
     await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "report", body: `Posted report cards for ${classLabel(input.classCode, input.stream)}.` });
-    refreshAcademics(`${ACADEMICS_BASE}/reports`, previewHref(input.classCode, input.stream));
+    refreshAcademics(`${ACADEMICS_BASE}/reports`, previewHref(input.classCode, input.stream), "/account/notifications");
     const count = posted.length;
-    return { ok: `Posted ${count} report ${count === 1 ? "card" : "cards"}. Parents can open them now.` };
+    return { ok: `Posted ${count} report ${count === 1 ? "card" : "cards"}. Pupils and parents are notified.` };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Reports could not be posted." };
   }

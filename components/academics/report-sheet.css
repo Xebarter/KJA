@@ -355,16 +355,21 @@ article.acd-sheet .acd-sheet-record > .acd-sheet-kicker {
 }
 article.acd-sheet .acd-sheet-table-wrap {
   overflow-x: auto;
-  border: 1px solid rgba(11, 125, 56, .28);
+  border: 1px solid rgba(11, 125, 56, .22);
   border-radius: 10px;
   background: #fff;
-  box-shadow: 0 8px 22px rgba(11, 125, 56, .06);
+  box-shadow: 0 8px 22px rgba(11, 125, 56, .05);
 }
 article.acd-sheet .acd-sheet-record table {
   width: 100%;
   min-width: 0;
   border-collapse: collapse;
   table-layout: fixed;
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
+}
+article.acd-sheet .acd-sheet-record th,
+article.acd-sheet .acd-sheet-record td {
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
 }
 article.acd-sheet th,
 article.acd-sheet td {
@@ -375,9 +380,9 @@ article.acd-sheet td {
 }
 article.acd-sheet .acd-sheet-record thead th {
   padding: .48rem .32rem .38rem;
-  border-bottom: 1px solid rgba(11, 125, 56, .35);
-  background: var(--sheet-green);
-  color: #fff;
+  border-bottom: 1.5px solid rgba(11, 125, 56, .28);
+  background: linear-gradient(180deg, #eefaf3 0%, #dff6e9 100%);
+  color: var(--sheet-green-deep);
   font-size: calc(.68rem + 1pt);
   font-weight: 800;
   letter-spacing: .06em;
@@ -392,7 +397,7 @@ article.acd-sheet .acd-sheet-record thead th:last-child {
   border-radius: 0 9px 0 0;
 }
 article.acd-sheet .acd-sheet-record thead th.is-set small {
-  color: rgba(255, 255, 255, .92);
+  color: rgba(11, 125, 56, .72);
 }
 article.acd-sheet thead th {
   padding-top: 0;
@@ -502,10 +507,14 @@ article.acd-sheet td.is-note {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+article.acd-sheet .acd-sheet-record th.is-note,
+article.acd-sheet .acd-sheet-record td.is-note {
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
+  font-style: normal;
+}
 article.acd-sheet .acd-sheet-record td.is-note {
   color: var(--sheet-ink);
   font-size: calc(.86rem + 1pt);
-  font-style: normal;
   font-weight: 700;
 }
 article.acd-sheet th.is-sign,
@@ -522,7 +531,9 @@ article.acd-sheet td.is-sign {
   overflow: hidden;
   text-overflow: clip;
 }
-article.acd-sheet .acd-sheet-record td.is-sign {
+article.acd-sheet .acd-sheet-record td.is-sign,
+article.acd-sheet .acd-sheet-record th.is-sign {
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
   font-size: calc(.8rem + 1pt);
   font-weight: 800;
   letter-spacing: .02em;

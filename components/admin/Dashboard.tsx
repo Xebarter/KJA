@@ -66,7 +66,7 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
 
   const attention = [
     { count: newApplications, label: newApplications === 1 ? "new application" : "new applications", href: "/admin/applications?status=received", icon: "fa-file-signature" },
-    { count: unreadMessages, label: unreadMessages === 1 ? "unread message" : "unread messages", href: "/admin/inbox/messages", icon: "fa-envelope" },
+    { count: unreadMessages, label: unreadMessages === 1 ? "unread enquiry" : "unread enquiries", href: "/admin/inbox/enquiries", icon: "fa-envelope" },
     { count: upcomingVisits, label: upcomingVisits === 1 ? "school visit booked" : "school visits booked", href: "/admin/applications?status=visit_scheduled", icon: "fa-calendar-check" },
     { count: drafts + scheduled, label: drafts + scheduled === 1 ? "story not yet live" : "stories not yet live", href: "/admin/stories?status=draft", icon: "fa-pen-to-square" },
   ];
@@ -94,7 +94,8 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
     { href: "/admin/applications", label: "Applications", icon: "fa-file-signature", badge: newApplications || undefined },
     { href: "/admin/stories", label: "Stories", icon: "fa-newspaper" },
     { href: "/admin/students", label: "Students", icon: "fa-user-graduate" },
-    { href: "/admin/inbox/messages", label: "Inbox", icon: "fa-envelope", badge: unreadMessages || undefined },
+    { href: "/admin/communications", label: "Communications", icon: "fa-comments" },
+    { href: "/admin/inbox/enquiries", label: "Enquiries", icon: "fa-envelope", badge: unreadMessages || undefined },
     { href: "/admin/team", label: "Team", icon: "fa-user-shield" },
     { href: "/academics_office", label: "Academics", icon: "fa-graduation-cap", external: true },
     { href: "/admissions_office", label: "Admissions", icon: "fa-building-user", external: true },
@@ -283,16 +284,16 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
           <section className="dash-panel">
             <header className="dash-panel-head">
               <div>
-                <h2>Inbox</h2>
-                <p>{unreadMessages ? `${unreadMessages} unread` : "No unread messages"}</p>
+                <h2>Enquiries</h2>
+                <p>{unreadMessages ? `${unreadMessages} unread` : "No unread enquiries"}</p>
               </div>
-              <Link href="/admin/inbox/messages">Open inbox</Link>
+              <Link href="/admin/inbox/enquiries">Open enquiries</Link>
             </header>
             {messages.length ? (
               <ul className="dash-inbox">
                 {messages.map((message) => (
                   <li key={message.id} className={message.read ? "" : "is-unread"}>
-                    <Link href="/admin/inbox/messages">
+                    <Link href={`/admin/inbox/enquiries?id=${message.id}`}>
                       <span className="dash-avatar is-light" aria-hidden="true">{initials(message.name || message.email)}</span>
                       <span className="dash-inbox-main">
                         <span className="dash-inbox-top">

@@ -11,11 +11,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <head>
-        <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Nunito:wght@400;500;600;700;800&family=Roboto:wght@400;500;700&family=Yantramanav:wght@400;500;700&display=swap" />
+        {/* Local fonts + icons so Desktop (and hard reloads) stay intact offline. */}
+        <link rel="stylesheet" href="/vendor/fontawesome/css/all.min.css" />
+        <link rel="stylesheet" href="/css/fonts.css" />
         <link rel="stylesheet" href="/css/main.css" />
       </head>
       <body>{children}</body>

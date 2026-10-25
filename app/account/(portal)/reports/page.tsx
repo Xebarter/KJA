@@ -109,7 +109,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           <strong>Questions about a report?</strong>
           <p>Send a message to the school and the class teacher will get back to you, or book a meeting during visiting hours.</p>
         </div>
-        <Link className="ov-btn ov-btn-dark" href="/account/messages">Message the school</Link>
+        <Link className="ov-btn ov-btn-dark" href="/account/communications">Message the school</Link>
       </aside>
     </div>
   );

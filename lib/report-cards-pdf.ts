@@ -6,7 +6,6 @@ import { PDFDocument, StandardFonts, clip, endPath, popGraphicsState, pushGraphi
 import type { SupabaseClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import { classLabel, classSection, formatShare, num, scaleBands, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
-import { siteUrl } from "@/lib/admin-alerts";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
@@ -354,7 +353,6 @@ export async function buildReportCardsPdf(
   input: { title: string; nursery: boolean; cards: StreamReportCard[] },
   crestBytes: Uint8Array | null,
   photos?: Map<string, Uint8Array>,
-  origin = siteUrl(),
 ) {
   const pdf = await PDFDocument.create();
   pdf.setTitle(`${input.title} report cards`);
@@ -712,7 +710,7 @@ export async function buildReportCardsPdf(
     const feesW = contentW - qrSize - qrGap;
     page!.drawText("HEADTEACHER'S COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
     page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: M + feesW, y: y - 11 }, thickness: 0.5, color: GOLD });
-    const qrPng = await QRCode.toBuffer(reportOnlineUrl(origin, card.id), {
+    const qrPng = await QRCode.toBuffer(reportOnlineUrl(card.id), {
       type: "png",
       margin: 1,
       width: 180,

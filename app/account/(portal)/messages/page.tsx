@@ -1,8 +1,5 @@
-import { MessagesView } from "@/components/account/MessagesView";
-import { getContent } from "@/lib/content";
-import { getPortal } from "@/lib/portal";
+import { redirect } from "next/navigation";
 
-export default async function MessagesPage() {
-  const [{ messages }, { settings }] = await Promise.all([getPortal(), getContent()]);
-  return <MessagesView messages={messages} phone={settings.phone} email={settings.email} />;
+export default function MessagesRedirect() {
+  redirect("/account/communications");
 }

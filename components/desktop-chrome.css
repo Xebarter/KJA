@@ -1,0 +1,164 @@
+/* Electron title strip — full width, drag region for custom title bar */
+
+html.kja-is-desktop {
+  --kja-desktop-titlebar-height: 48px;
+}
+
+html.kja-is-desktop .admin-shell {
+  min-height: 100vh;
+  min-height: 100dvh;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+html.kja-is-desktop .admin-side {
+  top: var(--kja-desktop-titlebar-height, 48px);
+  height: auto;
+  max-height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
+  align-self: start;
+  position: sticky;
+}
+
+.kja-desktop-chrome {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  grid-column: 1 / -1;
+}
+
+.kja-desktop-titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  height: var(--kja-desktop-titlebar-height, 48px);
+  padding: 0 1.15rem;
+  /* Room for Windows caption buttons when titleBarOverlay is on */
+  padding-right: 8.75rem;
+  color: #f7f1e6;
+  background:
+    radial-gradient(42% 140% at 0% 0%, rgba(253, 163, 27, 0.2), transparent 55%),
+    radial-gradient(36% 120% at 100% 0%, rgba(228, 36, 53, 0.14), transparent 50%),
+    linear-gradient(180deg, #1d2a34 0%, #141d24 100%);
+  border-bottom: 1px solid rgba(253, 163, 27, 0.22);
+  box-shadow: 0 10px 28px -20px rgba(0, 0, 0, 0.55);
+  font-family: Nunito, Yantramanav, "Segoe UI", system-ui, sans-serif;
+  -webkit-app-region: drag;
+  app-region: drag;
+  user-select: none;
+}
+
+@supports (left: env(titlebar-area-x)) {
+  .kja-desktop-titlebar {
+    height: env(titlebar-area-height, 48px);
+    padding-left: max(1.15rem, env(titlebar-area-x, 1.15rem));
+    padding-right: max(
+      1.15rem,
+      calc(100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw) + 0.85rem)
+    );
+  }
+}
+
+.kja-desktop-titlebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+.kja-desktop-titlebar-seal {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow:
+    0 0 0 1.5px #fda31b,
+    0 0 0 4px rgba(253, 163, 27, 0.18);
+}
+
+.kja-desktop-titlebar-seal img {
+  width: 1.35rem;
+  height: 1.35rem;
+  object-fit: contain;
+}
+
+.kja-desktop-titlebar-text {
+  display: grid;
+  gap: 0.02rem;
+  min-width: 0;
+  line-height: 1.15;
+}
+
+.kja-desktop-titlebar-text strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.kja-desktop-titlebar-text em {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(247, 241, 230, 0.62);
+  font-size: 0.72rem;
+  font-style: normal;
+  font-weight: 650;
+}
+
+.kja-desktop-titlebar-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  flex: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+.kja-desktop-presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  height: 1.7rem;
+  padding: 0 0.65rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(247, 241, 230, 0.82);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.kja-desktop-presence i {
+  font-size: 0.68rem;
+}
+
+.kja-desktop-presence.is-on {
+  background: rgba(18, 114, 56, 0.2);
+  border-color: rgba(18, 114, 56, 0.35);
+  color: #9fe0b5;
+}
+
+.kja-desktop-presence.is-off {
+  background: rgba(228, 36, 53, 0.16);
+  border-color: rgba(228, 36, 53, 0.3);
+  color: #ff9aa3;
+}
+
+/* Sync strip sits under the title bar; keep interactive */
+.kja-desktop-chrome .kja-desktop-sync {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
+/* When chrome sits inside the 2-col shell, force full bleed */
+.admin-shell > .kja-desktop-chrome {
+  grid-column: 1 / -1;
+}

@@ -1,0 +1,56 @@
+name: kja_parents
+description: "KJA Parents — the parent portal for Kampala Junior Academy"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  supabase_flutter: ^2.9.1
+  shared_preferences: ^2.5.3
+  shared_preferences_android: ^2.5.2
+  flutter_dotenv: ^6.0.1
+  http: ^1.2.2
+  url_launcher: ^6.3.3
+  uuid: ^4.5.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/app-icon.png
+  min_sdk_android: 21
+  adaptive_icon_background: "#1A3A5C"
+  adaptive_icon_foreground: assets/app-icon.png
+  adaptive_icon_foreground_inset: 16
+  remove_alpha_ios: true
+  background_color_ios: "#1A3A5C"
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+    - assets/kja-logo.png
+    - assets/app-icon.png
+  fonts:
+    - family: Nunito
+      fonts:
+        - asset: assets/fonts/Nunito-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Nunito-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Nunito-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Nunito-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Nunito-ExtraBold.ttf
+          weight: 800

@@ -544,6 +544,8 @@ body:has(.kja-admin) {
 }
 /* Desktop: premium staff gate (distinct from the parent AuthForm over the site) */
 .admin-login.is-desktop {
+  min-height: calc(100vh - var(--kja-desktop-titlebar-height, 48px));
+  min-height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
   background:
     radial-gradient(120% 80% at 100% 0%, rgba(228, 36, 53, .28), transparent 55%),
     radial-gradient(90% 70% at 0% 100%, rgba(253, 163, 27, .16), transparent 50%),

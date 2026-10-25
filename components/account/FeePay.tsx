@@ -188,7 +188,7 @@ export function FeePay({
                 <li><span>3</span><p><strong>Keep the receipt.</strong> The accounts office records it and this balance updates.</p></li>
               </ol>
               <div className="fe-pay-actions">
-                <Link className="ov-btn ov-btn-dark" href="/account/messages">Tell the accounts office</Link>
+                <Link className="ov-btn ov-btn-dark" href="/account/communications">Tell the accounts office</Link>
                 <Link className="fe-pay-link" href="/fees">Fee structure <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link>
               </div>
             </div>

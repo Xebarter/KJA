@@ -82,9 +82,9 @@ export async function searchAdmin(raw: string): Promise<{ error?: string; hits: 
     for (const row of messages.data ?? []) {
       people.push({
         id: `message:${row.id}`,
-        href: `/admin/inbox/messages?id=${row.id}`,
-        title: row.name || row.email || "Message",
-        meta: row.subject?.trim() || row.email || "Inbox",
+        href: `/admin/inbox/enquiries?id=${row.id}`,
+        title: row.name || row.email || "Enquiry",
+        meta: row.subject?.trim() || row.email || "Enquiries",
         icon: "fa-envelope",
       });
     }

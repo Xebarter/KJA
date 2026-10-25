@@ -15,37 +15,37 @@ function ids(list: string[]) {
 const plural = (count: number, word: string) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
 export async function setMessagesRead(list: string[], read: boolean): Promise<ActionResult> {
-  const auth = await requireAdmin("messages");
+  const auth = await requireAdmin("enquiries");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
-  if (!targets.length) return { error: "Select at least one message." };
+  if (!targets.length) return { error: "Select at least one enquiry." };
   const { error } = await auth.supabase.from("contact_messages").update({ read }).in("id", targets);
   if (error) return { error: error.message };
   forgetPrefix("admin-badges");
   revalidatePath("/admin", "layout");
-  return { ok: `Marked ${plural(targets.length, "message")} as ${read ? "read" : "unread"}.` };
+  return { ok: `Marked ${plural(targets.length, "enquiry")} as ${read ? "read" : "unread"}.` };
 }
 
 export async function markAllMessagesRead(): Promise<ActionResult> {
-  const auth = await requireAdmin("messages");
+  const auth = await requireAdmin("enquiries");
   if ("error" in auth) return { error: auth.error };
   const { error } = await auth.supabase.from("contact_messages").update({ read: true }).eq("read", false);
   if (error) return { error: error.message };
   forgetPrefix("admin-badges");
   revalidatePath("/admin", "layout");
-  return { ok: "All messages marked as read." };
+  return { ok: "All enquiries marked as read." };
 }
 
 export async function deleteMessages(list: string[]): Promise<ActionResult> {
-  const auth = await requireAdmin("messages");
+  const auth = await requireAdmin("enquiries");
   if ("error" in auth) return { error: auth.error };
   const targets = ids(list);
-  if (!targets.length) return { error: "Select at least one message." };
+  if (!targets.length) return { error: "Select at least one enquiry." };
   const { error } = await auth.supabase.from("contact_messages").delete().in("id", targets);
   if (error) return { error: error.message };
   forgetPrefix("admin-badges");
   revalidatePath("/admin", "layout");
-  return { ok: `Deleted ${plural(targets.length, "message")}.` };
+  return { ok: `Deleted ${plural(targets.length, "enquiry")}.` };
 }
 
 export async function deleteSubscribers(list: string[]): Promise<ActionResult> {

@@ -24,6 +24,9 @@ export async function middleware(request: NextRequest) {
   const isAccountLogin = path === "/account/login";
   const isPassword = path === "/account/password" || path.startsWith("/account/password/");
   const isDesktop = request.cookies.get("kja-desktop")?.value === "1";
+  // Server Actions must receive an RSC body — a middleware HTML redirect surfaces as
+  // "An unexpected response was received from the server." (e.g. Desktop login).
+  const isServerAction = request.method === "POST" && request.headers.has("next-action");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -44,14 +47,8 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(login);
   }
 
-  function send(pathname: string) {
-    const target = new URL(pathname, request.url);
-    // Never 307 to the same path — staff → /teacher while already on /teacher loops forever.
-    if (target.pathname === path && target.search === request.nextUrl.search) return response;
-    return NextResponse.redirect(target);
-  }
-
   if (!url || !key) {
+    if (isServerAction) return NextResponse.next();
     if (isAdmin && !isAdminLogin) return staffLogin(path);
     if (isAccount || isStudent) return isDesktop ? staffLogin(path) : parentLogin(isAccountLogin ? undefined : path);
     if (isTeacher || isChoose || dashboard) return staffLogin(path);
@@ -73,6 +70,19 @@ export async function middleware(request: NextRequest) {
       },
     },
   });
+
+  function send(pathname: string) {
+    const target = new URL(pathname, request.url);
+    // Never 307 to the same path — staff → /teacher while already on /teacher loops forever.
+    if (target.pathname === path && target.search === request.nextUrl.search) return response;
+    return NextResponse.redirect(target);
+  }
+
+  /** Prefer the live `response` (with refreshed auth cookies) over a document redirect. */
+  function passOr(redirect: NextResponse) {
+    if (isServerAction) return response;
+    return redirect;
+  }
 
   // getUser attaches the session for PostgREST (RLS). getClaims alone is not enough for profile reads.
   const { data: userData } = await supabase.auth.getUser();
@@ -113,7 +123,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (isChoose) {
-    if (!user) return staffLogin("/choose-dashboard");
+    if (!user) return passOr(staffLogin("/choose-dashboard"));
     return response;
   }
 
@@ -121,7 +131,7 @@ export async function middleware(request: NextRequest) {
     // Staff desks use /admin/login — never bounce unsigned staff onto the public-site auth dialog.
     if (!user) {
       if (isAdminLogin) return response;
-      return staffLogin(path + request.nextUrl.search);
+      return passOr(staffLogin(path + request.nextUrl.search));
     }
     const access = await loadAccess();
     if (access.role) response.cookies.set(STAFF_ROLE_COOKIE, access.role, staffRoleCookieOptions());
@@ -140,7 +150,8 @@ export async function middleware(request: NextRequest) {
       // Desktop is staff-only — keep parent/pupil accounts on the staff gate.
       if (isDesktop && !isStaffDesk(dest)) return response;
       if (!isStaffDesk(dest)) return response;
-      return send(dest);
+      // Signed-in GET on /admin/login → desk. Server Action (Desktop login) must not redirect.
+      return passOr(send(dest));
     }
     // profiles.role = admin keeps every dashboard, with or without grant rows.
     if (access.role === "admin") return response;
@@ -150,18 +161,18 @@ export async function middleware(request: NextRequest) {
     }
     if (!pathAllowed(access.grants, dashboard, path)) {
       const landing = landingPath(access.grants, dashboard);
-      if (landing && landing !== path) return send(landing);
-      return send(elsewhere(access.role, access.grants));
+      if (landing && landing !== path) return passOr(send(landing));
+      return passOr(send(elsewhere(access.role, access.grants)));
     }
     return response;
   }
 
   if (isTeacher) {
-    if (!user) return staffLogin(path + request.nextUrl.search);
+    if (!user) return passOr(staffLogin(path + request.nextUrl.search));
     const access = await loadAccess();
     if (access.role) response.cookies.set(STAFF_ROLE_COOKIE, access.role, staffRoleCookieOptions());
     if (access.grants.some((grant) => grant.dashboard === "academics")) {
-      return send(landingPath(access.grants, "academics") ?? "/academics_office");
+      return passOr(send(landingPath(access.grants, "academics") ?? "/academics_office"));
     }
     if (access.role === "staff") {
       const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", user.id).eq("active", true).maybeSingle();
@@ -171,27 +182,31 @@ export async function middleware(request: NextRequest) {
     }
     const dest = elsewhere(access.role, access.grants);
     if (dest.startsWith("/teacher")) return response;
-    return send(dest);
+    return passOr(send(dest));
   }
 
   if (isStudent) {
-    if (!user) return isDesktop ? staffLogin(path) : parentLogin(path + request.nextUrl.search);
+    if (!user) {
+      return passOr(isDesktop ? staffLogin(path) : parentLogin(path + request.nextUrl.search));
+    }
     const access = await loadAccess();
     if (access.role === "student") return response;
-    return send(elsewhere(access.role, access.grants));
+    return passOr(send(elsewhere(access.role, access.grants)));
   }
 
   if (isAccount) {
     const isUnavailable = path === "/account/unavailable" || path.startsWith("/account/unavailable/");
-    if (!user) return isDesktop ? staffLogin(path) : parentLogin(isAccountLogin ? undefined : path);
-    if (isAccountLogin) return NextResponse.redirect(new URL("/account", request.url));
+    if (!user) {
+      return passOr(isDesktop ? staffLogin(path) : parentLogin(isAccountLogin ? undefined : path));
+    }
+    if (isAccountLogin) return passOr(NextResponse.redirect(new URL("/account", request.url)));
     if (isPassword) return response;
     if (isUnavailable) return response;
 
     const access = await loadAccess();
     if (access.role) response.cookies.set(STAFF_ROLE_COOKIE, access.role, staffRoleCookieOptions());
 
-    if (access.role === "student") return send("/student");
+    if (access.role === "student") return passOr(send("/student"));
 
     // Guardianship only — admin/staff desk roles are irrelevant here.
     if (await isParentGuardian(supabase, user.id, access.role)) return response;
@@ -203,7 +218,7 @@ export async function middleware(request: NextRequest) {
         .eq("profile_id", user.id)
         .eq("active", true)
         .maybeSingle();
-      if (teacher?.id) return send("/teacher");
+      if (teacher?.id) return passOr(send("/teacher"));
     }
 
     if (isDesktop) {
@@ -215,12 +230,12 @@ export async function middleware(request: NextRequest) {
         .maybeSingle();
       if (teacher?.id) {
         response.cookies.set(STAFF_ROLE_COOKIE, "staff", staffRoleCookieOptions());
-        return send("/teacher");
+        return passOr(send("/teacher"));
       }
-      return staffLogin();
+      return passOr(staffLogin());
     }
 
-    return send("/account/unavailable");
+    return passOr(send("/account/unavailable"));
   }
 
   return response;

@@ -51,6 +51,19 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
     backgroundColor: "#141D24",
     title: "KJA Staff Desktop",
     icon: loadAppIcon(),
+    autoHideMenuBar: true,
+    ...(process.platform === "win32"
+      ? {
+          titleBarStyle: "hidden" as const,
+          titleBarOverlay: {
+            color: "#141D24",
+            symbolColor: "#F7F1E6",
+            height: 48,
+          },
+        }
+      : process.platform === "darwin"
+        ? { titleBarStyle: "hiddenInset" as const }
+        : {}),
     webPreferences: {
       preload: join(__dirname, "../preload/index.js"),
       contextIsolation: true,

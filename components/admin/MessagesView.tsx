@@ -16,7 +16,7 @@ import {
 } from "@/lib/inbox";
 import "@/app/admin/inbox.css";
 
-export const MESSAGES_BASE = "/admin/inbox/messages";
+export const MESSAGES_BASE = "/admin/inbox/enquiries";
 export const MESSAGES_PAGE_SIZE = 30;
 const BASE = MESSAGES_BASE;
 const DAY = 24 * 60 * 60 * 1000;
@@ -29,7 +29,7 @@ export function MessagesSetup() {
       <Hero unread={0} week={0} total={0} mix={[]} />
       <div className="admin-card app-notice">
         <h2>Connect Supabase to receive messages</h2>
-        <p>Contact, visit and alumni story forms store their submissions in Supabase. Add the project keys to start collecting them here.</p>
+        <p>Contact, visit and alumni story forms store their submissions in Supabase. Add the project keys to start collecting enquiries here.</p>
       </div>
     </div>
   );
@@ -56,7 +56,7 @@ export function MessagesView({ filters, summary, rows, total, selected, loadErro
     .filter((item) => item.count);
 
   const folders = [
-    { value: "all", label: "All messages", icon: "fa-inbox", count: summary.length },
+    { value: "all", label: "All enquiries", icon: "fa-inbox", count: summary.length },
     { value: "unread", label: "Unread", icon: "fa-circle-dot", count: unread },
     ...MESSAGE_KINDS.map((item) => ({ value: item.value, label: item.label, icon: item.icon, count: counts.get(item.value) ?? 0 })),
   ].filter((folder) => folder.count > 0 || folder.value === "all" || folder.value === "unread" || folder.value === filters.box);
@@ -209,11 +209,14 @@ function Hero({ unread, week, total, mix }: { unread: number; week: number; tota
     <PageHeader
       kicker="Inbox"
       icon="fa-envelope"
-      title="Messages"
-      description="Enquiries, campus visit requests and alumni stories sent through the website, all in one place."
+      title="Enquiries"
+      description="Website contact forms, campus visit requests and alumni stories — separate from parent Communications."
       actions={
         <>
           <MarkAllRead count={unread} />
+          <Link className="admin-hero-btn" href="/admin/communications">
+            <i className="fa-solid fa-comments" aria-hidden="true" /> Communications
+          </Link>
           <Link className="admin-hero-btn" href="/admin/inbox/newsletter">
             <i className="fa-solid fa-paper-plane" aria-hidden="true" /> Newsletter list
           </Link>

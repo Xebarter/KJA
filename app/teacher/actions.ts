@@ -313,5 +313,6 @@ export async function sendClassNotice(formData: FormData): Promise<Result> {
   }
   revalidatePath(`${TEACHER_BASE}/notices`);
   revalidatePath("/student/notifications");
-  return { ok: "Notice sent to the class." };
+  revalidatePath("/account/notifications");
+  return { ok: "Notice sent to the class and linked parents." };
 }

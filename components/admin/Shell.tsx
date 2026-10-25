@@ -8,7 +8,7 @@ import { AdminProcess } from "@/components/admin/AdminProcess";
 import { searchAdmin } from "@/app/admin/(panel)/search/actions";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
-import { DesktopSyncBar } from "@/components/DesktopSyncBar";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { contentGroups, resourceLabel } from "@/lib/admin";
 import { initials } from "@/lib/applications";
@@ -28,7 +28,8 @@ const ADMIN_PLACES: SidebarHit[] = [
   { id: "/admin/applications", href: "/admin/applications", title: "Applications", meta: "Admissions", icon: "fa-file-signature" },
   { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admin", icon: "fa-user-shield" },
   { id: "/admin/students", href: "/admin/students", title: "Students", meta: "Portal", icon: "fa-user-graduate" },
-  { id: "/admin/inbox/messages", href: "/admin/inbox/messages", title: "Messages", meta: "Inbox", icon: "fa-envelope" },
+  { id: "/admin/communications", href: "/admin/communications", title: "Communications", meta: "Inbox", icon: "fa-comments" },
+  { id: "/admin/inbox/enquiries", href: "/admin/inbox/enquiries", title: "Enquiries", meta: "Inbox", icon: "fa-envelope" },
   { id: "/admissions_office", href: "/admissions_office", title: "Admissions office", meta: "Offices", icon: "fa-building-user" },
   { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Offices", icon: "fa-calculator" },
   { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Offices", icon: "fa-graduation-cap" },
@@ -74,7 +75,8 @@ export function AdminShell({
   children,
   admin,
   newApplications = 0,
-  unreadMessages = 0,
+  unreadEnquiries = 0,
+  unreadCommunications = 0,
   newJobApplications = 0,
   pages = null,
   canSwitch = false,
@@ -85,7 +87,8 @@ export function AdminShell({
   children: React.ReactNode;
   admin: { name: string; email: string };
   newApplications?: number;
-  unreadMessages?: number;
+  unreadEnquiries?: number;
+  unreadCommunications?: number;
   newJobApplications?: number;
   pages?: string[] | null;
   canSwitch?: boolean;
@@ -142,7 +145,8 @@ export function AdminShell({
     { href: "/admin/applications", label: "Applications" },
     { href: "/admin/team", label: "Team" },
     { href: "/admin/students", label: "Students" },
-    { href: "/admin/inbox/messages", label: "Messages" },
+    { href: "/admin/communications", label: "Communications" },
+    { href: "/admin/inbox/enquiries", label: "Enquiries" },
     ...officeNav.map((item) => ({ href: item.href, label: item.label })),
     { href: "/admin/stories", label: "Stories" },
     { href: "/admin/inbox/newsletter", label: "Newsletter" },
@@ -155,7 +159,7 @@ export function AdminShell({
 
   return (
     <div className={`admin-shell${open ? " is-nav-open" : ""}`}>
-      <DesktopSyncBar />
+      <DesktopChrome desk="Admin" />
       <DeskWarmup hrefs={sections.map((section) => section.href)} />
       <header className="admin-topbar">
         <Link href={home} className="admin-topbar-brand">
@@ -190,7 +194,7 @@ export function AdminShell({
         <SidebarSearch
           id="admin-search"
           label="Search the admin"
-          placeholder="Pages, people, stories, messages"
+          placeholder="Pages, people, stories, communications"
           inputRef={search}
           places={places}
           recordsLabel="Records"
@@ -207,7 +211,8 @@ export function AdminShell({
           {allowed("/admin/applications") ? <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink> : null}
           {fullAdmin ? <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink> : null}
           {allowed("/admin/students") ? <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink> : null}
-          {allowed("/admin/inbox/messages") ? <NavLink href="/admin/inbox/messages" icon="fa-envelope" badge={unreadMessages}>Messages</NavLink> : null}
+          {allowed("/admin/communications") ? <NavLink href="/admin/communications" icon="fa-comments" badge={unreadCommunications}>Communications</NavLink> : null}
+          {allowed("/admin/inbox/enquiries") ? <NavLink href="/admin/inbox/enquiries" icon="fa-envelope" badge={unreadEnquiries}>Enquiries</NavLink> : null}
 
           {officeNav.length ? <hr className="admin-nav-rule" /> : null}
           {officeNav.map((item) => (

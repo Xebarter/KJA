@@ -23,10 +23,12 @@ export function AccountShell({
   children,
   name,
   unread,
+  unreadMessages = 0,
 }: {
   children: React.ReactNode;
   name: string;
   unread: number;
+  unreadMessages?: number;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -70,6 +72,7 @@ export function AccountShell({
               <Link href={item.href} className={active ? "active" : ""}>
                 <i className={`fa-solid ${item.icon}`} />
                 <span>{item.label}</span>
+                {item.href === "/account/communications" && unreadMessages ? <em>{unreadMessages}</em> : null}
                 {item.href === "/account/notifications" && unread ? <em>{unread}</em> : null}
               </Link>
             </Fragment>

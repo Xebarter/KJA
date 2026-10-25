@@ -38,6 +38,7 @@
   "build": {
     "appId": "ug.kja.desktop",
     "productName": "KJA Staff Desktop",
+    "afterPack": "./scripts/after-pack.cjs",
     "directories": {
       "output": "release"
     },
@@ -56,7 +57,7 @@
       },
       {
         "from": "../.next-desktop/static",
-        "to": "next-standalone/.next/static",
+        "to": "next-standalone/.next-desktop/static",
         "filter": [
           "**/*"
         ]

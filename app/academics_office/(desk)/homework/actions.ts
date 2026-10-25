@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
+import { notifyClassParents } from "@/lib/parent-notify";
 
 type ActionResult = { error?: string; ok?: string };
 type UploadResult = { error?: string; url?: string; path?: string };
@@ -136,9 +137,10 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
   revalidatePath("/student/homework");
+  if (publish) revalidatePath("/account/notifications");
   return {
     ok: publish
-      ? `Homework published to ${count} ${classWord}.`
+      ? `Homework published to ${count} ${classWord}. Parents are notified.`
       : `Homework saved as draft for ${count} ${classWord}.`,
   };
 }
@@ -175,7 +177,8 @@ export async function publishHomework(id: string): Promise<ActionResult> {
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
   revalidatePath("/student/homework");
-  return { ok: "Published to the class." };
+  revalidatePath("/account/notifications");
+  return { ok: "Published to the class. Parents are notified." };
 }
 
 export async function createClassResource(formData: FormData): Promise<ActionResult> {
@@ -284,12 +287,13 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
   }
 
   if (publish && data?.id) {
-    await notifyClass(supabase, classCode, stream, "New class resource", title, "/student", "messages");
+    await notifyClass(supabase, classCode, stream, "New class resource", title, "/student", "resources");
   }
 
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
-  return { ok: publish ? "Resource published to the class." : "Resource saved as draft." };
+  if (publish) revalidatePath("/account/notifications");
+  return { ok: publish ? "Resource published to the class. Parents are notified." : "Resource saved as draft." };
 }
 
 export async function publishClassResource(id: string): Promise<ActionResult> {
@@ -323,10 +327,11 @@ export async function publishClassResource(id: string): Promise<ActionResult> {
     .eq("id", id);
   if (error) return { error: error.message };
 
-  await notifyClass(supabase, row.class_code, row.stream || "", "New class resource", row.title, "/student", "messages");
+  await notifyClass(supabase, row.class_code, row.stream || "", "New class resource", row.title, "/student", "resources");
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
-  return { ok: "Published to the class." };
+  revalidatePath("/account/notifications");
+  return { ok: "Published to the class. Parents are notified." };
 }
 
 /** Inline images for the rich-text editor — stored privately, served via /api/class-resource. */
@@ -382,4 +387,15 @@ async function notifyClass(
       p_kind: kind,
     });
   }
+
+  const parentHref =
+    kind === "homework" ? "/account/children" : kind === "resources" ? "/account/children" : "/account/notifications";
+  await notifyClassParents(supabase, {
+    classCode,
+    stream,
+    title,
+    body,
+    href: parentHref,
+    kind,
+  }).catch(() => undefined);
 }

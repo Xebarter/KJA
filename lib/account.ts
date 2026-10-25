@@ -6,7 +6,7 @@ export const accountNav = [
   { href: "/account/applications", label: "Applications", icon: "fa-clipboard-list", group: "School" },
   { href: "/account/clubs", label: "Clubs", icon: "fa-puzzle-piece", group: "School" },
   { href: "/account/calendar", label: "Calendar", icon: "fa-calendar-days", group: "School" },
-  { href: "/account/messages", label: "Messages", icon: "fa-comments", group: "Inbox" },
+  { href: "/account/communications", label: "Communications", icon: "fa-comments", group: "Inbox" },
   { href: "/account/notifications", label: "Notifications", icon: "fa-bell", group: "Inbox" },
   { href: "/account/profile", label: "My details", icon: "fa-user", group: "Account" },
 ];
@@ -96,6 +96,10 @@ export type MessageRow = {
   direction: "out" | "in";
   read: boolean;
   created_at: string;
+  thread_id?: string | null;
+  family_id?: string | null;
+  audience?: "direct" | "family" | "broadcast" | null;
+  created_by?: string | null;
 };
 
 export type NoticeRow = {
@@ -103,6 +107,7 @@ export type NoticeRow = {
   title: string;
   body: string | null;
   href: string | null;
+  kind?: string | null;
   read: boolean;
   created_at: string;
 };

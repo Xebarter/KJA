@@ -348,7 +348,7 @@ export function FeesView({
           <strong>A payment is missing?</strong>
           <p>Bank and SchoolPay payments show here after the accounts office records them. Send a copy of the receipt if one is not listed yet.</p>
         </div>
-        <Link className="ov-btn ov-btn-dark" href="/account/messages">Message the school</Link>
+        <Link className="ov-btn ov-btn-dark" href="/account/communications">Message the school</Link>
       </aside>
     </div>
   );

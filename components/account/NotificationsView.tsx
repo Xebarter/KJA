@@ -4,6 +4,7 @@ import type { NoticeRow } from "@/lib/account";
 
 const TOPICS = [
   { icon: "fa-receipt", label: "Fees and payments" },
+  { icon: "fa-book", label: "Homework and class resources" },
   { icon: "fa-file-lines", label: "New reports" },
   { icon: "fa-clipboard-list", label: "Application updates" },
   { icon: "fa-puzzle-piece", label: "Club places" },
@@ -21,7 +22,7 @@ export function NotificationsView({ notifications }: { notifications: NoticeRow[
         <div className="ch-hero-copy">
           <p className="ch-kicker">Inbox</p>
           <h1>Notifications</h1>
-          <p>Updates from the school about fees, reports, applications, clubs and school life, all in one place.</p>
+          <p>Updates when your child receives homework, class resources, reports, fees news and other school notices.</p>
         </div>
         {notifications.length ? (
           <dl className="ch-hero-stats">
@@ -60,7 +61,7 @@ export function NotificationsView({ notifications }: { notifications: NoticeRow[
           <strong>Question about a notice?</strong>
           <p>Send a message to the school office and the reply will arrive in your inbox.</p>
         </div>
-        <Link className="ov-btn ov-btn-dark" href="/account/messages">
+        <Link className="ov-btn ov-btn-dark" href="/account/communications">
           Message the school <i className="fa-solid fa-arrow-right" aria-hidden="true" />
         </Link>
       </aside>

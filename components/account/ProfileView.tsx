@@ -147,7 +147,7 @@ export function ProfileView({ name, email, phone, address, verified, google, cre
             )}
           </section>
 
-          <Link href="/account/messages" className="pf-help">
+          <Link href="/account/communications" className="pf-help">
             <span className="pf-help-icon"><i className="fa-solid fa-headset" aria-hidden="true" /></span>
             <span>
               <strong>Need to change your sign-in email?</strong>

@@ -313,9 +313,19 @@ async function present(row: ClubCollection): Promise<ClubPaymentView> {
   return viewOf(settled, await receiptLines(settled));
 }
 
-export async function startClubPayment(input: { studentId: string; clubIds: string[]; phone: string }): Promise<ClubPaymentResult> {
+type PaymentSession = {
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+};
+
+export async function startClubPayment(
+  input: { studentId: string; clubIds: string[]; phone: string },
+  session?: PaymentSession | null,
+): Promise<ClubPaymentResult> {
   const clubIds = [...new Set(input.clubIds.map(String))].filter(isUuid);
-  const { user, supabase } = await getSessionUser();
+  const auth = session ?? (await getSessionUser());
+  const { user, supabase } = auth;
   if (!user || !supabase) return { error: "Sign in to pay for a club." };
   if (!isUuid(input.studentId) || !clubIds.length) return { error: "Choose the child and at least one club." };
 
@@ -443,8 +453,9 @@ export async function startClubPayment(input: { studentId: string; clubIds: stri
   }
 }
 
-export async function clubPaymentStatus(id: string): Promise<ClubPaymentResult> {
-  const { user } = await getSessionUser();
+export async function clubPaymentStatus(id: string, session?: PaymentSession | null): Promise<ClubPaymentResult> {
+  const auth = session ?? (await getSessionUser());
+  const { user } = auth;
   if (!user) return { error: "Sign in to check this payment." };
   const row = await loadClubCollection(id);
   if (!row || row.user_id !== user.id) return { error: "We couldn't find this payment." };

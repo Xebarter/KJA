@@ -50,8 +50,8 @@ export async function requireAcademics(...pages: string[]) {
   // local JWT claim verification often fails against that proxy and falsely "expires" the session.
   const { data: userData } = await supabase.auth.getUser();
   const authUser = userData.user;
-  const userId = authUser?.id ?? null;
-  if (!userId) return { error: "Your session has expired. Sign in again." } as const;
+  if (!authUser?.id) return { error: "Your session has expired. Sign in again." } as const;
+  const userId = authUser.id;
   let access: AcademicsAccess;
   try {
     access = await remember(`academics-session:${userId}`, SESSION_MS, async () => {

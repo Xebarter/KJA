@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net } from "electron";
+import { app, BrowserWindow, ipcMain, Menu, net } from "electron";
 import { join } from "node:path";
 import {
   PROXY_PORT,
@@ -136,6 +136,8 @@ app.whenReady().then(async () => {
   if (process.platform === "win32") {
     app.setAppUserModelId("ug.kja.desktop");
   }
+  // Drop File / Edit / View / Window / Help — the in-app title strip owns that space.
+  Menu.setApplicationMenu(null);
 
   splash = createSplashWindow();
   if (process.env.ELECTRON_RENDERER_URL) {

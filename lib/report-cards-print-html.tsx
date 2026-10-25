@@ -111,7 +111,7 @@ export async function buildReportPrintHtml(input: {
   const [css, crest] = await Promise.all([printStyles(), crestDataUri()]);
   const qrs = await Promise.all(
     input.cards.map(async (card) => {
-      const href = reportOnlineUrl(input.origin, card.id);
+      const href = reportOnlineUrl(card.id);
       return [card.id, { href, svg: await buildReportQrSvg(href) }] as const;
     }),
   );

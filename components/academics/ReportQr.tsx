@@ -1,5 +1,5 @@
 import QRCode from "qrcode";
-import { reportOnlineUrl, requestOrigin } from "@/lib/report-link";
+import { reportOnlineUrl } from "@/lib/report-link";
 
 /** Sync mark used when the URL and SVG are already known (PDF pack). */
 export function ReportQrMark({ href, svg }: { href: string; svg: string }) {
@@ -20,8 +20,8 @@ export async function buildReportQrSvg(url: string) {
   });
 }
 
-/** Code beside the headteacher's comment. Scanning it opens this report. */
+/** Code beside the headteacher's comment. Scanning it opens the live online report. */
 export async function ReportQr({ id }: { id: string }) {
-  const url = reportOnlineUrl(await requestOrigin(), id);
+  const url = reportOnlineUrl(id);
   return <ReportQrMark href={url} svg={await buildReportQrSvg(url)} />;
 }

@@ -23,7 +23,7 @@ export type DashboardPage = {
 export const DASHBOARD_META: Record<DashboardId, { label: string; description: string; href: string; icon: string }> = {
   admin: {
     label: "Admin",
-    description: "Website, applications, messages, and school settings.",
+    description: "Website, applications, communications, and school settings.",
     href: "/admin",
     icon: "fa-user-shield",
   },
@@ -101,7 +101,8 @@ const ADMIN_PAGES: DashboardPage[] = [
   { id: "overview", label: "Dashboard", group: "Office", icon: "fa-gauge-high", href: "/admin", paths: ["/admin"], exact: true },
   { id: "applications", label: "Applications", group: "Admissions", icon: "fa-file-signature", href: "/admin/applications", paths: ["/admin/applications"] },
   { id: "students", label: "Students", group: "People", icon: "fa-user-graduate", href: "/admin/students", paths: ["/admin/students"] },
-  { id: "messages", label: "Messages", group: "Inbox", icon: "fa-envelope", href: "/admin/inbox/messages", paths: ["/admin/inbox/messages"] },
+  { id: "communications", label: "Communications", group: "Inbox", icon: "fa-comments", href: "/admin/communications", paths: ["/admin/communications"] },
+  { id: "enquiries", label: "Enquiries", group: "Inbox", icon: "fa-envelope", href: "/admin/inbox/enquiries", paths: ["/admin/inbox/enquiries", "/admin/inbox/messages"] },
   { id: "stories", label: "Stories", group: "Website", icon: "fa-newspaper", href: "/admin/stories", paths: ["/admin/stories"] },
   { id: "newsletter", label: "Newsletter", group: "Website", icon: "fa-paper-plane", href: "/admin/inbox/newsletter", paths: ["/admin/inbox/newsletter"] },
   { id: "images", label: "Images", group: "Website", icon: "fa-images", href: "/admin/images", paths: ["/admin/images"] },
@@ -259,7 +260,13 @@ export async function loadGrants(supabase: SupabaseClient, userId: string, role:
   for (const row of data) {
     const dashboard = String(row.dashboard || "");
     if (!isDashboardId(dashboard)) continue;
-    const pages = Array.isArray(row.pages) ? row.pages.map(String).filter(Boolean) : [];
+    const pages = Array.isArray(row.pages)
+      ? row.pages.map((page) => {
+          const id = String(page);
+          // Legacy admin "messages" grant → Enquiries page id.
+          return id === "messages" ? "enquiries" : id;
+        }).filter(Boolean)
+      : [];
     grants.push({ dashboard, pages });
   }
   return grants.length ? grants : legacyGrants(role);

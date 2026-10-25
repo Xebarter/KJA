@@ -24,7 +24,7 @@ export function threadKey(subject: string) {
 export function groupThreads(messages: InboxMessage[], readIds?: Set<string>): Thread[] {
   const map = new Map<string, InboxMessage[]>();
   for (const message of messages) {
-    const key = threadKey(message.subject);
+    const key = message.thread_id || threadKey(message.subject);
     map.set(key, [...(map.get(key) || []), message]);
   }
   return [...map.entries()]

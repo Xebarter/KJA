@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { isDesktopClient } from "@/lib/desktop";
+import "./desktop-sync.css";
 
 type SyncStatus = {
   online: boolean;
@@ -23,8 +24,8 @@ function desktopBridge(): DesktopBridge | undefined {
 }
 
 /**
- * Thin offline / outbox strip. Hidden when online and idle.
- * Uses the same navy / muted / gold tokens as admin chrome.
+ * Offline / outbox strip for the Electron desks.
+ * Styles live in desktop-sync.css (local assets — no CDN).
  */
 export function DesktopSyncBar() {
   const router = useRouter();
@@ -39,7 +40,12 @@ export function DesktopSyncBar() {
     void api.getSyncStatus().then(setStatus);
     const offSync = api.onSyncStatus(setStatus);
     const offTable = api.onTableChanged(() => {
-      router.refresh();
+      // Refreshing while offline can blank RSC trees / drop CSS mid-nav.
+      if (!navigator.onLine) return;
+      const current = desktopBridge();
+      void current?.getSyncStatus().then((next) => {
+        if (next.online) router.refresh();
+      });
     });
     return () => {
       offSync();
@@ -50,19 +56,25 @@ export function DesktopSyncBar() {
   if (!status) return null;
   if (status.online && status.pending === 0 && !status.flushing) return null;
 
-  const label = !status.online
-    ? "Working offline"
+  const offline = !status.online;
+  const label = offline
+    ? "You’re offline — desks stay available from the last sync"
     : status.flushing
       ? "Sending saved changes…"
       : status.pending === 1
-        ? "1 change waiting"
-        : `${status.pending} changes waiting`;
+        ? "1 change waiting to sync"
+        : `${status.pending} changes waiting to sync`;
 
   return (
-    <div className="kja-desktop-sync" role="status">
-      <span className="kja-desktop-sync-dot" aria-hidden="true" />
-      <span className="kja-desktop-sync-label">{label}</span>
-      {status.lastError ? <span className="kja-desktop-sync-error">{status.lastError}</span> : null}
+    <div className={`kja-desktop-sync${offline ? " is-offline" : " is-pending"}`} role="status">
+      <span className="kja-desktop-sync-icon" aria-hidden="true">
+        <i className={`fa-solid ${offline ? "fa-cloud-slash" : status.flushing ? "fa-arrows-rotate" : "fa-cloud-arrow-up"}`} />
+      </span>
+      <div className="kja-desktop-sync-copy">
+        <strong className="kja-desktop-sync-label">{offline ? "Working offline" : "Sync"}</strong>
+        <span className="kja-desktop-sync-detail">{label}</span>
+        {status.lastError ? <span className="kja-desktop-sync-error">{status.lastError}</span> : null}
+      </div>
       {status.pending > 0 && status.online ? (
         <button
           type="button"
@@ -81,48 +93,6 @@ export function DesktopSyncBar() {
           Retry
         </button>
       ) : null}
-      <style jsx>{`
-        .kja-desktop-sync {
-          display: flex;
-          align-items: center;
-          gap: 0.65rem;
-          padding: 0.45rem 1.25rem;
-          background: #19232b;
-          color: #f7f1e6;
-          font-size: 0.82rem;
-          font-family: Roboto, system-ui, sans-serif;
-          border-bottom: 1px solid rgba(253, 163, 27, 0.35);
-        }
-        .kja-desktop-sync-dot {
-          width: 0.55rem;
-          height: 0.55rem;
-          border-radius: 50%;
-          background: #fda31b;
-          flex-shrink: 0;
-        }
-        .kja-desktop-sync-label {
-          font-weight: 500;
-        }
-        .kja-desktop-sync-error {
-          color: rgba(247, 241, 230, 0.72);
-          margin-left: 0.25rem;
-        }
-        .kja-desktop-sync-btn {
-          margin-left: auto;
-          border: 0;
-          border-radius: 999px;
-          padding: 0.28rem 0.85rem;
-          background: #fda31b;
-          color: #19232b;
-          font: inherit;
-          font-weight: 600;
-          cursor: pointer;
-        }
-        .kja-desktop-sync-btn:disabled {
-          opacity: 0.55;
-          cursor: default;
-        }
-      `}</style>
     </div>
   );
 }

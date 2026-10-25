@@ -1,21 +1,40 @@
-import { headers } from "next/headers";
 import { siteUrl } from "@/lib/admin-alerts";
 
-/** Public address of one report card. The id is the only key the page accepts. */
+/** Public path of one report card. The id is the only key the page accepts. */
 export function reportOnlinePath(id: string) {
   return `/r/${id}`;
 }
 
-export function reportOnlineUrl(origin: string, id: string) {
-  return `${origin.replace(/\/+$/, "")}${reportOnlinePath(id)}`;
+function isLocalHost(hostOrOrigin: string) {
+  try {
+    const host = /:\/\//.test(hostOrOrigin) ? new URL(hostOrOrigin).hostname : hostOrOrigin.split(":")[0];
+    return /^(localhost|127\.0\.0\.1|0\.0\.0\.0|\[::1\])$/i.test(host);
+  } catch {
+    return true;
+  }
 }
 
-/** Origin of the request that is drawing the card, so a scanned code opens this site. */
+/**
+ * Origin printed onto report QR codes.
+ * Always the configured public site (NEXT_PUBLIC_SITE_URL or https://kja.ug) —
+ * never localhost or an ephemeral request host, so a scanned card keeps working.
+ */
+export function reportPublicOrigin() {
+  const configured = siteUrl();
+  if (configured && !isLocalHost(configured)) return configured;
+  return "https://kja.ug";
+}
+
+/** Absolute URL for the online report. Prefer reportOnlineUrl(id). */
+export function reportOnlineUrl(id: string): string;
+export function reportOnlineUrl(origin: string, id: string): string;
+export function reportOnlineUrl(originOrId: string, maybeId?: string): string {
+  const id = maybeId ?? originOrId;
+  // Origin argument is ignored for QR reliability; printed cards must open on the live site.
+  return `${reportPublicOrigin()}${reportOnlinePath(id)}`;
+}
+
+/** @deprecated Use reportPublicOrigin() — kept so existing awaits keep compiling. */
 export async function requestOrigin() {
-  const headerList = await headers();
-  const host = headerList.get("x-forwarded-host") || headerList.get("host");
-  if (!host) return siteUrl();
-  const forwarded = headerList.get("x-forwarded-proto");
-  const proto = forwarded || (/^(localhost|127\.0\.0\.1)(:|$)/.test(host) ? "http" : "https");
-  return `${proto}://${host}`;
+  return reportPublicOrigin();
 }

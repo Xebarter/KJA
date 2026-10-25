@@ -90,7 +90,7 @@ export default async function AccountHomePage() {
           <h1>{greeting()}{first ? `, ${first}` : ""}</h1>
           <p className="ov-hero-summary">{summary}</p>
           <div className="ov-hero-actions">
-            <Link className="ov-btn ov-btn-gold" href="/account/messages">
+            <Link className="ov-btn ov-btn-gold" href="/account/communications">
               <i className="fa-solid fa-comments" aria-hidden="true" /> Message the school
             </Link>
             <Link className="ov-btn ov-btn-glass" href="/account/fees">

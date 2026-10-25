@@ -141,6 +141,7 @@ export const getPortal = cache(async function getPortal() {
       notifications: [] as NoticeRow[],
       events: [] as Article[],
       unread: 0,
+      unreadMessages: 0,
     };
   }
 
@@ -273,5 +274,6 @@ export const getPortal = cache(async function getPortal() {
     notifications,
     events,
     unread: notifications.filter((item) => !item.read).length,
+    unreadMessages: messages.filter((item) => item.direction === "in" && !item.read).length,
   };
 });

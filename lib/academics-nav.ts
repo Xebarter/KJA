@@ -9,6 +9,9 @@ export function isAcademicsRole(role: string | null | undefined) {
 
 /** Which script to run when a query fails because the database is behind the app. */
 export function academicsSchemaScript(message: string | null | undefined) {
+  if (message && /notify_class_parents|notify_student_parents|0051_parent_delivery/i.test(message)) {
+    return "supabase/0051_parent_delivery_notices.sql";
+  }
   if (message && /class_notices|notify_my_class|class_teacher_sees_conversation|academic_dates_class_scope|0041_teacher/i.test(message)) {
     return "supabase/0041_teacher_dashboard.sql";
   }

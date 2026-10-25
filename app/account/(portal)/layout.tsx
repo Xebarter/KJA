@@ -20,7 +20,7 @@ export default async function PortalLayout({ children }: { children: React.React
   const name = portal.profile?.full_name || portal.profile?.email || "Parent";
 
   return (
-    <AccountShell name={name} unread={portal.unread}>
+    <AccountShell name={name} unread={portal.unread} unreadMessages={portal.unreadMessages}>
       {children}
     </AccountShell>
   );

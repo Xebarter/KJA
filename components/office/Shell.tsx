@@ -7,7 +7,7 @@ import { signOut } from "@/app/actions";
 import { searchOffice } from "@/app/admissions_office/(office)/students/actions";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
-import { DesktopSyncBar } from "@/components/DesktopSyncBar";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { pageIdForPath, pageVisible } from "@/lib/dashboard-access";
@@ -107,7 +107,7 @@ export function OfficeShell({
 
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
-      <DesktopSyncBar />
+      <DesktopChrome desk="Admissions" />
       <DeskWarmup hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
         <Link href={home} className="admin-topbar-brand">
