@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -8,7 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 2. `.env` next to the app (`flutter_dotenv`)
 /// 3. Values saved on the device
 ///
-/// Same public URL + anon key as the website. Never ship the service-role key.
+/// Same public URL + anon key as the school backend. Never ship the service-role key.
 class AppConfig {
   const AppConfig({required this.url, required this.anonKey});
 
@@ -85,8 +86,21 @@ class AppConfig {
     await prefs.setString('supabase_anon_key', anonKey.trim());
   }
 
+  /// API + photo host. On Flutter web at localhost, prefer local Next (`:3000`)
+  /// so new parent routes work before production deploy / without CORS to kja.ug.
+  static String apiBase({bool? web, String? pageHost}) {
+    var base = siteUrl.trim().isEmpty ? 'https://kja.ug' : siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    final onWeb = web ?? kIsWeb;
+    final host = pageHost ?? Uri.base.host;
+    final live = RegExp(r'^https?://(www\.)?kja\.ug$', caseSensitive: false).hasMatch(base);
+    if (onWeb && live && (host == 'localhost' || host == '127.0.0.1')) {
+      return 'http://127.0.0.1:3000';
+    }
+    return base;
+  }
+
   static String sitePath(String path) {
-    final base = siteUrl.trim().isEmpty ? 'https://kja.ug' : siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    final base = apiBase();
     final clean = path.startsWith('/') ? path : '/$path';
     return '$base$clean';
   }

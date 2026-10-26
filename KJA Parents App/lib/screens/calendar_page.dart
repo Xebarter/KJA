@@ -6,41 +6,21 @@ import '../theme.dart';
 import '../widgets/ui.dart';
 
 class CalendarPage extends StatelessWidget {
-  const CalendarPage({super.key, required this.portal, required this.openWeb});
+  const CalendarPage({super.key, required this.portal});
 
   final PortalSnapshot portal;
-  final Future<void> Function(String path) openWeb;
 
   @override
   Widget build(BuildContext context) {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: FilledButton.icon(
-            style: FilledButton.styleFrom(backgroundColor: KjaColors.navy),
-            onPressed: () => openWeb('/account/calendar'),
-            icon: const Icon(Icons.open_in_new_rounded, size: 18),
-            label: const Text('Open on website'),
-          ),
-        ),
-        const SizedBox(height: 16),
         if (portal.events.isEmpty)
-          SoftCard(
-            child: Column(
-              children: [
-                ToneIcon(icon: Icons.event_rounded, tone: Tone.sky, size: 48, iconSize: 24),
-                const SizedBox(height: 10),
-                const Text(
-                  'No upcoming dates yet. Class calendars and school office dates appear here as soon as they are published.',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: KjaColors.soft, height: 1.4),
-                ),
-                const SizedBox(height: 12),
-                TextButton(onPressed: () => openWeb('/account/calendar'), child: const Text('View calendar')),
-              ],
-            ),
+          const EmptyNote(
+            icon: Icons.event_rounded,
+            title: 'No upcoming dates',
+            message:
+                'Class calendars and school office dates appear here as soon as they are published.',
           )
         else
           ...portal.events.map((event) {
@@ -50,23 +30,43 @@ class CalendarPage extends StatelessWidget {
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    ToneIcon(icon: Icons.event_rounded, tone: Tone.sky, size: 44, iconSize: 22),
+                    const ToneIcon(
+                      icon: Icons.event_rounded,
+                      tone: Tone.sky,
+                      size: 44,
+                      iconSize: 22,
+                    ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(event.title, style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                          Text(
+                            event.title,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w900,
+                              fontSize: 16,
+                            ),
+                          ),
                           Text(
                             [
                               shortDate(event.startsOn, withYear: true),
                               if ((event.location ?? '').isNotEmpty) event.location,
-                            ].whereType<String>().where((s) => s.isNotEmpty).join(' · '),
+                            ]
+                                .whereType<String>()
+                                .where((s) => s.isNotEmpty)
+                                .join(' · '),
                             style: const TextStyle(color: KjaColors.soft),
                           ),
                           if ((event.summary ?? '').isNotEmpty) ...[
                             const SizedBox(height: 6),
-                            Text(event.summary!, style: const TextStyle(height: 1.35, color: KjaColors.soft)),
+                            Text(
+                              event.summary!,
+                              style: const TextStyle(
+                                height: 1.35,
+                                color: KjaColors.soft,
+                              ),
+                            ),
                           ],
                         ],
                       ),

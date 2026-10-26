@@ -46,12 +46,10 @@ class ClubsPage extends StatefulWidget {
     super.key,
     required this.portal,
     required this.controller,
-    required this.openWeb,
   });
 
   final PortalSnapshot portal;
   final PortalController controller;
-  final Future<void> Function(String path) openWeb;
 
   @override
   State<ClubsPage> createState() => _ClubsPageState();

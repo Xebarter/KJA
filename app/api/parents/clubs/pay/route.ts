@@ -1,9 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
 import { clubPaymentStatus, startClubPayment, type ClubCartItem } from "@/lib/payments/clubs";
+import { parentsApiOptions, parentsJson } from "@/lib/parents-api-cors";
 import { isUuid } from "@/lib/students";
 
 export const runtime = "nodejs";
+
+export function OPTIONS() {
+  return parentsApiOptions();
+}
 
 function userClient(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,13 +43,13 @@ function parseItems(raw: unknown): ClubCartItem[] {
 /** Start a club Mobile Money collection for the signed-in parent (Parents app). */
 export async function POST(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to pay for a club." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to pay for a club." }, { status: 401 });
 
   let body: { studentId?: string; clubIds?: unknown; items?: unknown; phone?: string } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "Send the clubs and phone number." }, { status: 400 });
+    return parentsJson({ error: "Send the clubs and phone number." }, { status: 400 });
   }
 
   const clubIds = Array.isArray(body.clubIds) ? body.clubIds.map(String) : [];
@@ -58,19 +62,19 @@ export async function POST(request: Request) {
     },
     session,
   );
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }
 
 /** Check a club collection the parent started. */
 export async function GET(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to check this payment." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to check this payment." }, { status: 401 });
 
   const id = new URL(request.url).searchParams.get("id") || "";
-  if (!isUuid(id)) return NextResponse.json({ error: "Choose a payment to check." }, { status: 400 });
+  if (!isUuid(id)) return parentsJson({ error: "Choose a payment to check." }, { status: 400 });
 
   const result = await clubPaymentStatus(id, session);
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }

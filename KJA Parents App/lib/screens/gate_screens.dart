@@ -141,7 +141,7 @@ class _SetupScreenState extends State<SetupScreen> {
     return GateScaffold(
       title: 'KJA Parents',
       subtitle: 'Connect this app to your school',
-      support: 'Paste the project URL and anon key from the school website setup.',
+      support: 'Paste the project URL and anon key from your school setup.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -234,7 +234,7 @@ class _LoginScreenState extends State<LoginScreen> {
     return GateScaffold(
       title: 'Welcome',
       subtitle: 'Sign in to your parent portal',
-      support: 'Use the same email and password as the school website.',
+      support: 'Use the email and password for your parent account.',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

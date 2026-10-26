@@ -1,9 +1,13 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
 import { schoolFeePaymentStatus, startSchoolFeePayment } from "@/lib/payments/school-fees";
+import { parentsApiOptions, parentsJson } from "@/lib/parents-api-cors";
 import { isUuid } from "@/lib/students";
 
 export const runtime = "nodejs";
+
+export function OPTIONS() {
+  return parentsApiOptions();
+}
 
 function userClient(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -28,18 +32,18 @@ async function sessionOf(request: Request) {
 /** Start a school-fee Mobile Money collection for the signed-in parent (Parents app). */
 export async function POST(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to pay school fees." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to pay school fees." }, { status: 401 });
 
   let body: { studentId?: string; termId?: string; amount?: unknown; phone?: string } = {};
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "Send the child, term, amount and phone number." }, { status: 400 });
+    return parentsJson({ error: "Send the child, term, amount and phone number." }, { status: 400 });
   }
 
   const amount = typeof body.amount === "number" ? body.amount : Number(body.amount);
   if (!Number.isFinite(amount)) {
-    return NextResponse.json({ error: "Enter the amount you want to pay." }, { status: 400 });
+    return parentsJson({ error: "Enter the amount you want to pay." }, { status: 400 });
   }
 
   const result = await startSchoolFeePayment(
@@ -51,19 +55,19 @@ export async function POST(request: Request) {
     },
     session,
   );
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }
 
 /** Check a school-fee collection the parent started. */
 export async function GET(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to check this payment." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to check this payment." }, { status: 401 });
 
   const id = new URL(request.url).searchParams.get("id") || "";
-  if (!isUuid(id)) return NextResponse.json({ error: "Choose a payment to check." }, { status: 400 });
+  if (!isUuid(id)) return parentsJson({ error: "Choose a payment to check." }, { status: 400 });
 
   const result = await schoolFeePaymentStatus(id, session);
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }

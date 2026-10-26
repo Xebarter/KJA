@@ -1,16 +1,20 @@
 import { createClient } from "@supabase/supabase-js";
-import { NextResponse } from "next/server";
 import {
   admissionFees,
   checkAdmissionPayment,
   startAdmissionPayment,
   type ApplicationDraft,
 } from "@/lib/payments/admission";
+import { parentsApiOptions, parentsJson } from "@/lib/parents-api-cors";
 
 export const runtime = "nodejs";
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const DATE = /^\d{4}-\d{2}-\d{2}$/;
+
+export function OPTIONS() {
+  return parentsApiOptions();
+}
 
 function userClient(request: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -40,26 +44,26 @@ function clean(value: unknown, max = 2000) {
 /** Campus admission fees for the Parents app apply form. */
 export async function GET(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to continue." }, { status: 401 });
 
   const url = new URL(request.url);
   const id = url.searchParams.get("id") || "";
   const token = url.searchParams.get("token") || "";
   if (!id) {
     const fees = await admissionFees();
-    return NextResponse.json({ fees });
+    return parentsJson({ fees });
   }
-  if (!token) return NextResponse.json({ error: "Choose a payment to check." }, { status: 400 });
+  if (!token) return parentsJson({ error: "Choose a payment to check." }, { status: 400 });
 
   const result = await checkAdmissionPayment(id, token);
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }
 
 /** Start a sibling admission Mobile Money payment for the signed-in parent. */
 export async function POST(request: Request) {
   const session = await sessionOf(request);
-  if (!session) return NextResponse.json({ error: "Sign in to continue." }, { status: 401 });
+  if (!session) return parentsJson({ error: "Sign in to continue." }, { status: 401 });
 
   let body: {
     childName?: string;
@@ -73,7 +77,7 @@ export async function POST(request: Request) {
   try {
     body = (await request.json()) as typeof body;
   } catch {
-    return NextResponse.json({ error: "Send the child details and mobile money number." }, { status: 400 });
+    return parentsJson({ error: "Send the child details and mobile money number." }, { status: 400 });
   }
 
   const { data: profile } = await session.supabase
@@ -95,12 +99,20 @@ export async function POST(request: Request) {
     message: clean(body.message),
   };
 
-  if (!draft.parent_name) return NextResponse.json({ error: "Please enter the parent or guardian's name." }, { status: 400 });
-  if (!draft.email || !EMAIL.test(draft.email)) return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 });
-  if (!draft.child_name) return NextResponse.json({ error: "Please enter the child's name." }, { status: 400 });
-  if (!draft.campus) return NextResponse.json({ error: "Please choose the campus you are applying to." }, { status: 400 });
+  if (!draft.parent_name) {
+    return parentsJson({ error: "Please enter the parent or guardian's name." }, { status: 400 });
+  }
+  if (!draft.email || !EMAIL.test(draft.email)) {
+    return parentsJson({ error: "Please enter a valid email address." }, { status: 400 });
+  }
+  if (!draft.child_name) {
+    return parentsJson({ error: "Please enter the child's name." }, { status: 400 });
+  }
+  if (!draft.campus) {
+    return parentsJson({ error: "Please choose the campus you are applying to." }, { status: 400 });
+  }
 
   const result = await startAdmissionPayment(draft, String(body.payPhone || body.phone || ""));
-  if ("error" in result) return NextResponse.json(result, { status: 400 });
-  return NextResponse.json(result);
+  if ("error" in result) return parentsJson(result, { status: 400 });
+  return parentsJson(result);
 }

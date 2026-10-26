@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../config.dart';
 import '../models.dart';
 import '../navigation.dart';
 import '../state/portal_controller.dart';
@@ -63,11 +61,6 @@ class _ParentShellState extends State<ParentShell> {
       ),
     );
     if (leave == true) await widget.controller.signOut();
-  }
-
-  Future<void> openWeb(String path) async {
-    final uri = Uri.parse(AppConfig.sitePath(path));
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
@@ -271,13 +264,13 @@ class _ParentShellState extends State<ParentShell> {
       case AppDestination.points:
         return PointsPage(portal: portal, initialChildId: _pointsChildId);
       case AppDestination.fees:
-        return FeesPage(portal: portal, controller: widget.controller, openWeb: openWeb);
+        return FeesPage(portal: portal, controller: widget.controller);
       case AppDestination.applications:
-        return ApplicationsPage(portal: portal, openWeb: openWeb);
+        return ApplicationsPage(portal: portal, controller: widget.controller);
       case AppDestination.clubs:
-        return ClubsPage(portal: portal, controller: widget.controller, openWeb: openWeb);
+        return ClubsPage(portal: portal, controller: widget.controller);
       case AppDestination.calendar:
-        return CalendarPage(portal: portal, openWeb: openWeb);
+        return CalendarPage(portal: portal);
       case AppDestination.notices:
         return NoticesPage(portal: portal, controller: widget.controller, open: _open);
       case AppDestination.profile:

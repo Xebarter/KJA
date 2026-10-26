@@ -25,12 +25,10 @@ class FeesPage extends StatefulWidget {
     super.key,
     required this.portal,
     required this.controller,
-    required this.openWeb,
   });
 
   final PortalSnapshot portal;
   final PortalController controller;
-  final Future<void> Function(String path) openWeb;
 
   @override
   State<FeesPage> createState() => _FeesPageState();
@@ -445,11 +443,6 @@ class _FeesPageState extends State<FeesPage> {
               ),
             );
           }),
-        const SizedBox(height: 8),
-        TextButton(
-          onPressed: _paying ? null : () => widget.openWeb('/account/fees'),
-          child: const Text('Open fees on the website'),
-        ),
       ],
     );
   }

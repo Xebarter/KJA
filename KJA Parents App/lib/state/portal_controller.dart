@@ -71,7 +71,7 @@ class PortalController extends ChangeNotifier {
   Future<String?> saveConnection(String url, String anonKey) async {
     final next = AppConfig(url: url.trim(), anonKey: anonKey.trim());
     if (!next.isReady) {
-      return 'Enter the school project URL and the anon key from the website setup.';
+      return 'Enter the school project URL and the anon key from your school setup.';
     }
     await AppConfig.save(next.url, next.anonKey);
     if (_supabaseReady) {
@@ -101,7 +101,7 @@ class PortalController extends ChangeNotifier {
     } on AuthException catch (error) {
       final message = error.message.toLowerCase();
       if (message.contains('invalid login') || message.contains('invalid credentials')) {
-        return 'Wrong email or password. Check your details, or use Reset password on the school website.';
+        return 'Wrong email or password. Check your details, or change your password after signing in under Profile.';
       }
       return error.message;
     } catch (error) {
