@@ -10,6 +10,10 @@ type SyncStatus = {
   pending: number;
   flushing: boolean;
   lastError: string | null;
+  hydrating?: boolean;
+  hydrateDone?: number;
+  hydrateTotal?: number;
+  phase?: "idle" | "hydrating" | "flushing" | "offline";
 };
 
 function desktopBridge() {

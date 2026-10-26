@@ -16,20 +16,13 @@ class ApplicationsPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        PageHero(
-          kicker: 'Admissions',
-          title: 'Applications',
-          lead: 'Track sibling applications and open a new one on the website.',
-          icon: Icons.assignment_rounded,
-          colors: const [Color(0xFF5B21B6), KjaColors.lilacDeep, KjaColors.lilac],
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: KjaColors.lilacDeep),
-              onPressed: () => openWeb('/account/applications'),
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Apply on website'),
-            ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: KjaColors.navy),
+            onPressed: () => openWeb('/account/applications'),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const Text('Apply on website'),
           ),
         ),
         const SizedBox(height: 16),

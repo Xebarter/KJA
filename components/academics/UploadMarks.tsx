@@ -117,8 +117,8 @@ function PaperChip({
     : base;
   const title = isOther
     ? paper.skillCount > 0
-      ? `Other subject — workbook includes mark plus ${nf(paper.skillCount)} skill ${paper.skillCount === 1 ? "column" : "columns"}`
-      : "Other subject — workbook includes a Major skills learnt column (up to 4 on the first pupil row)"
+      ? `Other subject: workbook includes mark plus ${nf(paper.skillCount)} skill ${paper.skillCount === 1 ? "column" : "columns"}`
+      : "Other subject: workbook includes a Major skills learnt column (up to 4 on the first pupil row)"
     : undefined;
 
   if (locked) {
@@ -486,8 +486,8 @@ export function UploadMarks({
           {otherWithoutSkills.length ? (
             <p className="asm-note is-hint">
               {otherWithoutSkills.length === 1
-                ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet — the workbook has a Major skills learnt column (up to 4 skills on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`
-                : `${nf(otherWithoutSkills.length)} Other subjects have no skills listed yet — each gets a Major skills learnt column (up to 4 on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`}
+                ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet. The workbook has a Major skills learnt column (up to 4 skills on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`
+                : `${nf(otherWithoutSkills.length)} Other subjects have no skills listed yet. Each gets a Major skills learnt column (up to 4 on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`}
             </p>
           ) : null}
           <button type="button" className="asm-commit" disabled={!chosen.length || busy !== ""} onClick={download}>

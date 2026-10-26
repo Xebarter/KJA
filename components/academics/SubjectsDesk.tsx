@@ -257,7 +257,7 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
   const badge = subject?.code || code.trim().toUpperCase();
   const isOther = kind === "cocurricular";
   const note = isOther
-    ? "Goes on the co-curricular table — not the marks table."
+    ? "Goes on the co-curricular table, not the marks table."
     : stored
       ? `Taught across ${bandPhrase(stored.span).toLowerCase()}.`
       : "Choose at least one section below.";

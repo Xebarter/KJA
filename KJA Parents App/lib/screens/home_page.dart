@@ -11,12 +11,10 @@ class HomePage extends StatelessWidget {
     super.key,
     required this.portal,
     required this.open,
-    required this.openWeb,
   });
 
   final PortalSnapshot portal;
   final ValueChanged<AppDestination> open;
-  final Future<void> Function(String path) openWeb;
 
   @override
   Widget build(BuildContext context) {
@@ -50,14 +48,17 @@ class HomePage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        PageHero(
-          kicker: longToday(),
+        PageIntro(
+          eyebrow: longToday(),
           title: '${greeting()}, $first',
-          lead: portal.children.isEmpty
-              ? 'Your family portal is ready. Linked children will appear here.'
-              : 'You have ${plural(portal.children.length, 'child')} on the register.',
-          icon: Icons.waving_hand_rounded,
-          footer: Row(
+          detail: portal.children.isEmpty
+              ? 'Linked children will appear here.'
+              : '${plural(portal.children.length, 'child')} on the register.',
+        ),
+        const SizedBox(height: 14),
+        SoftCard(
+          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+          child: Row(
             children: [
               _HeroStat(label: 'Notices', value: '${portal.unreadNotices}'),
               const SizedBox(width: 8),
@@ -176,7 +177,7 @@ class HomePage extends StatelessWidget {
         ],
         const SizedBox(height: 20),
         SoftCard(
-          onTap: () => openWeb('/account/fees'),
+          onTap: () => open(AppDestination.fees),
           child: Row(
             children: [
               ToneIcon(icon: Icons.payments_rounded, tone: Tone.coral, size: 44, iconSize: 22),
@@ -188,13 +189,13 @@ class HomePage extends StatelessWidget {
                     Text('Pay school fees', style: TextStyle(fontWeight: FontWeight.w800)),
                     SizedBox(height: 2),
                     Text(
-                      'Open Mobile Money checkout on the website.',
+                      'Pay with Mobile Money in the app.',
                       style: TextStyle(color: KjaColors.soft, height: 1.35),
                     ),
                   ],
                 ),
               ),
-              const Icon(Icons.open_in_new_rounded, color: KjaColors.mute, size: 18),
+              const Icon(Icons.chevron_right_rounded, color: KjaColors.mute),
             ],
           ),
         ),
@@ -228,9 +229,8 @@ class _HeroStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
+          color: KjaColors.paper,
           borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: Colors.white.withValues(alpha: 0.12)),
         ),
         child: Column(
           children: [
@@ -238,10 +238,10 @@ class _HeroStat extends StatelessWidget {
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: KjaColors.ink, fontSize: 13, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 2),
-            Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.85), fontSize: 11, fontWeight: FontWeight.w600)),
+            Text(label, style: const TextStyle(color: KjaColors.mute, fontSize: 11, fontWeight: FontWeight.w600)),
           ],
         ),
       ),

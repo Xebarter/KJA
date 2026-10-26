@@ -5,12 +5,14 @@ import WebSocket, { WebSocketServer } from "ws";
 import {
   BOOT_REPLAY_CAP,
   CACHE_FRESH_MS,
+  CRITICAL_HYDRATE_PATHS,
+  HYDRATE_CONCURRENCY,
   MAX_CACHE_BYTES,
   NEXT_PORT,
   PROXY_PORT,
 } from "../shared/ports";
 import type { SyncStatus } from "../shared/status";
-import { EMPTY_SYNC } from "../shared/status";
+import { EMPTY_SYNC, syncPhaseOf } from "../shared/status";
 import {
   accessExpFromAuthHeader,
   isServiceRoleRequest,
@@ -42,8 +44,34 @@ export type ProxyHandle = {
   flush: () => Promise<void>;
   getStatus: () => SyncStatus;
   setOnline: (online: boolean) => void;
+  /** Warm critical + recent GETs with the user's JWT (never anon). */
+  hydrateUser: (userId: string) => Promise<number>;
+  /** @deprecated Use hydrateUser */
   replayGets: (userId: string) => Promise<number>;
 };
+
+function bearerToken(authorization: string | undefined | null): string | null {
+  if (!authorization) return null;
+  const match = /^Bearer\s+(.+)$/i.exec(authorization.trim());
+  return match?.[1] || null;
+}
+
+function isEmptyJsonBody(body: Buffer): boolean {
+  const text = body.toString("utf8").trim();
+  return text === "[]" || text === "null" || text === "{}";
+}
+
+async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>) {
+  if (!items.length) return;
+  let i = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (i < items.length) {
+      const idx = i++;
+      await fn(items[idx]);
+    }
+  });
+  await Promise.all(workers);
+}
 
 function collectHeaders(req: http.IncomingMessage): Record<string, string> {
   const out: Record<string, string> = {};
@@ -141,6 +169,10 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
   const upstreamBase = config.upstreamUrl.replace(/\/$/, "");
   let online = true;
   let flushing = false;
+  let hydrating = false;
+  let hydrateDone = 0;
+  let hydrateTotal = 0;
+  let hydrateGeneration = 0;
   let lastError: string | null = null;
   let status: SyncStatus = { ...EMPTY_SYNC };
 
@@ -150,8 +182,26 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       pending: store.pendingCount(),
       flushing,
       lastError,
+      hydrating,
+      hydrateDone,
+      hydrateTotal,
+      phase: syncPhaseOf({ online, flushing, hydrating }),
     };
     config.onStatus?.(status);
+  };
+
+  const rememberAccessToken = (userId: string, token: string) => {
+    if (!userId || !token || token === config.anonKey || token === config.serviceRoleKey) return;
+    store.setMeta(`access_token:${userId}`, token);
+    store.setMeta("last_user_id", userId);
+  };
+
+  const readAccessToken = (userId: string): string | null => {
+    const token = store.getMeta(`access_token:${userId}`);
+    if (!token || token === config.anonKey) return null;
+    const exp = accessExpFromAuthHeader(`Bearer ${token}`);
+    if (exp != null && exp * 1000 <= Date.now() + 5_000) return null;
+    return token;
   };
 
   const forward = async (args: {
@@ -195,6 +245,95 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
     }
   };
 
+  const hydrateUser = async (userId: string): Promise<number> => {
+    if (!online || !userId) return 0;
+    const token = readAccessToken(userId);
+    if (!token) {
+      // Without a user JWT we must not replay — anon responses poison the user cache.
+      console.warn("[proxy] hydrate skipped: no access token for", userId);
+      return 0;
+    }
+
+    const gen = ++hydrateGeneration;
+    const recent = store.recentGets(userId, BOOT_REPLAY_CAP);
+    const critical = CRITICAL_HYDRATE_PATHS.map((path) => `${upstreamBase}${path}`);
+    const urls = [...new Set([...critical, ...recent])];
+
+    // Drop stale empty fee_terms / calendar rows before warm-up.
+    store.invalidateTable(userId, "fee_terms");
+    store.invalidateTable(userId, "academic_dates");
+
+    hydrating = true;
+    hydrateDone = 0;
+    hydrateTotal = urls.length;
+    emit();
+
+    let warmed = 0;
+    await mapPool(urls, HYDRATE_CONCURRENCY, async (u) => {
+      if (gen !== hydrateGeneration) return;
+      try {
+        const result = await forward({
+          method: "GET",
+          url: u,
+          headers: {
+            apikey: config.anonKey,
+            Authorization: `Bearer ${token}`,
+            accept: "application/json",
+          },
+          body: null,
+        });
+        if (gen !== hydrateGeneration) return;
+        if (result.ok && result.body.length > 0 && result.body.length <= MAX_CACHE_BYTES) {
+          const path = new URL(u).pathname;
+          const table = parseRestTable(path);
+          const ct = result.headers["content-type"] || "";
+          if (!(ct.includes("json") && isEmptyJsonBody(result.body))) {
+            store.putCache({
+              user_id: userId,
+              url: u,
+              method: "GET",
+              status: result.status,
+              headers: JSON.stringify(pickResponseHeaders(result.headers)),
+              body: result.body,
+              fetched_at: Date.now(),
+              table_name: table,
+            });
+            if (table && ct.includes("json")) {
+              try {
+                store.ingestJsonArray(userId, table, JSON.parse(result.body.toString("utf8")));
+              } catch {
+                /* ignore */
+              }
+            }
+            warmed += 1;
+            if (table) config.onTableChange?.(userId, table);
+          }
+        }
+      } catch {
+        /* ignore individual failures */
+      } finally {
+        if (gen === hydrateGeneration) {
+          hydrateDone += 1;
+          emit();
+        }
+      }
+    });
+
+    if (gen === hydrateGeneration) {
+      hydrating = false;
+      // Keep totals so the UI can show 100% briefly before idle.
+      emit();
+      setTimeout(() => {
+        if (gen === hydrateGeneration && !hydrating) {
+          hydrateDone = 0;
+          hydrateTotal = 0;
+          emit();
+        }
+      }, 900);
+    }
+    return warmed;
+  };
+
   const server = http.createServer(async (req, res) => {
     const reply = (
       status: number,
@@ -222,6 +361,10 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       const headers = collectHeaders(req);
       const auth = headers.authorization || headers.Authorization;
       const userId = userIdFromAuthHeader(auth);
+      const accessToken = bearerToken(auth);
+      if (userId && accessToken && !isServiceRoleRequest(auth, config.serviceRoleKey)) {
+        rememberAccessToken(userId, accessToken);
+      }
       const serviceRole = isServiceRoleRequest(auth, config.serviceRoleKey);
       const body = method === "GET" || method === "HEAD" ? null : await readBody(req);
       const upstreamPath = `${pathname}${url.search}`;
@@ -257,12 +400,31 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (!online) {
           reply(
             503,
-            Buffer.from(JSON.stringify({ message: "Offline — sign-in needs the network." })),
+            Buffer.from(JSON.stringify({ message: "Offline. Sign-in needs the network." })),
             { "content-type": "application/json" },
           );
           return;
         }
         const result = await forward({ method, url: upstreamUrl, headers, body });
+        if (result.ok) {
+          try {
+            const payload = JSON.parse(result.body.toString("utf8")) as {
+              access_token?: string;
+              user?: { id?: string };
+            };
+            const token = payload.access_token;
+            const uid =
+              (payload.user?.id && String(payload.user.id)) ||
+              (token ? userIdFromAuthHeader(`Bearer ${token}`) : null);
+            if (token && uid) {
+              rememberAccessToken(uid, token);
+              // Kick a fast user-auth hydrate so desks don't paint empty caches.
+              void hydrateUser(uid).catch((e) => console.warn("[proxy] post-login hydrate failed", e));
+            }
+          } catch {
+            /* ignore parse errors */
+          }
+        }
         reply(result.status, result.body, pickResponseHeaders(result.headers));
         return;
       }
@@ -300,7 +462,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (!online) {
           reply(
             503,
-            Buffer.from(JSON.stringify({ message: "Offline — session expired." })),
+            Buffer.from(JSON.stringify({ message: "Offline. Session expired." })),
             { "content-type": "application/json" },
           );
           return;
@@ -325,7 +487,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (!online) {
           reply(
             503,
-            Buffer.from(JSON.stringify({ message: "Offline — this action needs the network." })),
+            Buffer.from(JSON.stringify({ message: "Offline. This action needs the network." })),
             { "content-type": "application/json" },
           );
           return;
@@ -408,7 +570,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       if (["POST", "PATCH", "PUT", "DELETE"].includes(method) && !online) {
         reply(
           503,
-          Buffer.from(JSON.stringify({ message: "Offline — this action needs the network." })),
+          Buffer.from(JSON.stringify({ message: "Offline. This action needs the network." })),
           { "content-type": "application/json" },
         );
         return;
@@ -424,7 +586,12 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
 
       if (cacheableGet && userId) {
         store.touchGetLog(userId, upstreamUrl);
-        const cached = store.getCache(userId, upstreamUrl, "GET");
+        let cached = store.getCache(userId, upstreamUrl, "GET");
+        // Drop previously poisoned empty payloads (e.g. anon boot replay).
+        if (cached && online && isEmptyJsonBody(cached.body)) {
+          store.invalidateUrl(userId, upstreamUrl);
+          cached = null;
+        }
         const fresh = cached && Date.now() - cached.fetched_at < CACHE_FRESH_MS;
 
         if (cached) {
@@ -461,7 +628,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
           }
           reply(
             503,
-            Buffer.from(JSON.stringify({ message: "Offline — no cached copy of this data." })),
+            Buffer.from(JSON.stringify({ message: "Offline. No cached copy of this data." })),
             { "content-type": "application/json" },
           );
           return;
@@ -471,7 +638,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       if (!online && method === "GET") {
         reply(
           503,
-          Buffer.from(JSON.stringify({ message: "Offline — no cached copy of this data." })),
+          Buffer.from(JSON.stringify({ message: "Offline. No cached copy of this data." })),
           { "content-type": "application/json" },
         );
         return;
@@ -488,8 +655,12 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       ) {
         const table = parseRestTable(pathname);
         const ct = result.headers["content-type"] || "";
-        if (!ct.includes("octet-stream") || pathname.startsWith("/storage/v1/object/")) {
-          // Skip huge binary attachments already gated by MAX_CACHE_BYTES
+        // Never cache empty JSON lists — they poison desks with "no term" flashes.
+        const skipEmptyJson = ct.includes("json") && isEmptyJsonBody(result.body);
+        if (
+          !skipEmptyJson &&
+          (!ct.includes("octet-stream") || pathname.startsWith("/storage/v1/object/"))
+        ) {
           store.putCache({
             user_id: userId,
             url: upstreamUrl,
@@ -507,6 +678,8 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
               /* ignore */
             }
           }
+        } else if (skipEmptyJson && table) {
+          store.invalidateUrl(userId, upstreamUrl);
         }
       }
 
@@ -614,42 +787,8 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       if (value) void doFlush();
     },
     flush: doFlush,
-    replayGets: async (userId: string) => {
-      if (!online) return 0;
-      const urls = store.recentGets(userId, BOOT_REPLAY_CAP);
-      let n = 0;
-      for (const u of urls) {
-        try {
-          await forward({
-            method: "GET",
-            url: u,
-            headers: {
-              apikey: config.anonKey,
-              Authorization: `Bearer ${config.anonKey}`,
-            },
-            body: null,
-          }).then((result) => {
-            if (!result.ok || result.body.length > MAX_CACHE_BYTES) return;
-            const path = new URL(u).pathname;
-            const table = parseRestTable(path);
-            store.putCache({
-              user_id: userId,
-              url: u,
-              method: "GET",
-              status: result.status,
-              headers: JSON.stringify(pickResponseHeaders(result.headers)),
-              body: result.body,
-              fetched_at: Date.now(),
-              table_name: table,
-            });
-            n += 1;
-          });
-        } catch {
-          /* ignore individual failures */
-        }
-      }
-      return n;
-    },
+    hydrateUser,
+    replayGets: hydrateUser,
     close: async () => {
       clearInterval(probe);
       await new Promise<void>((resolve) => server.close(() => resolve()));
@@ -698,6 +837,12 @@ async function refreshGet(
   try {
     const result = await forward({ method: "GET", url: upstreamUrl, headers, body: null });
     if (!result.ok || result.body.length > MAX_CACHE_BYTES) return false;
+    const ct = result.headers["content-type"] || "";
+    if (ct.includes("json") && isEmptyJsonBody(result.body)) {
+      const had = Boolean(store.getCache(userId, upstreamUrl, "GET"));
+      store.invalidateUrl(userId, upstreamUrl);
+      return had;
+    }
     const prev = store.getCache(userId, upstreamUrl, "GET");
     const changed = !prev || !prev.body.equals(result.body);
     const table = parseRestTable(pathname);
@@ -711,7 +856,7 @@ async function refreshGet(
       fetched_at: Date.now(),
       table_name: table,
     });
-    if (table && (result.headers["content-type"] || "").includes("json")) {
+    if (table && ct.includes("json")) {
       try {
         store.ingestJsonArray(userId, table, JSON.parse(result.body.toString("utf8")));
       } catch {

@@ -101,7 +101,7 @@ export default async function ChatReviewPage({
         title="Chat review"
         description={
           <>
-            Check classmate messages by class. <strong>Flagged</strong> notes need a look — hide anything that should not stay visible to pupils.
+            Check classmate messages by class. <strong>Flagged</strong> notes need a look. Hide anything that should not stay visible to pupils.
           </>
         }
       />

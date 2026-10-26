@@ -72,24 +72,31 @@ function waitForDeskPaint(win: BrowserWindow): Promise<void> {
       settled = true;
       resolve();
     };
-    win.webContents.once("did-finish-load", done);
-    win.webContents.once("dom-ready", () => {
-      // Prefer did-finish-load, but don't hang if a redirect stalls paint.
-      setTimeout(done, 400);
-    });
+    // Prefer first paint signals; do not wait for every image/font.
+    win.webContents.once("dom-ready", done);
+    win.webContents.once("did-finish-load", () => setTimeout(done, 120));
     setTimeout(done, SPLASH_WARMUP_CAP_MS);
   });
 }
 
 async function boot() {
+  const bootStarted = Date.now();
   emitBoot({ phase: "starting", message: "Reading configuration…" });
   const env = loadDesktopEnv();
 
-  emitBoot({ phase: "proxy", message: "Starting local data cache…" });
+  emitBoot({ phase: "proxy", message: "Starting desks…" });
   const dbPath = join(app.getPath("userData"), "kja-proxy.sqlite");
 
-  // Free Next's port while the proxy boots — saves a serial wait on restart.
-  const portReady = waitPortFree(NEXT_PORT).catch(() => undefined);
+  // Clear leftover listeners from a previous crash without blocking when free.
+  freePort(PROXY_PORT);
+
+  // Run proxy, Next, and desk-window creation together — biggest cold-start win.
+  const portReady = waitPortFree(NEXT_PORT)
+    .then(() => true)
+    .catch(() => {
+      freePort(NEXT_PORT);
+      return true;
+    });
 
   const proxyPromise = startProxy({
     upstreamUrl: env.upstreamSupabaseUrl,
@@ -108,27 +115,28 @@ async function boot() {
     return handle;
   });
 
-  await Promise.all([proxyPromise, portReady]);
+  const nextPromise = portReady.then(() => {
+    emitBoot({ phase: "next", message: "Opening staff sign-in…" });
+    return startNext(env, { portReady: true });
+  });
 
-  emitBoot({ phase: "next", message: "Opening staff sign-in…" });
-  try {
-    nextHandle = await startNext(env);
-  } catch (e) {
-    const message = e instanceof Error ? e.message : String(e);
-    throw new Error(message);
-  }
+  const deskPromise = createDeskWindow();
 
-  // Cache replay helps returning sessions, but must not block the login gate.
+  const [, next, deskWin] = await Promise.all([proxyPromise, nextPromise, deskPromise]);
+  nextHandle = next;
+  desk = deskWin;
+
+  // Warm desks with the stored user JWT (never anon — that poisoned empty caches).
   const lastUser = proxy?.store.getMeta("last_user_id");
   if (lastUser && proxy) {
-    void proxy.replayGets(lastUser).catch((e) => console.warn("[boot] GET replay failed", e));
+    void proxy.hydrateUser(lastUser).catch((e) => console.warn("[boot] hydrate failed", e));
   }
 
   emitBoot({ phase: "warmup", message: "Almost ready…" });
-  desk = await createDeskWindow();
   const painted = waitForDeskPaint(desk);
   await desk.loadURL(`${NEXT_URL}${DESK_ENTRY_PATH}`);
   await painted;
+  console.log(`[desktop] boot ${Date.now() - bootStarted}ms`);
   revealDesk();
 }
 
@@ -139,12 +147,12 @@ app.whenReady().then(async () => {
   // Drop File / Edit / View / Window / Help — the in-app title strip owns that space.
   Menu.setApplicationMenu(null);
 
+  // Show splash immediately, then boot in parallel underneath.
   splash = createSplashWindow();
-  if (process.env.ELECTRON_RENDERER_URL) {
-    await splash.loadURL(`${process.env.ELECTRON_RENDERER_URL}/splash/index.html`);
-  } else {
-    await splash.loadFile(join(__dirname, "../renderer/splash/index.html"));
-  }
+  const splashLoad =
+    process.env.ELECTRON_RENDERER_URL
+      ? splash.loadURL(`${process.env.ELECTRON_RENDERER_URL}/splash/index.html`)
+      : splash.loadFile(join(__dirname, "../renderer/splash/index.html"));
 
   ipcMain.handle("boot:get", () => bootStatus);
   ipcMain.handle("sync:get", () => syncStatus);
@@ -155,7 +163,7 @@ app.whenReady().then(async () => {
   ipcMain.handle("sync:online", () => net.isOnline());
 
   try {
-    await boot();
+    await Promise.all([splashLoad.catch(() => undefined), boot()]);
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
     emitBoot({ phase: "error", message: "Could not start", error: message });

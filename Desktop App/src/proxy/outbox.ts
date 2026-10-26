@@ -110,7 +110,7 @@ export function applyOptimisticWrite(
   if (!table) {
     return {
       status: 503,
-      body: Buffer.from(JSON.stringify({ message: "Offline — this action needs the network." })),
+      body: Buffer.from(JSON.stringify({ message: "Offline. This action needs the network." })),
       contentType: "application/json",
     };
   }
@@ -170,7 +170,7 @@ export function applyOptimisticWrite(
     return {
       status: 503,
       body: Buffer.from(
-        JSON.stringify({ message: "Offline — this update needs the network." }),
+        JSON.stringify({ message: "Offline. This update needs the network." }),
       ),
       contentType: "application/json",
     };
@@ -195,7 +195,7 @@ export function applyOptimisticWrite(
     return {
       status: 503,
       body: Buffer.from(
-        JSON.stringify({ message: "Offline — this delete needs the network." }),
+        JSON.stringify({ message: "Offline. This delete needs the network." }),
       ),
       contentType: "application/json",
     };
@@ -203,7 +203,7 @@ export function applyOptimisticWrite(
 
   return {
     status: 503,
-    body: Buffer.from(JSON.stringify({ message: "Offline — this action needs the network." })),
+    body: Buffer.from(JSON.stringify({ message: "Offline. This action needs the network." })),
     contentType: "application/json",
   };
 }

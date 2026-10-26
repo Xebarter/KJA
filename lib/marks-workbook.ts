@@ -893,9 +893,9 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     2,
     lastCol,
     hasYesSkills
-      ? "A blank mark cell is not a zero — it leaves the mark already saved. Skills acquired columns: Yes if gained this term, or leave blank."
+      ? "A blank mark cell is not a zero. It leaves the mark already saved. Skills acquired columns: Yes if gained this term, or leave blank."
       : hasSkillsList
-        ? "A blank mark cell is not a zero — it leaves the mark already saved. Major skills learnt: up to 4 skills on the first pupil row (comma-separated); lower rows inherit that list."
+        ? "A blank mark cell is not a zero. It leaves the mark already saved. Major skills learnt: up to 4 skills on the first pupil row (comma-separated); lower rows inherit that list."
         : "A blank cell is not a zero. It leaves the mark already saved for that pupil and subject.",
     {
       font: { name: "Calibri", size: 9, italic: true, color: { argb: MUTED } },

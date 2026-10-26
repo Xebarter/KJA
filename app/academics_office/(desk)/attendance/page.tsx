@@ -101,6 +101,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
             name: group.name,
             href: group.href,
             unmarked: group.pupils - group.done,
+            pupils: group.pupils,
             classCode: group.code,
             stream: group.stream,
           }))}

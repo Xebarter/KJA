@@ -138,6 +138,6 @@ export function previewPlainText(sample: CommentPreview) {
     `${sample.learner}, ${sample.klass}`,
     `Academic ${sample.academic} · Co-curricular ${sample.cocurricular}`,
     sample.marks,
-    ...sample.sections.flatMap((section) => section.lines.map((line) => `${section.title}: ${line.label ? `${line.label} — ` : ""}${line.text}`)),
+    ...sample.sections.flatMap((section) => section.lines.map((line) => `${section.title}: ${line.label ? `${line.label}: ` : ""}${line.text}`)),
   ].join("\n");
 }

@@ -11,6 +11,7 @@ import 'chart_page.dart';
 import 'home_page.dart';
 import 'homework_page.dart';
 import 'messages_page.dart';
+import 'points_page.dart';
 import 'reports_page.dart';
 import 'resources_page.dart';
 import 'school_pages.dart';
@@ -275,6 +276,8 @@ class _PupilShellState extends State<PupilShell> {
         return AttendancePage(portal: portal);
       case AppDestination.reports:
         return ReportsPage(portal: portal);
+      case AppDestination.points:
+        return PointsPage(portal: portal);
       case AppDestination.myClass:
         return ClassPage(portal: portal, onMessage: _messageClassmate);
       case AppDestination.clubs:

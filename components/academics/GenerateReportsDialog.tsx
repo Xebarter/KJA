@@ -191,7 +191,7 @@ export function GenerateReportsDialog({
               </ul>
               <p className={`rpt-generate-total${ready ? " is-ok" : ""}`}>
                 {chosen.length
-                  ? <>Chosen shares add up to <strong>{total}%</strong>{ready ? "" : " — they must total 100%"}.</>
+                  ? <>Chosen shares add up to <strong>{total}%</strong>{ready ? "" : ". They must total 100%"}.</>
                   : "Choose at least one assessment."}
               </p>
               <footer>

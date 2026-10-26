@@ -9,6 +9,7 @@ enum AppDestination {
   timetable,
   attendance,
   reports,
+  points,
   myClass,
   clubs,
   calendar,
@@ -24,6 +25,7 @@ enum AppDestination {
     timetable,
     attendance,
     reports,
+    points,
     chart,
     myClass,
     clubs,
@@ -47,6 +49,7 @@ String sidebarGroupTitle(AppDestination destination) {
     case AppDestination.timetable:
     case AppDestination.attendance:
     case AppDestination.reports:
+    case AppDestination.points:
     case AppDestination.chart:
       return 'School day';
     case AppDestination.myClass:
@@ -77,6 +80,8 @@ extension AppDestinationX on AppDestination {
         return 'Attendance';
       case AppDestination.reports:
         return 'Reports';
+      case AppDestination.points:
+        return 'Points';
       case AppDestination.myClass:
         return 'My class';
       case AppDestination.clubs:
@@ -111,6 +116,8 @@ extension AppDestinationX on AppDestination {
         return Icons.assignment_ind_rounded;
       case AppDestination.reports:
         return Icons.workspace_premium_rounded;
+      case AppDestination.points:
+        return Icons.stars_rounded;
       case AppDestination.myClass:
         return Icons.groups_rounded;
       case AppDestination.clubs:
@@ -143,6 +150,8 @@ extension AppDestinationX on AppDestination {
         return Tone.mint;
       case AppDestination.reports:
         return Tone.sun;
+      case AppDestination.points:
+        return Tone.sun;
       case AppDestination.myClass:
         return Tone.lilac;
       case AppDestination.clubs:
@@ -170,6 +179,7 @@ AppDestination? destinationForHref(String? href) {
   if (path.contains('homework')) return AppDestination.homework;
   if (path.contains('timetable')) return AppDestination.timetable;
   if (path.contains('attendance')) return AppDestination.attendance;
+  if (path.contains('points')) return AppDestination.points;
   if (path.contains('report')) return AppDestination.reports;
   if (path.contains('resource')) return AppDestination.resources;
   if (path.contains('class')) return AppDestination.myClass;

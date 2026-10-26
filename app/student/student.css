@@ -6880,3 +6880,22 @@ a.ca-row:hover .ca-row-go {
   .sp-card-glow { display: none; }
   .sp-card-foot { display: none; }
 }
+
+.sp-points { display: grid; gap: 1rem; }
+.sp-points-hero {
+  padding: 1.3rem 1.2rem 1.15rem; border-radius: 22px; color: #fff;
+  background: linear-gradient(145deg, #1d56b0, #127238 62%, #fda31b);
+}
+.sp-points-kicker { display: inline-flex; align-items: center; gap: .35rem; margin: 0; font-size: .75rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.sp-points-hero h1 { margin: .2rem 0 .35rem; font-family: Nunito, "Segoe UI", system-ui, sans-serif; font-size: 1.8rem; }
+.sp-points-hero p, .sp-points-hero small { margin: 0; }
+.sp-points-hero strong { display: block; margin-top: .7rem; font-size: 2.4rem; line-height: 1; }
+.sp-points-hero .is-down { color: #ffe1e4; }
+.sp-points-list { display: grid; gap: .55rem; margin: 0; padding: 0; list-style: none; }
+.sp-points-list li { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: .7rem; align-items: center; padding: .8rem .9rem; border-radius: 16px; background: #fff; }
+.sp-points-list b { font-size: 1.2rem; }
+.sp-points-list strong, .sp-points-list small { display: block; }
+.sp-points-list small { color: #6d6458; }
+.sp-points-list .is-up b { color: #127238; }
+.sp-points-list .is-down b { color: #c81e2d; }
+.sp-points-quiet { margin: 0; padding: 1rem; border-radius: 16px; background: #fff; color: #5d6670; }

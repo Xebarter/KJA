@@ -387,7 +387,7 @@ export function NoticesDesk({
               <p>
                 {notices.length
                   ? "Try All, or pick another class filter."
-                  : "Write a short title and send it — pupils will see it straight away."}
+                  : "Write a short title and send it. Pupils will see it straight away."}
               </p>
             </div>
           )}

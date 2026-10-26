@@ -76,14 +76,6 @@ class _ProfilePageState extends State<ProfilePage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        const PageHero(
-          kicker: 'Account',
-          title: 'My details',
-          lead: 'Keep your contact details current for fee payments and school messages.',
-          icon: Icons.person_rounded,
-          colors: [Color(0xFF5B21B6), KjaColors.lilacDeep, KjaColors.sky],
-        ),
-        const SizedBox(height: 16),
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

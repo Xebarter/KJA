@@ -17,14 +17,6 @@ class ChildrenPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        const PageHero(
-          kicker: 'Family',
-          title: 'Your children',
-          lead: 'Pupils linked to your guardian account on the school register.',
-          icon: Icons.family_restroom_rounded,
-          colors: [KjaColors.navy, Color(0xFF1E4D7B), KjaColors.rose],
-        ),
-        const SizedBox(height: 16),
         if (portal.children.isEmpty)
           const EmptyNote(
             icon: Icons.family_restroom_rounded,

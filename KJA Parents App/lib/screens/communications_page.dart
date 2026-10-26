@@ -84,14 +84,6 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        const PageHero(
-          kicker: 'Inbox',
-          title: 'Communications',
-          lead: 'Message the school about fees, learning, clubs, and more.',
-          icon: Icons.forum_rounded,
-          colors: [Color(0xFF065F46), KjaColors.mintDeep, KjaColors.mint],
-        ),
-        const SizedBox(height: 16),
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

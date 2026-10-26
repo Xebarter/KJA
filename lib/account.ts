@@ -2,6 +2,7 @@ export const accountNav = [
   { href: "/account", label: "Overview", icon: "fa-house", group: "Home" },
   { href: "/account/children", label: "Children", icon: "fa-children", group: "Family" },
   { href: "/account/reports", label: "Reports", icon: "fa-file-lines", group: "Family" },
+  { href: "/account/points", label: "Points", icon: "fa-star", group: "Family" },
   { href: "/account/fees", label: "School fees", icon: "fa-receipt", group: "Family" },
   { href: "/account/applications", label: "Applications", icon: "fa-clipboard-list", group: "School" },
   { href: "/account/clubs", label: "Clubs", icon: "fa-puzzle-piece", group: "School" },

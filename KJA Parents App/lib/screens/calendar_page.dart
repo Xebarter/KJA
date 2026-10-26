@@ -16,19 +16,13 @@ class CalendarPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        PageHero(
-          kicker: 'School life',
-          title: 'Calendar',
-          lead: 'Upcoming school events for your family.',
-          icon: Icons.calendar_month_rounded,
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: KjaColors.navy),
-              onPressed: () => openWeb('/account/calendar'),
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Open on website'),
-            ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: KjaColors.navy),
+            onPressed: () => openWeb('/account/calendar'),
+            icon: const Icon(Icons.open_in_new_rounded, size: 18),
+            label: const Text('Open on website'),
           ),
         ),
         const SizedBox(height: 16),
@@ -39,7 +33,7 @@ class CalendarPage extends StatelessWidget {
                 ToneIcon(icon: Icons.event_rounded, tone: Tone.sky, size: 48, iconSize: 24),
                 const SizedBox(height: 10),
                 const Text(
-                  'School events sync from the website calendar. Open the full calendar online for the latest dates.',
+                  'No upcoming dates yet. Class calendars and school office dates appear here as soon as they are published.',
                   textAlign: TextAlign.center,
                   style: TextStyle(color: KjaColors.soft, height: 1.4),
                 ),

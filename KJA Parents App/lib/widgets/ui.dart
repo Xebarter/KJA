@@ -5,6 +5,9 @@ import '../navigation.dart';
 import '../pupil_photos.dart';
 import '../theme.dart';
 
+/// School crest used in splash, gates, drawer, and header.
+/// Source is a circle on a white square; clip corners. [widthFactor]/[heightFactor]
+/// keep the mark square even when a ListView forces a wide cross-axis constraint.
 class SchoolMark extends StatelessWidget {
   const SchoolMark({super.key, this.size = 44});
 
@@ -14,21 +17,25 @@ class SchoolMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipOval(
-        child: Image.asset(
-          assetPath,
-          width: size,
-          height: size,
-          fit: BoxFit.cover,
-          filterQuality: FilterQuality.high,
-          gaplessPlayback: true,
-          semanticLabel: 'Kampala Junior Academy',
-          errorBuilder: (context, error, stackTrace) => ColoredBox(
-            color: Colors.white,
-            child: Icon(Icons.school_rounded, size: size * 0.55, color: KjaColors.navy),
+    return Center(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: ClipOval(
+          child: Image.asset(
+            assetPath,
+            width: size,
+            height: size,
+            fit: BoxFit.cover,
+            filterQuality: FilterQuality.high,
+            gaplessPlayback: true,
+            semanticLabel: 'Kampala Junior Academy',
+            errorBuilder: (context, error, stackTrace) => ColoredBox(
+              color: Colors.white,
+              child: Icon(Icons.school_rounded, size: size * 0.55, color: KjaColors.navy),
+            ),
           ),
         ),
       ),
@@ -150,113 +157,63 @@ class HeaderIconButton extends StatelessWidget {
   }
 }
 
-class PageHero extends StatelessWidget {
-  const PageHero({
+/// Quiet page context. Prefer this over a colored hero when the app bar
+/// already names the screen.
+class PageIntro extends StatelessWidget {
+  const PageIntro({
     super.key,
-    required this.kicker,
     required this.title,
-    required this.lead,
-    this.icon = Icons.auto_awesome_rounded,
-    this.colors = const [KjaColors.navy, Color(0xFF1E4D7B), KjaColors.sky],
+    this.eyebrow,
+    this.detail,
     this.footer,
   });
 
-  final String kicker;
   final String title;
-  final String lead;
-  final IconData icon;
-  final List<Color> colors;
+  final String? eyebrow;
+  final String? detail;
   final Widget? footer;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      clipBehavior: Clip.antiAlias,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(26),
-        boxShadow: [
-          BoxShadow(color: colors.first.withValues(alpha: 0.18), blurRadius: 24, offset: const Offset(0, 10)),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if ((eyebrow ?? '').isNotEmpty) ...[
+          Text(
+            eyebrow!,
+            style: const TextStyle(
+              color: KjaColors.mute,
+              fontWeight: FontWeight.w700,
+              fontSize: 12,
+              letterSpacing: 0.15,
+            ),
+          ),
+          const SizedBox(height: 6),
         ],
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            right: -28,
-            top: -36,
-            child: Container(
-              width: 140,
-              height: 140,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.1),
-              ),
-            ),
+        Text(
+          title,
+          style: const TextStyle(
+            color: KjaColors.ink,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            height: 1.15,
+            letterSpacing: -0.35,
           ),
-          Positioned(
-            right: 18,
-            bottom: -48,
-            child: Container(
-              width: 110,
-              height: 110,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.07),
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.16),
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(color: Colors.white.withValues(alpha: 0.18)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, color: Colors.white, size: 14),
-                      const SizedBox(width: 6),
-                      Text(
-                        kicker,
-                        style: TextStyle(
-                          color: Colors.white.withValues(alpha: 0.95),
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12,
-                          letterSpacing: 0.2,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 27,
-                    fontWeight: FontWeight.w800,
-                    height: 1.08,
-                    letterSpacing: -0.4,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  lead,
-                  style: TextStyle(color: Colors.white.withValues(alpha: 0.9), height: 1.4, fontSize: 14.5),
-                ),
-                if (footer != null) ...[const SizedBox(height: 16), footer!],
-              ],
+        ),
+        if ((detail ?? '').isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text(
+            detail!,
+            style: const TextStyle(
+              color: KjaColors.soft,
+              height: 1.4,
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
             ),
           ),
         ],
-      ),
+        if (footer != null) ...[const SizedBox(height: 12), footer!],
+      ],
     );
   }
 }

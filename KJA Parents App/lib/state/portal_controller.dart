@@ -22,6 +22,34 @@ class PortalController extends ChangeNotifier {
   PortalSnapshot? snapshot;
   bool _supabaseReady = false;
 
+  /// Cross-child club checkout cart (session-persistent while signed in).
+  final List<ClubCartLine> clubCart = [];
+
+  bool clubInCart(String studentId, String clubId) {
+    for (final line in clubCart) {
+      if (line.studentId == studentId && line.clubId == clubId) return true;
+    }
+    return false;
+  }
+
+  void addClubToCart(String studentId, String clubId) {
+    if (clubInCart(studentId, clubId)) return;
+    clubCart.add(ClubCartLine(studentId: studentId, clubId: clubId));
+    notifyListeners();
+  }
+
+  void removeClubFromCart(String studentId, String clubId) {
+    final before = clubCart.length;
+    clubCart.removeWhere((line) => line.studentId == studentId && line.clubId == clubId);
+    if (clubCart.length != before) notifyListeners();
+  }
+
+  void clearClubCart() {
+    if (clubCart.isEmpty) return;
+    clubCart.clear();
+    notifyListeners();
+  }
+
   Future<void> boot() async {
     try {
       final config = await AppConfig.load();
@@ -109,6 +137,7 @@ class PortalController extends ChangeNotifier {
     preview = false;
     snapshot = null;
     banner = null;
+    clubCart.clear();
     if (_supabaseReady) {
       try {
         await Supabase.instance.client.auth.signOut();
@@ -259,10 +288,10 @@ class PortalController extends ChangeNotifier {
   }
 
   Future<Map<String, dynamic>> startClubPayment({
-    required String studentId,
-    required List<String> clubIds,
     required String phone,
+    List<ClubCartLine>? items,
   }) async {
+    final cart = items ?? List<ClubCartLine>.from(clubCart);
     if (preview) {
       return {
         'payment': {
@@ -270,12 +299,18 @@ class PortalController extends ChangeNotifier {
           'status': 'paid',
           'amount': 0,
           'lines': [
-            for (final id in clubIds) {'id': id, 'title': 'Club', 'amount': 0, 'receiptNo': 'PREVIEW'},
+            for (final line in cart) {'id': line.clubId, 'title': 'Club', 'amount': 0, 'receiptNo': 'PREVIEW'},
           ],
         },
       };
     }
-    return _repository.startClubPayment(studentId: studentId, clubIds: clubIds, phone: phone);
+    final result = await _repository.startClubPayment(phone: phone, items: cart);
+    final payment = result['payment'];
+    if (payment is Map && payment['status']?.toString() == 'paid') {
+      clearClubCart();
+      await refresh();
+    }
+    return result;
   }
 
   Future<Map<String, dynamic>> checkClubPayment(String collectionId) async {
@@ -285,6 +320,103 @@ class PortalController extends ChangeNotifier {
       };
     }
     return _repository.checkClubPayment(collectionId);
+  }
+
+  Future<Map<String, dynamic>> startFeePayment({
+    required String studentId,
+    required String termId,
+    required num amount,
+    required String phone,
+  }) async {
+    if (preview) {
+      return {
+        'payment': {
+          'id': 'preview-fee',
+          'status': 'paid',
+          'amount': amount,
+          'child': 'Preview',
+          'term': 'Term',
+          'receiptNo': 'PREVIEW',
+        },
+      };
+    }
+    return _repository.startFeePayment(
+      studentId: studentId,
+      termId: termId,
+      amount: amount,
+      phone: phone,
+    );
+  }
+
+  Future<Map<String, dynamic>> checkFeePayment(String collectionId) async {
+    if (preview) {
+      return {
+        'payment': {'id': collectionId, 'status': 'paid', 'receiptNo': 'PREVIEW'},
+      };
+    }
+    return _repository.checkFeePayment(collectionId);
+  }
+
+  Future<List<({String campus, int fee})>> loadAdmissionFees() {
+    if (preview) {
+      return Future.value(const [
+        (campus: 'Bukoto', fee: 50000),
+        (campus: 'Naalya', fee: 50000),
+      ]);
+    }
+    return _repository.loadAdmissionFees();
+  }
+
+  Future<Map<String, dynamic>> startAdmissionPayment({
+    required String childName,
+    String? childDob,
+    required String campus,
+    String? grade,
+    String? message,
+    String? phone,
+    required String payPhone,
+  }) async {
+    if (preview) {
+      return {
+        'payment': {
+          'id': 'preview-admission',
+          'token': 'preview',
+          'status': 'paid',
+          'amount': 50000,
+          'campus': campus,
+          'child': childName,
+          'phone': payPhone,
+          'network': 'MTN Mobile Money',
+          'receiptNo': 'PREVIEW',
+        },
+      };
+    }
+    return _repository.startAdmissionPayment(
+      childName: childName,
+      childDob: childDob,
+      campus: campus,
+      grade: grade,
+      message: message,
+      phone: phone,
+      payPhone: payPhone,
+    );
+  }
+
+  Future<Map<String, dynamic>> checkAdmissionPayment({
+    required String paymentId,
+    required String token,
+  }) async {
+    if (preview) {
+      return {
+        'payment': {
+          'id': paymentId,
+          'token': token,
+          'status': 'paid',
+          'receiptNo': 'PREVIEW',
+        },
+      };
+    }
+    return _repository.checkAdmissionPayment(paymentId: paymentId, token: token);
   }
 
   Future<ReportDetail?> loadReportDetail(PublishedReport card) {

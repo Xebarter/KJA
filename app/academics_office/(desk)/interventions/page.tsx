@@ -1,11 +1,13 @@
-import { saveIntervention } from "@/app/academics_office/(desk)/actions";
-import { InterventionsDesk, type InterventionCase } from "@/components/academics/InterventionsDesk";
+import { saveIntervention, voidPupilPoints } from "@/app/academics_office/(desk)/actions";
+import { InterventionsWorkbench } from "@/components/academics/InterventionsWorkbench";
+import type { InterventionCase } from "@/components/academics/InterventionsDesk";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
-import { ACADEMICS_BASE, INTERVENTION_REASONS, classLabel, kampalaToday, loadCurrentTerm, reasonLabel } from "@/lib/academics";
+import { INTERVENTION_REASONS, classLabel, kampalaToday, loadCurrentTerm, mapTerm, reasonLabel } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
+import { ACADEMICS_BASE } from "@/lib/academics-nav";
+import { buildPointRows, loadTermAwards, pointPupilFromRoll, schemaMissing } from "@/lib/points";
 
 export const metadata = { title: "Interventions" };
 
@@ -27,7 +29,8 @@ function dueOf(iso: string | null, status: string, today: string): InterventionC
   return "later";
 }
 
-export default async function InterventionsPage() {
+export default async function InterventionsPage({ searchParams }: { searchParams: Promise<{ term?: string; view?: string }> }) {
+  const params = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Interventions" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Interventions" />;
@@ -36,9 +39,13 @@ export default async function InterventionsPage() {
   if (termPack.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const today = kampalaToday();
-  const [rowsQuery, pupils] = await Promise.all([
+  const termsQuery = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, is_current").order("year", { ascending: false }).order("term", { ascending: false });
+  const terms = ((termsQuery.data || []) as Record<string, unknown>[]).map(mapTerm);
+  const selected = terms.find((row) => row.id === params.term) || term;
+  const [rowsQuery, pupils, awardsPack] = await Promise.all([
     term ? supabase.from("learner_interventions").select("id, student_id, reason, note, follow_up_on, status").eq("term_id", term.id).order("follow_up_on") : Promise.resolve({ data: [], error: null }),
     loadRoll(supabase, user.id),
+    selected ? loadTermAwards(supabase, selected.id) : Promise.resolve({ awards: [], error: null as string | null }),
   ]);
   if (rowsQuery.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: rowsQuery.error.message }} />;
   const people = new Map(pupils.map((pupil) => [pupil.id, pupil]));
@@ -64,8 +71,10 @@ export default async function InterventionsPage() {
     .sort((a, b) => Number(b.status === "open") - Number(a.status === "open") || rank[a.due] - rank[b.due] || a.name.localeCompare(b.name));
   const openCount = cases.filter((row) => row.status === "open").length;
   const dueCount = cases.filter((row) => row.due === "overdue" || row.due === "today").length;
-  const doneCount = cases.length - openCount;
-  const pupilsWithCase = new Set(cases.map((row) => row.studentId)).size;
+
+  const pointRows = buildPointRows(pupils.map(pointPupilFromRoll), awardsPack.awards);
+  const pointsMissing = schemaMissing(awardsPack.error);
+  const initialView = params.view === "points" || (params.term && selected && term && params.term !== term.id) ? "points" : "cases";
 
   return (
     <div className="app-page ofc-page ivn-page">
@@ -73,60 +82,35 @@ export default async function InterventionsPage() {
         kicker="Assessment"
         icon="fa-hand-holding-heart"
         title="Interventions"
-        description={term ? <>{term.label} · <strong>{nf(openCount)}</strong> {openCount === 1 ? "case" : "cases"} still open.</> : "Set a current term first."}
+        description={term
+          ? <>{term.label}. Follow up pupils who need support{openCount ? <> · <strong>{nf(openCount)}</strong> open</> : ""}{dueCount ? <> · <strong>{nf(dueCount)}</strong> due</> : ""}.</>
+          : "Set a current term first."}
       />
+      {pointsMissing ? <p className="admin-empty">Run supabase/0055_pupil_points.sql before using points.</p> : null}
+      {awardsPack.error && !pointsMissing ? <p className="admin-empty">{awardsPack.error}</p> : null}
       {term ? (
-        <>
-          <section className="ivn-strip" aria-label="This term">
-            <div className={openCount ? "is-warn" : "is-ok"}>
-              <span className="ivn-stat-icon" aria-hidden="true"><i className="fa-solid fa-folder-open" /></span>
-              <span className="ivn-stat-copy"><span>Open</span><strong>{nf(openCount)}</strong><small>Still being followed</small></span>
-            </div>
-            <div className={dueCount ? "is-warn" : "is-ok"}>
-              <span className="ivn-stat-icon" aria-hidden="true"><i className="fa-regular fa-calendar" /></span>
-              <span className="ivn-stat-copy"><span>Due</span><strong>{nf(dueCount)}</strong><small>Today or overdue</small></span>
-            </div>
-            <div className={cases.length && doneCount === cases.length ? "is-ok" : ""}>
-              <span className="ivn-stat-icon" aria-hidden="true"><i className="fa-solid fa-circle-check" /></span>
-              <span className="ivn-stat-copy"><span>Done</span><strong>{nf(doneCount)}</strong><small>Closed this term</small></span>
-            </div>
-            <div>
-              <span className="ivn-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-group" /></span>
-              <span className="ivn-stat-copy"><span>Pupils</span><strong>{nf(pupilsWithCase)}</strong><small>With a case</small></span>
-            </div>
-          </section>
-          <div className="ivn-layout">
-            <InterventionsDesk cases={cases} save={saveIntervention} />
-            <section className="ivn-card" aria-label="Open a case">
-              <header className="ivn-card-head">
-                <div className="ivn-card-title">
-                  <span className="ivn-card-icon" aria-hidden="true"><i className="fa-solid fa-plus" /></span>
-                  <div>
-                    <h2>Open a case</h2>
-                    <p>Write what the school will do, and when to check again.</p>
-                  </div>
-                </div>
-              </header>
-              <DeskForm action={saveIntervention} className="ivn-form">
-                <input type="hidden" name="term_id" value={term.id} />
-                <label className="ofc-field"><span>Pupil</span>
-                  <select name="student_id" required defaultValue="">
-                    <option value="" disabled>Choose</option>
-                    {pupils.map((pupil) => <option key={pupil.id} value={pupil.id}>{pupil.full_name}{pupil.class_code ? ` · ${classLabel(pupil.class_code, pupil.stream)}` : ""}</option>)}
-                  </select>
-                </label>
-                <label className="ofc-field"><span>Reason</span>
-                  <select name="reason" defaultValue="decline">
-                    {INTERVENTION_REASONS.map((reason) => <option key={reason.value} value={reason.value}>{reason.label}</option>)}
-                  </select>
-                </label>
-                <label className="ofc-field"><span>What the school will do</span><textarea name="note" rows={4} required /></label>
-                <label className="ofc-field"><span>Follow-up</span><input name="follow_up_on" type="date" /></label>
-                <button className="ivn-commit" type="submit">Open intervention</button>
-              </DeskForm>
-            </section>
-          </div>
-        </>
+        <InterventionsWorkbench
+          initialView={initialView}
+          openCount={openCount}
+          dueCount={dueCount}
+          cases={cases}
+          pupils={pupils.map((pupil) => ({
+            id: pupil.id,
+            name: pupil.full_name,
+            meta: [classLabel(pupil.class_code, pupil.stream), pupil.student_number].filter(Boolean).join(" · "),
+            photoPath: pupil.photo_path,
+          }))}
+          reasons={[...INTERVENTION_REASONS]}
+          termId={term.id}
+          saveCase={saveIntervention}
+          points={selected && !pointsMissing ? {
+            termId: selected.id,
+            termLabel: selected.label,
+            terms: terms.map((row) => ({ id: row.id, label: row.label, current: row.is_current })),
+            rows: pointRows,
+            save: voidPupilPoints,
+          } : null}
+        />
       ) : <Empty title="No current term" />}
     </div>
   );

@@ -17,6 +17,7 @@ import type {
 } from "@/lib/account";
 import { methodInfo } from "@/lib/accounts-format";
 import { classLabel } from "@/lib/academics";
+import { academicDatesAsArticles, familyAcademicDates } from "@/lib/parent-calendar";
 import type { Article } from "@/lib/types";
 
 async function rows<T>(query: PromiseLike<{ data: T[] | null }>): Promise<T[]> {
@@ -60,6 +61,30 @@ function studentIds(value: unknown) {
     if (row && typeof row === "object" && "my_student_ids" in row) return String((row as { my_student_ids: unknown }).my_student_ids || "");
     return "";
   }).filter(Boolean);
+}
+
+async function loadFamilyAcademicDates(
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>,
+  students: LinkedStudent[],
+) {
+  const { data: term } = await supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle();
+  if (!term?.id) return [];
+  const scoped = await supabase
+    .from("academic_dates")
+    .select("id, title, kind, starts_on, ends_on, campus, note, class_code, stream")
+    .eq("term_id", term.id)
+    .order("starts_on");
+  const rows =
+    scoped.error && /class_code|schema cache|does not exist/i.test(scoped.error.message)
+      ? (
+          await supabase
+            .from("academic_dates")
+            .select("id, title, kind, starts_on, ends_on, campus, note")
+            .eq("term_id", term.id)
+            .order("starts_on")
+        ).data || []
+      : scoped.data || [];
+  return familyAcademicDates(rows, students);
 }
 
 async function loadLinkedStudents(supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>) {
@@ -246,9 +271,14 @@ export const getPortal = cache(async function getPortal() {
       ? await rows<FeeRow>(supabase.from("fee_balances").select("*").in("child_id", childIds).order("due_on", { ascending: false }))
       : [];
 
-  const events = [...content.events]
+  const academicDates = await loadFamilyAcademicDates(supabase, students);
+  const siteEvents = [...content.events]
     .filter((event) => event.starts_on)
     .sort((a, b) => String(a.starts_on).localeCompare(String(b.starts_on)));
+  // Website events plus family/office academic dates, with academic copies already deduped.
+  const events = [...siteEvents, ...academicDatesAsArticles(academicDates)].sort((a, b) =>
+    String(a.starts_on).localeCompare(String(b.starts_on)),
+  );
 
   return {
     user,

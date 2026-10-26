@@ -15,6 +15,7 @@ import 'communications_page.dart';
 import 'fees_page.dart';
 import 'home_page.dart';
 import 'notices_page.dart';
+import 'points_page.dart';
 import 'profile_page.dart';
 import 'reports_page.dart';
 
@@ -28,12 +29,21 @@ class ParentShell extends StatefulWidget {
 }
 
 class _ParentShellState extends State<ParentShell> {
+  String? _pointsChildId;
   var _destination = AppDestination.home;
 
   PortalSnapshot get portal => widget.controller.snapshot!;
 
-  void _open(AppDestination destination) {
-    setState(() => _destination = destination);
+  void _go(AppDestination destination) => _open(destination);
+
+  void _open(AppDestination destination, {String? href}) {
+    setState(() {
+      _destination = destination;
+      if (destination == AppDestination.points) {
+        final childId = childIdFromHref(href);
+        if (childId != null) _pointsChildId = childId;
+      }
+    });
   }
 
   Future<void> _signOut() async {
@@ -227,11 +237,13 @@ class _ParentShellState extends State<ParentShell> {
             Expanded(
               child: _destination == AppDestination.communications
                   ? _page()
-                  : RefreshIndicator(
-                      color: KjaColors.navy,
-                      onRefresh: widget.controller.refresh,
-                      child: _page(),
-                    ),
+                  : _destination == AppDestination.clubs
+                      ? _page()
+                      : RefreshIndicator(
+                          color: KjaColors.navy,
+                          onRefresh: widget.controller.refresh,
+                          child: _page(),
+                        ),
             ),
           ],
         ),
@@ -249,15 +261,17 @@ class _ParentShellState extends State<ParentShell> {
   Widget _page() {
     switch (_destination) {
       case AppDestination.home:
-        return HomePage(portal: portal, open: _open, openWeb: openWeb);
+        return HomePage(portal: portal, open: _go);
       case AppDestination.children:
-        return ChildrenPage(portal: portal, open: _open);
+        return ChildrenPage(portal: portal, open: _go);
       case AppDestination.communications:
         return CommunicationsPage(portal: portal, controller: widget.controller);
       case AppDestination.reports:
         return ReportsPage(portal: portal, controller: widget.controller);
+      case AppDestination.points:
+        return PointsPage(portal: portal, initialChildId: _pointsChildId);
       case AppDestination.fees:
-        return FeesPage(portal: portal, openWeb: openWeb);
+        return FeesPage(portal: portal, controller: widget.controller, openWeb: openWeb);
       case AppDestination.applications:
         return ApplicationsPage(portal: portal, openWeb: openWeb);
       case AppDestination.clubs:

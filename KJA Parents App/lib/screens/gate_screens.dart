@@ -282,11 +282,6 @@ class _LoginScreenState extends State<LoginScreen> {
             color: KjaColors.rose,
             onPressed: _busy ? null : _submit,
           ),
-          const SizedBox(height: 12),
-          TextButton(
-            onPressed: _busy ? null : () => widget.controller.enterPreview(),
-            child: const Text('Preview sample family'),
-          ),
         ],
       ),
     );
@@ -368,36 +363,40 @@ class GateScaffold extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(22, 28, 22, 32),
                 children: [
-                  const SchoolMark(size: 110),
-                  const SizedBox(height: 18),
-                  Text(
-                    title,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: KjaColors.ink),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    subtitle,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: KjaColors.navy),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    support,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: KjaColors.soft, height: 1.4, fontSize: 14),
-                  ),
-                  const SizedBox(height: 26),
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(28),
-                      border: Border.all(color: const Color(0xFFF0F3F8)),
-                      boxShadow: [
-                        BoxShadow(color: KjaColors.navy.withValues(alpha: 0.07), blurRadius: 32, offset: const Offset(0, 14)),
-                      ],
-                    ),
-                    child: Padding(padding: const EdgeInsets.fromLTRB(18, 22, 18, 22), child: child),
+                  Column(
+                    children: [
+                      const SchoolMark(size: 128),
+                      const SizedBox(height: 18),
+                      Text(
+                        title,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: KjaColors.ink),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        subtitle,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: KjaColors.navy),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        support,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(color: KjaColors.soft, height: 1.4, fontSize: 14),
+                      ),
+                      const SizedBox(height: 26),
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(28),
+                          border: Border.all(color: const Color(0xFFF0F3F8)),
+                          boxShadow: [
+                            BoxShadow(color: KjaColors.navy.withValues(alpha: 0.07), blurRadius: 32, offset: const Offset(0, 14)),
+                          ],
+                        ),
+                        child: Padding(padding: const EdgeInsets.fromLTRB(18, 22, 18, 22), child: child),
+                      ),
+                    ],
                   ),
                 ],
               ),

@@ -28,12 +28,15 @@ const STATUS: Record<string, string> = {
   Unlock: "Unlocking",
   "Run preview": "Running the preview",
   "Save register": "Saving the register",
+  "Cancel register": "Cancelling the register",
   "Set assessments": "Setting assessments",
   "Save changes": "Saving changes",
   "Add subject": "Adding the subject",
   Delete: "Deleting",
   "Mark done": "Updating the record",
   "Open intervention": "Opening the intervention",
+  "Void award": "Voiding the award",
+  "Award points": "Awarding points",
   Approve: "Approving",
   "Download PDF": "Building report cards",
 };
@@ -101,7 +104,7 @@ export function DeskForm({
       {result?.ok ? <p className="acd-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p> : null}
       {result?.email && result?.password && !onIssued ? (
         <div className="acd-feedback acd-issued-inline" role="status">
-          <p><strong>Teacher desk sign-in</strong> — share now; it will not be shown again.</p>
+          <p><strong>Teacher desk sign-in</strong>: share now. It will not be shown again.</p>
           <p>Email: <code>{result.email}</code></p>
           <p>{result.temporary ? "Temporary password" : "Password"}: <code>{result.password}</code></p>
         </div>

@@ -48,14 +48,6 @@ class _ReportsPageState extends State<ReportsPage> {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        const PageHero(
-          kicker: 'Learning',
-          title: 'Reports',
-          lead: 'Published report cards for your children.',
-          icon: Icons.description_rounded,
-          colors: [Color(0xFF92400E), KjaColors.sunDeep, KjaColors.gold],
-        ),
-        const SizedBox(height: 14),
         if (widget.portal.children.length > 1)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,

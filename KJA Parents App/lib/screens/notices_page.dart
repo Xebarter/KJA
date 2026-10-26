@@ -17,7 +17,7 @@ class NoticesPage extends StatelessWidget {
 
   final PortalSnapshot portal;
   final PortalController controller;
-  final ValueChanged<AppDestination> open;
+  final void Function(AppDestination destination, {String? href}) open;
 
   @override
   Widget build(BuildContext context) {
@@ -25,23 +25,18 @@ class NoticesPage extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        PageHero(
-          kicker: 'Inbox',
-          title: 'Notifications',
-          lead: notices.isEmpty ? 'You are all caught up.' : 'School notices for your family.',
-          icon: Icons.notifications_active_rounded,
-          colors: const [Color(0xFF92400E), KjaColors.sunDeep, KjaColors.gold],
-          footer: notices.any((n) => !n.read)
-              ? Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton(
-                    onPressed: () => controller.markNoticesRead(notices.where((n) => !n.read).map((n) => n.id).toList()),
-                    child: const Text('Mark all read', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w800)),
-                  ),
-                )
-              : null,
-        ),
-        const SizedBox(height: 16),
+        if (notices.any((n) => !n.read)) ...[
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => controller.markNoticesRead(
+                notices.where((n) => !n.read).map((n) => n.id).toList(),
+              ),
+              child: const Text('Mark all read'),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
         if (notices.isEmpty)
           const EmptyNote(
             icon: Icons.notifications_none_rounded,
@@ -57,7 +52,7 @@ class NoticesPage extends StatelessWidget {
                 onTap: () async {
                   if (!notice.read) await controller.markNoticesRead([notice.id]);
                   final dest = destinationForHref(notice.href);
-                  if (dest != null) open(dest);
+                  if (dest != null) open(dest, href: notice.href);
                 },
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

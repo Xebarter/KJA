@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE } from "@/lib/academics-nav";
-import { remember } from "@/lib/remember";
+import { forget, remember } from "@/lib/remember";
 import { normalizeSubjectKind, type SubjectKind } from "@/lib/subject-kind";
 import { subjectFits as subjectFitsClass } from "@/lib/subject-bands";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
@@ -433,6 +433,9 @@ export async function loadCurrentTerm(supabase: SupabaseClient): Promise<{ term:
       if (error) throw new Error(error.message);
       return data ? mapTerm(data as Record<string, unknown>) : null;
     });
+    // A null result must not stick for the full TTL — desktop cache can be briefly empty
+    // right after login; a short miss window lets the next refresh see the real term.
+    if (!term) forget("academics-term");
     return { term, error: null };
   } catch (error) {
     return { term: null, error: error instanceof Error ? error.message : "Could not load the term." };

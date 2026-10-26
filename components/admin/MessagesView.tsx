@@ -210,7 +210,7 @@ function Hero({ unread, week, total, mix }: { unread: number; week: number; tota
       kicker="Inbox"
       icon="fa-envelope"
       title="Enquiries"
-      description="Website contact forms, campus visit requests and alumni stories — separate from parent Communications."
+      description="Website contact forms, campus visit requests and alumni stories, separate from parent Communications."
       actions={
         <>
           <MarkAllRead count={unread} />

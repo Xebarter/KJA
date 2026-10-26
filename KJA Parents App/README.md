@@ -22,15 +22,13 @@ flutter pub get
 flutter run
 ```
 
-Preview mode (no school connection): on the login screen, tap **Preview sample family**.
-
 ## Navigation
 
 - **Dock:** Children · Home · Communications
 - **Header menu:** Reports, School fees, Applications, Clubs, Calendar, Notifications, My details
 - **Header bell:** Notifications
 
-School fee / club / admission **payments** open in the website browser (`KJA_SITE_URL`).
+School fee and club **Mobile Money** payments stay in the app (PIN prompt). Admission payments still open in the website browser (`KJA_SITE_URL`).
 
 ## App icon
 

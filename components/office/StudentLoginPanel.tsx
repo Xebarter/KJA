@@ -55,7 +55,7 @@ export function StudentLoginPanel({
         <div className="ofc-banner is-ok" style={{ margin: 0 }}>
           <i className="fa-solid fa-key" aria-hidden="true" />
           <div>
-            <p><strong>Share these details once</strong> — the password is not stored here.</p>
+            <p><strong>Share these details once</strong>. The password is not stored here.</p>
             <p>Email: <code>{issued.email}</code></p>
             <p>Temporary password: <code>{issued.password}</code></p>
             <p>They should sign in at the school website and change the password.</p>

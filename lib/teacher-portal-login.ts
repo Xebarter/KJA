@@ -126,8 +126,8 @@ export async function linkTeacherPortalLogin(input: {
 
   return {
     ok: temporary
-      ? `Sign-in created for ${display}. Share the temporary password now — it will not be shown again.`
-      : `Sign-in created for ${display}. Share the password now — it will not be shown again.`,
+      ? `Sign-in created for ${display}. Share the temporary password now. It will not be shown again.`
+      : `Sign-in created for ${display}. Share the password now. It will not be shown again.`,
     email,
     password,
     displayName: display,
@@ -167,8 +167,8 @@ export async function resetTeacherPortalPassword(input: {
   const email = normalizeEmail(input.email || updated.user.email || existing.user.email || "");
   return {
     ok: resolved.temporary
-      ? `Temporary password ready for ${display}. Share it now — it will not be shown again.`
-      : `Password updated for ${display}. Share it now — it will not be shown again.`,
+      ? `Temporary password ready for ${display}. Share it now. It will not be shown again.`
+      : `Password updated for ${display}. Share it now. It will not be shown again.`,
     email: email || undefined,
     password: resolved.password,
     displayName: display,

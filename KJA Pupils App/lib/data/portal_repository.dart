@@ -116,6 +116,8 @@ class PortalRepository {
         teacher.withPhotoUrl(teacherUrls[teacher.staffId] ?? teacher.photoUrl),
     ];
 
+    final points = await _pointAwards(pupil.id);
+
     final weekday = kampalaWeekday();
     final lessonsToday = weekday >= 1 && weekday <= 5
         ? timetable.where((lesson) => lesson.weekday == weekday).toList()
@@ -144,7 +146,31 @@ class PortalRepository {
       clubs: clubs,
       teachers: teachers,
       classmates: classmates,
+      points: points,
     );
+  }
+
+  Future<List<PointAward>> _pointAwards(String studentId) async {
+    try {
+      final data = await _db
+          .from('point_awards')
+          .select('id, points, reason_label, teacher_name, created_at')
+          .eq('student_id', studentId)
+          .isFilter('voided_at', null)
+          .order('created_at', ascending: false);
+      return data.map((row) {
+        final map = Map<String, dynamic>.from(row as Map);
+        return PointAward(
+          id: map['id'].toString(),
+          points: (map['points'] as num?)?.toInt() ?? 0,
+          reasonLabel: (map['reason_label'] as String?) ?? '',
+          teacherName: (map['teacher_name'] as String?) ?? 'Teacher',
+          createdAt: (map['created_at'] as String?) ?? '',
+        );
+      }).toList();
+    } catch (_) {
+      return [];
+    }
   }
 
   /// Fills chat, reports, calendar and class resources after the first home paint.

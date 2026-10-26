@@ -23,7 +23,7 @@ export default async function CommunicationsPage({
           kicker="Inbox"
           icon="fa-comments"
           title="Communications"
-          description="Message parents through the portal — broadcasts, family notices, and direct replies."
+          description="Message parents through the portal: broadcasts, family notices, and direct replies."
         />
         <div className="admin-card app-notice">
           <h2>Connect Supabase</h2>

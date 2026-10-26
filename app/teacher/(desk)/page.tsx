@@ -330,7 +330,7 @@ export default async function TeacherHomePage() {
   const primaryIcon = primaryRegister ? "fa-clipboard-user" : "fa-pen-to-square";
 
   const lede = !term
-    ? "There is no current term yet — ask Accounts to open one."
+    ? "There is no current term yet. Ask Accounts to open one."
     : !subjects.length
       ? "No subjects are assigned to you this term. The academics office can set your posts."
       : waiting.length
@@ -483,7 +483,7 @@ export default async function TeacherHomePage() {
       {!term ? (
         <p className="acd-note">
           <i className="fa-solid fa-circle-info" aria-hidden="true" />
-          No current term — ask Accounts to open one before registers and markbooks unlock.
+          No current term. Ask Accounts to open one before registers and markbooks unlock.
         </p>
       ) : null}
 
@@ -636,7 +636,7 @@ export default async function TeacherHomePage() {
               icon="fa-clipboard-user"
               tone="green"
               title="Today’s registers"
-              description="Classes you lead — mark before the day is closed."
+              description="Classes you lead: mark before the day is closed."
               action={{ href: `${TEACHER_BASE}/attendance`, label: "Open" }}
             >
               <ul className="ov-teachers">

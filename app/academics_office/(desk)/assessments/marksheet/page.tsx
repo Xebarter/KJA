@@ -1,17 +1,19 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { MarksheetDesk, type MarksheetMark, type MarksheetPupil, type MarksheetStatus, type MarksheetSubject } from "@/components/academics/MarksheetDesk";
+import { MarksheetDesk, type MarksheetPupil, type MarksheetStatus, type MarksheetSubject } from "@/components/academics/MarksheetDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { ACADEMICS_BASE, ASSESSMENT_KINDS, bandMidpoint, classLabel, classSection, kindLabel, loadCurrentTerm, mapBand, num, ranks, streamFromQuery, streamOf, weightedPercent, type BandRow } from "@/lib/academics";
+import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, loadCurrentTerm, mapBand, markbookClosed, num, streamOf, type BandRow } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
-import { fetchAll, isClassCode } from "@/lib/students";
+import { readMarksheetQuery, sittingColumns, type SittingPaper } from "@/lib/marksheet";
+import { fetchAll } from "@/lib/students";
 
 export const metadata = { title: "Marksheet" };
 
 type PaperRow = {
   id: string;
   subject_id: string;
+  stream: string | null;
   name: string;
   kind: string;
   max_score: number | string;
@@ -22,8 +24,6 @@ type PaperRow = {
 };
 
 type ScoreRow = { assessment_id: string; student_id: string; score: number | string | null; missed: boolean };
-
-const nf = (value: number) => value.toLocaleString("en-GB");
 
 function shortDay(iso: string | null) {
   if (!iso) return "Date not set";
@@ -40,36 +40,47 @@ function subjectOf(value: PaperRow["subjects"]) {
   };
 }
 
+function sittingPaper(paper: PaperRow): SittingPaper {
+  const subject = subjectOf(paper.subjects);
+  return {
+    id: paper.id,
+    subjectId: paper.subject_id,
+    stream: streamOf(paper.stream),
+    name: subject.name,
+    sort: subject.sort,
+    maxScore: num(paper.max_score) ?? 100,
+    weight: num(paper.weight) ?? 0,
+    status: paper.status,
+    heldOn: paper.held_on,
+  };
+}
+
 function sheetStatus(status: string | null): MarksheetStatus {
   if (status === "approved" || status === "submitted") return status;
   return "open";
 }
 
-function markText(score: number) {
-  return score.toLocaleString("en-GB", { maximumFractionDigits: 1 });
-}
-
-function bandLabel(bands: BandRow[], score: number) {
-  return bands.find((band) => Math.abs(bandMidpoint(band) - score) < 0.2)?.label
-    || bands.find((band) => score >= band.min_score && score <= band.max_score)?.label
-    || markText(score);
+function bandFor(bands: BandRow[], score: number) {
+  return bands.find((band) => Math.abs(bandMidpoint(band) - score) < 0.2)
+    || bands.find((band) => score >= band.min_score && score <= band.max_score)
+    || null;
 }
 
 function BackLink() {
   return <Link href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>;
 }
 
-export default async function MarksheetPage({ searchParams }: { searchParams: Promise<{ name?: string; kind?: string; held?: string; class?: string; stream?: string }> }) {
+export default async function MarksheetPage({ searchParams }: { searchParams: Promise<{ name?: string; kind?: string; held?: string; class?: string; stream?: string; combine?: string }> }) {
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Marksheet" state={opened} />;
-  const { supabase, office, user } = opened.auth;
-  const name = (query.name || "").trim().slice(0, 200);
-  const kind = (query.kind || "").trim();
-  const held = (query.held || "").trim();
-  const classCode = (query.class || "").trim();
-  const stream = streamFromQuery(query.stream);
-  const valid = name.length >= 2 && ASSESSMENT_KINDS.some((entry) => entry.value === kind) && isClassCode(classCode) && stream !== null && (!held || /^\d{4}-\d{2}-\d{2}$/.test(held));
+  const { supabase, office, user, staffId } = opened.auth;
+  const parsed = readMarksheetQuery({ name: query.name, kind: query.kind, held: query.held, classCode: query.class, stream: query.stream, combine: query.combine });
+  const name = parsed?.name || "";
+  const kind = parsed?.kind || "";
+  const held = parsed?.held || "";
+  const classCode = parsed?.classCode || "";
+  const stream = parsed?.stream ?? null;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -81,7 +92,7 @@ export default async function MarksheetPage({ searchParams }: { searchParams: Pr
       </div>
     );
   }
-  if (!valid || stream === null) {
+  if (!parsed || stream === null) {
     return (
       <div className="app-page ofc-page asm-page msh-page">
         <PageHeader kicker="Assessment" icon="fa-table-cells" title="Marksheet" description={<>{term.label}. Open an assessment, then choose a class.</>} />
@@ -91,28 +102,33 @@ export default async function MarksheetPage({ searchParams }: { searchParams: Pr
   }
 
   const nursery = classSection(classCode) === "nursery";
+  const combineRequested = Boolean(parsed?.combine);
   let papersRequest = supabase
     .from("assessments")
-    .select("id, subject_id, name, kind, max_score, weight, held_on, status, subjects(name, sort_order)")
+    .select("id, subject_id, stream, name, kind, max_score, weight, held_on, status, subjects(name, sort_order)")
     .eq("term_id", term.id)
     .eq("name", name)
     .eq("kind", kind)
-    .eq("class_code", classCode)
-    .eq("stream", stream);
+    .eq("class_code", classCode);
+  if (!combineRequested) papersRequest = papersRequest.eq("stream", stream);
   papersRequest = held ? papersRequest.eq("held_on", held) : papersRequest.is("held_on", null);
-  const [papersQuery, roll, bandsQuery] = await Promise.all([
+  const [papersQuery, roll, bandsQuery, taughtQuery] = await Promise.all([
     papersRequest,
     loadRoll(supabase, user.id),
     nursery ? supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order") : Promise.resolve({ data: [], error: null }),
+    !office && staffId
+      ? supabase.from("subject_teachers").select("subject_id, stream").eq("term_id", term.id).eq("class_code", classCode).eq("staff_id", staffId)
+      : Promise.resolve({ data: [] as { subject_id: string; stream: string | null }[], error: null }),
   ]);
   if (papersQuery.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: papersQuery.error.message }} />;
   if (bandsQuery.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: bandsQuery.error.message }} />;
-  const papers = ((papersQuery.data || []) as PaperRow[]).sort((a, b) => {
-    const left = subjectOf(a.subjects);
-    const right = subjectOf(b.subjects);
-    return left.sort - right.sort || left.name.localeCompare(right.name);
-  });
-  const label = classLabel(classCode, stream);
+  if (taughtQuery.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: taughtQuery.error.message }} />;
+  const classRoll = roll.filter((pupil) => pupil.class_code === classCode);
+  const streamCount = new Set(classRoll.map((pupil) => streamOf(pupil.stream))).size;
+  const combined = combineRequested && streamCount > 1;
+  const loaded = ((papersQuery.data || []) as PaperRow[]).map(sittingPaper).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name) || a.stream.localeCompare(b.stream) || a.id.localeCompare(b.id));
+  const papers = combined ? loaded : loaded.filter((paper) => paper.stream === stream);
+  const label = combined ? classLabel(classCode) : classLabel(classCode, stream);
   if (!papers.length) {
     return (
       <div className="app-page ofc-page asm-page msh-page">
@@ -122,108 +138,93 @@ export default async function MarksheetPage({ searchParams }: { searchParams: Pr
     );
   }
 
-  const roster = roll.filter((pupil) => pupil.class_code === classCode && streamOf(pupil.stream) === stream);
+  const columns = combined
+    ? sittingColumns(papers)
+    : papers.map((paper) => ({ subjectId: paper.subjectId, name: paper.name, sort: paper.sort, maxScore: paper.maxScore, weight: paper.weight, papers: [paper] }));
+  const roster = combined ? classRoll : classRoll.filter((pupil) => streamOf(pupil.stream) === stream);
+  const taught = new Set((taughtQuery.data || []).flatMap((row) => {
+    const subjectId = String(row.subject_id);
+    const rowStream = streamOf(row.stream);
+    if (!combined && rowStream !== stream) return [];
+    return [combined ? `${rowStream}|${subjectId}` : subjectId];
+  }));
+  const canEdit = (paper: SittingPaper) => !markbookClosed(paper.status) && (office || taught.has(combined ? `${paper.stream}|${paper.subjectId}` : paper.subjectId));
   const scores = await fetchAll<ScoreRow>((from, to) =>
     supabase.from("assessment_scores").select("assessment_id, student_id, score, missed").in("assessment_id", papers.map((paper) => paper.id)).order("assessment_id").range(from, to),
   );
   const saved = new Map(scores.map((score) => [`${score.assessment_id}|${score.student_id}`, { score: num(score.score), missed: Boolean(score.missed) }]));
   const bands = ((bandsQuery.data || []) as Record<string, unknown>[]).map(mapBand);
-  const built = roster.map((pupil) => {
-    const marks = papers.map((paper) => {
-      const max = num(paper.max_score) ?? 100;
-      const weight = num(paper.weight) ?? 0;
-      const mark = saved.get(`${paper.id}|${pupil.id}`);
-      if (!mark || (!mark.missed && mark.score === null)) {
-        return { text: "", tone: "blank" as const, score: null as number | null, missed: false, max, weight };
-      }
-      if (mark.missed) return { text: "Abs", tone: "missed" as const, score: null, missed: true, max, weight };
-      const score = mark.score ?? 0;
-      const percent = max > 0 ? (score / max) * 100 : null;
-      const tone: MarksheetMark["tone"] = percent === null ? "mid" : percent >= 80 ? "high" : percent < 50 ? "low" : "mid";
-      return { text: nursery ? bandLabel(bands, score) : markText(score), tone, score, missed: false, max, weight };
-    });
+  const subjects: MarksheetSubject[] = columns.map((column) => {
+    const statuses = column.papers.map((paper) => sheetStatus(paper.status));
+    const status = statuses.every((item) => item === "approved") ? "approved" : statuses.some((item) => item !== "open") ? "submitted" : "open";
+    const samplePaper = column.papers[0];
     return {
-      pupil,
-      marks,
-      average: weightedPercent(marks),
-      gaps: marks.filter((mark) => mark.tone === "blank").length,
+      id: combined ? column.subjectId : samplePaper.id,
+      subjectId: column.subjectId,
+      name: column.name,
+      href: combined ? "" : `${ACADEMICS_BASE}/assessments/${samplePaper.id}`,
+      status,
+      maxScore: column.maxScore,
+      weight: column.weight,
+      locked: column.papers.every((paper) => markbookClosed(paper.status)),
+      editable: column.papers.some((paper) => canEdit(paper)),
     };
   });
-  const positions = ranks(built.flatMap((row) => row.average === null ? [] : [{ id: row.pupil.id, value: row.average }]));
-  const pupils: MarksheetPupil[] = built.map((row) => ({
-    id: row.pupil.id,
-    name: row.pupil.full_name,
-    number: row.pupil.student_number || "",
-    photoPath: row.pupil.photo_path,
-    href: `${ACADEMICS_BASE}/students/${row.pupil.id}`,
-    average: row.average,
-    position: positions.get(row.pupil.id) ?? null,
-    gaps: row.gaps,
-    marks: row.marks.map(({ text, tone }) => ({ text, tone })),
-  }));
-  const subjects: MarksheetSubject[] = papers.map((paper, index) => {
-    const percents = built.flatMap((row) => {
-      const mark = row.marks[index];
-      if (!mark || mark.missed || mark.score === null || mark.max <= 0) return [];
-      return [(mark.score / mark.max) * 100];
-    });
+  const pupils: MarksheetPupil[] = roster.map((pupil, rollIndex) => {
+    const pupilStream = streamOf(pupil.stream);
+    const cells = columns.map((column) => column.papers.find((paper) => paper.stream === pupilStream) || null);
     return {
-      id: paper.id,
-      name: subjectOf(paper.subjects).name,
-      href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
-      status: sheetStatus(paper.status),
-      entered: built.filter((row) => row.marks[index]?.tone !== "blank").length,
-      blank: built.filter((row) => row.marks[index]?.tone === "blank").length,
-      average: percents.length ? Math.round((percents.reduce((sum, value) => sum + value, 0) / percents.length) * 10) / 10 : null,
+      id: pupil.id,
+      name: pupil.full_name,
+      number: pupil.student_number || "",
+      photoPath: pupil.photo_path,
+      href: `${ACADEMICS_BASE}/students/${pupil.id}`,
+      roll: rollIndex,
+      stream: pupilStream,
+      papers: cells.map((paper) => paper ? {
+        id: paper.id,
+        status: sheetStatus(paper.status),
+        locked: markbookClosed(paper.status),
+        editable: canEdit(paper),
+        maxScore: paper.maxScore,
+        weight: paper.weight,
+      } : { id: "", status: "open" as const, locked: false, editable: false, maxScore: 0, weight: 0 }),
+      marks: cells.map((paper) => {
+        if (!paper) return { score: null, missed: false, bandId: "" };
+        const mark = saved.get(`${paper.id}|${pupil.id}`);
+        if (!mark || (!mark.missed && mark.score === null)) return { score: null, missed: false, bandId: "" };
+        if (mark.missed) return { score: null, missed: true, bandId: "" };
+        const score = mark.score ?? 0;
+        return { score, missed: false, bandId: nursery ? bandFor(bands, score)?.id || "" : "" };
+      }),
     };
   });
-  const entered = built.reduce((sum, row) => sum + row.marks.filter((mark) => mark.tone !== "blank").length, 0);
-  const places = roster.length * papers.length;
-  const waiting = subjects.filter((subject) => subject.status !== "approved" && (subject.status === "submitted" || subject.entered > 0)).length;
-  const approved = subjects.filter((subject) => subject.status === "approved").length;
-  const ready = subjects.filter((subject) => subject.status !== "approved" && subject.blank === 0).length;
-  const scored = pupils.filter((pupil) => pupil.average !== null);
-  const classAverage = scored.length ? Math.round((scored.reduce((sum, pupil) => sum + (pupil.average || 0), 0) / scored.length) * 10) / 10 : null;
   const sample = papers[0];
 
+  if (!roster.length) {
+    return (
+      <div className="app-page ofc-page asm-page msh-page">
+        <PageHeader kicker="Assessment" icon="fa-table-cells" title={label} description={<>{sample?.name} · {kindLabel(kind)} · {shortDay(sample?.heldOn || null)} · {term.label}</>} actions={<Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>} />
+        <Empty title="No pupils in this class" />
+      </div>
+    );
+  }
+
   return (
-    <div className="app-page ofc-page asm-page msh-page">
-      <PageHeader
-        kicker="Assessment"
-        icon="fa-table-cells"
-        title={label}
-        description={<>{sample?.name} · {kindLabel(String(sample?.kind))} · {shortDay(sample?.held_on || null)} · {term.label}</>}
-        actions={<Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/assessments`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> All papers</Link>}
-      />
-      {roster.length ? (
-        <>
-          <section className="asm-strip" aria-label="This marksheet">
-            <div>
-              <span className="asm-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-group" /></span>
-              <span className="asm-stat-copy"><span>On roll</span><strong>{nf(roster.length)}</strong><small>{nf(subjects.length)} {subjects.length === 1 ? "subject" : "subjects"}</small></span>
-            </div>
-            <div className={entered < places ? "is-warn" : "is-ok"}>
-              <span className="asm-stat-icon" aria-hidden="true"><i className="fa-solid fa-list-check" /></span>
-              <span className="asm-stat-copy"><span>Marks in</span><strong>{nf(entered)}</strong><small>{places ? `Of ${nf(places)} places` : "No places yet"}</small></span>
-            </div>
-            <div className={ready || (waiting && approved !== subjects.length) ? "is-warn" : approved === subjects.length ? "is-ok" : ""}>
-              <span className="asm-stat-icon" aria-hidden="true"><i className="fa-solid fa-inbox" /></span>
-              <span className="asm-stat-copy"><span>To approve</span><strong>{nf(ready)}</strong><small>{waiting ? `${nf(waiting)} handed in` : approved === subjects.length ? "All locked" : "Nothing ready"}</small></span>
-            </div>
-            <div className={subjects.length && approved === subjects.length ? "is-ok" : ""}>
-              <span className="asm-stat-icon" aria-hidden="true"><i className="fa-solid fa-lock" /></span>
-              <span className="asm-stat-copy"><span>Locked</span><strong>{nf(approved)}</strong><small>{classAverage === null ? "No average yet" : `${classAverage.toLocaleString("en-GB", { maximumFractionDigits: 1 })}% class average`}</small></span>
-            </div>
-          </section>
-          <MarksheetDesk
-            subjects={subjects}
-            pupils={pupils}
-            office={office}
-            nursery={nursery}
-            identity={{ termId: term.id, name, kind, heldOn: held, classCode, stream }}
-          />
-        </>
-      ) : <Empty title="No pupils in this class" />}
-    </div>
+    <MarksheetDesk
+      subjects={subjects}
+      pupils={pupils}
+      office={office}
+      nursery={nursery}
+      streamCount={streamCount}
+      bands={bands.map((band) => ({ id: band.id, label: band.label, midpoint: bandMidpoint(band) }))}
+      heading={{
+        classLabel: label,
+        kindLabel: kindLabel(kind),
+        heldLabel: shortDay(sample?.heldOn || null),
+        termLabel: term.label,
+      }}
+      identity={{ termId: term.id, name, kind, heldOn: held, classCode, stream, combine: combined }}
+    />
   );
 }

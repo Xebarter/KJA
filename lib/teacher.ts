@@ -10,7 +10,7 @@ export type TeacherNavItem = {
   group: string;
 };
 
-export function teacherNav(classTeacher: boolean, locked: boolean): TeacherNavItem[] {
+export function teacherNav(classTeacher: boolean, locked: boolean, canAward = classTeacher): TeacherNavItem[] {
   if (locked) {
     return [{ href: `${TEACHER_BASE}/profile`, label: "Profile", icon: "fa-user", group: "Account" }];
   }
@@ -20,6 +20,9 @@ export function teacherNav(classTeacher: boolean, locked: boolean): TeacherNavIt
     { href: `${TEACHER_BASE}/homework`, label: "Homework & resources", icon: "fa-book", group: "Subjects" },
     { href: `${TEACHER_BASE}/performance`, label: "Performance", icon: "fa-chart-column", group: "Subjects" },
   ];
+  if (canAward) {
+    items.push({ href: `${TEACHER_BASE}/points`, label: "Points", icon: "fa-star", group: classTeacher ? "My class" : "Subjects" });
+  }
   if (classTeacher) {
     items.push(
       { href: `${TEACHER_BASE}/attendance`, label: "Attendance", icon: "fa-clipboard-user", group: "My class" },

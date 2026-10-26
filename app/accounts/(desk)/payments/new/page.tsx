@@ -43,7 +43,7 @@ export default async function NewPaymentPage({ searchParams }: { searchParams: P
         kicker="Payments"
         icon="fa-hand-holding-dollar"
         title="Record a payment"
-        description="Record for one pupil, or for a whole family — the amount is shared across the children and printed as a single receipt."
+        description="Record for one pupil, or for a whole family. The amount is shared across the children and printed as a single receipt."
       />
       {terms.length ? (
         <section className="admin-card ofc-narrow acc-form-card is-family-pay">

@@ -223,6 +223,7 @@ class ClubOffer {
     this.campus,
     this.meeting,
     this.description,
+    this.category,
     this.section = 'both',
     this.feeAmount = 0,
     this.active = true,
@@ -233,6 +234,7 @@ class ClubOffer {
   final String? campus;
   final String? meeting;
   final String? description;
+  final String? category;
   final String section;
   final num feeAmount;
   final bool active;
@@ -266,6 +268,23 @@ class ClubPaymentRecord {
   final String studentId;
   final String clubId;
   final String? receiptNo;
+}
+
+/// One club fee line in the parent's checkout cart (may span children).
+class ClubCartLine {
+  const ClubCartLine({required this.studentId, required this.clubId});
+
+  final String studentId;
+  final String clubId;
+
+  String get key => '$studentId:$clubId';
+
+  @override
+  bool operator ==(Object other) =>
+      other is ClubCartLine && other.studentId == studentId && other.clubId == clubId;
+
+  @override
+  int get hashCode => Object.hash(studentId, clubId);
 }
 
 class ApplicationItem {
@@ -326,6 +345,24 @@ class ParentProfile {
   final String? address;
 }
 
+class PointAward {
+  const PointAward({
+    required this.id,
+    required this.studentId,
+    required this.points,
+    required this.reasonLabel,
+    required this.teacherName,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String studentId;
+  final int points;
+  final String reasonLabel;
+  final String teacherName;
+  final String createdAt;
+}
+
 class PortalSnapshot {
   const PortalSnapshot({
     required this.displayName,
@@ -343,6 +380,7 @@ class PortalSnapshot {
     this.clubPayments = const [],
     this.applications = const [],
     this.events = const [],
+    this.points = const [],
     this.mustResetPassword = false,
     this.preview = false,
     this.unavailable = false,
@@ -363,6 +401,7 @@ class PortalSnapshot {
   final List<ClubPaymentRecord> clubPayments;
   final List<ApplicationItem> applications;
   final List<SchoolEvent> events;
+  final List<PointAward> points;
   final bool mustResetPassword;
   final bool preview;
   final bool unavailable;
@@ -431,6 +470,7 @@ class PortalSnapshot {
     List<ClubPaymentRecord>? clubPayments,
     List<ApplicationItem>? applications,
     List<SchoolEvent>? events,
+    List<PointAward>? points,
     bool? mustResetPassword,
     bool? preview,
     bool? unavailable,
@@ -451,6 +491,7 @@ class PortalSnapshot {
       clubPayments: clubPayments ?? this.clubPayments,
       applications: applications ?? this.applications,
       events: events ?? this.events,
+      points: points ?? this.points,
       mustResetPassword: mustResetPassword ?? this.mustResetPassword,
       preview: preview ?? this.preview,
       unavailable: unavailable ?? this.unavailable,

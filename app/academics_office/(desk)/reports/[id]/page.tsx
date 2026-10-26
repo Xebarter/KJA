@@ -312,7 +312,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
                       })}
                     </div>
                     <label className="ofc-field">
-                      <span>Co-curricular summary <em>editor only — not printed</em></span>
+                      <span>Co-curricular summary <em>editor only; not printed</em></span>
                       <textarea name="cocurricular_comment" rows={2} defaultValue={sheet.cocurricular_comment || ""} placeholder="One sentence that names the child" />
                     </label>
                     <label className="ofc-field">

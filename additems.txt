@@ -1,762 +1,2759 @@
-================================================================================
-KJA DESKTOP ↔ WEB DASHBOARD PARITY GUIDE For agents building / editing
-Flutter Desktop App office & teacher pages. STRICT. Do not invent a
-parallel design system. Match the web app.
-================================================================================
-
-PURPOSE
-
-Every Desktop App dashboard page must look and behave like the
-corresponding web office page — same layout hierarchy, copy, icons,
-tones, filters, empty states, and interaction patterns. The Desktop App
-is a Windows port of the web desks, not a redesign.
-
-If you cannot match a control pixel-for-pixel, match structure +
-tokens + copy first, then refine. Never ship a generic Material “table +
-AppBar” stand-in when the web page has a hero, KPIs, panels, tabs, or
-boards.
-
-================================================================================
-0. HARD RULES (NON-NEGOTIABLE)
-================================================================================
-
-1.  SOURCE OF TRUTH = WEB
-
-    -   Open the live web route (or its React/CSS source) BEFORE writing
-        Flutter UI.
-    -   Copy titles, kickers, ledes, button labels, empty-state text,
-        column headers, and status labels from the web — do not
-        paraphrase.
-
-2.  NO PARALLEL AESTHETIC
-
-    -   Do not introduce new brand colours, fonts, card radii, or button
-        styles.
-    -   Do not use default Flutter purple, Material 3 tonal surfaces, or
-        Segoe-only UI.
-    -   Do not replace Font Awesome icons with Material Icons when the
-        web uses FA.
-
-3.  REUSE DESKTOP PRIMITIVES Prefer existing helpers over one-off
-    decoration:
-
-    -   Desktop App/lib/theme/desk_theme.dart → DeskColors, DeskFonts
-    -   Desktop App/lib/widgets/office_chrome.dart → DeskHero,
-        DeskOfficeScaffold, OovStatCard, OovCard, OfficeTone,
-        DeskReveal, SexMixBar, …
-    -   Desktop App/lib/widgets/desk_page.dart → DeskPageScaffold,
-        DeskCard, DeskDataTable (simple pages only)
-    -   Desktop App/lib/widgets/fa_icon.dart → FaIcon(‘fa-…’)
-    -   Desktop App/lib/access/nav_config.dart → routes, labels, icons
-
-4.  EXTEND FA MAP WHEN NEEDED If the web uses an FA icon not in
-    fa_icon.dart, ADD the mapping — do not substitute a different icon
-    “close enough”.
-
-5.  DATA + ACTIONS MUST MATCH WEB Same filters, same columns, same
-    primary actions, same status transitions. Offline/outbox is
-    Desktop-only chrome; it must not replace web UI.
-
-6.  FINISH THE CHECKLIST A page is not done until every item in §9
-    PERFECTCTION CHECKLIST is checked.
-
-================================================================================ 1.
-DASHBOARD ↔ SOURCE MAP (ALWAYS START HERE)
-================================================================================
-
-Dashboard Web root Web CSS / components ───────────────
-─────────────────────────────── ────────────────────────────── Admin
-app/admin/ app/admin/admin.css components/admin/*
-
-Admissions app/admissions_office/ app/admissions_office/office.css
-app/admin/admin.css (shared) components/office/* (+ applications.css /
-overview.css under admissions where present)
-
-Accounts app/accounts/ app/accounts/accounts.css app/admin/admin.css
-page CSS under app/accounts/(desk)/
-
-Academics app/academics_office/ app/academics_office/academics.css
-app/admin/admin.css
-
-Teacher app/teacher/ app/teacher/teacher.css app/admin/admin.css
-
-Desktop mirror: Desktop App/lib/dashboards// Desktop
-App/lib/access/nav_config.dart ← nav ids/labels/icons/routes Desktop
-App/lib/routing/app_router.dart ← GoRouter paths must match nav routes
-
-PAIRING METHOD (required for every new/edited page) 1. Find the web page
-file (page.tsx) and its CSS. 2. Find or create the Dart page under
-Desktop App/lib/dashboards/…. 3. Confirm nav_config.dart has the same
-id, label, icon, route. 4. Screenshot or open the web page; keep it
-beside the Flutter run.
-
-================================================================================
-2. BRAND TOKENS (USE DeskColors / DeskFonts ONLY)
-================================================================================
-
-Colours (from admin.css :root / DeskColors): navy #19232B primary text,
-headings, primary filled (navy) controls red #E42435 primary CTA (web
-.admin-btn), active accents, danger gold #FDA31B focus rings,
-highlights, secondary CTA (.admin-btn-gold) cream #F7F1E6 soft fills,
-table header wash paper #FFFDF8 cards / panels muted #5D6670 secondary
-text, ledes, table headers shellBg #EFE8DC main canvas behind cards
-sideTop #1D2A34 sidebar gradient top sideBottom#141D24 sidebar gradient
-bottom line rgba(25,35,43,.10) borders / hairlines
-
-Admissions / office tones (OfficeTone + office.css): boy #2F6FD6 · girl
-#D6457A · none #B9B1A3 ok #17803D · warn #9A5B00 · danger #C81E2D · med
-#0D6E66 soft paper #FAF6EE · field border #D9D3C6 Status chips
-(app-status-*): new bg #FDECEE ink #C81E2D review bg #FFF3D9 ink #9A5B00
-visit bg #EFE9FD ink #6236C4 offer bg #E1F5F2 ink #0D6E66 done bg
-#E3F5E8 ink #17803D wait bg #ECEFF3 ink #475260 closed bg #F1EDE6 ink
-#7A6F63 Use OfficeTone.named(…) — do not invent new status colours.
-
-Typography (must match web): Body Roboto DeskFonts.body Headings
-Yantramanav DeskFonts.heading (weights 700 / 800 / 900) Never use Segoe
-UI / Georgia / system default as the design font. Page H1 ≈ 1.85rem
-(~28–30px) Yantramanav w700/w800, navy. Panel H2 ≈ 1.08rem Yantramanav
-w800. Lede / muted body ≈ 14–15px Roboto, DeskColors.muted. Table TH ≈
-0.75rem, uppercase, letter-spacing ~0.08em, muted, Roboto/Yantramanav as
-on web for that table.
-
-Radii & elevation (web defaults): Cards / panels: 14–16px radius, paper
-fill, soft shadow box-shadow ≈ 0 10px 30px rgba(25,35,43,.06), border
-1px rgba(25,35,43,.05) Inputs: 10px radius, border #D9D3C6, white fill;
-focus gold outline Primary buttons: pill (999px) — red fill white text
-(.admin-btn) Ghost buttons: transparent + line border, navy text Gold
-buttons: gold fill, navy text KPI cards: ~14–16px radius, hover lift
-~2px
-
-Spacing: Main content padding ≈ 2rem / 2.25rem (Desktop: ~24–36 px). Gap
-between major sections ≈ 1.5rem. KPI grid gap ≈ 0.85rem. Do not crush
-the page into 8px Material density unless the web is dense.
-
-================================================================================
-3. PAGE ANATOMY (REPLICATE THIS STRUCTURE)
-================================================================================
-
-Most office pages follow:
-
-[DeskOfficeScaffold or DeskPageScaffold] └─ optional sync banner
-(Desktop-only — keep thin) └─ Page header ← match web PageHeader /
-admin-hero / admin-page-title · kicker (icon + office name) when web has
-admin-hero-kicker · H1 title (exact web string) · lede / description
-(exact web string) · action cluster (same buttons, same order, same
-labels) └─ optional KPI row (.admin-kpis) — same count, labels, icons,
-notes, links └─ toolbar / filters / tabs (.admin-toolbar, .app-tabs,
-search) └─ primary content: · dash-panel / ofc-panel cards with
-dash-panel-head (title, desc, link) · OR app-table / board / form — as
-on web └─ empty / notice / pager states as on web
-
-Prefer DeskHero (office_chrome.dart) when the web uses PageHeader /
-admin-hero. Prefer OovStatCard / admin-kpi layout when the web shows KPI
-tiles. Prefer OovCard / panel head pattern for dash-panel sections.
-DeskPageScaffold + DeskDataTable is ONLY for simple list pages that
-truly are plain tables on the web — never for overview, board, or
-multi-panel pages.
-
-================================================================================
-4. COMPONENT TRANSLATION CHEATSHEET
-================================================================================
-
-Web Desktop ───────────────────────────────
-───────────────────────────────────────────── PageHeader / admin-hero
-DeskHero (office_chrome.dart) admin-page-title DeskPageScaffold
-title+lede OR custom header admin-kpis / admin-kpi OovStatCard grid (or
-equivalent KPI row) dash-panel + dash-panel-head OovCard / DeskCard +
-heading row (Yantramanav) Panel (components/office/ui) Same as
-dash-panel app-table / admin-table Custom table or DataTable styled like
-web (cream/muted uppercase headers, line borders) app-tabs TabBar /
-custom underline tabs (active = navy text + red bottom border, badge red
-when active) app-status-* Chip/pill using OfficeTone.named ofc-sex
-is-boy/is-girl SexMixBar tones / coloured sex mark Empty (apl-empty)
-Centered icon + Yantramanav title + muted body OfficeNotice DeskCard
-notice with FA icon + heading admin-btn FilledButton red, StadiumBorder
-admin-btn-ghost OutlinedButton navy admin-btn-gold FilledButton gold,
-navy foreground FA icons (fa-solid …) FaIcon(‘fa-…’) — extend map if
-missing Sidebar (admin-side) DeskShell (already shared — do not restyle
-per page)
-
-================================================================================
-5. NAVIGATION & ROUTING PARITY
-================================================================================
-
--   Nav item id, label, icon, group, and route in nav_config.dart must
-    match web.
--   Desktop GoRouter paths must equal nav_config routes.
--   Visible nav must respect dashboard_access grants (same as web).
--   “Switch dashboard” exists only on Desktop when session.canSwitch —
-    OK.
--   Do not invent extra nav items the web office does not have.
-
-================================================================================
-6. BUILD WORKFLOW (EVERY PAGE)
-================================================================================
-
-A. DISCOVER [ ] Locate web page.tsx + CSS (+ shared office/admin
-components). [ ] Note: title, kicker, lede, KPIs, filters, tabs,
-columns, actions, empty states, status tones, icons, responsive
-breakpoints. [ ] Locate Desktop counterpart file(s) or create under the
-correct dashboard.
-
-B. STRUCTURE [ ] Scaffold with DeskOfficeScaffold / DeskHero / panels —
-not a blank Column. [ ] Port layout top→bottom in the same order as the
-web DOM. [ ] Wire data to the same Supabase tables/RPCs the web uses (or
-local cache via desk_repository / sync) — same fields shown.
-
-C. STYLE [ ] DeskFonts.heading on titles; DeskFonts.body on body/labels.
-[ ] DeskColors / OfficeTone only. [ ] FA icons match web class names. [
-] Buttons: red pill primary, ghost secondary, gold when web uses gold. [
-] Inputs: 10px radius, #D9D3C6 border, gold focus.
-
-D. BEHAVIOUR [ ] Filters, search debounce, sort, pagination match web
-semantics. [ ] Row/board actions match web (labels + outcomes). [ ]
-Loading, error, empty, and “no access” states exist and match copy.
-
-E. VERIFY [ ] Side-by-side with web at ~1280px+ width. [ ] Complete §9
-checklist. [ ] flutter analyze clean on touched files.
-
-================================================================================
-7. WHAT “LOOKS EXACTLY LIKE” MEANS
-================================================================================
-
-REQUIRED · Same information architecture (sections in the same order) ·
-Same wording (titles, buttons, empties, column headers, status labels) ·
-Same icons (FA name) · Same colour roles
-(navy/red/gold/cream/paper/muted/status tones) · Same typography roles
-(Yantramanav headings, Roboto body) · Same interactive affordances
-(tabs, filters, primary CTA placement)
-
-ACCEPTABLE DIFFERENCES · Desktop sync/offline banner · Windows window
-chrome / scrollbar · Slight density tweaks for mouse vs trackpad if
-structure stays identical · Hover instead of some mobile tap patterns
-
-FORBIDDEN DIFFERENCES · Different page title or rewritten lede ·
-Material Icons where web uses Font Awesome · Purple/teal Material theme
-colours · Flat gray “admin template” cards that ignore
-paper/cream/shadow · Collapsing a KPI + panel + table page into a single
-raw DataTable · Hiding filters/actions that exist on web “for later”
-
-================================================================================
-8. FILE & CODE CONVENTIONS
-================================================================================
-
--   One feature folder per area when complex:
-    dashboards/admissions/applications_page.dart
-    dashboards/admissions/applications_data.dart Keep data/providers
-    separate from widgets when the web page is large.
--   Name routes and page classes after the web concept
-    (ApplicationsPage, etc.).
--   Prefer Riverpod providers mirroring web loaders.
--   Do not duplicate shell/sidebar inside a page.
--   Do not edit auth chrome / DeskShell styling unless the task is about
-    the shell.
--   When adding icons: update fa_icon.dart switch + use the web’s fa-*
-    name.
--   Comments: only when explaining a web-parity constraint worth
-    preserving.
-
-================================================================================
-9. PERFECTCTION CHECKLIST (AGENTS MUST COMPLETE BEFORE DONE)
-================================================================================
-
-Mark every line. If an item does not apply, write N/A with reason. A
-page is incomplete while any applicable item is unchecked.
-
-A. SOURCE LOCK [ ] Web page path recorded (app/…/page.tsx) [ ] Web CSS
-path(s) recorded [ ] Desktop Dart path(s) recorded [ ] nav_config entry
-matches web label + icon + route
-
-B. HEADER [ ] Kicker matches web (icon + office name) when web has one [
-] H1 text identical [ ] Lede/description identical [ ] Header actions
-present, same labels, same order [ ] Heading uses DeskFonts.heading;
-lede uses DeskFonts.body + muted
-
-C. METRICS / KPIS (if web has them) [ ] Same number of KPI tiles [ ]
-Same labels, values semantics, icons, notes [ ] Links/navigation targets
-match [ ] Hover/press affordance similar (lift / accent)
-
-D. FILTERS · TABS · TOOLBAR [ ] Every web filter control exists (search,
-selects, chips, clears) [ ] Tabs match labels, order, active style (red
-underline / badge) [ ] Primary toolbar CTA is red pill when web uses
-.admin-btn
-
-E. MAIN CONTENT [ ] Panels/cards match web section titles + descriptions
-[ ] Table columns match web (order + headers + value formatting) [ ]
-Boards/kanban/calendars match columns/stages when applicable [ ] Forms
-match field labels, order, validation messages [ ] Status chips use
-OfficeTone / app-status colours [ ] FA icons match web (no Material
-substitutes)
-
-F. EMPTY · LOADING · ERROR · ACCESS [ ] Empty state icon + title + body
-match web [ ] Loading state is non-jarring (skeleton or centered
-indicator) [ ] Error/notice copy matches web OfficeNotice style when
-relevant [ ] Unauthorized / missing-grant behaviour aligned with web
-
-G. TOKENS & POLISH [ ] Only DeskColors / OfficeTone colours [ ] Paper
-cards, cream washes, hairline borders — not harsh gray Material cards [
-] Input borders #D9D3C6, focus gold [ ] Radii ~10 inputs / ~14–16 cards
-/ pills for primary buttons [ ] Shell background cream #EFE8DC shows
-around content [ ] No Segoe/Georgia/system font left on user-facing text
-
-H. BEHAVIOUR PARITY [ ] Sorting / paging / selection match web [ ]
-Mutations call the same backend contracts (or queued outbox equivalent)
-[ ] Success/failure feedback comparable (toast/banner copy)
-
-I. ENGINEERING GATE [ ] flutter analyze clean on touched files [ ] No
-dead placeholder “Coming soon” where web already works [ ] Side-by-side
-visual pass at desktop width completed
-
-================================================================================
-10. REFERENCE SNIPPETS (PATTERNS, NOT COPY-PASTE BLINDNESS)
-================================================================================
-
-Fonts on a title: Text(title, style: TextStyle( fontFamily:
-DeskFonts.heading, fontSize: 28, fontWeight: FontWeight.w700, color:
-DeskColors.navy, ));
-
-Primary red pill (web .admin-btn): FilledButton( style:
-FilledButton.styleFrom( backgroundColor: DeskColors.red,
-foregroundColor: Colors.white, shape: const StadiumBorder(), ),
-onPressed: onPressed, child: Text(label), );
-
-Status chip: final tone = OfficeTone.named(statusKey); // soft bg + ink
-text, small pill, optional leading dot
-
-Icons: FaIcon(‘fa-file-signature’, size: 16, color: DeskColors.gold);
-
-================================================================================
-11. ANTI-PATTERNS (REJECT IN REVIEW)
-================================================================================
-
-× “I’ll use a simple DataTable and we can beautify later.” × New accent
-colour “to make it pop.” × Material Icons for nav or section headers. ×
-Rewriting “Applications” to “Apps” or shortening web ledes. × Building a
-mobile-first dense list when the web is a wide office board. × Restyling
-the global sidebar inside a feature PR. × Shipping without opening the
-web page.
-
-================================================================================
-12. DEFINITION OF DONE
-================================================================================
-
-A Desktop dashboard page is DONE only when: 1. §9 checklist is fully
-satisfied (or N/A with reason), 2. A teammate (or you) can open web +
-desktop side-by-side and recognise the same product surface without
-reading code, 3. Analyze is clean and nav/routing still resolve.
-
-When unsure: match the web. Ask before inventing.
-
-END OF GUIDE
-
-================================================================================
-13. INSTANT NAVIGATION, WARM PAGES & PERCEIVED PERFORMANCE
-(NON-NEGOTIABLE)
-================================================================================
-
-GOAL
-
-Every page must feel immediate when clicked, while preserving the web
-dashboard’s appearance, content, behaviour, permissions, and data
-semantics. “Instant” means the page shell and meaningful UI appear
-immediately, and previously loaded data is shown immediately when safe.
-It does NOT mean hiding errors, showing fabricated data, or pretending a
-server mutation succeeded.
-
-13.1 PERFORMANCE ACCEPTANCE TARGETS
-
-Use these as engineering targets, not excuses to fake readiness: -
-Navigation feedback: immediate in the same interaction/frame where
-practical. - First meaningful page frame: target <= 100 ms on a normal
-desktop after a page has been visited or its route has been warmed. -
-Cached page content: show synchronously from memory/local cache where
-valid. - Freshness refresh: run in the background without blocking the
-page shell. - Typical route change: no full-window spinner, blank
-screen, or unnecessary rebuild of the whole application. - Large tables:
-render the visible rows first; paginate/virtualize the rest. - Measure
-cold start, first visit, repeat visit, and slow/offline operation
-separately. Never claim instant performance without measuring it.
-
-13.2 REQUIRED NAVIGATION ARCHITECTURE
-
-Before implementing a page, inspect the existing app’s router, shell,
-state management, repository, cache, and sync architecture. Extend the
-architecture already used by the project; do not introduce a second
-competing pattern.
-
--   Keep DeskShell / the persistent application chrome mounted across
-    route changes. Do not recreate the sidebar, top bar, session state,
-    or global providers for each page.
--   Use GoRouter route definitions and stable page identities. Avoid
-    rebuilding the entire app for a child-route change.
--   Use a shared page host/scaffold so page transitions, content
-    constraints, scroll behaviour, and loading states are consistent.
--   Keep route construction cheap and synchronous. Do not perform
-    network calls, expensive parsing, large sorting operations, or file
-    I/O inside build().
--   Do not put async work in a widget constructor or trigger duplicate
-    requests from build(). Start it in a provider/repository lifecycle
-    or an explicit refresh action.
--   Use const widgets where possible and stable keys where identity
-    matters.
--   Keep page-local state local; keep cross-page/session state in the
-    existing shared state solution. Avoid a global rebuild when only one
-    page changes.
--   Do not create and dispose the same expensive controller/provider on
-    every navigation unless that lifecycle is necessary.
--   Use a lightweight transition consistent with the product; never use
-    a long transition to conceal loading.
-
-13.3 PRELOAD / WARM ROUTES INTELLIGENTLY
-
-Warm only routes that the signed-in user is permitted to access.
-
--   On app startup, load the session, grants, navigation configuration,
-    and essential shell data once. Do not block the shell on every
-    dashboard’s data.
--   After the shell is ready, pre-initialize cheap page providers and
-    metadata for likely next destinations, especially pages directly
-    visible in the sidebar.
--   When idle, prefetch small, safe read-only datasets for
-    high-probability routes. Prioritize likely destinations and stop
-    speculative work when the app is busy, offline, or under memory
-    pressure.
--   Do not prefetch every route or every large table. Use a bounded
-    cache with expiry and memory limits.
--   Do not prefetch sensitive data before authorization is confirmed.
--   Avoid duplicate prefetch + page-load requests.
-    Providers/repositories must deduplicate in-flight requests by query
-    key.
--   Do not warm routes by secretly triggering mutations or actions.
--   If the app has many routes, warm the current route and its most
-    likely adjacent destinations first; expand only after measuring
-    benefits.
-
-13.4 SHOW THE PAGE IMMEDIATELY; LOAD DATA PROGRESSIVELY
-
-Separate the page frame from its data state.
-
-1.  Build the header, correct panels, toolbars, filters, tabs, and
-    content layout immediately using the exact web copy and dimensions.
-2.  If valid cached data exists, render it immediately and mark it stale
-    internally if a refresh is required.
-3.  Refresh data asynchronously in the background.
-4.  Update only the affected widgets when the response arrives.
-5.  If no cache exists, use the web-equivalent skeleton/loading
-    treatment inside the correct layout rather than a blank page or
-    full-window spinner.
-6.  If refresh fails but valid cached data exists, retain it and show a
-    restrained, accurate stale/offline notice. If no data exists, show
-    the proper error state and retry action.
-7.  Never replace real data with demo rows, hardcoded counts, fabricated
-    chart values, or fake success messages.
-
-Use stale-while-revalidate only where the data’s security and business
-meaning allow it. Do not show stale data as current when that could
-cause a harmful decision. For financial balances, permissions,
-attendance, marks, admissions decisions, and other sensitive/high-impact
-state, clearly communicate freshness and revalidate before consequential
-actions.
-
-13.5 CACHING CONTRACT
-
-Create or reuse a repository/cache layer instead of caching ad hoc
-inside widgets.
-
-Every cache entry should be keyed by all inputs that affect the result,
-including where applicable: - signed-in user / tenant / school /
-dashboard access scope; - route or resource type; - filters, search
-query, sort order, page/cursor, and selected academic period; - relevant
-record IDs and query parameters.
-
-Requirements: - Never reuse one user’s or school’s cache for another
-user’s session. - Clear or invalidate sensitive caches on logout,
-account switch, permission changes, school/tenant switch, and relevant
-mutations. - Use a documented TTL/freshness policy appropriate to each
-resource. - Invalidate or update affected cache entries after
-create/update/delete/status changes. Update visible UI only when the
-backend confirms success, or clearly label a supported optimistic update
-and roll it back on failure. - Keep cached data modelled and
-versionable; handle schema changes safely. - If offline mode and an
-outbox exist, distinguish queued, syncing, synced, failed, and conflict
-states. Never label a queued write as completed on the server. - Do not
-persist highly sensitive data to disk unless the existing security
-design explicitly permits it and storage is protected appropriately. -
-Test cache invalidation, logout, switching accounts, permission
-revocation, and stale data behaviour.
-
-13.6 SEARCH, FILTERS, TABLES AND LARGE DATASETS
-
--   Debounce free-text search using the web app’s semantics. Cancel or
-    disregard obsolete responses so an older query cannot overwrite
-    newer results.
--   Keep search text, filters, sort, selection, and pagination stable
-    when returning to a page if the web app preserves them.
--   Avoid fetching the whole dataset when the web uses server-side
-    filtering or pagination.
--   Use server-side pagination/filtering for large datasets where
-    supported.
--   Use Flutter’s appropriate lazy/virtualized list/table strategy for
-    large row counts. Do not build thousands of rows eagerly.
--   Preserve the web’s exact visible columns, order, formatting, empty
-    states, row actions, and selection rules.
--   Cache only the pages/query combinations that are useful; avoid
-    unbounded caches for every search string.
--   Keep scrolling smooth; do not perform sorting, filtering, or
-    expensive formatting synchronously on the UI thread for large
-    collections.
--   Keep keyboard navigation, focus order, selection, and mouse
-    interactions natural for Windows desktop.
-
-13.7 ASYNC REQUEST AND ERROR DISCIPLINE
-
--   Deduplicate simultaneous requests for the same resource/query.
--   Cancel requests where the networking stack supports cancellation;
-    otherwise use request IDs/query keys to ignore stale responses.
--   Add explicit loading, success, empty, stale, error, and unauthorized
-    states.
--   Avoid retry loops. Retry transient failures with bounded backoff and
-    expose a manual retry action where appropriate.
--   Distinguish no records from failed-to-load records.
--   Do not swallow exceptions or leave a permanent spinner after
-    failure.
--   Do not let a slow secondary panel block the whole page if other
-    sections can render independently.
--   Use request timeouts and clear feedback for a disconnected service.
--   Keep network and data transformation work out of the Flutter UI
-    isolate when measurements show it blocks frames; use isolates for
-    genuinely expensive CPU work, not as a default for every operation.
-
-13.8 DATA LAYER AND WEB CONTRACT PARITY
-
--   Reuse the same backend tables, RPCs, business rules, validation, and
-    access controls as the web application wherever possible.
--   Share typed domain models and validation rules when the codebase
-    supports it. Do not copy business logic into multiple places if it
-    can be safely shared.
--   Keep presentation widgets separate from repositories, providers, and
-    data models.
--   Treat UI hiding as presentation only; backend authorization remains
-    mandatory.
--   Match the web’s sorting, filtering, pagination, status transitions,
-    and mutation semantics, including edge cases and permission checks.
--   Do not invent a new endpoint, database field, status, or fallback
-    business rule without inspecting the web implementation and backend
-    contract.
--   Before changing a mutation, identify its authoritative source of
-    truth and success/failure response. Ensure the desktop UI cannot
-    silently diverge.
-
-13.9 PERF INSTRUMENTATION AND PROFILING
-
-For each page, measure: - click-to-route activation; - route activation
-to first meaningful frame; - cache hit/miss and cache age; - request
-duration and response size; - time until primary content is usable; -
-unnecessary widget rebuilds; - frame jank while scrolling and
-filtering; - cold-start versus repeat-navigation timings.
-
-Use Flutter DevTools Performance, CPU Profiler, Memory tools, and
-rebuild profiling as appropriate. Test both debug and profile/release
-modes; debug timings are not representative of production performance.
-
-Fix measured bottlenecks in this order: 1. Remove blocking work from
-build() and route activation. 2. Keep the shell and shared state alive.
-3. Render the page frame and cached data first. 4. Deduplicate and
-parallelize independent read requests. 5. Reduce over-fetching and
-payload size. 6. Virtualize large tables/lists. 7. Reduce unnecessary
-rebuilds and expensive layout/paint work. 8. Add bounded prefetching
-only where measurements justify it.
-
-Do not add complex caching, state-management packages, or
-route-preloading systems without checking what the project already uses.
-Prefer a small, consistent design.
-
-13.10 PERFORMANCE TEST MATRIX
-
-Every important page must be checked under these conditions: [ ] First
-visit after app launch, cache empty. [ ] Second visit with warm cache. [
-] Repeatedly switch between two or more pages. [ ] Slow network /
-high-latency response. [ ] Offline start and offline navigation where
-supported. [ ] Expired cache with background refresh. [ ] Large
-realistic dataset. [ ] Search rapidly while previous requests are still
-running. [ ] Mutation followed by navigation away and back. [ ]
-Logout/login as another user or school. [ ] Permission removed while app
-is open. [ ] Failed request followed by retry.
-
-Acceptance: - Navigation always gives immediate visual feedback. - The
-shell does not flash, reset, or reload unnecessarily. - No page displays
-fabricated or cross-user data. - No old response overwrites the newest
-search/filter result. - No unbounded cache growth or duplicate request
-storm. - Errors and offline states are truthful and recoverable.
-
-================================================================================
-14. VISUAL FIDELITY ENGINEERING: EXACT WEB-TO-DESKTOP RECONSTRUCTION
-================================================================================
-
-The goal is not “inspired by the web page.” The goal is a faithful
-reconstruction of the same product surface in Flutter, at the same
-desktop viewport and with the same data state.
-
-14.1 INSPECT BEFORE CODING
-
-For every prompt, the agent MUST: 1. Identify the exact web route and
-the user’s intended state (default, filtered, selected tab, modal open,
-empty state, etc.). 2. Open the running web page at a desktop viewport
-and inspect it visually. 3. Read its page.tsx/tsx/jsx source, CSS,
-shared components, theme tokens, icon names, fonts, and relevant data
-loader/actions. 4. Inspect the current Flutter counterpart, shell,
-reusable widgets, route config, theme, models, repository, and tests. 5.
-Record an implementation map before coding: web source files, Flutter
-files, components to reuse, data contracts, exact interactions, and
-known differences. 6. If the web route/source is unavailable, state that
-limitation and inspect the closest authoritative source. Do not pretend
-an uninspected page is exact.
-
-14.2 USE SCREENSHOTS AS A TESTABLE SPECIFICATION
-
-Capture the web and desktop at the same window dimensions, display
-scale, and equivalent data/state. Compare: - overall page and shell
-geometry; - content width and horizontal alignment; - header position,
-height, wrapping, and action placement; - card and panel bounds, gaps,
-padding, borders, radii, and shadows; - text content, font family, size,
-weight, line height, and wrapping; - icon family, glyph, size, baseline,
-and colour; - table row height, column width, alignment, status chips,
-and separators; - scroll positions, sticky elements, and overflow; -
-hover, focus, pressed, selected, disabled, loading, empty, and error
-states.
-
-Use image overlays or pixel-difference tooling when available. A
-screenshot is a verification aid, not permission to ignore behaviour or
-source code. Correct the largest visible differences first, then repeat
-the comparison.
-
-14.3 TOKEN AND ASSET PARITY
-
--   Use the existing DeskColors, DeskFonts, OfficeTone, shared widgets,
-    and FA map described in this guide. Inspect actual source tokens
-    when values conflict with this guide; the current web source is
-    authoritative.
--   Reuse the exact logo, SVG/image assets, icon package and icon names
-    where possible.
--   Ensure Roboto and Yantramanav font files are actually bundled/loaded
-    in the desktop app; merely naming a missing font does not guarantee
-    parity.
--   Do not substitute a similar icon or use emoji for branded UI icons.
--   Do not introduce gradients, new brand colours, extra decorative
-    elements, or a new design language unless the web page itself uses
-    them.
--   Account for platform rendering differences, but do not use them as
-    an excuse for avoidable differences in font, sizing, spacing, or
-    component structure.
-
-14.4 MATCH INTERACTION, NOT JUST THE SCREENSHOT
-
-For every visible control, document and implement: - its default
-state; - hover, focus, pressed, selected, and disabled states as
-applicable; - keyboard/mouse behaviour; - validation and confirmation; -
-loading and failure behaviour; - data/backend effect; - destination or
-state after activation.
-
-A button that looks correct but does nothing is not parity. A filter
-that changes its label but not the results is not parity. A table action
-that bypasses the web’s validation or permission checks is not parity.
-
-14.5 SHARED COMPONENT STRATEGY
-
--   Prefer existing shared Flutter primitives and improve them centrally
-    when the same parity issue affects several pages.
--   Extract a new reusable component only when there is a real repeated
-    pattern.
--   Keep page-specific composition close to the page implementation.
--   Do not build a universal abstraction that makes simple pages hard to
-    implement.
--   Do not duplicate the sidebar, header shell, theme tokens, icon map,
-    or backend logic inside individual page files.
--   Avoid changing shared primitives in ways that break already-matched
-    pages. Run regression screenshots/tests for representative pages
-    after shared changes.
-
-================================================================================
-15. AGENT EXECUTION PROTOCOL FOR EACH USER PROMPT
-================================================================================
-
-When the user asks to build, rebuild, or modify a particular desktop
-page:
-
-PHASE 1 — IDENTIFY [ ] Resolve the exact desktop route and corresponding
-web route. [ ] Confirm which dashboard, role, access grants, and target
-viewport apply. [ ] Determine the expected default state and any
-explicitly requested state. [ ] Read the authoritative web source and
-current Flutter implementation.
-
-PHASE 2 — SPECIFY [ ] Write a concise parity map: structure, tokens,
-assets, copy, controls, data source, permissions, and navigation
-outcomes. [ ] List page states: loading, cached/stale, success, empty,
-error, offline, unauthorized, and mutation-in-progress where relevant. [
-] Identify what can be reused, what must be created, and what must not
-change. [ ] Identify performance risks and choose the simplest solution
-that meets targets.
-
-PHASE 3 — IMPLEMENT [ ] Implement the page frame so it appears without
-waiting for network requests. [ ] Use the shared shell and established
-theme/components. [ ] Match web content order, exact copy, icon names,
-tokens, and geometry. [ ] Connect real repositories/providers and the
-same backend contracts. [ ] Keep expensive work out of build() and
-deduplicate async reads. [ ] Add bounded caching/prefetch only where
-useful and secure. [ ] Preserve existing routes, grants, keyboard/mouse
-behaviour, and neighbouring pages. Do not replace real functionality
-with placeholders.
-
-PHASE 4 — VERIFY [ ] Run flutter analyze. [ ] Run relevant
-unit/widget/integration tests. [ ] Launch the Windows desktop app and
-the matching web route side-by-side. [ ] Compare screenshots at
-equivalent viewport, scale, data, and UI state. [ ] Test every visible
-interaction and relevant loading/error/access state. [ ] Test cold and
-warm navigation and profile the page if it feels slow. [ ] Fix
-regressions in shared shell, navigation, theme, and other pages.
-
-PHASE 5 — REPORT Before declaring completion, report: - exact web route
-and source files inspected; - Flutter files created/modified; -
-components and backend contracts reused; - visual differences that
-remain and why; - performance checks performed and measured results; -
-tests/analyze results; - any unresolved issue, clearly labelled.
-
-Do not claim a screenshot comparison, test, or performance measurement
-was done if it was not actually performed. Do not report “done” while
-required checks remain.
-
-================================================================================
-16. FINAL PAGE ACCEPTANCE GATE
-================================================================================
-
-A page may be marked COMPLETE only if all applicable conditions pass:
-
-VISUAL [ ] Correct web route/source inspected. [ ] Same hierarchy, copy,
-icons, assets, typography, colours, spacing, and controls. [ ]
-Side-by-side screenshot comparison completed at equivalent desktop
-dimensions. [ ] All important visual differences corrected or explicitly
-documented.
-
-FUNCTIONAL [ ] Every visible control works and matches web semantics. [
-] Real data, validation, authorization, and mutations use correct
-contracts. [ ] Loading, empty, error, offline, stale, and no-access
-states are honest and clear. [ ] Mouse, keyboard, focus, scrolling, and
-selection behaviour are usable.
-
-PERFORMANCE [ ] Page frame appears without waiting for network data. [ ]
-Repeat navigation uses valid cache where appropriate. [ ] Background
-refresh does not blank or unnecessarily rebuild the page. [ ] Requests
-are deduplicated; stale responses cannot overwrite current state. [ ]
-Large collections do not render all rows eagerly. [ ] Cold/warm
-navigation and realistic data have been tested. [ ] No unbounded cache,
-unsafe cross-user data reuse, or fake instant loading.
-
-ENGINEERING [ ] flutter analyze clean on touched files. [ ] Relevant
-tests pass, or failures are reported accurately. [ ] No unrelated page,
-shell, route, permission, or design regression. [ ] Completion report
-states what was actually verified.
-
-If any important criterion fails, the page is NOT COMPLETE. Match the
-web app; make navigation feel instant through architecture and
-progressive rendering, not by removing content, faking data, or
-weakening correctness.
+# Introduction
+
+## Welcome
+
+As a merchant you are required to submit all required KYC and business registration information in order for your account to be approved and be able to query our API with the provided **brand id** and **secret key**.
+
+Under the Profile section in your account, please provide all the KYC needed.
+
+{% hint style="success" %}
+<https://gate.paytota.com/login>
+{% endhint %}
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2FGcZ5HuJEaFkB8hVbOi1o%2Fpaytota_doc_profile.png?alt=media&#x26;token=f3848ae4-1dc5-46f9-944c-5fafff73526b" alt=""><figcaption></figcaption></figure>
+
+# Authorization
+
+{% hint style="info" %}
+Your API requests are authenticated using API keys. Any request that doesn't include an API key will return an error.
+{% endhint %}
+
+## Get your API keys
+
+Retrieve the API Keys from the Developers section within your account. Utilize this key as a bearer token in the Authorization header included with each request: **`Authorization: Bearer {{secretkey}}`**
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2Fp05bJnlSbJfAjO0fwWMz%2Fpaytota_doc_developer.png?alt=media&#x26;token=2b3b38c6-0ab4-4493-b0fb-e62b3f66cd92" alt=""><figcaption></figcaption></figure>
+
+## Base Url
+
+{% hint style="success" %}
+[https://gate.paytota.com/](https://gate.paytota.com/login)
+{% endhint %}
+
+# Webhooks
+
+Define webhook rules to your server. The callback URL will receive a POST request with the related object's (e.g. Purchase for purchase.\* webhooks) data in body when any of the events is configured to listen for are triggered. The payload object will additionally include an **"event\_type"** field to indicate which event type triggered the webhook and **"status"** to indicate failure or success of the transaction.
+
+The webhooks can be defined in the developer section of the client account.
+
+Note that, as well as with the rest of dataset, test and live Webhooks are separate; test webhooks will not handle events caused by live Purchases, and vice-versa.
+
+<figure><img src="https://313608655-files.gitbook.io/~/files/v0/b/gitbook-x-prod.appspot.com/o/spaces%2F4krm6NiwB1qLQi5bHr4s%2Fuploads%2FaaMfB0qU3OT8DCKTOhQz%2Fpaytota_doc_webhook.png?alt=media&#x26;token=671aa854-12de-40b1-84bf-ad0c9ef0a294" alt=""><figcaption></figcaption></figure>
+
+## Webhook Authorization
+
+Payloads are signed using asymmetric A.K.A. public-key cryptography to guarantee the authenticity of delivered callbacks. Each callback delivery request includes an **X-Signature** header field. This field contains a base64-encoded RSA PKCS#1 v1.5 signature of the SHA256 digest of the request body buffer.
+
+You can obtain the public key for Webhook authentication from Webhook.public\_key of the corresponding Webhook.
+
+You can obtain the public key for success callback authentication from **GET {base\_url}/api/v1/public\_key/**
+
+Please note the provider is not responsible for any financial losses incurred due to not implementing payload signature verification.
+
+See below sample
+
+{% tabs %}
+{% tab title="PHP" %}
+
+```php
+<?php
+$data = "Hello World";
+
+$signature = 'ktRxi//UUzVK8Pi5ICRSs5nCaK2g5Op+BM2mq4BK6zrb+A2392fiuFBoNj4yBWLfJxzzl1IwgVgQbjjrnbJ3i4kpYTZQ1nG82zpD7SAiF6qWq06YHR5Hrp0uvkiCKHt6pDYkXsCIph8VQqp61uplv3gifTtMRR1BGXwcxfWdrTheiFGWPnlijFaoMgLOG5CVfQAif9E7zx2ybDYtu2mMnxUWAld5bxNZXMKG87NGQ42tLaUE5OYv5yJz0kZZPZFZ5d0neGLAdm+Njf5zWlOw==';
+
+$publicKey = '-----BEGIN CERTIFICATE-----
+MIIFMDCCBBigAwIBAgISA8MYezqjKnHZa+83lO64HqQoMA0GCSqGSIb3DQEBCwUA
+MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
+EwJSMzAeFw0yMzA2MTYxNjE0MjdaFw0yMzA5MTQxNjE0MjZaMB4xHDAaBgNVBAMT
+E3BheW1lbnRzLmFmcml2ci5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQDCFjhZsB7yR669TQ7mxWo9w7ajiT8Z3VZUrWSm0SKmsoxgQ1oDb1yDWIDU
+fNCGQvaoRcxBfB+g9D3rhiGtX5oi8FhSFSEuNFXRN3kTVm8vRmfFdY45sjBdtF0j
+8RjGwskqSzCzciXfSLoeKoLubUMcCTmUC9FLkwDqkQHedswcYG5AalvBqT7eqtBe
+zip1+tVdZSVq79m5EJw98ccLF42cinkoqK76Mg2uss0mNuvpSxFN7gn/0XhaLl5U
+5F2kwQr3qsijWLHqOm2cHyGOeiVScbJexvhnVMlJMEblHU/x/K6gZTCj4+O7KDgg
+Gh3LHmZJ9sAtRudvM/16jGxIGoknAgMBAAGjggJSMIICTjAOBgNVHQ8BAf8EBAMC
+BaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1UdEwEB/wQCMAAw
+HQYDVR0OBBYEFMJallKq+V5W8oqJPkmioUIvRMKGMB8GA1UdIwQYMBaAFBQusxe3
+WFbLrlAJQOYfr52LFMLGMFUGCCsGAQUFBwEBBEkwRzAhBggrBgEFBQcwAYYVaHR0
+cDovL3IzLm8ubGVuY3Iub3JnMCIGCCsGAQUFBzAChhZodHRwOi8vcjMuaS5sZW5j
+ci5vcmcvMFsGA1UdEQRUMFKCE3BheW1lbnRzLmFmcml2ci5jb22CDnNydi5hZnJp
+dnIuY29tghd3d3cucGF5bWVudHMuYWZyaXZyLmNvbYISd3d3LnNydi5hZnJpdnIu
+Y29tMBMGA1UdIAQMMAowCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDw
+AHYAtz77JN+cTbp18jnFulj0bF38Qs96nzXEnh0JgSXttJkAAAGIxTOECAAABAMA
+RzBFAiBSb7ssu+4XK1NRsXnV4eeI7mHcnJm57p9enU/2N019QgIhAJLMIyZeb/Mf
+P9NKPCbpeHp5ld48TS91Jm1Z4cPDjuyFAHYA6D7Q2j71BjUy51covIlryQPTy9ER
+a+zraeF3fW0GvW4AAAGIxTOEBAAABAMARzBFAiAYr5lgHDg7JfQrMA4t9Z7GybWD
+DfhS7/SJyklAwWNULAIhAPMBI4FKxrN91iIKiQN3OfD0ibiQGlQgHz9s5w6YInTa
+MA0GCSqGSIb3DQEBCwUAA4IBAQCe1q3OaK9kakvORWXshHMw7aegML0YG7e/M8Ma
+2KBkOAl9X0+Jy0c7Hn26fN6ZudWeOHE4PngY1tTKGoUm2PKVesYt7sP8Ivo+/NTo
+B1+C/q1Mdwv/vcewmw2n6/flTnvvmw6s9zXpRVJJ2sD2jAwIByMNWN8naegz2f1g
+3HEPOtKVosX0zYXpFflPkGTRui0FgpiCQq0/3MaFXAu3/aSbh6Fczb1/JaAswarK
+LhlGP5mNHorLbFea+B7lmIeUf9gosUrZ3cjfBVKknWrBg//DzTpf+YS1nte+Kk6S
+FoLSAh7OePSmFM0okO6iyDLxmGFAja2D+CZCQbR5Y+TVi7T1
+-----END CERTIFICATE-----';
+
+$ok = openssl_verify(
+    $data,
+    base64_decode($signature),
+    $publicKey,
+    'sha256WithRSAEncryption'
+);
+
+if ($ok == 1) {
+    echo "good";
+} elseif ($ok == 0) {
+    echo "bad";
+} else {
+    echo "error checking signature";
+}
+?>
+```
+
+{% endtab %}
+
+{% tab title="JS" %}
+
+```javascript
+const crypto = require('crypto');
+
+const data = "Hello World";
+
+const signature = 'ktRxi//UUzVK8Pi5ICRSs5nCaK2g5Op+BM2mq4BK6zrb+A2392fiuFBoNj4yBWLfJxzzl1IwgVgQbjjrnbJ3i4kpYTZQ1nG82zpD7SAiF6qWq06YHR5Hrp0uvkiCKHt6pDYkXsCIph8VQqp61uplv3gifTtMRR1BGXwcxfWdrTheiFGWPnlijFaoMgLOG5CVfQAif9E7zx2ybDYtu2mMnxUWAld5bxNZXMKG87NGQ42tLaUE5OYv5yJz0kZZPZFZ5d0neGLAdm+Njf5zWlOw==';
+
+const publicKeyPem = `-----BEGIN CERTIFICATE-----
+MIIFMDCCBBigAwIBAgISA8MYezqjKnHZa+83lO64HqQoMA0GCSqGSIb3DQEBCwUA
+MDIxCzAJBgNVBAYTAlVTMRYwFAYDVQQKEw1MZXQncyBFbmNyeXB0MQswCQYDVQQD
+EwJSMzAeFw0yMzA2MTYxNjE0MjdaFw0yMzA5MTQxNjE0MjZaMB4xHDAaBgNVBAMT
+E3BheW1lbnRzLmFmcml2ci5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEK
+AoIBAQDCFjhZsB7yR669TQ7mxWo9w7ajiT8Z3VZUrWSm0SKmsoxgQ1oDb1yDWIDU
+fNCGQvaoRcxBfB+g9D3rhiGtX5oi8FhSFSEuNFXRN3kTVm8vRmfFdY45sjBdtF0j
+8RjGwskqSzCzciXfSLoeKoLubUMcCTmUC9FLkwDqkQHedswcYG5AalvBqT7eqtBe
+zip1+tVdZSVq79m5EJw98ccLF42cinkoqK76Mg2uss0mNuvpSxFN7gn/0XhaLl5U
+5F2kwQr3qsijWLHqOm2cHyGOeiVScbJexvhnVMlJMEblHU/x/K6gZTCj4+O7KDgg
+Gh3LHmZJ9sAtRudvM/16jGxIGoknAgMBAAGjggJSMIICTjAOBgNVHQ8BAf8EBAMC
+BaAwHQYDVR0lBBYwFAYIKwYBBQUHAwEGCCsGAQUFBwMCMAwGA1UdEwEB/wQCMAAw
+HQYDVR0OBBYEFMJallKq+V5W8oqJPkmioUIvRMKGMB8GA1UdIwQYMBaAFBQusxe3
+WFbLrlAJQOYfr52LFMLGMFUGCCsGAQUFBwEBBEkwRzAhBggrBgEFBQcwAYYVaHR0
+cDovL3IzLm8ubGVuY3Iub3JnMCIGCCsGAQUFBzAChhZodHRwOi8vcjMuaS5sZW5j
+ci5vcmcvMFsGA1UdEQRUMFKCE3BheW1lbnRzLmFmcml2ci5jb22CDnNydi5hZnJp
+dnIuY29tghd3d3cucGF5bWVudHMuYWZyaXZyLmNvbYISd3d3LnNydi5hZnJpdnIu
+Y29tMBMGA1UdIAQMMAowCAYGZ4EMAQIBMIIBBAYKKwYBBAHWeQIEAgSB9QSB8gDw
+AHYAtz77JN+cTbp18jnFulj0bF38Qs96nzXEnh0JgSXttJkAAAGIxTOECAAABAMA
+RzBFAiBSb7ssu+4XK1NRsXnV4eeI7mHcnJm57p9enU/2N019QgIhAJLMIyZeb/Mf
+P9NKPCbpeHp5ld48TS91Jm1Z4cPDjuyFAHYA6D7Q2j71BjUy51covIlryQPTy9ER
+a+zraeF3fW0GvW4AAAGIxTOEBAAABAMARzBFAiAYr5lgHDg7JfQrMA4t9Z7GybWD
+DfhS7/SJyklAwWNULAIhAPMBI4FKxrN91iIKiQN3OfD0ibiQGlQgHz9s5w6YInTa
+MA0GCSqGSIb3DQEBCwUAA4IBAQCe1q3OaK9kakvORWXshHMw7aegML0YG7e/M8Ma
+2KBkOAl9X0+Jy0c7Hn26fN6ZudWeOHE4PngY1tTKGoUm2PKVesYt7sP8Ivo+/NTo
+B1+C/q1Mdwv/vcewmw2n6/flTnvvmw6s9zXpRVJJ2sD2jAwIByMNWN8naegz2f1g
+3HEPOtKVosX0zYXpFflPkGTRui0FgpiCQq0/3MaFXAu3/aSbh6Fczb1/JaAswarK
+LhlGP5mNHorLbFea+B7lmIeUf9gosUrZ3cjfBVKknWrBg//DzTpf+YS1nte+Kk6S
+FoLSAh7OePSmFM0okO6iyDLxmGFAja2D+CZCQbR5Y+TVi7T1
+-----END CERTIFICATE-----`;
+
+function verifySignature(publicKeyPem, data, signature) {
+  const publicKey = crypto.createPublicKey(publicKeyPem);
+  const verifier = crypto.createVerify('SHA256');
+  verifier.update(data);
+  const isVerified = verifier.verify(publicKey, Buffer.from(signature, 'base64'));
+
+  return isVerified;
+}
+
+const result = verifySignature(publicKeyPem, data, signature);
+
+if (result) {
+  console.log("good");
+} else {
+  console.log("bad");
+}
+```
+
+{% endtab %}
+{% endtabs %}
+
+# Account Balance
+
+## This API method is used to retrieve Account balance
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/account/json/balance/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Response" %}
+
+```json5
+{
+  "UGX": {
+    "balance": 2710,
+    "fee_sell": 2590,
+    "reserved": 0,
+    "gross_balance": 5300,
+    "payout_balance": 1000,
+    "payout_fee_sell": 0,
+    "pending_payouts": 0,
+    "payout_overdraft": 0,
+    "pending_outgoing": 1500,
+    "available_balance": 1210,
+    "payout_gross_balance": 1000,
+    "available_payout_balance": 1000
+  }
+}
+```
+
+{% endtab %}
+
+{% tab title="Description" %}
+
+| description:       | Company Balance in a specific currency                                                              |
+| ------------------ | --------------------------------------------------------------------------------------------------- |
+| gross\_balance     | <p></p><p>Raw Company balance without any fees or reserved amounts subtracted</p>                   |
+| balance            | <p></p><p>Company gross balance with transaction fees subtracted</p>                                |
+| available\_balance | <p></p><p>Company balance currently available for withdrawal</p>                                    |
+| reserved           | <p></p><p>Amount protected from withdrawal for an amount of time as per the brand configuration</p> |
+| pending\_outgoing  | <p></p><p>Amount currently pending withdrawal</p>                                                   |
+| fee\_sell          | <p>FeeSellinteger</p><p>Fees applied to transactions</p>                                            |
+| {% endtab %}       |                                                                                                     |
+| {% endtabs %}      |                                                                                                     |
+
+# Mobile Money V2
+
+Mobile Money Payment are available in the following countries.
+
+#### Uganda
+
+Airtel (Collections and Payouts)\
+MTN (Collections and Payouts)
+
+#### Kenya
+
+Mpesa (Collections and Payouts)
+
+Airtel (Collections and Payouts)
+
+#### Ethiopia
+
+Telebirr/Ethio Telecom (Collections and Payouts)
+
+Mpesa/Safaricom Ethiopia (Collections and Payouts)
+
+**Test phone numbers for success response. Any other phone number will return an error notification**\
+\
+phone = 256770123456\
+country = UG\
+currency = UGX\
+\
+phone = 254790123456\
+country = KE\
+currency = KES
+
+phone = 251910015422\
+country = ET\
+currency = ETB
+
+# Collection/Purchase
+
+### Step 1 - Initiate
+
+## This API method is utilized to trigger a collection/purchase request, resulting in a JSON response being returned to you.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/purchases/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "client": {
+        "email": "example@gmail.com",
+        "phone": "256770123456",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "purchase": {
+        "currency": "UGX",
+        "products": [
+            {
+                "name": "Example One",
+                "price": "500"
+            }
+        ]
+    },
+    "reference": "Your unique transaction reference",
+    "skip_capture": false,
+    "brand_id": "{{BrandId}}"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20",
+  "due": 1747390681,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "Kampala",
+    "email": "example@gmail.com",
+    "phone": "256770123456",
+    "state": "Nakawa",
+    "country": "UG",
+    "zip_code": "124538",
+    "bank_code": "",
+    "full_name": "Jane Rose",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "70002307552",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "10231",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "Ntinda",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2025-05-16",
+  "status": "created",
+  "is_test": false,
+  "payment": null,
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 1000,
+    "currency": "UGX",
+    "language": "en",
+    "products": [
+      {
+        "name": "Test Purchase",
+        "price": 1000,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00",
+        "total_price_override": null
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0452",
+  "reference": "e44fe395-ddf4-4c0f-8386-c53dd8252985",
+  "viewed_on": null,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747387081,
+  "event_type": "purchase.created",
+  "updated_on": 1747387081,
+  "invoice_url": null,
+  "can_retrieve": false,
+  "checkout_url": "https://payments.paytota.com/p/05b0b12b-1702-4719-8e53-e3a2ee2d5e20/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": false,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "TOTAL PAYMENTS",
+    "legal_city": "Kamplaa",
+    "legal_name": "PAYTOTA",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "EQBLUGKAXXX",
+        "bank_account": "1036200000000"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "23235",
+    "registration_number": "80000000000000",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1747387081
+    }
+  ],
+  "cancel_redirect": "",
+  "created_from_ip": "54.86.50.139",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "",
+  "success_callback": "",
+  "success_redirect": "",
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 0,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT1418",
+  "refund_availability": "none",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% endtab %}
+
+{% tab title="Response Status " %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+The transaction ID in JSON response is then used to execute request(Step 2) to initiate a STK Push prompt on the Subscriber's mobile handset to be debited.
+{% endhint %}
+
+### Step 2 - Execute
+
+### You have two methods to execute the transaction&#x20;
+
+* Redirect the customer to the **{{checkout\_url}}** provided in the response from **step 1** on the Paytota platform.\
+  \
+  Take note the following parameters should be added to your Initial JSON body on using this method  **`success_redirect`**, **`failure_redirect`**\
+  After the payment is processed, the system will redirect the customer back to your website.
+* Alternatively, you can initiate a STK Push prompt on the subscriber handset by sending a **form-data** request through your backend system. **Following a successful execution, you will receive asynchronous status update via webhook. The notification will have the status 'pending\_execute'.**
+
+## Using the transaction ID received in Step 1, this method is then queried by sending a form-data request to initiate a PIN prompt on the subscriber handset.&#x20;
+
+<mark style="color:green;">`POST`</mark> `{base url}/p/{id}/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+| Name                                  | Type   | Value          |
+| ------------------------------------- | ------ | -------------- |
+| s2s<mark style="color:red;">\*</mark> | String | true           |
+| pm<mark style="color:red;">\*</mark>  | String | paytota\_proxy |
+| {% endtab %}                          |        |                |
+
+{% tab title="Response" %}
+
+```json5
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD"
+        }
+    }
+}
+```
+
+{% endtab %}
+
+{% tab title="Request Headers" %}
+
+#### Headers
+
+| Name                                           | Type   | Description         |
+| ---------------------------------------------- | ------ | ------------------- |
+| Content-Type<mark style="color:red;">\*</mark> | String | multipart/form-data |
+
+#### Request Body
+
+{% endtab %}
+
+{% tab title="Response Status " %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = paid)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20",
+  "due": 1747390681,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "Kampala",
+    "email": "example@gmail.com",
+    "phone": "256770123456",
+    "state": "Nakawa",
+    "country": "UG",
+    "zip_code": "124538",
+    "bank_code": "",
+    "full_name": "Jane Rose",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "70002307552",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "10231",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "Ntinda",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2025-05-16",
+  "status": "paid",
+  "is_test": false,
+  "payment": {
+    "amount": 1000,
+    "paid_on": 1747387124,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 1000,
+    "description": "",
+    "is_outgoing": false,
+    "payment_type": "purchase",
+    "pending_amount": 0,
+    "remote_paid_on": 1747387124,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 1000,
+    "currency": "UGX",
+    "language": "en",
+    "products": [
+      {
+        "name": "Test Purchase",
+        "price": 1000,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00",
+        "total_price_override": null
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0452",
+  "reference": "e44fe395-ddf4-4c0f-8386-c53dd8252985",
+  "viewed_on": 1747387118,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747387081,
+  "event_type": "purchase.paid",
+  "updated_on": 1747387123,
+  "invoice_url": null,
+  "can_retrieve": false,
+  "checkout_url": "https://gate.paytota.com/p/05b0b12b-1702-4719-8e53-e3a2ee2d5e20/invoice/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": false,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "TOTAL PAYMENTS",
+    "legal_city": "Kamplaa",
+    "legal_name": "PAYTOTA",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "EQBLUGKAXXX",
+        "bank_account": "1036200000000"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "23235",
+    "registration_number": "80000000000000",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1747387081
+    },
+    {
+      "status": "viewed",
+      "timestamp": 1747387118
+    },
+    {
+      "status": "pending_execute",
+      "timestamp": 1747387118
+    },
+    {
+      "status": "paid",
+      "timestamp": 1747387124
+    }
+  ],
+  "cancel_redirect": "",
+  "created_from_ip": "54.86.50.139",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "",
+  "success_callback": "",
+  "success_redirect": "",
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {
+      "payload": {
+        "bank": {
+          "bank_code": "",
+          "bank_name": "",
+          "account_name": "",
+          "account_number": ""
+        },
+        "client": {
+          "city": "Kampala",
+          "email": "example@gmail.com",
+          "state": "Nakawa",
+          "country": "UG",
+          "zip_code": "124538",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": "Ntinda"
+        },
+        "message": "Transaction check successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 1000,
+          "mobile": "256770123456",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "mobile",
+          "transaction_type": "purchase",
+          "external_reference": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20:102479",
+          "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD",
+          "operator_reference": "ea8c7ece-768d-43ed-893a-921613121936"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "payform",
+        "type": "execute",
+        "error": null,
+        "extra": {
+          "payload": {
+            "bank": {
+              "bank_code": "",
+              "bank_name": "",
+              "account_name": "",
+              "account_number": ""
+            },
+            "client": {
+              "city": "Kampala",
+              "email": "example@gmail.com",
+              "state": "Nakawa",
+              "country": "UG",
+              "zip_code": "124538",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": "Ntinda"
+            },
+            "message": "Transaction check successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 1000,
+              "mobile": "256770123456",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "mobile",
+              "transaction_type": "purchase",
+              "external_reference": "05b0b12b-1702-4719-8e53-e3a2ee2d5e20:102479",
+              "internal_reference": "97AE66FC9CD7A040EA17AC7911C82EAD",
+              "operator_reference": "ea8c7ece-768d-43ed-893a-921613121936"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747387124
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 1000,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT1418",
+  "refund_availability": "none",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Collection/Purchase Status
+
+## This method is used to query the collections/purchases transaction status using the transaction ID. Please note that this API also requires authorization using the Secret Key.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/purchases/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Disbursement/Payout
+
+### Step 1 - Initiate
+
+## This API method is used to initiate an a disbursement/payout request for which you will receive a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/payouts/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+<pre class="language-json5"><code class="lang-json5"><strong>{
+</strong>    "client": {
+        "email": "example@gmail.com",
+        "phone": "256700123123",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "payment": {
+        "currency": "UGX",
+        "amount": "500",
+        "description": "Test Payout"
+    },
+    "reference": "Your unique transaction reference",
+    "brand_id": "{{BrandId}}"
+}
+</code></pre>
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "initialized",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": null,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": null,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.created",
+  "updated_on": 1747308302,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    }
+  ],
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": null,
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| {% endtab %}                                    |        |                             |
+
+{% tab title="Respose Status" %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+{% hint style="success" %}
+The transaction ID in JSON response is then used to execute request(Step 2).
+{% endhint %}
+
+### Step 2 - Execute
+
+## Utilize the {{execution\_url}} obtained in step 1 to submit a second request.
+
+<mark style="color:green;">`POST`</mark> `{{execution_url}}`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "payout_type": "mobile"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+// If excute is successful
+
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "35F1496D9E17485A800D4847F22BC720"
+        }
+    }
+}
+```
+
+```json5
+// If you have insufficient balance
+
+{
+  "status": "error",
+  "error": {
+    "code": "insufficient_funds",
+    "message": "Insufficient funds to proceed with operation."
+  }
+}
+
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                           | Type   | Description      |
+| ---------------------------------------------- | ------ | ---------------- |
+| Content-Type<mark style="color:red;">\*</mark> | String | application/json |
+
+{% endtab %}
+
+{% tab title="Response Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = success)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "success",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": 1747308344,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": 1747308344,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.success",
+  "updated_on": 1747308344,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    },
+    {
+      "status": "pending",
+      "timestamp": 1747308339
+    },
+    {
+      "status": "success",
+      "timestamp": 1747308344
+    }
+  ],
+  "transaction_data": {
+    "flow": "server_to_server",
+    "extra": {
+      "webhook_payload": {
+        "bank": {
+          "bank_code": "SBICUGKX",
+          "bank_name": "Stanbic Bank",
+          "account_name": "Jane Rose",
+          "account_number": "123456789012"
+        },
+        "client": {
+          "city": "",
+          "email": "example@gmail.com",
+          "state": "",
+          "zip_code": "",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": ""
+        },
+        "message": "Transaction successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 500,
+          "mobile": "256700123123",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "bank",
+          "transaction_type": "payout",
+          "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+          "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+          "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "server_to_server",
+        "error": null,
+        "extra": {
+          "webhook_payload": {
+            "bank": {
+              "bank_code": "SBICUGKX",
+              "bank_name": "Stanbic Bank",
+              "account_name": "Jane Rose",
+              "account_number": "123456789012"
+            },
+            "client": {
+              "city": "",
+              "email": "example@gmail.com",
+              "state": "",
+              "zip_code": "",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": ""
+            },
+            "message": "Transaction successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 500,
+              "mobile": "256700123123",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "bank",
+              "transaction_type": "payout",
+              "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+              "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+              "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747308344
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": "paytota_proxy",
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Disbursement/Payout Status
+
+## This API method is used to query the payouts/disbursement transaction status using the transaction ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/payouts/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="Respose Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+# CARDS
+
+Supported currency (USD, GBP, CAD, INR, ZAR, NGN, MAD, UGX, TZS, RWF, KES, XOF, XAF, EGP, GHS, )
+
+# Card Collection
+
+### Initiate
+
+## This API method initiates a collection/purchase request and returns a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/purchases/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Authorization<mark style="color:red;">\*</mark> |        | Bearer **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}",
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "client": {
+    "client_type": null,
+    "email": "example@gmail.com",
+    "phone": "0793457034",
+    "full_name": "Example One",
+    "personal_code": "123245",
+    "legal_name": "",
+    "brand_name": "",
+    "registration_number": "",
+    "tax_number": "",
+    "bank_account": "",
+    "bank_code": "234235",
+    "street_address": "sixth street",
+    "city": "Lisbon",
+    "zip_code": "3425678",
+    "country": "AU",
+    "state": "PT",
+    "shipping_street_address": "",
+    "shipping_city": "",
+    "shipping_zip_code": "",
+    "shipping_country": "",
+    "shipping_state": "",
+    "cc": [],
+    "bcc": [],
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ]
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000,
+        "quantity": "1.0000",
+        "discount": 0,
+        "tax_percent": "0.00",
+        "category": ""
+      }
+    ],
+    "language": "en",
+    "notes": "",
+    "debt": 0,
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "total_discount_override": null,
+    "total_override": null,
+    "total": 1000,
+    "request_client_details": [],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "shipping_options": [],
+    "payment_method_details": {},
+    "has_upsell_products": false
+  },
+  "payment": null,
+  "issuer_details": {
+    "brand_name": "PAYTOTA",
+    "website": "https://paytota.com",
+    "legal_name": "PAYTOTA",
+    "registration_number": "80020002500244",
+    "tax_number": "",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi",
+    "legal_country": "UG",
+    "legal_city": "Kamplaa",
+    "legal_zip_code": "23235",
+    "bank_accounts": [
+      {
+        "bank_account": "1036201557307",
+        "bank_code": "EQBLUGKAXXX"
+      }
+    ]
+  },
+  "transaction_data": {
+    "payment_method": "",
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": []
+  },
+  "status": "created",
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1687258526
+    }
+  ],
+  "viewed_on": null,
+  "force_recurring": false,
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "is_test": false,
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401d1",
+  "billing_template_id": null,
+  "order_id": null,
+  "client_id": "dfb1fb80-0322-4daa-900f-b0a39cda0450",
+  "send_receipt": false,
+  "is_recurring_token": false,
+  "recurring_token": null,
+  "skip_capture": false,
+  "reference_generated": "PT213",
+  "reference": "",
+  "issued": "2023-06-20",
+  "due": 1687262125,
+  "refund_availability": "none",
+  "refundable_amount": 0,
+  "currency_conversion": null,
+  "payment_method_whitelist": null,
+  "success_redirect": "",
+  "failure_redirect": "",
+  "cancel_redirect": "",
+  "success_callback": "",
+  "marked_as_paid": false,
+  "upsell_campaigns": [],
+  "referral_campaign_id": null,
+  "referral_code": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "retain_level_details": null,
+  "can_retrieve": false,
+  "can_chargeback": false,
+  "creator_agent": "",
+  "platform": "api",
+  "product": "purchases",
+  "created_from_ip": "102.218.37.140",
+  "invoice_url": null,
+  "checkout_url": "https://payments.paytota.com/p/9fd05d5c-6639-42f4-8189-a6f9e401988f/",
+  "direct_post_url": null,
+  "created_on": 1687258526,
+  "updated_on": 1687258526,
+  "type": "purchase",
+  "id": "9fd05d5c-6639-42f4-8189-a6f9e401988f"
+}
+```
+
+{% endtab %}
+
+{% tab title="Curl" %}
+
+```
+curl --location --globoff '{{base_url}}/api/v1/purchases/' \
+--header 'Content-Type: application/json' \
+--header 'Authorization: Bearer {{Secret Key}}' \
+--data-raw '{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}"
+}'
+```
+
+{% endtab %}
+
+{% tab title="PHP" %}
+
+```php
+<?php
+
+$curl = curl_init();
+
+curl_setopt_array($curl, array(
+  CURLOPT_URL => '{{base_url}}/api/v1/purchases/',
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_ENCODING => '',
+  CURLOPT_MAXREDIRS => 10,
+  CURLOPT_TIMEOUT => 0,
+  CURLOPT_FOLLOWLOCATION => true,
+  CURLOPT_HTTP_VERSION => CURL_HTTP_VERSION_1_1,
+  CURLOPT_CUSTOMREQUEST => 'POST',
+  CURLOPT_POSTFIELDS =>'{
+"client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+    },
+"purchase": {
+    "currency": "USD",
+    "products": [{
+        "name": "test",
+        "price": 1000
+    }]
+    },
+"skip_capture": false,
+"brand_id": "{{Brand Id}}"
+}',
+  CURLOPT_HTTPHEADER => array(
+    'Content-Type: application/json',
+    'Authorization: Bearer {{Secret Key}}'
+  ),
+));
+
+$response = curl_exec($curl);
+
+curl_close($curl);
+echo $response;
+
+```
+
+{% endtab %}
+
+{% tab title="NodeJs" %}
+
+```javascript
+const axios = require('axios');
+let data = JSON.stringify({
+  "client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000
+      }
+    ]
+  },
+  "skip_capture": false,
+  "brand_id": "{{Brand Id}}"
+});
+
+let config = {
+  method: 'post',
+  maxBodyLength: Infinity,
+  url: '{{base_url}}/api/v1/purchases/',
+  headers: { 
+    'Content-Type': 'application/json', 
+    'Authorization': 'Bearer {{Secret Key}}'
+  },
+  data : data
+};
+
+axios.request(config)
+.then((response) => {
+  console.log(JSON.stringify(response.data));
+})
+.catch((error) => {
+  console.log(error);
+});
+
+```
+
+{% endtab %}
+
+{% tab title="Python" %}
+
+```python
+import http.client
+import json
+
+conn = http.client.HTTPSConnection("{{base_url}}")
+payload = json.dumps({
+  "client": {
+    "email": "example@gmail.com",
+    "country": "AU",
+    "city": "Lisbon",
+    "street_address": "sixth street",
+    "zip_code": "3425678",
+    "state": "PT"
+  },
+  "purchase": {
+    "currency": "USD",
+    "products": [
+      {
+        "name": "test",
+        "price": 1000
+      }
+    ]
+  },
+  "skip_capture": False,
+  "brand_id": "{{Brand Id}}"
+})
+headers = {
+  'Content-Type': 'application/json',
+  'Authorization': 'Bearer {{Secret Key}}'
+}
+conn.request("POST", "/api/v1/purchases/", payload, headers)
+res = conn.getresponse()
+data = res.read()
+print(data.decode("utf-8"))
+```
+
+{% endtab %}
+{% endtabs %}
+
+### You have two methods to collect card details from the customer .
+
+1. Redirect the customer to the **{{checkout\_url}}** on the paytota platform.
+2. Direct Post.\
+   Here you submit the customer card details from your application to the **{{checkout\_url}}** . In this case the customer will be redirected to the bank authorization page immediately.\
+   \
+   Take note the following parameters should be added to your Initial JSON body on using Direct Post **`success_redirect`**, **`failure_redirect`**\
+   After the payment is processed, the system will redirect the customer back to your website.
+
+* ```
+   <!DOCTYPE html>
+  <html>
+     <head>
+        <meta HTTP-EQUIV="Content-Type" content="text/html; charset=UTF-8">
+     </head>
+     <body>
+        <form id="form" action="{{checkout_url}}" method="POST">
+           <input type="hidden" name="cardholder_name" value="Asiman Gasanov">
+              <input type="hidden" name="card_number" value="4444 3333 2222 1111">
+              <input type="hidden" name="expires" value="11/25">
+              <input type="hidden" name="cvc" value="123">
+              <input type="hidden" name="remember_card" value="true">
+              <noscript>
+              <input type="submit" name="continue" value="Continue">
+              </noscript>
+        </form>
+     </body>
+  </html>
+  ```
+
+### Testing Integration
+
+It’s possible to test-drive all checkouts using a test Purchase.\
+\
+\- 4444 3333 2222 1111 - non-3D Secure card\
+\- 5555 5555 5555 4444 - 3D Secure card\
+\
+For both cards, please use:\
+\
+\- any cardholder name\
+\- any expiry larger or equal to the current month/year\
+\- CVC = 123\
+\
+For a failed payment, please change the CVC or expiration date
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = paid)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "761196a9-6aa2-4afd-a59f-214ad6788e5e",
+  "due": 1694609579,
+  "type": "purchase",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "London",
+    "email": "johndeo@outlook.com",
+    "phone": "+447702700000",
+    "state": "WA",
+    "country": "US",
+    "zip_code": "CT6 6HG",
+    "bank_code": "",
+    "full_name": "John Deo",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "39 coromant way",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "issued": "2023-09-13",
+  "status": "paid",
+  "is_test": false,
+  "payment": {
+    "amount": 2300,
+    "paid_on": 1694606029,
+    "currency": "USD",
+    "fee_amount": 150,
+    "net_amount": 2150,
+    "description": "",
+    "is_outgoing": false,
+    "payment_type": "purchase",
+    "pending_amount": 0,
+    "remote_paid_on": 1694606028,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "product": "purchases",
+  "user_id": null,
+  "brand_id": "869aca7c-6348-4c5f-9141-6f9e908da099",
+  "order_id": null,
+  "platform": "api",
+  "purchase": {
+    "debt": 0,
+    "notes": "",
+    "total": 2300,
+    "currency": "USD",
+    "language": "en",
+    "products": [
+      {
+        "name": "deposit",
+        "price": 2300,
+        "category": "",
+        "discount": 0,
+        "quantity": "1.0000",
+        "tax_percent": "0.00"
+      }
+    ],
+    "timezone": "UTC",
+    "due_strict": false,
+    "email_message": "",
+    "total_override": null,
+    "shipping_options": [],
+    "subtotal_override": null,
+    "total_tax_override": null,
+    "has_upsell_products": false,
+    "payment_method_details": {},
+    "request_client_details": [],
+    "total_discount_override": null
+  },
+  "client_id": "70a626d4-b415-46b9-9dda-89e37ebdf1d4",
+  "reference": "325408517",
+  "viewed_on": null,
+  "company_id": "177bde08-d0a3-47b0-9601-7fec23b8d4fb",
+  "created_on": 1694605979,
+  "event_type": "purchase.paid",
+  "updated_on": 1694606029,
+  "invoice_url": null,
+  "can_retrieve": true,
+  "checkout_url": "https://gate.paytota.com/p/761196a9-6aa2-4afd-a59f-214ad6788e5e/invoice/",
+  "send_receipt": false,
+  "skip_capture": false,
+  "creator_agent": "",
+  "referral_code": null,
+  "can_chargeback": true,
+  "issuer_details": {
+    "website": "",
+    "brand_name": "PAYTOTA LIMITED",
+    "legal_city": "Kampala",
+    "legal_name": "PAYTOTA LIMITED",
+    "tax_number": "",
+    "bank_accounts": [
+      {
+        "bank_code": "Will send",
+        "bank_account": "Will send"
+      }
+    ],
+    "legal_country": "UG",
+    "legal_zip_code": "102145",
+    "registration_number": "80020002500244",
+    "legal_street_address": "Venture Labs, Plot 23 Binayomba Road, Bugolobi"
+  },
+  "marked_as_paid": false,
+  "status_history": [
+    {
+      "status": "created",
+      "timestamp": 1694605979
+    },
+    {
+      "status": "pending_execute",
+      "timestamp": 1694605986
+    },
+    {
+      "status": "paid",
+      "timestamp": 1694606029
+    }
+  ],
+  "cancel_redirect": "https://example.com/1B7fCk992UZVAbWngU0j7-w",
+  "created_from_ip": "85.208.60.10",
+  "direct_post_url": null,
+  "force_recurring": false,
+  "recurring_token": null,
+  "failure_redirect": "https://example.com/1jkfljS8Uxa-dNEGkPHLbsQ",
+  "success_callback": "https://example.com/0bCCbefX4Bi-4JXjpgB5Qpw",
+  "success_redirect": "https://example.com/1ulvVG6sAKQEUkDvKDRBX6w",
+  "transaction_data": {
+    "flow": "direct_post",
+    "extra": {
+      "card_type": "debit",
+      "card_brand": "mastercard",
+      "masked_pan": "537410******0294",
+      "card_issuer": "national westminster bank plc",
+      "expiry_year": 26,
+      "expiry_month": 12,
+      "cardholder_name": "Ryan lee",
+      "card_issuer_country": "GB"
+    },
+    "country": "GB",
+    "attempts": [
+      {
+        "flow": "direct_post",
+        "type": "execute",
+        "error": null,
+        "extra": {
+          "card_type": "debit",
+          "card_brand": "mastercard",
+          "masked_pan": "537410******0294",
+          "card_issuer": "national westminster bank plc",
+          "expiry_year": 26,
+          "expiry_month": 12,
+          "cardholder_name": "Jon Deo",
+          "card_issuer_country": "GB"
+        },
+        "country": "GB",
+        "client_ip": "84.70.164.234",
+        "fee_amount": 150,
+        "successful": true,
+        "payment_method": "mastercard",
+        "processing_time": 1694606028
+      }
+    ],
+    "payment_method": "mastercard"
+  },
+  "upsell_campaigns": [],
+  "refundable_amount": 2300,
+  "is_recurring_token": false,
+  "billing_template_id": null,
+  "currency_conversion": null,
+  "reference_generated": "PT159",
+  "refund_availability": "all",
+  "referral_campaign_id": null,
+  "retain_level_details": null,
+  "referral_code_details": null,
+  "referral_code_generated": null,
+  "payment_method_whitelist": null
+}
+```
+
+</details>
+
+### Check Collection/Purchase Status
+
+## This method is used to query the collections/purchases transaction status using the transaction ID. Please note that this API also requires authorization using the Secret Key.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/purchases/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Bank
+
+Supported currencies (NGN, KES)
+
+# Bank Payout
+
+## Step 1 - Initiate
+
+## This API method is used to initiate a disbursement/payout request for which you will receive a JSON response.
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/payouts/`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "client": {
+        "email": "example@gmail.com",
+        "phone": "256700123123",
+        "bank_account": "123456789012",
+        "country": "UG",
+        // "full_name": "Jane Rose",
+        // "personal_code": "10231",
+        // "tax_number": "70002307552",
+        // "city": "Kampala",
+        // "street_address": "Ntinda",
+        // "zip_code": "124538",
+        // "state": "Nakawa"
+    },
+    "payment": {
+        "currency": "UGX",
+        "amount": "500",
+        "description": "Test Payout"
+    },
+    "reference": "Your unique transaction reference",
+    "brand_id": "{{BrandId}}"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "initialized",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": null,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": null,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.created",
+  "updated_on": 1747308302,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    }
+  ],
+  "transaction_data": {
+    "flow": "payform",
+    "extra": {},
+    "country": "",
+    "attempts": [],
+    "payment_method": ""
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": null,
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+
+{% endtab %}
+
+{% tab title="Response Status" %}
+201: Created
+{% endtab %}
+{% endtabs %}
+
+## Step 2 - Execute
+
+## Utilize the {{execution\_url}} obtained in step 1 to submit a second request.
+
+<mark style="color:green;">`POST`</mark> `{{execution_url}}`
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json5
+{
+    "payout_type": "bank",
+    "bank_name": "Stanbic Bank",
+    "bank_code": "SBICUGKX",
+    "bank_account_name": "Jane Rose",
+    "bank_account_number": "123456789012"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+
+```json5
+// If excute is successful
+
+{
+    "status": "pending",
+    "details": {
+        "return_code": "200",
+        "message": "Transaction received for processing",
+        "transaction": {
+            "status": "pending",
+            "internal_reference": "35F1496D9E17485A800D4847F22BC720"
+        }
+    }
+}
+```
+
+```json5
+{
+  "status": "error",
+  "error": {
+    "code": "insufficient_funds",
+    "message": "Insufficient funds to proceed with operation."
+  }
+}
+```
+
+{% endtab %}
+
+{% tab title="Headers" %}
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+| {% endtab %}                                    |        |                      |
+
+{% tab title="Response Status" %}
+200: OK
+{% endtab %}
+{% endtabs %}
+
+{% hint style="info" %}
+You will receive a callback on your webhook URL regarding the status of the transaction
+
+```
+Successful transaction  (status = success)
+Failed transaction (status = error)
+```
+
+{% endhint %}
+
+<details>
+
+<summary>Callback Example</summary>
+
+```json5
+{
+  "id": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+  "type": "payout",
+  "client": {
+    "cc": [],
+    "bcc": [],
+    "city": "",
+    "email": "example@gmail.com",
+    "phone": "256700123123",
+    "state": "",
+    "country": "UG",
+    "zip_code": "",
+    "bank_code": "",
+    "full_name": "",
+    "brand_name": "",
+    "legal_name": "",
+    "tax_number": "",
+    "client_type": null,
+    "bank_account": "123456789013",
+    "personal_code": "",
+    "shipping_city": "",
+    "shipping_state": "",
+    "street_address": "",
+    "delivery_methods": [
+      {
+        "method": "email",
+        "options": {}
+      },
+      {
+        "method": "text_message",
+        "options": {
+          "custom_message": ""
+        }
+      }
+    ],
+    "shipping_country": "",
+    "shipping_zip_code": "",
+    "registration_number": "",
+    "shipping_street_address": ""
+  },
+  "status": "success",
+  "is_test": false,
+  "payment": {
+    "amount": 500,
+    "paid_on": 1747308344,
+    "currency": "UGX",
+    "fee_amount": 0,
+    "net_amount": 500,
+    "description": "Test Payout",
+    "is_outgoing": true,
+    "payment_type": "payout",
+    "pending_amount": 0,
+    "remote_paid_on": 1747308344,
+    "owned_bank_code": null,
+    "owned_bank_account": null,
+    "pending_unfreeze_on": null,
+    "owned_bank_account_id": null
+  },
+  "user_id": null,
+  "brand_id": "edd6c020-eac6-4b4e-9716-47928f3401de",
+  "reference": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "company_id": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "created_on": 1747308302,
+  "event_type": "payout.success",
+  "updated_on": 1747308344,
+  "sender_name": "",
+  "execution_url": "https://gate.paytota.com/po/7c4ea981-55b1-418a-be23-ea9f5f3e1a91/paytota_proxy/",
+  "status_history": [
+    {
+      "status": "initialized",
+      "timestamp": 1747308302
+    },
+    {
+      "status": "pending",
+      "timestamp": 1747308339
+    },
+    {
+      "status": "success",
+      "timestamp": 1747308344
+    }
+  ],
+  "transaction_data": {
+    "flow": "server_to_server",
+    "extra": {
+      "webhook_payload": {
+        "bank": {
+          "bank_code": "SBICUGKX",
+          "bank_name": "Stanbic Bank",
+          "account_name": "Jane Rose",
+          "account_number": "123456789012"
+        },
+        "client": {
+          "city": "",
+          "email": "example@gmail.com",
+          "state": "",
+          "zip_code": "",
+          "full_name": "",
+          "tax_number": "",
+          "personal_code": "",
+          "street_address": ""
+        },
+        "message": "Transaction successful",
+        "return_code": "200",
+        "transaction": {
+          "amount": 500,
+          "mobile": "256700123123",
+          "status": "successful",
+          "country": "UG",
+          "currency": "UGX",
+          "operator": "SANDBOX",
+          "description": "",
+          "destination": "bank",
+          "transaction_type": "payout",
+          "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+          "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+          "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+        }
+      }
+    },
+    "country": "",
+    "attempts": [
+      {
+        "flow": "server_to_server",
+        "error": null,
+        "extra": {
+          "webhook_payload": {
+            "bank": {
+              "bank_code": "SBICUGKX",
+              "bank_name": "Stanbic Bank",
+              "account_name": "Jane Rose",
+              "account_number": "123456789012"
+            },
+            "client": {
+              "city": "",
+              "email": "example@gmail.com",
+              "state": "",
+              "zip_code": "",
+              "full_name": "",
+              "tax_number": "",
+              "personal_code": "",
+              "street_address": ""
+            },
+            "message": "Transaction successful",
+            "return_code": "200",
+            "transaction": {
+              "amount": 500,
+              "mobile": "256700123123",
+              "status": "successful",
+              "country": "UG",
+              "currency": "UGX",
+              "operator": "SANDBOX",
+              "description": "",
+              "destination": "bank",
+              "transaction_type": "payout",
+              "external_reference": "7c4ea981-55b1-418a-be23-ea9f5f3e1a91",
+              "internal_reference": "35F1496D9E17485A800D4847F22BC720",
+              "operator_reference": "7d795431-a622-42c5-88a3-1354a90621d2"
+            }
+          }
+        },
+        "country": "",
+        "client_ip": "",
+        "fee_amount": 0,
+        "successful": true,
+        "payment_method": "paytota_proxy",
+        "processing_time": 1747308344
+      }
+    ],
+    "payment_method": "paytota_proxy"
+  },
+  "reference_generated": "159e12f9-17b7-410d-a7a8-7644e1f1c6b9",
+  "recipient_card_brand": "paytota_proxy",
+  "recipient_card_country": "",
+  "payout_method_whitelist": null
+}
+```
+
+</details>
+
+## Check Disbursement/Payout Status
+
+## This API method is used to query the payouts/disbursement transaction status using the transaction ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/payouts/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer Token         |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+# Company Statements
+
+## Schedule a statement generation
+
+<mark style="color:green;">`POST`</mark> `{base url}/api/v1/company_statements/`
+
+This request allows you to schedule statement generation for a company. The response will include an object with fields such as `id`, `status`, and `download_url`. These are the key fields to focus on.
+
+#### Headers
+
+| Name                                            | Type   | Description          |
+| ----------------------------------------------- | ------ | -------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json     |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer               |
+| Token<mark style="color:red;">\*</mark>         | String | **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="201: Created " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Payload" %}
+
+```json
+{
+  "format": "csv",
+  "timezone": "UTC"
+}
+```
+
+{% endtab %}
+
+{% tab title="Response" %}
+{% code overflow="wrap" fullWidth="false" %}
+
+```json
+{
+  "format": "csv",
+  "timezone": "UTC",
+  "is_test": false,
+  "company_uid": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "query_string": "",
+  "status": "pending",
+  "download_url": null,
+  "began_on": null,
+  "finished_on": null,
+  "created_on": 1698322275,
+  "updated_on": 1698322275,
+  "type": "statement_request",
+  "id": "1dd24660-527d-422a-9bfa-937c5b752eb0"
+}
+```
+
+{% endcode %}
+{% endtab %}
+
+{% tab title="Optional Parameters" %}
+
+| Name                                | Description                                                                                                                                  |
+| ----------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
+| **from** integer(query)             | Filter result set to only include values older or equal to the provided Unix timestamp                                                       |
+| **to** integer(query)               | Filter result set to only include values younger than the provided Unix timestamp                                                            |
+| **paid\_from** integer(query)       | Filter paid result set to only include values older or equal to the provided Unix timestamp                                                  |
+| **paid\_to** integer(query)         | Filter paid result set to only include values younger than the provided Unix timestamp                                                       |
+| **updated\_from** integer(query)    | Filter result set to only include values older or equal to the provided last modification time Unix timestamp                                |
+| **updated\_to** integer(query)      | Filter result set to only include values younger than the provided last modification time Unix timestamp                                     |
+| **brand\_id** string($uuid)(query)  | Filter result set to only include the specified brand UUID(s)                                                                                |
+| **shop\_id** string($uuid)(query)   | Filter result set to only include the specified shop UUID(s)                                                                                 |
+| **q** string($string)(query)        | Filter result set to only include results including a specified text (search over a ton of text fields)                                      |
+| **products** string($string)(query) | Filter result set to only include results including a specified text in products                                                             |
+| **total** string($float)(query)     | Filter result set to only include results with a total between min and max value. Must include 2 values, if any - (min, max).                |
+| **currency** string(query)          | Filter result set to only include specified currency(ies)                                                                                    |
+| **payment\_method** string(query)   | <p>Filter result set to only include specified payment methods(s). </p><p><em>Available values</em> : maestro, mastercard, unknown, visa</p> |
+
+|                                                |                                                                                                                                                                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **three\_d\_secure** string($bool)(query)      | Filter result set to only include results with a 3-D verification.                                                                                                                                                        |
+| **country** string($ISO 3166-1 alpha-2)(query) | Filter result set to only include specified client country(ies) in ISO 3166-1 alpha-2 format                                                                                                                              |
+| **status** string($string)(query)              | Filter result set to only include results with a specific status.                                                                                                                                                         |
+| **product** string(query)                      | <p>Filter result set to only include specified products(s). </p><p><em>Available values</em> : bank\_payment, chargeback, custom\_payment, invoice, payout, payout\_balance\_transfer, purchase, refund, subscription</p> |
+| {% endtab %}                                   |                                                                                                                                                                                                                           |
+| {% endtabs %}                                  |                                                                                                                                                                                                                           |
+
+## &#x20;Retrieve a statement by ID.
+
+<mark style="color:blue;">`GET`</mark> `{base url}/api/v1/company_statements/{id}/`
+
+#### Headers
+
+| Name                                            | Type   | Description                 |
+| ----------------------------------------------- | ------ | --------------------------- |
+| Content-Type<mark style="color:red;">\*</mark>  | String | application/json            |
+| Authorization<mark style="color:red;">\*</mark> | String | Bearer **`{{secret key}}`** |
+
+{% tabs %}
+{% tab title="200: OK " %}
+
+{% endtab %}
+{% endtabs %}
+
+{% tabs %}
+{% tab title="Response" %}
+{% code overflow="wrap" %}
+
+```json5
+{
+  "format": "csv",
+  "timezone": "UTC",
+  "is_test": false,
+  "company_uid": "706d0675-b131-468c-940d-bc0ea3599e7f",
+  "query_string": "",
+  "status": "success",
+  "download_url": "https://paytota-private.s3.af-south-1.amazonaws.com/706d0675-b131-468c-940d-bc0ea3599e7f/src/statement/022b9a1f-1411-4d60-b7e9-4e7daaf6903b?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=AKIA2DOUUV7G3EN%2F20231026%2Faf-south-1%2Fs3%2Faws4_request&X-Amz-Date=20231026T124044Z&X-Amz-pires=3600&X-Amz-SignedHeaders=host&X-Amz-Signature=e7fd9eda97b07abadb9caad3f555a9a06815db541a4bec11110a87ed699d",
+  "began_on": 1698322277,
+  "finished_on": 1698322277,
+  "created_on": 1698322275,
+  "updated_on": 1698322277,
+  "type": "statement_request",
+  "id": "1dd24660-527d-422a-9bfa-937c5b752eb0"
+}
+```
+
+{% endcode %}
+{% endtab %}
+{% endtabs %}
+
+
+
+
+# Status & Definitions
+
+<details>
+
+<summary>Balance</summary>
+
+`description`: Company Balance in a specific currency
+
+`gross_balance` : *(integer)* Raw Company balance without any fees or reserved amounts subtracted
+
+`balance` : *(integer)* Company gross balance with transaction fees subtracted
+
+`available_balance` : *(integer)* Company balance currently available for withdrawal
+
+`reserved` : *(integer)* Amount protected from withdrawal for an amount of time as per the brand configuration
+
+`pending_outgoing` : *(integer)* Amount currently pending withdrawal
+
+`fee_sell` : *(integer)* Fees applied to transactions
+
+</details>
+
+<details>
+
+<summary>Purchase Status</summary>
+
+**PurchaseStatus**: *(string*)\
+**default**: created\
+**readOnly**: true
+
+Purchase status. Can have the following values:
+
+`created`: Purchase was created using POST /purchases/ or Billing API capabilities.
+
+***
+
+`sent`: Invoice for this purchase was sent over email using Billing API capabilities.
+
+***
+
+`viewed`: The client has viewed the payform and/or invoice details for this purchase.
+
+***
+
+`error`: There was a failed payment attempt for this purchase because of a problem with customer's payment instrument (e.g. low account balance). You can analyze the `.transaction_data` to get information on reason of the failure.
+
+***
+
+`cancelled`: Purchase was cancelled using the `POST /purchases/{id}/cancel/` endpoint; payment for it is not possible anymore.
+
+***
+
+`overdue`: Purchase is past its' `.due`, but payment for it is still possible (unless e.g. POST /purchases/{id}/cancel/ is used).
+
+***
+
+`expired`: Purchase is past its' `.due` and payment for it isn't possible anymore (as a result of `purchase.due_strict` having been set to `true`). It’s still possible to have a `paid` status after `expired` if the transaction was initiated before `expired` and the acquirer returned the successful status with delay.
+
+***
+
+`hold`: Funds are on hold for this Purchase (`.skip_capture: true` was used). You can now run `POST /capture/` or `POST /release/` for this payment to capture the payment or return funds to the client, respectively.
+
+***
+
+`released`: This Purchase previously had `hold` status, but funds have since been released and returned to the customer's card.
+
+***
+
+`pending_release`: release of funds for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/release/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`pending_capture`: capture of funds for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/capture/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`preauthorized`: A preauthorization of a card (authorization of card data without a financial transaction) was executed successfully using this Purchase. See the description of the `.skip_capture` field for more details.
+
+***
+
+`paid`: Purchase was successfully paid for.
+
+***
+
+`pending_execute`: Payment (or `hold` in case of `skip_capture`) for this Purchase is in processing, but is not finalized on the acquirer side yet.
+
+***
+
+`pending_charge`: Recurring payment for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/charge/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`retrieved`: A retrieval request was registered for this, previously paid, Purchase.
+
+***
+
+`charged_back`: A chargeback was registered for this, previously paid, Purchase.
+
+***
+
+`pending_refund`: a refund (full or partial) for this Purchase is in processing, but is not finalized on the acquirer side yet. Is set by `POST /purchases/{id}/refund/` operation when it takes longer than expected to process on the acquirer side.
+
+***
+
+`refunded`: This Purchase had its payment refunded, fully or partially.
+
+Enum:\
+\[ created, sent, viewed, error, cancelled, overdue, expired, hold, released, pending\_release, pending\_capture, preauthorized, paid, pending\_execute, pending\_charge, chargeback, pending\_refund, refunded ]
+
+</details>
+
+<details>
+
+<summary>Payout Status</summary>
+
+**PayoutStatus**: *(string)* \
+**default**: initialized \
+**readOnly**: true&#x20;
+
+Payout status. Can have the following values:
+
+`initialized`: Payout was created, but not executed. Initial status to new Payouts.
+
+`pending`: Payout's execution is currently pending
+
+`error`: An error has occurred during the execution. Execution can be attempted again.
+
+`success`: Payout was executed successfully.
+
+Enum: \[ initialized, pending, error, success ]
+
+</details>
+
+<details>
+
+<summary>Event</summary>
+
+**Event**: string
+
+Available event types and when they are emitted:
+
+`purchase.created`: Emitted when a Purchase is created. This happens as a result of POST /purchases/ request executed successfully or of any of the Billing API methods, including scheduled billing run by a BillingTemplate with is\_subscription = true. Purchase.status will be == `created` in the received payload.
+
+***
+
+`purchase.paid`: Emitted when a Purchase is paid for. Purchase.status will be == `paid`. Happens when a payform is submitted (for a Purchase having `skip_capture == false`) and a successful payment is done by the payer or in case of /capture/ or /charge/ API requests executed successfully.
+
+***
+
+`purchase.payment_failure`: Emitted when payer submits a payment using the payform, but it doesn't complete successfully (e.g. because payer's account balance is insufficient). Purchase.status will be == `error`.
+
+***
+
+`purchase.pending_execute`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_execute` Purchase status. When transaction becomes finalized, a `purchase.paid`, `purchase.hold` or `purchase.payment_failed` callback will be emitted.
+
+***
+
+`purchase.pending_charge`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_charge` Purchase status. When transaction becomes finalized, a `purchase.paid` or `purchase.payment_failed` callback will be emitted.
+
+***
+
+`purchase.cancelled`: Emitted once POST /purchases/{id}/cancel/ request succeeds. It won't be possible to pay for the related Purchase after that. Purchase.status will be == `cancelled`.
+
+***
+
+`purchase.hold`: Emitted when a Purchase having `skip_capture == true` has its payform submitted and "payment" performed successfully. The specified amount of funds will be placed on hold. Purchase.status will be == `hold`.
+
+***
+
+`purchase.captured`: Emitted when the POST /purchases/{id}/capture/ request for a Purchase that previously had the status of `hold` succeeds. Purchase.status will be == `paid`.
+
+***
+
+`purchase.pending_capture`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_capture` Purchase status. When transaction becomes finalized, a `purchase.captured` callback will be emitted.
+
+***
+
+`purchase.released`: Emitted when the POST /purchases/{id}/release/ request for a Purchase that previously had the status of `hold` succeeds. Funds reserved will be released with no payment performed. Purchase.status will be == `released`.
+
+***
+
+`purchase.pending_release`: Emitted when transaction execution takes longer than expected on the acquirer side. See `pending_release` Purchase status. When transaction becomes finalized, a `purchase.released` callback will be emitted.
+
+***
+
+`purchase.preauthorized`: Emitted when preauthorization scenario (see description for the Purchase.skip\_capture field) is executed successfully. Purchase will have a status of `preauthorized`.
+
+***
+
+`purchase.recurring_token_deleted`: Emitted when the POST /purchases/{id}/delete\_recurring\_token/ request is executed successfully, deleting the recurring token associated with a Purchase. Purchase status will be the same as it were prior to this event.
+
+***
+
+`purchase.pending_recurring_token_delete`: Emitted when token deletion takes longer than expected on the acquirer side. When operation is finalized, a `purchase.recurring_token_deleted` callback will be emitted.
+
+***
+
+`purchase.subscription_charge_failure`: Emitted when an attempt to charge some Client's subscription-generated Purchase, using the token (e.g. card) they saved for their subscription, fails. Can only be emitted for a Purchase spawned from a BillingTemplate having is\_subscription == true. Usually means the system can't charge the subscriber Client's card because e.g. their account balance is insufficient or card is expired, hence an invoice to be paid manually will be automatically mailed to them. Purchase.status in the returned payload will be == `sent`.
+
+***
+
+`purchase.pending_refund`: Emitted when refund transaction execution takes longer than expected on the acquirer side. See `pending_refund` Purchase status. When refund becomes finalized, a `payment.refunded` callback will ne emitted.
+
+***
+
+`payment.refunded`: Emitted when a Purchase is refunded (as a result of POST /purchases/{id}/capture/ request done successfully or action performed in company's frontoffice system). The returned data will be a Payment object generated as a result of this action. A link to the original Purchase (that will have a status of `refunded`) will be present in the `related_to` field of this Payment.
+
+***
+
+`billing_template_client.subscription_billing_cancelled`: Emitted when a subscriber represented by this event's related BillingTemplateClient cancels their subscription using an email link available in the receipts he receives. The respective BillingTemplateClient will have its `status` set to `subscription_paused` as a result.
+
+***
+
+`payout.pending`: Emitted when Payout execution has been initiated and is currently processing.
+
+***
+
+`payout.failed`: Emitted when a Payout processing was completed with an error. Payout.status will be == `error`. Note that payouts can spend up to 3-5 days (depending on the payout provider) in processing after being initiated.
+
+***
+
+`payout.success`: Emitted when a Payout is successfully processed. Payout.status will be == `success`. Note that payouts can spend up to 3-5 days (depending on the payout provider) in processing after being initiated.
+
+***
+
+`payment.charged_back`: Emitted when a Payment is charged\_back.
+
+***
+
+`purchase.viewed`: Emitted when a Purchase is viewed.
+
+***
+
+`purchase.settled`: Emitted when a Purchase is settled.
+
+***
+
+`payout.created`: Emitted when a Payout is created.
+
+Enum:\
+\[ purchase.created, purchase.paid, purchase.payment\_failure, purchase.pending\_execute, purchase.pending\_charge, purchase.cancelled, purchase.hold, purchase.captured, purchase.pending\_capture, purchase.released, purchase.pending\_release, purchase.preauthorized, purchase.pending\_recurring\_token\_delete, purchase.recurring\_token\_deleted, purchase.subscription\_charge\_failure, purchase.pending\_refund, payment.refunded, billing\_template\_client.subscription\_billing\_cancelled, payout.pending, payout.failed, payout.success, payment.charged\_back, purchase.viewed, purchase.settled, payout.created ]
+
+</details>
+
+# Get Started
+
+To effectively utilize the USSD API, follow these steps:
+
+1. Begin by registering a shortcode with us.
+2. Share your webhook with us. This webhook acts as a callback mechanism, triggered by an incoming user request with the registered shortcode. \
+   Whenever such a request is received on our platform, we will make an HTTP POST request to your provided webhook. \
+   The payload sent to your webhook will contain the request data in JSON format (Content-Type: application/json). \
+   \
+   **Here's an example of a sample payload:**
+
+```json5
+{
+  "shortcode": "165",
+  "msisdn": "256756070595",  
+  "mccmnc":"64101",
+  "sessionid": "50b1be9cb6a90",
+  "state": "START",
+  "message": "1"
+}
+```
+
+3. Your server should respond with the desired message to be displayed on the user's handset in JSON format (Content-Type: application/json). \
+   The response should include the same payload structure as the received request, with an updated state. \
+   \
+   **Here's an example of an expected response from your server:**
+
+```json5
+{
+  "msisdn": "256756070595",
+  "sessionid": "50b1be9cb6a90",
+  "state": "CONTINUE",
+  "message": "Hello world. Welcome to LTD"
+}
+```
+
+{% hint style="info" %}
+The USSD API operates with three different states:
+
+* **START**: This state is sent when a new session is initiated by the user.
+* **CONTINUE**: Your server should respond with this state if you wish to continue the session.
+* **END**: Your server should respond with this state if you want to terminate the session.
+  {% endhint %}
+
+4. It's important to note that every request we send you will include a **sessionid**, which should be maintained and used until the session is completed.
+5. Avoid including special characters in your USSD Menu to ensure seamless access to your USSD services. Telcos may encounter difficulties in rendering content with special characters, potentially causing disruptions in the user's ability to utilize your USSD services.
+6. Payloads are signed using public-key cryptography to guarantee the authenticity of delivered callbacks. Each callback delivery request includes a **Signature** header field. This field contains a base64-encoded RSA PKCS#1 v1.5 signature of the SHA256 digest of the request body buffer.
+
+

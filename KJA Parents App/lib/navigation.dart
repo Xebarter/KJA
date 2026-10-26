@@ -7,6 +7,7 @@ enum AppDestination {
   home,
   communications,
   reports,
+  points,
   fees,
   applications,
   clubs,
@@ -20,6 +21,7 @@ enum AppDestination {
   /// Hamburger menu only (not dock).
   static const menuItems = <AppDestination>[
     reports,
+    points,
     fees,
     applications,
     clubs,
@@ -34,6 +36,7 @@ enum AppDestination {
 String sidebarGroupTitle(AppDestination destination) {
   switch (destination) {
     case AppDestination.reports:
+    case AppDestination.points:
     case AppDestination.fees:
       return 'Family';
     case AppDestination.applications:
@@ -62,6 +65,8 @@ extension AppDestinationX on AppDestination {
         return 'Comms';
       case AppDestination.reports:
         return 'Reports';
+      case AppDestination.points:
+        return 'Points';
       case AppDestination.fees:
         return 'School fees';
       case AppDestination.applications:
@@ -96,6 +101,8 @@ extension AppDestinationX on AppDestination {
         return Icons.forum_rounded;
       case AppDestination.reports:
         return Icons.description_rounded;
+      case AppDestination.points:
+        return Icons.stars_rounded;
       case AppDestination.fees:
         return Icons.receipt_long_rounded;
       case AppDestination.applications:
@@ -121,6 +128,8 @@ extension AppDestinationX on AppDestination {
         return Tone.mint;
       case AppDestination.reports:
         return Tone.sun;
+      case AppDestination.points:
+        return Tone.sun;
       case AppDestination.fees:
         return Tone.coral;
       case AppDestination.applications:
@@ -143,6 +152,7 @@ extension AppDestinationX on AppDestination {
 AppDestination? destinationForHref(String? href) {
   if (href == null || href.isEmpty) return null;
   final path = href.toLowerCase();
+  if (path.contains('points')) return AppDestination.points;
   if (path.contains('children') || path.contains('child')) return AppDestination.children;
   if (path.contains('report')) return AppDestination.reports;
   if (path.contains('fee')) return AppDestination.fees;
@@ -154,4 +164,9 @@ AppDestination? destinationForHref(String? href) {
   if (path.contains('profile')) return AppDestination.profile;
   if (path.contains('/account')) return AppDestination.home;
   return null;
+}
+
+String? childIdFromHref(String? href) {
+  if (href == null || href.isEmpty) return null;
+  return Uri.tryParse(href)?.queryParameters['child'];
 }

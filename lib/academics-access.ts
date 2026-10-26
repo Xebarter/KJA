@@ -52,6 +52,7 @@ export async function requireAcademics(...pages: string[]) {
   const authUser = userData.user;
   if (!authUser?.id) return { error: "Your session has expired. Sign in again." } as const;
   const userId = authUser.id;
+  const authEmail = authUser.email || "";
   let access: AcademicsAccess;
   try {
     access = await remember(`academics-session:${userId}`, SESSION_MS, async () => {
@@ -65,7 +66,7 @@ export async function requireAcademics(...pages: string[]) {
   if (access.office && !(await dashboardAllowed(access.grants, "academics", pages))) {
     return { error: pages.length ? "This account doesn't have access to that page." : "This account doesn't have access to the academics office." } as const;
   }
-  const email = access.profile.email || authUser.email || "";
+  const email = access.profile.email || authEmail || "";
   const user = { id: userId, email };
   const profile = { ...access.profile, email: email || access.profile.email };
   if (access.office) return { supabase, user, profile, office: true as const, staffId: null as string | null };

@@ -71,7 +71,7 @@ export async function linkStudentPortalLogin(input: {
   }
 
   return {
-    ok: `Login created for ${display}. Share the temporary password now — it will not be shown again.`,
+    ok: `Login created for ${display}. Share the temporary password now. It will not be shown again.`,
     email,
     password,
     displayName: display,

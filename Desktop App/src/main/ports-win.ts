@@ -28,7 +28,6 @@ export function pidsOnPort(port: number): number[] {
     for (const line of out.split(/\r?\n/)) {
       if (!line.includes("LISTENING")) continue;
       if (!line.includes(needle)) continue;
-      // Match "...:47322" not "...:473220"
       const parts = line.trim().split(/\s+/);
       const local = parts[1] || "";
       if (!local.endsWith(needle) && !local.includes(`]:${port}`)) continue;
@@ -69,12 +68,19 @@ export function freePort(port: number) {
   }
 }
 
-export async function waitPortFree(port: number, timeoutMs = 8_000) {
-  const start = Date.now();
+/**
+ * Free the port if needed, then return as soon as nothing is listening.
+ * Avoids repeated netstat when the port is already free (common cold start).
+ */
+export async function waitPortFree(port: number, timeoutMs = 4_000) {
+  const occupied = pidsOnPort(port);
+  if (occupied.length === 0) return;
+
   freePort(port);
+  const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (pidsOnPort(port).length === 0) return;
-    await new Promise((r) => setTimeout(r, 250));
+    await new Promise((r) => setTimeout(r, 120));
     freePort(port);
   }
   const left = pidsOnPort(port);

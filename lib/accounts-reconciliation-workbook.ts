@@ -226,7 +226,7 @@ function writeCover(workbook: ExcelJS.Workbook, report: AccountsReport, prepared
   for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(2, col), { fill: solid(NAVY) });
   sheet.getRow(2).height = 34;
 
-  merge(sheet, 3, 1, 4, "One file for billing, collections, debtors and spending — ready for bank and cash reconciliation.", {
+  merge(sheet, 3, 1, 4, "One file for billing, collections, debtors and spending, ready for bank and cash reconciliation.", {
     font: font(10, "FFD6CCBA"),
     fill: solid(NAVY),
     alignment: { vertical: "middle", wrapText: true },
@@ -280,7 +280,7 @@ function writeCover(workbook: ExcelJS.Workbook, report: AccountsReport, prepared
 
   const sheets: [string, string][] = [
     ["Summary", "Position figures for the period"],
-    ["Receipts", "Every valid receipt — match to bank and mobile money"],
+    ["Receipts", "Every valid receipt: match to bank and mobile money"],
     ["By method", "Cash, bank, SchoolPay and the rest"],
     ["By day", "Daily cash book"],
     ["By class", "Billed, collected and owed by class"],

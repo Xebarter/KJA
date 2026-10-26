@@ -135,7 +135,7 @@ export default async function HomeworkPage() {
           term
             ? resourcesMissing
               ? `Assign work for ${term.label}. Run supabase/0040_class_resources.sql to unlock class resources.`
-              : `Assign homework and share notes, files or links for ${term.label} — all on the Pupils App.`
+              : `Assign homework and share notes, files or links for ${term.label}, all on the Pupils App.`
             : "Set a current term first."
         }
       />

@@ -31,19 +31,21 @@ export function TeacherShell({
   name,
   email,
   classTeacher,
+  canAward,
   locked,
 }: {
   children: React.ReactNode;
   name: string;
   email: string;
   classTeacher: boolean;
+  canAward: boolean;
   locked: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [desktop, setDesktop] = useState(false);
-  const nav = teacherNav(classTeacher, locked);
+  const nav = teacherNav(classTeacher, locked, canAward);
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Home";
   const homeHref = locked ? `${TEACHER_BASE}/profile` : TEACHER_BASE;
   const role = locked ? "Finish profile" : classTeacher ? "Class teacher" : "Subject teacher";

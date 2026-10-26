@@ -14,6 +14,7 @@ import {
   type CalEvent,
 } from "@/lib/events-calendar";
 import { dateRangeLabel, timeRangeLabel } from "@/lib/events-single";
+import { isAcademicCalendarSlug } from "@/lib/parent-calendar";
 import { getPortal } from "@/lib/portal";
 
 const FALLBACK_IMAGE = "/images/pagesBanner6.jpg";
@@ -116,7 +117,8 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
 
   const place = (event: CalEvent) => {
     const location = locationOf.get(event.slug);
-    return location ? `${location} campus` : "All campuses";
+    if (location) return /campus$/i.test(location) ? location : `${location} campus`;
+    return isAcademicCalendarSlug(event.slug) ? "School calendar" : "All campuses";
   };
   const nextBadge = next ? countdown(next, today, now) : null;
   const tabHref = (name?: string) => (name ? `/account/calendar?campus=${encodeURIComponent(name)}` : "/account/calendar");
@@ -127,7 +129,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <div className="ch-hero-copy">
           <p className="ch-kicker">School calendar</p>
           <h1>Calendar</h1>
-          <p>Term dates, meetings, sports days and celebrations across every KJA campus, so you never miss a moment.</p>
+          <p>School events plus academic dates for your children&apos;s classes and the school office calendar, without duplicates across siblings.</p>
         </div>
         <dl className="ch-hero-stats">
           <div>
@@ -159,27 +161,38 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
         <div className="pc-main">
           {next && nextBadge ? (
             <article className="pc-next">
-              <Link href={next.href} className="pc-next-media" tabIndex={-1} aria-hidden="true">
-                <img src={photoOf(next.image)} alt="" />
-                <DateTile ymd={next.startDate} className="ov-date pc-next-date" />
-              </Link>
+              {isAcademicCalendarSlug(next.slug) ? (
+                <div className="pc-next-media" aria-hidden="true">
+                  <img src={photoOf(next.image)} alt="" />
+                  <DateTile ymd={next.startDate} className="ov-date pc-next-date" />
+                </div>
+              ) : (
+                <Link href={next.href} className="pc-next-media" tabIndex={-1} aria-hidden="true">
+                  <img src={photoOf(next.image)} alt="" />
+                  <DateTile ymd={next.startDate} className="ov-date pc-next-date" />
+                </Link>
+              )}
               <div className="pc-next-body">
                 <span className={`pc-badge${nextBadge.tone ? ` pc-badge--${nextBadge.tone}` : ""}`}>
                   <i className="fa-solid fa-bolt" aria-hidden="true" /> Next up · {nextBadge.label}
                 </span>
-                <h2><Link href={next.href}>{next.title}</Link></h2>
+                <h2>
+                  {isAcademicCalendarSlug(next.slug) ? next.title : <Link href={next.href}>{next.title}</Link>}
+                </h2>
                 <ul className="pc-next-meta">
                   <li><i className="fa-regular fa-calendar" aria-hidden="true" /> {dateRangeLabel(next.startDate, next.endDate)}</li>
                   <li><i className="fa-regular fa-clock" aria-hidden="true" /> {timeRangeLabel(next)}</li>
                   <li><i className="fa-solid fa-location-dot" aria-hidden="true" /> {place(next)}</li>
                 </ul>
                 {next.description ? <p className="pc-next-text">{next.description.replace(/\s*\[…\]$/, "…")}</p> : null}
-                <div className="pc-next-actions">
-                  <Link className="ov-btn ov-btn-dark" href={next.href}>Event details</Link>
-                  <a className="ov-btn ov-btn-outline" href={`${next.href}?ical=1`}>
-                    <i className="fa-regular fa-calendar-plus" aria-hidden="true" /> Add to calendar
-                  </a>
-                </div>
+                {!isAcademicCalendarSlug(next.slug) ? (
+                  <div className="pc-next-actions">
+                    <Link className="ov-btn ov-btn-dark" href={next.href}>Event details</Link>
+                    <a className="ov-btn ov-btn-outline" href={`${next.href}?ical=1`}>
+                      <i className="fa-regular fa-calendar-plus" aria-hidden="true" /> Add to calendar
+                    </a>
+                  </div>
+                ) : null}
               </div>
             </article>
           ) : (
@@ -204,26 +217,30 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 {group.items.map((event) => {
                   const badge = countdown(event, today, now);
                   const { d } = parseYmd(event.startDate);
+                  const academic = isAcademicCalendarSlug(event.slug);
+                  const body = (
+                    <>
+                      <span className="pc-row-date">
+                        <small>{WEEKDAYS[weekday(event.startDate)].slice(0, 3)}</small>
+                        <strong>{d}</strong>
+                      </span>
+                      <span className="pc-row-text">
+                        <strong>{event.title}</strong>
+                        <small>
+                          <span><i className="fa-regular fa-clock" aria-hidden="true" /> {timeRangeLabel(event)}</span>
+                          <span><i className="fa-solid fa-location-dot" aria-hidden="true" /> {place(event)}</span>
+                          {event.endDate !== event.startDate ? (
+                            <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Until {MONTHS_SHORT[parseYmd(event.endDate).m - 1]} {parseYmd(event.endDate).d}</span>
+                          ) : null}
+                        </small>
+                      </span>
+                      <span className={`pc-chip${badge.tone ? ` pc-chip--${badge.tone}` : ""}`}>{badge.label}</span>
+                      <span className="pc-row-thumb" aria-hidden="true"><img src={photoOf(event.image)} alt="" loading="lazy" /></span>
+                    </>
+                  );
                   return (
                     <li key={event.id}>
-                      <Link href={event.href} className="pc-row">
-                        <span className="pc-row-date">
-                          <small>{WEEKDAYS[weekday(event.startDate)].slice(0, 3)}</small>
-                          <strong>{d}</strong>
-                        </span>
-                        <span className="pc-row-text">
-                          <strong>{event.title}</strong>
-                          <small>
-                            <span><i className="fa-regular fa-clock" aria-hidden="true" /> {timeRangeLabel(event)}</span>
-                            <span><i className="fa-solid fa-location-dot" aria-hidden="true" /> {place(event)}</span>
-                            {event.endDate !== event.startDate ? (
-                              <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Until {MONTHS_SHORT[parseYmd(event.endDate).m - 1]} {parseYmd(event.endDate).d}</span>
-                            ) : null}
-                          </small>
-                        </span>
-                        <span className={`pc-chip${badge.tone ? ` pc-chip--${badge.tone}` : ""}`}>{badge.label}</span>
-                        <span className="pc-row-thumb" aria-hidden="true"><img src={photoOf(event.image)} alt="" loading="lazy" /></span>
-                      </Link>
+                      {academic ? <div className="pc-row">{body}</div> : <Link href={event.href} className="pc-row">{body}</Link>}
                     </li>
                   );
                 })}
@@ -254,17 +271,23 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 <Link href="/events/list?eventDisplay=past">Past events</Link>
               </header>
               <ul>
-                {recent.map((event) => (
-                  <li key={event.id}>
-                    <Link href={event.href}>
+                {recent.map((event) => {
+                  const academic = isAcademicCalendarSlug(event.slug);
+                  const body = (
+                    <>
                       <span className="pc-recent-thumb"><img src={photoOf(event.image)} alt="" loading="lazy" /></span>
                       <span>
                         <strong>{event.title}</strong>
                         <small>{dateRangeLabel(event.startDate, event.endDate)}</small>
                       </span>
-                    </Link>
-                  </li>
-                ))}
+                    </>
+                  );
+                  return (
+                    <li key={event.id}>
+                      {academic ? <div className="pc-recent-static">{body}</div> : <Link href={event.href}>{body}</Link>}
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ) : null}

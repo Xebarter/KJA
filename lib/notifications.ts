@@ -10,6 +10,7 @@ export const NOTICE_KINDS = {
   resources: { label: "Class resources", icon: "fa-folder-open", action: "View children" },
   events: { label: "Events", icon: "fa-calendar-days", action: "View calendar" },
   school: { label: "School notices", icon: "fa-bullhorn", action: "Read more" },
+  points: { label: "Points", icon: "fa-star", action: "View points" },
 } as const;
 
 export type NoticeKind = keyof typeof NOTICE_KINDS;
@@ -22,6 +23,7 @@ const BY_LINK: [RegExp, NoticeKind][] = [
   [/\/account\/(messages|communications)|\/student\/messages/, "messages"],
   [/\/student\/homework/, "homework"],
   [/\/account\/calendar|\/student\/calendar|\/events?\b|\/event\//, "events"],
+  [/\/account\/points|\/student\/points/, "points"],
 ];
 
 const BY_TEXT: [RegExp, NoticeKind][] = [

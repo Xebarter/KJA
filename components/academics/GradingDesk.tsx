@@ -95,7 +95,7 @@ export function GradingDesk({
           <strong>{openIssues ? "Subject grades need a quick look" : "Subject grades look complete"}</strong>
           <p>
             {openIssues
-              ? `${openIssues} gap${openIssues === 1 ? "" : "s"} on the mark scale. Fix them under Subject grades — approved report cards keep the rules they already have.`
+              ? `${openIssues} gap${openIssues === 1 ? "" : "s"} on the mark scale. Fix them under Subject grades. Approved report cards keep the rules they already have.`
               : "New draft report cards will use these rules. Approved cards keep the rules they already have."}
           </p>
         </div>

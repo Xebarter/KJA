@@ -473,7 +473,7 @@ export async function recordFamilyPayment(form: FormData): Promise<ActionResult>
         : null,
     );
   }
-  if (!slices.length) return { error: "Nothing to apply — choose a family with balances, or enter an amount." };
+  if (!slices.length) return { error: "Nothing to apply. Choose a family with balances, or enter an amount." };
 
   const { supabase, user } = auth;
   const payerName = field(form, "payer_name", 120);
@@ -524,7 +524,7 @@ export async function recordFamilyPayment(form: FormData): Promise<ActionResult>
   if (payError) {
     await supabase.from("payment_batches").delete().eq("id", batch.id);
     if (payError.code === "23505") {
-      return { error: `Could not save the family receipt — a line number for ${batch.receipt_no} is already in use. Try again.` };
+      return { error: `Could not save the family receipt: a line number for ${batch.receipt_no} is already in use. Try again.` };
     }
     return { error: payError.message };
   }

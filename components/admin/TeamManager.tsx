@@ -117,7 +117,7 @@ function IssuedLogin({
         </button>
       </div>
       <p>
-        {issued.temporary ? "Ask them to change it after signing in. Shown only once." : "Copy it now — it will not be shown again."}
+        {issued.temporary ? "Ask them to change it after signing in. Shown only once." : "Copy it now. It will not be shown again."}
         {remaining > 0 ? ` ${remaining} more to share.` : ""}
       </p>
       <dl>

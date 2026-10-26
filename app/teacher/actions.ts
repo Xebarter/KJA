@@ -10,6 +10,7 @@ import {
   num,
   streamOf,
 } from "@/lib/academics";
+import { parseAwardEntries, schemaMissing } from "@/lib/points";
 import { leadsClass, teachesPost, TEACHER_BASE } from "@/lib/teacher";
 import { requireTeacher } from "@/lib/teacher-access";
 import { TEACHER_PHOTO_BUCKET } from "@/lib/teacher-photos";
@@ -18,6 +19,37 @@ type Result = { error?: string; ok?: string };
 
 function text(formData: FormData, key: string, max = 200) {
   return String(formData.get(key) || "").trim().slice(0, max);
+}
+
+function refreshTeacherPoints() {
+  revalidatePath(`${TEACHER_BASE}/points`);
+  revalidatePath("/student/points");
+  revalidatePath("/account/points");
+  revalidatePath("/academics_office/interventions");
+}
+
+/** Award the current term's points. The database checks the class, the amount, and the reason. */
+export async function awardPupilPoints(formData: FormData): Promise<Result> {
+  const teacher = await requireTeacher();
+  if ("error" in teacher) return { error: teacher.error };
+  if (teacher.mustResetPassword) return { error: "Change your password before awarding points." };
+  if (!teacher.term) return { error: "Set a current term before awarding points." };
+  if (!teacher.classes.length && !teacher.subjects.length) return { error: "You have no class to award this term." };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text(formData, "entries", 80000));
+  } catch {
+    return { error: "Choose pupils and a reason." };
+  }
+  const entries = parseAwardEntries(parsed);
+  if (!entries) return { error: "Choose pupils, a number of points from 1 to 10, and a reason." };
+  const { error } = await teacher.supabase.rpc("award_pupil_points", { p_entries: entries });
+  if (error) {
+    return { error: schemaMissing(error.message) ? "Run supabase/0055_pupil_points.sql before awarding points." : error.message };
+  }
+  refreshTeacherPoints();
+  const count = entries.length;
+  return { ok: count === 1 ? "1 pupil awarded." : `${count} pupils awarded.` };
 }
 
 function refreshTeacherMarks(assessmentId: string) {

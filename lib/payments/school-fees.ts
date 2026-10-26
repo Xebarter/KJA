@@ -202,13 +202,23 @@ async function present(row: FeeCollection): Promise<FeePaymentView> {
   return viewOf(settled, await receiptNoFor(settled.payment_id));
 }
 
-export async function startSchoolFeePayment(input: {
-  studentId: string;
-  termId: string;
-  amount: number;
-  phone: string;
-}): Promise<FeePaymentResult> {
-  const { user, supabase } = await getSessionUser();
+type PaymentSession = {
+  user: { id: string; email?: string | null; user_metadata?: Record<string, unknown> | null };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any;
+};
+
+export async function startSchoolFeePayment(
+  input: {
+    studentId: string;
+    termId: string;
+    amount: number;
+    phone: string;
+  },
+  session?: PaymentSession | null,
+): Promise<FeePaymentResult> {
+  const auth = session ?? (await getSessionUser());
+  const { user, supabase } = auth;
   if (!user || !supabase) return { error: "Sign in to pay school fees." };
   if (!isUuid(input.studentId) || !isUuid(input.termId)) return { error: "Choose the child and term to pay." };
 
@@ -308,8 +318,12 @@ export async function startSchoolFeePayment(input: {
   }
 }
 
-export async function schoolFeePaymentStatus(id: string): Promise<FeePaymentResult> {
-  const { user } = await getSessionUser();
+export async function schoolFeePaymentStatus(
+  id: string,
+  session?: PaymentSession | null,
+): Promise<FeePaymentResult> {
+  const auth = session ?? (await getSessionUser());
+  const { user } = auth;
   if (!user) return { error: "Sign in to check this payment." };
   const row = await loadFeeCollection(id);
   if (!row || row.user_id !== user.id) return { error: "We couldn't find this payment." };

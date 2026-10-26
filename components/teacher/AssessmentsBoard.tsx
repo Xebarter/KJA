@@ -162,7 +162,7 @@ export function AssessmentsBoard({ papers }: { papers: PaperCard[] }) {
           {query.trim()
             ? "No paper matches that search."
             : filter === "open"
-              ? "Nothing open — every paper has been handed in."
+              ? "Nothing open. Every paper has been handed in."
               : filter === "submitted"
                 ? "No papers waiting with the office."
                 : filter === "approved"

@@ -501,6 +501,22 @@ class ClassResource {
       );
 }
 
+class PointAward {
+  const PointAward({
+    required this.id,
+    required this.points,
+    required this.reasonLabel,
+    required this.teacherName,
+    required this.createdAt,
+  });
+
+  final String id;
+  final int points;
+  final String reasonLabel;
+  final String teacherName;
+  final String createdAt;
+}
+
 class PortalSnapshot {
   const PortalSnapshot({
     required this.displayName,
@@ -526,6 +542,7 @@ class PortalSnapshot {
     this.reports = const [],
     this.conversations = const [],
     this.resources = const [],
+    this.points = const [],
     this.unreadMessages = 0,
   });
 
@@ -554,6 +571,7 @@ class PortalSnapshot {
   final List<ReportCard> reports;
   final List<Conversation> conversations;
   final List<ClassResource> resources;
+  final List<PointAward> points;
   final int unreadMessages;
 
   int get unreadNotices => notices.where((notice) => !notice.read).length;
@@ -576,6 +594,7 @@ class PortalSnapshot {
     List<SchoolEvent>? events,
     List<ReportCard>? reports,
     List<ClassResource>? resources,
+    List<PointAward>? points,
   }) {
     return PortalSnapshot(
       displayName: displayName,
@@ -601,6 +620,7 @@ class PortalSnapshot {
       reports: reports ?? this.reports,
       conversations: conversations ?? this.conversations,
       resources: resources ?? this.resources,
+      points: points ?? this.points,
       unreadMessages: unreadMessages ?? this.unreadMessages,
     );
   }

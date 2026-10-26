@@ -30,7 +30,13 @@ export default async function TeacherLayout({ children }: { children: React.Reac
   const name = teacher.profile.full_name || teacher.profile.email || "Teacher";
   return (
     <div className="kja-admin kja-office acd-page">
-      <TeacherShell name={name} email={teacher.profile.email || teacher.user.email || ""} classTeacher={teacher.classes.length > 0} locked={teacher.mustResetPassword}>
+      <TeacherShell
+        name={name}
+        email={teacher.profile.email || teacher.user.email || ""}
+        classTeacher={teacher.classes.length > 0}
+        canAward={teacher.classes.length > 0 || teacher.subjects.length > 0}
+        locked={teacher.mustResetPassword}
+      >
         {children}
       </TeacherShell>
     </div>

@@ -919,7 +919,7 @@ function Assignments({
             <p className="stf-quiet">
               {member.email
                 ? "Saving will create a teacher desk sign-in for this email if they do not have one yet."
-                : "Add an email on the record tab before assigning — they need it to open the teacher desk."}
+                : "Add an email on the record tab before assigning. They need it to open the teacher desk."}
             </p>
           ) : null}
           <p className="stf-step-label"><span>1</span> Choose the stream</p>

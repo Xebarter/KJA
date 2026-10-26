@@ -175,7 +175,7 @@ export function CommunicationsDesk({
         kicker="Parent portal"
         icon="fa-comments"
         title="Communications"
-        description="A single desk for school-to-parent messages — broadcasts, family notes, and direct replies."
+        description="A single desk for school-to-parent messages: broadcasts, family notes, and direct replies."
         actions={
           <>
             <button className="admin-hero-btn is-primary" type="button" onClick={() => setComposeOpen(true)}>

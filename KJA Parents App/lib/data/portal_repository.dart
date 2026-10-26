@@ -190,6 +190,7 @@ class PortalRepository {
       for (final s in students) s['id'].toString(): s['photo_path'] as String?,
     };
     final photoUrls = await _resolvePhotoUrls(photoPaths);
+    final pointAwards = await _loadPointAwards(studentIds);
 
     final children = students.map((s) {
       final id = s['id'].toString();
@@ -276,6 +277,7 @@ class PortalRepository {
               campus: c['campus'] as String?,
               meeting: c['meeting'] as String?,
               description: c['description'] as String?,
+              category: c['category'] as String?,
               section: (c['section'] as String?) ?? 'both',
               feeAmount: _num(c['fee_amount']),
               active: c['active'] != false,
@@ -315,9 +317,150 @@ class PortalRepository {
             ),
           )
           .toList(),
-      events: const [],
+      events: await _loadFamilyEvents(students, currentTermId),
+      points: pointAwards,
       mustResetPassword: _flag(user.userMetadata?['must_reset_password']),
     );
+  }
+
+  Future<List<SchoolEvent>> _loadFamilyEvents(
+    List<Map<String, dynamic>> students,
+    String? currentTermId,
+  ) async {
+    final siteRows = await _rows(
+      _db
+          .from('events')
+          .select('id, title, starts_on, ends_on, excerpt, location')
+          .eq('published', true)
+          .order('starts_on'),
+    );
+    final academicRows = currentTermId == null
+        ? <SchoolEvent>[]
+        : await _loadFamilyAcademicDates(currentTermId, students);
+
+    final events = <SchoolEvent>[
+      ...siteRows
+          .where((row) => (row['starts_on'] as String?)?.isNotEmpty == true)
+          .map(
+            (row) => SchoolEvent(
+              id: row['id'].toString(),
+              title: (row['title'] as String?) ?? 'Event',
+              startsOn: row['starts_on'] as String?,
+              endsOn: row['ends_on'] as String?,
+              summary: row['excerpt'] as String?,
+              location: row['location'] as String?,
+            ),
+          ),
+      ...academicRows,
+    ]..sort((a, b) => (a.startsOn ?? '').compareTo(b.startsOn ?? ''));
+    return events;
+  }
+
+  Future<List<SchoolEvent>> _loadFamilyAcademicDates(
+    String termId,
+    List<Map<String, dynamic>> students,
+  ) async {
+    List<Map<String, dynamic>> rows;
+    try {
+      rows = await _rows(
+        _db
+            .from('academic_dates')
+            .select('id, title, kind, starts_on, ends_on, campus, note, class_code, stream')
+            .eq('term_id', termId)
+            .order('starts_on'),
+      );
+    } catch (_) {
+      try {
+        rows = await _rows(
+          _db
+              .from('academic_dates')
+              .select('id, title, kind, starts_on, ends_on, campus, note')
+              .eq('term_id', termId)
+              .order('starts_on'),
+        );
+      } catch (_) {
+        return const [];
+      }
+    }
+
+    final classes = <String>{
+      for (final student in students)
+        if ((student['class_code'] as String?)?.isNotEmpty == true)
+          '${student['class_code']}|${student['stream'] ?? ''}',
+    };
+    final campuses = <String>{
+      for (final student in students)
+        if ((student['campus'] as String?)?.trim().isNotEmpty == true) (student['campus'] as String).trim(),
+    };
+
+    final visible = rows.where((row) {
+      final classCode = row['class_code'] as String?;
+      final stream = row['stream'] as String?;
+      if (classCode != null && classCode.isNotEmpty && !classes.contains('$classCode|${stream ?? ''}')) {
+        return false;
+      }
+      final campus = (row['campus'] as String?)?.trim() ?? '';
+      if (campus.isEmpty || RegExp(r'all', caseSensitive: false).hasMatch(campus)) return true;
+      if (campuses.isEmpty) return true;
+      return campuses.contains(campus);
+    });
+
+    final byId = <String, Map<String, dynamic>>{};
+    for (final row in visible) {
+      final id = row['id']?.toString();
+      if (id == null || byId.containsKey(id)) continue;
+      byId[id] = row;
+    }
+
+    final byContent = <String, Map<String, dynamic>>{};
+    final ordered = byId.values.toList()
+      ..sort((a, b) {
+        final aOffice = (a['class_code'] as String?)?.isNotEmpty == true ? 1 : 0;
+        final bOffice = (b['class_code'] as String?)?.isNotEmpty == true ? 1 : 0;
+        return aOffice - bOffice;
+      });
+    for (final row in ordered) {
+      final key = [
+        ((row['title'] as String?) ?? '').trim().toLowerCase(),
+        row['kind'] ?? '',
+        row['starts_on'] ?? '',
+        row['ends_on'] ?? row['starts_on'] ?? '',
+        ((row['campus'] as String?) ?? '').trim().toLowerCase(),
+      ].join('|');
+      byContent.putIfAbsent(key, () => row);
+    }
+
+    return byContent.values.map((row) {
+      final kind = row['kind'] as String?;
+      final note = row['note'] as String?;
+      final summary = [
+        _academicKindLabel(kind),
+        if (note != null && note.trim().isNotEmpty) note.trim(),
+      ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
+      return SchoolEvent(
+        id: 'academic-${row['id']}',
+        title: (row['title'] as String?) ?? 'School date',
+        startsOn: row['starts_on'] as String?,
+        endsOn: row['ends_on'] as String?,
+        summary: summary.isEmpty ? null : summary,
+        location: row['campus'] as String?,
+      );
+    }).toList();
+  }
+
+  String _academicKindLabel(String? kind) {
+    switch (kind) {
+      case 'exam':
+        return 'Test day';
+      case 'reporting':
+        return 'Reports go home';
+      case 'deadline':
+        return 'Deadline';
+      case 'meeting':
+        return 'School meeting';
+      default:
+        return 'School date';
+    }
   }
 
   Future<ReportDetail?> loadReportDetail(PublishedReport card) async {
@@ -466,13 +609,13 @@ class PortalRepository {
   }
 
   Future<Map<String, dynamic>> startClubPayment({
-    required String studentId,
-    required List<String> clubIds,
     required String phone,
+    required List<ClubCartLine> items,
   }) async {
     final session = _db.auth.currentSession;
     final token = session?.accessToken;
     if (token == null || token.isEmpty) return {'error': 'Sign in to pay for a club.'};
+    if (items.isEmpty) return {'error': 'Choose at least one club.'};
 
     final uri = Uri.parse(AppConfig.sitePath('/api/parents/clubs/pay'));
     try {
@@ -485,9 +628,10 @@ class PortalRepository {
               'Accept': 'application/json',
             },
             body: jsonEncode({
-              'studentId': studentId,
-              'clubIds': clubIds,
               'phone': phone,
+              'items': [
+                for (final item in items) {'studentId': item.studentId, 'clubId': item.clubId},
+              ],
             }),
           )
           .timeout(const Duration(seconds: 45));
@@ -507,6 +651,176 @@ class PortalRepository {
     if (token == null || token.isEmpty) return {'error': 'Sign in to check this payment.'};
 
     final uri = Uri.parse(AppConfig.sitePath('/api/parents/clubs/pay')).replace(queryParameters: {'id': collectionId});
+    try {
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+      final body = _jsonMap(response.body);
+      if (response.statusCode >= 400) {
+        return {'error': (body['error'] as String?) ?? 'Could not check this payment.'};
+      }
+      return body;
+    } catch (_) {
+      return {'error': 'Could not check the payment status right now.'};
+    }
+  }
+
+  Future<List<({String campus, int fee})>> loadAdmissionFees() async {
+    final session = _db.auth.currentSession;
+    final token = session?.accessToken;
+    if (token == null || token.isEmpty) return const [];
+    final uri = Uri.parse(AppConfig.sitePath('/api/parents/applications/pay'));
+    try {
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+      final body = _jsonMap(response.body);
+      final fees = body['fees'];
+      if (fees is! List) return const [];
+      return [
+        for (final row in fees)
+          if (row is Map)
+            (
+              campus: '${row['campus'] ?? ''}',
+              fee: ((row['fee'] as num?)?.round() ?? 0),
+            ),
+      ].where((row) => row.campus.isNotEmpty && row.fee > 0).toList();
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  Future<Map<String, dynamic>> startAdmissionPayment({
+    required String childName,
+    String? childDob,
+    required String campus,
+    String? grade,
+    String? message,
+    String? phone,
+    required String payPhone,
+  }) async {
+    final session = _db.auth.currentSession;
+    final token = session?.accessToken;
+    if (token == null || token.isEmpty) return {'error': 'Sign in to apply.'};
+
+    final uri = Uri.parse(AppConfig.sitePath('/api/parents/applications/pay'));
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'childName': childName,
+              'childDob': childDob,
+              'campus': campus,
+              'grade': grade,
+              'message': message,
+              'phone': phone,
+              'payPhone': payPhone,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      final body = _jsonMap(response.body);
+      if (response.statusCode >= 400) {
+        return {'error': (body['error'] as String?) ?? 'Could not start the admission payment.'};
+      }
+      return body;
+    } catch (_) {
+      return {'error': 'Could not reach the school payment service. Try again shortly.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkAdmissionPayment({
+    required String paymentId,
+    required String token,
+  }) async {
+    final session = _db.auth.currentSession;
+    final access = session?.accessToken;
+    if (access == null || access.isEmpty) return {'error': 'Sign in to check this payment.'};
+
+    final uri = Uri.parse(AppConfig.sitePath('/api/parents/applications/pay')).replace(
+      queryParameters: {'id': paymentId, 'token': token},
+    );
+    try {
+      final response = await http
+          .get(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $access',
+              'Accept': 'application/json',
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+      final body = _jsonMap(response.body);
+      if (response.statusCode >= 400) {
+        return {'error': (body['error'] as String?) ?? 'Could not check this payment.'};
+      }
+      return body;
+    } catch (_) {
+      return {'error': 'Could not check the payment status right now.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> startFeePayment({
+    required String studentId,
+    required String termId,
+    required num amount,
+    required String phone,
+  }) async {
+    final session = _db.auth.currentSession;
+    final token = session?.accessToken;
+    if (token == null || token.isEmpty) return {'error': 'Sign in to pay school fees.'};
+
+    final uri = Uri.parse(AppConfig.sitePath('/api/parents/fees/pay'));
+    try {
+      final response = await http
+          .post(
+            uri,
+            headers: {
+              'Authorization': 'Bearer $token',
+              'Content-Type': 'application/json',
+              'Accept': 'application/json',
+            },
+            body: jsonEncode({
+              'studentId': studentId,
+              'termId': termId,
+              'amount': amount,
+              'phone': phone,
+            }),
+          )
+          .timeout(const Duration(seconds: 45));
+      final body = _jsonMap(response.body);
+      if (response.statusCode >= 400) {
+        return {'error': (body['error'] as String?) ?? 'Could not start the payment.'};
+      }
+      return body;
+    } catch (_) {
+      return {'error': 'Could not reach the school payment service. Try again shortly.'};
+    }
+  }
+
+  Future<Map<String, dynamic>> checkFeePayment(String collectionId) async {
+    final session = _db.auth.currentSession;
+    final token = session?.accessToken;
+    if (token == null || token.isEmpty) return {'error': 'Sign in to check this payment.'};
+
+    final uri = Uri.parse(AppConfig.sitePath('/api/parents/fees/pay')).replace(queryParameters: {'id': collectionId});
     try {
       final response = await http
           .get(
@@ -698,6 +1012,31 @@ class PortalRepository {
       return null;
     } catch (_) {
       return null;
+    }
+  }
+
+  Future<List<PointAward>> _loadPointAwards(List<String> studentIds) async {
+    if (studentIds.isEmpty) return [];
+    try {
+      final data = await _db
+          .from('point_awards')
+          .select('id, student_id, points, reason_label, teacher_name, created_at')
+          .inFilter('student_id', studentIds)
+          .isFilter('voided_at', null)
+          .order('created_at', ascending: false);
+      return data.map((row) {
+        final map = Map<String, dynamic>.from(row as Map);
+        return PointAward(
+          id: map['id'].toString(),
+          studentId: map['student_id'].toString(),
+          points: (map['points'] as num?)?.toInt() ?? 0,
+          reasonLabel: (map['reason_label'] as String?) ?? '',
+          teacherName: (map['teacher_name'] as String?) ?? 'Teacher',
+          createdAt: (map['created_at'] as String?) ?? '',
+        );
+      }).toList();
+    } catch (_) {
+      return [];
     }
   }
 

@@ -141,7 +141,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
         <div className="asp-banner is-ok" role="status">
           <i className="fa-solid fa-key" aria-hidden="true" />
           <div className="asp-banner-body">
-            <p><strong>Share these details once</strong> for {issued.name} — the password is not stored here.</p>
+            <p><strong>Share these details once</strong> for {issued.name}. The password is not stored here.</p>
             <div className="asp-cred">
               <span>Email</span>
               <code>{issued.email}</code>
@@ -381,7 +381,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
               </label>
             </div>
             <label className="ofc-field">
-              <span>Portal email <em>optional — issues login now</em></span>
+              <span>Portal email <em>optional; issues login now</em></span>
               <input name="email" type="email" placeholder="student@example.com" autoComplete="off" />
             </label>
             <button className="admin-btn" type="submit" disabled={pending}>

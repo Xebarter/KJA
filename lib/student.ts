@@ -6,6 +6,7 @@ export const studentNav = [
   { href: "/student/timetable", label: "Timetable", icon: "fa-table-cells", group: "School" },
   { href: "/student/attendance", label: "Attendance", icon: "fa-clipboard-user", group: "School" },
   { href: "/student/reports", label: "Reports", icon: "fa-file-lines", group: "School" },
+  { href: "/student/points", label: "Points", icon: "fa-star", group: "School" },
   { href: "/student/class", label: "My class", icon: "fa-users", group: "Life" },
   { href: "/student/clubs", label: "Clubs", icon: "fa-puzzle-piece", group: "Life" },
   { href: "/student/calendar", label: "Calendar", icon: "fa-calendar-days", group: "Life" },

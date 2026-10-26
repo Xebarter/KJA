@@ -127,7 +127,7 @@ export async function saveTeamLogin(formData: FormData): Promise<TeamLoginResult
     return { error: grantError };
   }
   return {
-    ok: `${name} can sign in to ${describe(grants)}. Share the password now — it will not be shown again.`,
+    ok: `${name} can sign in to ${describe(grants)}. Share the password now. It will not be shown again.`,
     email,
     password: resolved.password,
     temporary: resolved.temporary,
@@ -195,7 +195,7 @@ async function updateExisting(
   const address = email || profile.email || "";
   return {
     ok: issued
-      ? `Updated ${name}. Share the new password now — it will not be shown again.`
+      ? `Updated ${name}. Share the new password now. It will not be shown again.`
       : `${name} can now sign in to ${describe(grants)}.`,
     email: address,
     name,

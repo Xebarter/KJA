@@ -1,42 +1,370 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../format.dart';
 import '../models.dart';
+import '../state/portal_controller.dart';
 import '../theme.dart';
 import '../widgets/ui.dart';
 
-class FeesPage extends StatelessWidget {
-  const FeesPage({super.key, required this.portal, required this.openWeb});
+String? _networkOf(String phone) {
+  var digits = phone.replaceAll(RegExp(r'\D'), '');
+  if (digits.startsWith('256')) digits = digits.substring(3);
+  if (digits.startsWith('0')) digits = digits.substring(1);
+  if (!RegExp(r'^7\d{8}$').hasMatch(digits)) return null;
+  final prefix = digits.substring(0, 2);
+  if (const {'76', '77', '78', '79'}.contains(prefix)) return 'MTN Mobile Money';
+  if (const {'70', '74', '75'}.contains(prefix)) return 'Airtel Money';
+  return null;
+}
+
+class FeesPage extends StatefulWidget {
+  const FeesPage({
+    super.key,
+    required this.portal,
+    required this.controller,
+    required this.openWeb,
+  });
 
   final PortalSnapshot portal;
+  final PortalController controller;
   final Future<void> Function(String path) openWeb;
+
+  @override
+  State<FeesPage> createState() => _FeesPageState();
+}
+
+class _FeesPageState extends State<FeesPage> {
+  String? _feeId;
+  final _phone = TextEditingController();
+  final _amount = TextEditingController();
+  bool _paying = false;
+  String? _waitingId;
+  String? _statusNote;
+  Timer? _poll;
+
+  PortalSnapshot get portal => widget.controller.snapshot ?? widget.portal;
+
+  List<FeeBalance> get _payable =>
+      portal.fees.where((fee) => fee.hasDue && (fee.termId?.isNotEmpty ?? false)).toList();
+
+  FeeBalance? get _selected {
+    final id = _feeId;
+    if (id == null) return null;
+    for (final fee in _payable) {
+      if (fee.id == id) return fee;
+    }
+    return _payable.isEmpty ? null : _payable.first;
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final first = _payable.isEmpty ? null : _payable.first;
+    _feeId = first?.id;
+    if (first != null) _amount.text = first.balance.round().toString();
+    final phone = portal.profile.phone?.trim() ?? '';
+    if (phone.isNotEmpty) _phone.text = phone;
+  }
+
+  @override
+  void dispose() {
+    _poll?.cancel();
+    _phone.dispose();
+    _amount.dispose();
+    super.dispose();
+  }
+
+  void _chooseFee(String id) {
+    FeeBalance? fee;
+    for (final item in _payable) {
+      if (item.id == id) {
+        fee = item;
+        break;
+      }
+    }
+    setState(() {
+      _feeId = id;
+      if (fee != null) _amount.text = fee.balance.round().toString();
+      _statusNote = null;
+      _waitingId = null;
+    });
+  }
+
+  void _toast(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _pay() async {
+    final fee = _selected;
+    if (fee == null || fee.termId == null) {
+      _toast('Choose a term balance to pay.');
+      return;
+    }
+    final network = _networkOf(_phone.text);
+    if (network == null) {
+      _toast('Enter a valid MTN or Airtel number.');
+      return;
+    }
+    final raw = _amount.text.replaceAll(RegExp(r'[^\d.]'), '');
+    final amount = num.tryParse(raw);
+    if (amount == null || amount <= 0) {
+      _toast('Enter the amount you want to pay.');
+      return;
+    }
+
+    setState(() {
+      _paying = true;
+      _statusNote = 'Sending Mobile Money request…';
+      _waitingId = null;
+    });
+
+    final result = await widget.controller.startFeePayment(
+      studentId: fee.childId,
+      termId: fee.termId!,
+      amount: amount,
+      phone: _phone.text.trim(),
+    );
+
+    if (!mounted) return;
+
+    if (result['error'] is String) {
+      setState(() {
+        _paying = false;
+        _statusNote = null;
+      });
+      _toast(result['error'] as String);
+      return;
+    }
+
+    final payment = result['payment'];
+    if (payment is! Map) {
+      setState(() {
+        _paying = false;
+        _statusNote = null;
+      });
+      _toast('Could not start the payment.');
+      return;
+    }
+
+    final status = payment['status']?.toString() ?? 'pending';
+    final id = payment['id']?.toString();
+
+    if (status == 'paid') {
+      setState(() {
+        _paying = false;
+        _statusNote = 'Payment confirmed.';
+      });
+      await widget.controller.refresh();
+      _toast('School fees paid. Thank you.');
+      return;
+    }
+
+    if (status == 'failed') {
+      setState(() {
+        _paying = false;
+        _statusNote = null;
+      });
+      _toast('The request was declined or timed out. You have not been charged.');
+      return;
+    }
+
+    setState(() {
+      _waitingId = id;
+      _statusNote = 'Approve the $network prompt on ${_phone.text.trim()}. Stay in the app.';
+    });
+    _startPolling(id);
+  }
+
+  void _startPolling(String? collectionId) {
+    _poll?.cancel();
+    if (collectionId == null || collectionId.isEmpty) {
+      setState(() => _paying = false);
+      return;
+    }
+    var attempts = 0;
+    _poll = Timer.periodic(const Duration(seconds: 4), (timer) async {
+      attempts += 1;
+      if (attempts > 40) {
+        timer.cancel();
+        if (!mounted) return;
+        setState(() {
+          _paying = false;
+          _waitingId = null;
+          _statusNote = 'Still waiting on the phone. You can try again shortly.';
+        });
+        return;
+      }
+      final result = await widget.controller.checkFeePayment(collectionId);
+      if (!mounted) return;
+      if (result['error'] is String) return;
+      final payment = result['payment'];
+      if (payment is! Map) return;
+      final status = payment['status']?.toString() ?? 'pending';
+      if (status == 'paid') {
+        timer.cancel();
+        setState(() {
+          _paying = false;
+          _waitingId = null;
+          _statusNote = 'Payment confirmed.';
+        });
+        await widget.controller.refresh();
+        if (!mounted) return;
+        final receipt = payment['receiptNo']?.toString();
+        _toast(receipt == null || receipt.isEmpty ? 'School fees paid. Thank you.' : 'Paid. Receipt $receipt.');
+        final next = _payable.isEmpty ? null : _payable.first;
+        setState(() {
+          _feeId = next?.id;
+          _amount.text = next == null ? '' : next.balance.round().toString();
+        });
+      } else if (status == 'failed') {
+        timer.cancel();
+        setState(() {
+          _paying = false;
+          _waitingId = null;
+          _statusNote = null;
+        });
+        _toast('The request was declined or timed out. You have not been charged.');
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final outstanding = portal.totalOutstanding;
     final nameById = {for (final c in portal.children) c.id: c.fullName};
+    final fee = _selected;
+    final network = _networkOf(_phone.text);
 
     return ListView(
       padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
       children: [
-        PageHero(
-          kicker: 'Accounts',
-          title: 'School fees',
-          lead: outstanding > 0
-              ? '${moneyUgx(outstanding)} still outstanding across your children.'
-              : 'Fee balances look clear for the linked pupils.',
-          icon: Icons.receipt_long_rounded,
-          colors: const [Color(0xFF9A3412), KjaColors.coralDeep, KjaColors.coral],
-          footer: Align(
-            alignment: Alignment.centerLeft,
-            child: FilledButton.icon(
-              style: FilledButton.styleFrom(backgroundColor: Colors.white, foregroundColor: KjaColors.coralDeep),
-              onPressed: () => openWeb('/account/fees'),
-              icon: const Icon(Icons.open_in_new_rounded, size: 18),
-              label: const Text('Pay with Mobile Money'),
+        if (outstanding > 0) ...[
+          SoftCard(
+            child: Text(
+              '${moneyUgx(outstanding)} outstanding',
+              style: const TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 15,
+                color: KjaColors.ink,
+              ),
             ),
           ),
-        ),
+          const SizedBox(height: 16),
+        ],
+        if (_payable.isNotEmpty) ...[
+          SoftCard(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Pay with Mobile Money', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+                const SizedBox(height: 4),
+                const Text(
+                  'We send a PIN prompt to your phone. Approve it here in the app — no browser needed.',
+                  style: TextStyle(color: KjaColors.soft, height: 1.35),
+                ),
+                const SizedBox(height: 12),
+                InputDecorator(
+                  decoration: InputDecoration(
+                    labelText: 'Child and term',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<String>(
+                      isExpanded: true,
+                      value: fee?.id,
+                      items: [
+                        for (final item in _payable)
+                          DropdownMenuItem(
+                            value: item.id,
+                            child: Text(
+                              '${nameById[item.childId] ?? 'Child'} · ${item.term} · ${moneyUgx(item.balance)} owing',
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
+                      onChanged: _paying
+                          ? null
+                          : (value) {
+                              if (value != null) _chooseFee(value);
+                            },
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _amount,
+                  enabled: !_paying,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: InputDecoration(
+                    labelText: 'Amount (UGX)',
+                    helperText: fee == null ? null : 'Up to ${moneyUgx(fee.balance)}',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                    suffixIcon: fee == null
+                        ? null
+                        : TextButton(
+                            onPressed: _paying
+                                ? null
+                                : () => setState(() => _amount.text = fee.balance.round().toString()),
+                            child: const Text('Full'),
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _phone,
+                  enabled: !_paying,
+                  keyboardType: TextInputType.phone,
+                  inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9+\s]'))],
+                  decoration: InputDecoration(
+                    labelText: 'MTN or Airtel number',
+                    hintText: '0772 123 456',
+                    helperText: network,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(14)),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+                if (_statusNote != null) ...[
+                  const SizedBox(height: 10),
+                  Text(
+                    _statusNote!,
+                    style: TextStyle(
+                      color: _waitingId != null ? KjaColors.coralDeep : KjaColors.ink,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(
+                      backgroundColor: KjaColors.coralDeep,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                    ),
+                    onPressed: _paying || fee == null ? null : _pay,
+                    icon: _paying
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.phone_android_rounded, size: 18),
+                    label: Text(
+                      _paying
+                          ? (_waitingId != null ? 'Waiting for approval…' : 'Starting…')
+                          : 'Pay with Mobile Money',
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 16),
         const SectionTitle(title: 'Balances'),
         const SizedBox(height: 10),
@@ -47,16 +375,16 @@ class FeesPage extends StatelessWidget {
             message: 'Fee balances will appear here once the accounts office posts them.',
           )
         else
-          ...portal.fees.map((fee) {
-            final progress = fee.amountDue <= 0 ? 1.0 : (fee.amountPaid / fee.amountDue).clamp(0.0, 1.0);
+          ...portal.fees.map((item) {
+            final progress = item.amountDue <= 0 ? 1.0 : (item.amountPaid / item.amountDue).clamp(0.0, 1.0);
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: SoftCard(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nameById[fee.childId] ?? 'Child', style: const TextStyle(fontWeight: FontWeight.w900)),
-                    Text('${fee.term}${fee.dueOn != null ? ' · due ${shortDate(fee.dueOn)}' : ''}', style: const TextStyle(color: KjaColors.soft)),
+                    Text(nameById[item.childId] ?? 'Child', style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text('${item.term}${item.dueOn != null ? ' · due ${shortDate(item.dueOn)}' : ''}', style: const TextStyle(color: KjaColors.soft)),
                     const SizedBox(height: 10),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(99),
@@ -64,18 +392,18 @@ class FeesPage extends StatelessWidget {
                         value: progress.toDouble(),
                         minHeight: 8,
                         backgroundColor: KjaColors.line,
-                        color: fee.hasDue ? KjaColors.coral : KjaColors.mint,
+                        color: item.hasDue ? KjaColors.coral : KjaColors.mint,
                       ),
                     ),
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: Text('Invoiced ${moneyUgx(fee.amountDue)}', style: const TextStyle(fontSize: 12, color: KjaColors.soft))),
+                        Expanded(child: Text('Invoiced ${moneyUgx(item.amountDue)}', style: const TextStyle(fontSize: 12, color: KjaColors.soft))),
                         Text(
-                          fee.hasDue ? 'Due ${moneyUgx(fee.balance)}' : 'Paid in full',
+                          item.hasDue ? 'Due ${moneyUgx(item.balance)}' : 'Paid in full',
                           style: TextStyle(
                             fontWeight: FontWeight.w800,
-                            color: fee.hasDue ? KjaColors.coralDeep : KjaColors.mintDeep,
+                            color: item.hasDue ? KjaColors.coralDeep : KjaColors.mintDeep,
                           ),
                         ),
                       ],
@@ -117,6 +445,11 @@ class FeesPage extends StatelessWidget {
               ),
             );
           }),
+        const SizedBox(height: 8),
+        TextButton(
+          onPressed: _paying ? null : () => widget.openWeb('/account/fees'),
+          child: const Text('Open fees on the website'),
+        ),
       ],
     );
   }

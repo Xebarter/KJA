@@ -207,7 +207,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
           kicker="Billing"
           icon="fa-money-bill-wave"
           title="Payments"
-          description="Admission fees paid online when families applied. Shown for reference — they aren’t part of term balances."
+          description="Admission fees paid online when families applied. Shown for reference. They aren’t part of term balances."
           actions={actions}
         />
 
@@ -330,7 +330,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         kicker="Billing"
         icon="fa-money-bill-wave"
         title="Payments"
-        description="Every fee payment received, with its receipt. Void a payment if it was recorded in error — it stays on record."
+        description="Every fee payment received, with its receipt. Void a payment if it was recorded in error. It stays on record."
         actions={actions}
       />
 
