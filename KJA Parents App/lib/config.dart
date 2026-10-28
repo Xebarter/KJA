@@ -74,7 +74,8 @@ class AppConfig {
       _env('KJA_SITE_URL'),
       _env('NEXT_PUBLIC_SITE_URL'),
       prefs?.getString('kja_site_url'),
-      'https://kja.ug',
+      // Next.js desk (Paytota APIs). WordPress at kja.ug does not host /api/parents/*.
+      'https://kja-phi.vercel.app',
     ]);
 
     return AppConfig(url: url, anonKey: key);
@@ -87,13 +88,16 @@ class AppConfig {
   }
 
   /// API + photo host. On Flutter web at localhost, prefer local Next (`:3000`)
-  /// so new parent routes work before production deploy / without CORS to kja.ug.
+  /// so new parent routes work before a deploy.
   static String apiBase({bool? web, String? pageHost}) {
-    var base = siteUrl.trim().isEmpty ? 'https://kja.ug' : siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
+    var base = siteUrl.trim().isEmpty ? 'https://kja-phi.vercel.app' : siteUrl.trim().replaceAll(RegExp(r'/+$'), '');
     final onWeb = web ?? kIsWeb;
     final host = pageHost ?? Uri.base.host;
-    final live = RegExp(r'^https?://(www\.)?kja\.ug$', caseSensitive: false).hasMatch(base);
-    if (onWeb && live && (host == 'localhost' || host == '127.0.0.1')) {
+    final remoteNext = RegExp(
+      r'^https?://((www\.)?kja\.ug|kja-phi\.vercel\.app)$',
+      caseSensitive: false,
+    ).hasMatch(base);
+    if (onWeb && remoteNext && (host == 'localhost' || host == '127.0.0.1')) {
       return 'http://127.0.0.1:3000';
     }
     return base;

@@ -42,54 +42,83 @@ function activeFilters(filters: StudentFilters) {
   return pills;
 }
 
-const SEARCH_DELAY_MS = 180;
+const SEARCH_DELAY_MS = 250;
+
+const CLEARED: Partial<StudentFilters> = {
+  q: "",
+  status: "active",
+  section: "",
+  class: "",
+  stream: "",
+  house: "",
+  sex: "",
+  staff: false,
+  medical: false,
+  review: false,
+};
 
 export function StudentFinder({ filters, streams }: { filters: StudentFilters; streams: string[] }) {
   const router = useRouter();
   const [q, setQ] = useState(filters.q);
-  const [searching, startSearch] = useTransition();
-  // The search last sent to the server, so results arriving late don't overwrite what is being typed.
-  const sent = useRef(filters.q);
+  // Local copy so selects update immediately; the table follows once the server catches up.
+  const [draft, setDraft] = useState(filters);
+  const [pending, startTransition] = useTransition();
+  // The search last sent to the server, so late results don't overwrite what is being typed.
+  const pushed = useRef(filters.q);
+  const draftRef = useRef(draft);
+  draftRef.current = draft;
+
   useEffect(() => {
-    if (filters.q === sent.current) return;
-    sent.current = filters.q;
+    setDraft(filters);
+  }, [filters]);
+
+  useEffect(() => {
+    if (filters.q === pushed.current) return;
+    pushed.current = filters.q;
     setQ(filters.q);
   }, [filters.q]);
 
   const go = (changes: Partial<StudentFilters>) => {
-    const next = { q: q.trim(), ...changes };
-    sent.current = next.q;
-    router.push(studentFilterHref(filters, next), { scroll: false });
-  };
-
-  const search = (needle: string) => {
-    sent.current = needle;
-    startSearch(() => router.replace(studentFilterHref(filters, { q: needle }), { scroll: false }));
+    const next = { ...draftRef.current, q: q.trim(), ...changes };
+    setDraft(next);
+    pushed.current = next.q;
+    if (changes.q !== undefined) setQ(changes.q);
+    startTransition(() => {
+      router.push(studentFilterHref(next, {}), { scroll: false });
+    });
   };
 
   useEffect(() => {
     const needle = q.trim();
-    if (needle === sent.current) return;
-    const timer = window.setTimeout(() => search(needle), SEARCH_DELAY_MS);
+    if (needle === pushed.current) return;
+    const timer = window.setTimeout(() => {
+      pushed.current = needle;
+      const next = { ...draftRef.current, q: needle };
+      setDraft(next);
+      startTransition(() => {
+        router.replace(studentFilterHref(next, {}), { scroll: false });
+      });
+    }, SEARCH_DELAY_MS);
     return () => window.clearTimeout(timer);
-  }, [q]);
+  }, [q, router]);
 
-  const pills = activeFilters(filters);
+  const live = { ...draft, q: q.trim() };
+  const pills = activeFilters(live);
   const streamOptions = [...new Set([...STREAMS, ...streams])].sort();
 
   return (
-    <div className="ofc-finder">
+    <div className={`ofc-finder${pending ? " is-pending" : ""}`}>
       <div className="ofc-finder-top">
         <form
-          className={`ofc-finder-search${searching ? " is-searching" : ""}`}
+          className={`ofc-finder-search${pending ? " is-searching" : ""}`}
           role="search"
           onSubmit={(event) => {
             event.preventDefault();
-            search(q.trim());
+            go({ q: q.trim() });
           }}
         >
           <label className="visually-hidden" htmlFor="student-search">Search students</label>
-          <i className={`fa-solid ${searching ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`} aria-hidden="true" />
+          <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`} aria-hidden="true" />
           <input
             id="student-search"
             type="search"
@@ -103,19 +132,19 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
             }}
             placeholder="Start typing a name, student number, family code, parent or phone"
             autoComplete="off"
-            aria-busy={searching}
+            aria-busy={pending}
           />
           <button type="submit" className="admin-btn">Search</button>
         </form>
         <label className="ofc-finder-field is-inline">
           <span>Sort</span>
-          <select value={filters.sort} onChange={(event) => go({ sort: event.target.value as StudentFilters["sort"] })}>
+          <select value={draft.sort} onChange={(event) => go({ sort: event.target.value as StudentFilters["sort"] })}>
             {STUDENT_SORTS.map((sort) => <option key={sort.value} value={sort.value}>{sort.label}</option>)}
           </select>
         </label>
         <label className="ofc-finder-field is-inline">
           <span>Show</span>
-          <select value={filters.size} onChange={(event) => go({ size: Number(event.target.value) })}>
+          <select value={draft.size} onChange={(event) => go({ size: Number(event.target.value) })}>
             {PAGE_SIZES.map((size) => <option key={size} value={size}>{size} rows</option>)}
           </select>
         </label>
@@ -124,37 +153,37 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
       <div className="ofc-finder-grid">
         <label className="ofc-finder-field">
           <span>Status</span>
-          <select value={filters.status} onChange={(event) => go({ status: event.target.value })}>
+          <select value={draft.status} onChange={(event) => go({ status: event.target.value })}>
             {STUDENT_STATUSES.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
             <option value="all">Any status</option>
           </select>
         </label>
         <label className="ofc-finder-field">
           <span>Section</span>
-          <select value={filters.section} onChange={(event) => go({ section: event.target.value, class: "" })}>
+          <select value={draft.section} onChange={(event) => go({ section: event.target.value, class: "" })}>
             <option value="">Nursery and primary</option>
             {SECTIONS.map((section) => <option key={section.value} value={section.value}>{section.label}</option>)}
           </select>
         </label>
         <label className="ofc-finder-field">
           <span>Class</span>
-          <select value={filters.class} onChange={(event) => go({ class: event.target.value })}>
+          <select value={draft.class} onChange={(event) => go({ class: event.target.value })}>
             <option value="">Every class</option>
-            {SCHOOL_CLASSES.filter((entry) => !filters.section || entry.section === filters.section).map((entry) => (
+            {SCHOOL_CLASSES.filter((entry) => !draft.section || entry.section === draft.section).map((entry) => (
               <option key={entry.code} value={entry.code}>{entry.name} ({entry.code})</option>
             ))}
           </select>
         </label>
         <label className="ofc-finder-field">
           <span>Stream</span>
-          <select value={filters.stream} onChange={(event) => go({ stream: event.target.value })}>
+          <select value={draft.stream} onChange={(event) => go({ stream: event.target.value })}>
             <option value="">Any stream</option>
             {streamOptions.map((stream) => <option key={stream} value={stream}>Stream {stream}</option>)}
           </select>
         </label>
         <label className="ofc-finder-field">
           <span>House</span>
-          <select value={filters.house} onChange={(event) => go({ house: event.target.value })}>
+          <select value={draft.house} onChange={(event) => go({ house: event.target.value })}>
             <option value="">Any house</option>
             {HOUSES.map((house) => <option key={house} value={house}>{house}</option>)}
             <option value="none">No house</option>
@@ -162,7 +191,7 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
         </label>
         <label className="ofc-finder-field">
           <span>Sex</span>
-          <select value={filters.sex} onChange={(event) => go({ sex: event.target.value })}>
+          <select value={draft.sex} onChange={(event) => go({ sex: event.target.value })}>
             <option value="">Boys and girls</option>
             <option value="M">Boys</option>
             <option value="F">Girls</option>
@@ -176,20 +205,16 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
           <ul>
             {pills.map((pill) => (
               <li key={pill.key}>
-                <Link href={studentFilterHref(filters, pill.changes)} scroll={false} aria-label={`Remove filter ${pill.label}`}>
+                <button type="button" aria-label={`Remove filter ${pill.label}`} onClick={() => go(pill.changes)}>
                   {pill.label} <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </Link>
+                </button>
               </li>
             ))}
           </ul>
           {pills.length > 1 ? (
-            <Link
-              className="ofc-finder-clear"
-              href={studentFilterHref(filters, { q: "", status: "active", section: "", class: "", stream: "", house: "", sex: "", staff: false, medical: false, review: false })}
-              scroll={false}
-            >
+            <button type="button" className="ofc-finder-clear" onClick={() => { setQ(""); go(CLEARED); }}>
               Clear all
-            </Link>
+            </button>
           ) : null}
         </div>
       ) : null}

@@ -45,39 +45,45 @@ class HomePage extends StatelessWidget {
         ),
     ];
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
-        PageIntro(
-          eyebrow: longToday(),
+        BrandHero(
+          eyebrow: longToday().toUpperCase(),
           title: '${greeting()}, $first',
           detail: portal.children.isEmpty
-              ? 'Linked children will appear here.'
-              : '${plural(portal.children.length, 'child')} on the register.',
-        ),
-        const SizedBox(height: 14),
-        SoftCard(
-          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 10),
+              ? 'Linked children will appear here when the school office connects them.'
+              : '${plural(portal.children.length, 'child')} on the register · Kampala Junior Academy',
+          trailing: Container(
+            width: 48,
+            height: 48,
+            padding: const EdgeInsets.all(3),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.white.withValues(alpha: 0.12),
+              border: Border.all(color: KjaColors.gold.withValues(alpha: 0.4)),
+            ),
+            child: const SchoolMark(size: 42),
+          ),
           child: Row(
             children: [
-              _HeroStat(label: 'Notices', value: '${portal.unreadNotices}'),
+              _HeroMetric(label: 'Notices', value: '${portal.unreadNotices}'),
               const SizedBox(width: 8),
-              _HeroStat(label: 'Messages', value: '${portal.unreadMessages}'),
+              _HeroMetric(label: 'Messages', value: '${portal.unreadMessages}'),
               const SizedBox(width: 8),
-              _HeroStat(label: 'Fees due', value: outstanding > 0 ? moneyUgx(outstanding) : 'Clear'),
+              _HeroMetric(label: 'Fees due', value: outstanding > 0 ? moneyUgx(outstanding) : 'Clear'),
             ],
           ),
         ),
         if (attention.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
           SoftCard(
-            padding: const EdgeInsets.fromLTRB(14, 14, 10, 14),
+            padding: const EdgeInsets.fromLTRB(12, 12, 8, 12),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Padding(
                   padding: EdgeInsets.only(left: 4, bottom: 4),
-                  child: Text('Needs attention', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                  child: Text('Needs attention', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 14.5)),
                 ),
                 for (var i = 0; i < attention.length; i++) ...[
                   if (i > 0) const Divider(height: 12),
@@ -87,7 +93,7 @@ class HomePage extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: 18),
+        const SizedBox(height: 20),
         SectionTitle(title: 'Your children', action: 'See all', onAction: () => open(AppDestination.children)),
         const SizedBox(height: 10),
         if (portal.children.isEmpty)
@@ -98,7 +104,7 @@ class HomePage extends StatelessWidget {
           )
         else
           SizedBox(
-            height: 138,
+            height: 148,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: portal.children.length,
@@ -107,10 +113,10 @@ class HomePage extends StatelessWidget {
                 final child = portal.children[index];
                 return SoftCard(
                   expand: false,
-                  padding: const EdgeInsets.all(14),
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
                   onTap: () => open(AppDestination.children),
                   child: SizedBox(
-                    width: 148,
+                    width: 142,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -126,10 +132,15 @@ class HomePage extends StatelessWidget {
                           firstNameOf(child.fullName),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15, letterSpacing: -0.15),
                         ),
                         const SizedBox(height: 2),
-                        Text(child.classLabel, style: const TextStyle(color: KjaColors.soft, fontSize: 12)),
+                        Text(
+                          child.classLabel,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(color: KjaColors.soft, fontSize: 12.5, fontWeight: FontWeight.w600),
+                        ),
                       ],
                     ),
                   ),
@@ -148,6 +159,8 @@ class HomePage extends StatelessWidget {
             _QuickTile(dest: AppDestination.reports, onTap: () => open(AppDestination.reports)),
             _QuickTile(dest: AppDestination.communications, onTap: () => open(AppDestination.communications)),
             _QuickTile(dest: AppDestination.clubs, onTap: () => open(AppDestination.clubs)),
+            _QuickTile(dest: AppDestination.calendar, onTap: () => open(AppDestination.calendar)),
+            _QuickTile(dest: AppDestination.points, onTap: () => open(AppDestination.points)),
           ],
         ),
         if (nextEvent != null) ...[
@@ -158,15 +171,18 @@ class HomePage extends StatelessWidget {
             onTap: () => open(AppDestination.calendar),
             child: Row(
               children: [
-                ToneIcon(icon: Icons.event_rounded, tone: Tone.sky, size: 44, iconSize: 22),
+                ToneIcon(icon: Icons.event_rounded, tone: Tone.sky, size: 44, iconSize: 21),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(nextEvent.title, style: const TextStyle(fontWeight: FontWeight.w800)),
-                      const SizedBox(height: 2),
-                      Text(shortDate(nextEvent.startsOn, withYear: true), style: const TextStyle(color: KjaColors.soft)),
+                      Text(nextEvent.title, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                      const SizedBox(height: 3),
+                      Text(
+                        shortDate(nextEvent.startsOn, withYear: true),
+                        style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 13),
+                      ),
                     ],
                   ),
                 ),
@@ -175,30 +191,6 @@ class HomePage extends StatelessWidget {
             ),
           ),
         ],
-        const SizedBox(height: 20),
-        SoftCard(
-          onTap: () => open(AppDestination.fees),
-          child: Row(
-            children: [
-              ToneIcon(icon: Icons.payments_rounded, tone: Tone.coral, size: 44, iconSize: 22),
-              const SizedBox(width: 12),
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text('Pay school fees', style: TextStyle(fontWeight: FontWeight.w800)),
-                    SizedBox(height: 2),
-                    Text(
-                      'Pay with Mobile Money in the app.',
-                      style: TextStyle(color: KjaColors.soft, height: 1.35),
-                    ),
-                  ],
-                ),
-              ),
-              const Icon(Icons.chevron_right_rounded, color: KjaColors.mute),
-            ],
-          ),
-        ),
       ],
     );
   }
@@ -218,8 +210,8 @@ class _AttentionItem {
   final VoidCallback onTap;
 }
 
-class _HeroStat extends StatelessWidget {
-  const _HeroStat({required this.label, required this.value});
+class _HeroMetric extends StatelessWidget {
+  const _HeroMetric({required this.label, required this.value});
   final String label;
   final String value;
 
@@ -229,8 +221,9 @@ class _HeroStat extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
         decoration: BoxDecoration(
-          color: KjaColors.paper,
-          borderRadius: BorderRadius.circular(16),
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
         ),
         child: Column(
           children: [
@@ -238,10 +231,13 @@ class _HeroStat extends StatelessWidget {
               value,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(color: KjaColors.ink, fontSize: 13, fontWeight: FontWeight.w800),
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w800),
             ),
             const SizedBox(height: 2),
-            Text(label, style: const TextStyle(color: KjaColors.mute, fontSize: 11, fontWeight: FontWeight.w600)),
+            Text(
+              label,
+              style: TextStyle(color: Colors.white.withValues(alpha: 0.68), fontSize: 11, fontWeight: FontWeight.w700),
+            ),
           ],
         ),
       ),
@@ -258,14 +254,14 @@ class _ActionRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return InkWell(
       onTap: item.onTap,
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+        padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 4),
         child: Row(
           children: [
-            ToneIcon(icon: item.icon, tone: item.tone),
+            ToneIcon(icon: item.icon, tone: item.tone, size: 38, iconSize: 18),
             const SizedBox(width: 12),
-            Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700))),
+            Expanded(child: Text(item.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5))),
             const Icon(Icons.chevron_right_rounded, color: KjaColors.mute),
           ],
         ),
@@ -285,13 +281,13 @@ class _QuickTile extends StatelessWidget {
       width: (MediaQuery.sizeOf(context).width - 42) / 2,
       child: SoftCard(
         onTap: onTap,
-        padding: const EdgeInsets.fromLTRB(12, 14, 12, 14),
+        padding: const EdgeInsets.fromLTRB(12, 13, 12, 13),
         child: Row(
           children: [
-            ToneIcon(icon: dest.icon, tone: dest.tone, size: 40, iconSize: 20),
+            ToneIcon(icon: dest.icon, tone: dest.tone, size: 40, iconSize: 19),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(dest.menuLabel, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.2)),
+              child: Text(dest.menuLabel, style: const TextStyle(fontWeight: FontWeight.w800, height: 1.2, fontSize: 13.5)),
             ),
           ],
         ),

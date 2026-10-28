@@ -5,9 +5,11 @@ import { join } from "node:path";
 import { app } from "electron";
 import { NEXT_PORT, PROXY_PORT, PROXY_URL } from "../shared/ports";
 import type { DesktopEnv } from "./env";
-import { freePort, killPidTree } from "./ports-win";
+import { freePort, freePortIfNeeded, isPortInUse, killPidTree } from "./ports-win";
 
 export type NextHandle = {
+  /** True when we attached to a server that was already running. */
+  reused: boolean;
   close: () => Promise<void>;
 };
 
@@ -27,6 +29,28 @@ function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
   });
 }
 
+/** Cheap HTTP check — any status means the Next HTTP stack is up. */
+async function nextHttpAlive(timeoutMs = 800): Promise<boolean> {
+  try {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    const res = await fetch(`http://127.0.0.1:${NEXT_PORT}/`, {
+      redirect: "manual",
+      signal: ctrl.signal,
+    });
+    clearTimeout(t);
+    return res.status > 0;
+  } catch {
+    return false;
+  }
+}
+
+/** True when a previous desktop session left a usable Next host on the fixed port. */
+export async function isNextHealthy(): Promise<boolean> {
+  if (!(await portOpen(NEXT_PORT))) return false;
+  return nextHttpAlive();
+}
+
 /**
  * Wait until Next is accepting connections. Do NOT hit /admin/login here —
  * the desk BrowserWindow loads that page once (double SSR was a major boot cost).
@@ -41,19 +65,8 @@ async function waitForNextListening(timeoutMs: number, child: ChildProcess): Pro
       );
     }
     if (await portOpen(NEXT_PORT)) {
-      // One cheap HTTP probe so we know the HTTP stack (not just TCP) is up.
-      try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 1_500);
-        const res = await fetch(`http://127.0.0.1:${NEXT_PORT}/`, {
-          redirect: "manual",
-          signal: ctrl.signal,
-        });
-        clearTimeout(t);
-        if (res.status > 0) return;
-      } catch (e) {
-        lastErr = e instanceof Error ? e.message : String(e);
-      }
+      if (await nextHttpAlive(1_500)) return;
+      lastErr = "TCP up, HTTP not ready yet";
     }
     await new Promise((r) => setTimeout(r, 80));
   }
@@ -76,12 +89,37 @@ function desktopEnv(env: DesktopEnv): NodeJS.ProcessEnv {
 }
 
 export type StartNextOptions = {
-  /** Caller already freed the port — skip a second netstat pass. */
+  /** Caller already freed the port — skip a second free pass. */
   portReady?: boolean;
+  /**
+   * When true (default), leave the Next process running after Electron quits
+   * so the next click reuses it and opens almost instantly.
+   */
+  keepWarm?: boolean;
 };
 
+function warmHandle(): NextHandle {
+  return {
+    reused: true,
+    close: async () => {
+      /* Keep the desks warm for the next launch. */
+    },
+  };
+}
+
 export async function startNext(env: DesktopEnv, options: StartNextOptions = {}): Promise<NextHandle> {
+  const keepWarm = options.keepWarm !== false;
+
+  // Fast path: a prior session (or keep-warm quit) already has desks listening.
+  if (await isNextHealthy()) {
+    console.log(`[next] reusing warm server on ${NEXT_PORT}`);
+    return warmHandle();
+  }
+
   if (!options.portReady) {
+    await freePortIfNeeded(NEXT_PORT);
+  } else if (await isPortInUse(NEXT_PORT)) {
+    // Port taken but unhealthy (crash mid-boot) — clear it.
     freePort(NEXT_PORT);
   }
 
@@ -103,6 +141,8 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
       },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
+      // Survive Electron exit so relaunch skips the multi-second Next cold start.
+      detached: keepWarm,
     });
   } else {
     const npx = process.platform === "win32" ? "npx.cmd" : "npx";
@@ -119,7 +159,7 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
         stdio: ["ignore", "pipe", "pipe"],
         shell: process.platform === "win32",
         windowsHide: true,
-        detached: process.platform !== "win32",
+        detached: keepWarm || process.platform !== "win32",
       },
     );
   }
@@ -150,14 +190,30 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
     );
   }
 
+  // Drop pipes + unref so Electron can quit without taking Next with it.
+  if (keepWarm) {
+    child.stdout?.destroy();
+    child.stderr?.destroy();
+    child.unref();
+  }
+
   const running = child;
+  const ownedPid = running.pid;
   return {
+    reused: false,
     close: async () => {
+      // Keep-warm: leave Next running for the next click.
+      if (keepWarm) return;
       if (!running) return;
-      if (running.pid) killPidTree(running.pid);
+      if (ownedPid) killPidTree(ownedPid);
       freePort(NEXT_PORT);
       freePort(PROXY_PORT);
       await new Promise((r) => setTimeout(r, 150));
     },
   };
+}
+
+/** Explicitly stop a keep-warm Next host (e.g. recovery / future Quit Hosts). */
+export async function stopWarmNext() {
+  freePort(NEXT_PORT);
 }

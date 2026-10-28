@@ -5,7 +5,7 @@ import { isUuid } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
 import { createCollection, fetchCollection, paymentsConfigured, requestPinPrompt } from "@/lib/payments/gateway";
 import { displayMsisdn, networkOf, normalizeMsisdn } from "@/lib/payments/mobile";
-import { SITE_URL } from "@/lib/newsroom";
+import { paymentsCallbackUrl } from "@/lib/payments/public-url";
 
 export type FeePaymentView = {
   id: string;
@@ -43,11 +43,6 @@ type FeeCollection = {
 
 const UNAVAILABLE = "Online payment is temporarily unavailable. You can still pay by bank, mobile money or SchoolPay and the accounts office will record it.";
 const WAIT_MS = 10 * 60_000;
-
-function callbackUrl() {
-  const base = (process.env.PAYMENTS_CALLBACK_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
-  return `${base}/api/payments/callback`;
-}
 
 function viewOf(row: FeeCollection, receiptNo: string | null): FeePaymentView {
   const paid = row.status === "paid" && Boolean(row.payment_id);
@@ -302,7 +297,7 @@ export async function startSchoolFeePayment(
       name: payerName || "Parent",
       description: `School fees - ${childName} - ${termLabel}`,
       reference: row.id,
-      callbackUrl: callbackUrl(),
+      callbackUrl: paymentsCallbackUrl(),
     });
     await db.from("fee_collections").update({ provider_ref: collection.id }).eq("id", row.id);
     await requestPinPrompt(collection.id);

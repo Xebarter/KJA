@@ -98,6 +98,11 @@ export function sittingsFromPapers(papers: { name: string; kind: string; weight:
   }));
 }
 
+/** Stable key for one class + stream's report sittings. */
+export function reportSittingKey(classCode: string, stream: string) {
+  return `${classCode}|${streamOf(stream)}`;
+}
+
 /** Load the assessment sittings already set for one class and stream. */
 export async function loadReportSittings(
   supabase: SupabaseClient,
@@ -118,6 +123,34 @@ export async function loadReportSittings(
       weight: num(row.weight) ?? 1,
     })),
   );
+}
+
+/** Load every class's assessment sittings for a term in one round trip. */
+export async function loadTermReportSittings(
+  supabase: SupabaseClient,
+  termId: string,
+): Promise<Record<string, ReportSitting[]>> {
+  const { data, error } = await supabase
+    .from("assessments")
+    .select("name, kind, weight, class_code, stream")
+    .eq("term_id", termId);
+  if (error) throw new Error(error.message);
+  const papers = new Map<string, { name: string; kind: string; weight: number }[]>();
+  for (const row of (data || []) as Record<string, unknown>[]) {
+    const classCode = String(row.class_code || "");
+    if (!classCode) continue;
+    const key = reportSittingKey(classCode, String(row.stream || ""));
+    const list = papers.get(key) || [];
+    list.push({
+      name: String(row.name || "Assessment"),
+      kind: String(row.kind || ""),
+      weight: num(row.weight) ?? 1,
+    });
+    papers.set(key, list);
+  }
+  const out: Record<string, ReportSitting[]> = {};
+  for (const [key, rows] of papers) out[key] = sittingsFromPapers(rows);
+  return out;
 }
 
 function planFromSelection(papers: Assessment[], selected: { key: string; share: number }[]): PlannedSet[] {

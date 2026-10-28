@@ -45,9 +45,17 @@ class _ReportsPageState extends State<ReportsPage> {
 
     final cards = widget.portal.reports.where((c) => _filterChild == null || c.studentId == _filterChild).toList();
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
+        PageIntro(
+          tone: Tone.sun,
+          eyebrow: 'FAMILY',
+          title: 'Report cards',
+          detail: cards.isEmpty
+              ? 'Published report cards for your children appear here.'
+              : '${cards.length} published ${cards.length == 1 ? 'report' : 'reports'}.',
+        ),
+        const SizedBox(height: 12),
         if (widget.portal.children.length > 1)
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -74,7 +82,7 @@ class _ReportsPageState extends State<ReportsPage> {
           ),
         const SizedBox(height: 12),
         if (cards.isEmpty)
-          const EmptyNote(icon: Icons.description_rounded, message: 'No published reports yet.')
+          const EmptyNote(icon: Icons.description_rounded, title: 'No reports yet', message: 'No published reports yet.')
         else
           ...cards.map((card) {
             return Padding(
@@ -89,14 +97,20 @@ class _ReportsPageState extends State<ReportsPage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(card.pupilName, style: const TextStyle(fontWeight: FontWeight.w900)),
-                          Text('${card.term} · ${card.classLabel}', style: const TextStyle(color: KjaColors.soft)),
-                          if (card.publishedAt != null)
-                            Text('Published ${shortDate(card.publishedAt, withYear: true)}', style: const TextStyle(color: KjaColors.mute, fontSize: 12)),
+                          Text(card.pupilName, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+                          const SizedBox(height: 3),
+                          Text('${card.term} · ${card.classLabel}', style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 13.5)),
+                          if (card.publishedAt != null) ...[
+                            const SizedBox(height: 4),
+                            Text(
+                              'Published ${shortDate(card.publishedAt, withYear: true)}',
+                              style: const TextStyle(color: KjaColors.mute, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                          ],
                         ],
                       ),
                     ),
-                    const Icon(Icons.chevron_right_rounded),
+                    const Icon(Icons.chevron_right_rounded, color: KjaColors.mute),
                   ],
                 ),
               ),
@@ -115,8 +129,8 @@ class _ReportDetailView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final card = detail.card;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+    return PortalScroll(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 32),
       children: [
         Align(
           alignment: Alignment.centerLeft,
@@ -126,8 +140,9 @@ class _ReportDetailView extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(card.pupilName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w900)),
-              Text('${card.term} · ${card.classLabel}', style: const TextStyle(color: KjaColors.soft)),
+              Text(card.pupilName, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              const SizedBox(height: 4),
+              Text('${card.term} · ${card.classLabel}', style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600)),
             ],
           ),
         ),
@@ -144,12 +159,12 @@ class _ReportDetailView extends StatelessWidget {
                   children: [
                     Row(
                       children: [
-                        Expanded(child: Text(line.subject, style: const TextStyle(fontWeight: FontWeight.w900))),
+                        Expanded(child: Text(line.subject, style: const TextStyle(fontWeight: FontWeight.w800))),
                         if ((line.grade ?? '').isNotEmpty)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                             decoration: BoxDecoration(color: KjaColors.sunWash, borderRadius: BorderRadius.circular(99)),
-                            child: Text(line.grade!, style: const TextStyle(fontWeight: FontWeight.w900)),
+                            child: Text(line.grade!, style: const TextStyle(fontWeight: FontWeight.w800)),
                           ),
                       ],
                     ),

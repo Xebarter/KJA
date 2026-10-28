@@ -37,6 +37,7 @@ export function InterventionsWorkbench({
     terms: TermChoice[];
     rows: PointRow[];
     save: VoidSave;
+    loadError?: string | null;
   } | null;
 }) {
   const [view, setView] = useState<View>(initialView);
@@ -109,6 +110,7 @@ export function InterventionsWorkbench({
             terms={points.terms}
             rows={points.rows}
             save={points.save}
+            loadError={points.loadError}
           />
         </div>
       ) : null}

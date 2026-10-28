@@ -84,6 +84,21 @@ class TeacherController extends ChangeNotifier {
         await _start(config.url, config.anonKey);
         if (_supabaseReady &&
             Supabase.instance.client.auth.currentSession != null) {
+          // Open the last saved desk immediately; refresh in the background.
+          final userId = _authUserId;
+          if (userId != null) {
+            final cached = await _store.loadDesk(userId);
+            if (cached != null && !cached.unavailable) {
+              snapshot = await _mergeDrafts(cached);
+              offline = false;
+              await _loadCachedPhotos(snapshot!);
+              await _updateStatusBanner();
+              booting = false;
+              notifyListeners();
+              unawaited(_refreshInBackground());
+              return;
+            }
+          }
           final error = await _load();
           if (error != null) banner = error;
           unawaited(flushOutbox());
@@ -92,8 +107,21 @@ class TeacherController extends ChangeNotifier {
     } catch (_) {
       banner ??= 'Could not finish starting the app.';
     } finally {
-      booting = false;
+      if (booting) {
+        booting = false;
+        notifyListeners();
+      }
+    }
+  }
+
+  Future<void> _refreshInBackground() async {
+    try {
+      final error = await _load();
+      if (error != null && snapshot == null) banner = error;
       notifyListeners();
+      unawaited(flushOutbox());
+    } catch (_) {
+      // Keep the cached desk; a later pull-to-refresh can retry.
     }
   }
 
@@ -1075,11 +1103,38 @@ class TeacherController extends ChangeNotifier {
   }
 
   Future<void> _cachePhotos(TeacherSnapshot desk) async {
-    final urls = <String, String>{};
-    if ((desk.staff.photoUrl ?? '').startsWith('http')) {
-      urls[desk.staff.id] = desk.staff.photoUrl!;
+    // Sign paths in the background so cold load is not blocked on storage.
+    Map<String, String> signed = const {};
+    try {
+      signed = await _repository.signStudentPhotos(desk.pupils);
+    } catch (_) {}
+    var working = desk;
+    if (signed.isNotEmpty) {
+      working = desk.copyWith(
+        pupils: [
+          for (final pupil in desk.pupils)
+            Pupil(
+              id: pupil.id,
+              fullName: pupil.fullName,
+              classCode: pupil.classCode,
+              stream: pupil.stream,
+              studentNumber: pupil.studentNumber,
+              profileId: pupil.profileId,
+              photoPath: pupil.photoPath,
+              photoUrl: signed[pupil.id] ?? pupil.photoUrl,
+            ),
+        ],
+      );
+      if (snapshot?.staff.id == desk.staff.id) {
+        snapshot = working;
+      }
     }
-    for (final pupil in desk.pupils) {
+
+    final urls = <String, String>{};
+    if ((working.staff.photoUrl ?? '').startsWith('http')) {
+      urls[working.staff.id] = working.staff.photoUrl!;
+    }
+    for (final pupil in working.pupils) {
       final url = pupil.photoUrl?.trim() ?? '';
       if (url.startsWith('http')) urls[pupil.id] = url;
     }
@@ -1096,7 +1151,7 @@ class TeacherController extends ChangeNotifier {
         }
       } catch (_) {}
     }
-    if (added) notifyListeners();
+    if (added || signed.isNotEmpty) notifyListeners();
   }
 
   Future<void> _loadCachedPhotos(TeacherSnapshot desk) async {

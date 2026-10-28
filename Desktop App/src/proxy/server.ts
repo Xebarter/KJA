@@ -595,10 +595,9 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         const fresh = cached && Date.now() - cached.fetched_at < CACHE_FRESH_MS;
 
         if (cached) {
-          reply(cached.status, cached.body, {
-            "content-type":
-              (JSON.parse(cached.headers || "{}") as Record<string, string>)["content-type"] ||
-              "application/json",
+          const replay = replayCacheHeaders(cached.headers, cached.status);
+          reply(replay.status, cached.body, {
+            ...replay.headers,
             "x-kja-cache": fresh ? "fresh" : "stale",
           });
 
@@ -804,6 +803,25 @@ function isLoopback(addr: string): boolean {
     addr === "::ffff:127.0.0.1" ||
     addr.endsWith("127.0.0.1")
   );
+}
+
+/** Replay stored REST headers. A 206 without Content-Range makes fetch throw and the awards query fails. */
+function replayCacheHeaders(raw: string | null, status: number): { status: number; headers: Record<string, string> } {
+  let stored: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(raw || "{}") as Record<string, string>;
+    if (parsed && typeof parsed === "object") stored = parsed;
+  } catch {
+    stored = {};
+  }
+  const headers: Record<string, string> = {
+    "content-type": stored["content-type"] || "application/json",
+  };
+  if (stored["content-range"]) headers["content-range"] = stored["content-range"];
+  if (stored["preference-applied"]) headers["preference-applied"] = stored["preference-applied"];
+  if (stored["x-supabase-api-version"]) headers["x-supabase-api-version"] = stored["x-supabase-api-version"];
+  const partial = status === 206 && !headers["content-range"];
+  return { status: partial ? 200 : status, headers };
 }
 
 function pickResponseHeaders(headers: Record<string, string>): Record<string, string> {

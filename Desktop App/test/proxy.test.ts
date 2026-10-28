@@ -137,6 +137,13 @@ describe("startProxy integration", () => {
         res.end(JSON.stringify([{ id: "2", name: "New" }]));
         return;
       }
+      if (url.startsWith("/rest/v1/point_awards") && req.method === "GET") {
+        const headers: Record<string, string> = { "content-type": "application/json" };
+        if (!url.includes("missing-range=1")) headers["content-range"] = "0-0/1";
+        res.writeHead(206, headers);
+        res.end(JSON.stringify([{ id: "a1", points: 2 }]));
+        return;
+      }
       res.writeHead(404);
       res.end("no");
     });
@@ -240,5 +247,34 @@ describe("startProxy integration", () => {
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("access-control-allow-origin")).toBe("http://localhost:47322");
     expect(preflight.headers.get("access-control-allow-credentials")).toBe("true");
+  });
+
+  it("replays Content-Range on a cached 206 so the awards query can be read", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "awards.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    const token = makeJwt("user-a");
+    const headers = { apikey: "anon", Authorization: `Bearer ${token}` };
+
+    const first = await fetch(`${base}/rest/v1/point_awards?term_id=eq.1`, { headers });
+    expect(first.status).toBe(206);
+    expect(first.headers.get("content-range")).toBe("0-0/1");
+
+    const second = await fetch(`${base}/rest/v1/point_awards?term_id=eq.1`, { headers });
+    expect(second.status).toBe(206);
+    expect(second.headers.get("content-range")).toBe("0-0/1");
+    expect(second.headers.get("x-kja-cache")).toBe("fresh");
+    expect(await second.json()).toEqual([{ id: "a1", points: 2 }]);
+
+    const bare = await fetch(`${base}/rest/v1/point_awards?missing-range=1`, { headers });
+    expect(bare.status).toBe(206);
+    const replay = await fetch(`${base}/rest/v1/point_awards?missing-range=1`, { headers });
+    expect(replay.status).toBe(200);
+    expect(replay.headers.get("content-range")).toBeNull();
+    expect(await replay.json()).toEqual([{ id: "a1", points: 2 }]);
   });
 });

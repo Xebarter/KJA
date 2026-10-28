@@ -33,6 +33,20 @@ flutter run -d chrome --dart-define-from-file=.env
 flutter build apk --dart-define-from-file=.env
 ```
 
+## Android release APK
+
+1. Keep a filled `.env` in this folder (bundled as an asset). Use production `KJA_SITE_URL=https://kja.ug`.
+2. Optional production signing: copy `android/key.properties.example` → `android/key.properties`, point `storeFile` at your `.jks`, then rebuild. Without it, the release APK is signed with the debug key (fine for sideload tests).
+3. Build:
+
+```bash
+cd "KJA Pupils App"
+flutter pub get
+flutter build apk --release
+```
+
+APK path: `build/app/outputs/flutter-apk/app-release.apk`.
+
 “Look around with a sample pupil” opens example data without contacting the school.
 
 ## What it uses

@@ -22,17 +22,25 @@ export function StudentLoginPanel({
   const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
 
   return (
-    <div className="ofc-student-login">
+    <div className="ofc-portal">
       {hasLogin && !issued ? (
-        <>
-          <p>
-            Student portal is <strong>on</strong>
-            {loginEmail ? <> for <span className="ofc-num">{loginEmail}</span></> : null}.
-            Classmate messaging is available in their portal.
-          </p>
+        <div className="ofc-portal-active">
+          <div className="ofc-portal-status">
+            <span className="ofc-portal-pill is-on">
+              <i className="fa-solid fa-check" aria-hidden="true" />
+              Portal on
+            </span>
+            <p>Homework, timetable and classmate messaging are available.</p>
+          </div>
+          {loginEmail ? (
+            <div className="ofc-portal-email">
+              <span>Login</span>
+              <code className="ofc-num">{loginEmail}</code>
+            </div>
+          ) : null}
           <button
             type="button"
-            className="admin-btn admin-btn-ghost"
+            className="ofc-portal-btn is-ghost"
             disabled={pending}
             onClick={() => {
               if (!confirm(`Revoke the portal login for ${studentName}?`)) return;
@@ -48,22 +56,35 @@ export function StudentLoginPanel({
               });
             }}
           >
-            <i className="fa-solid fa-user-slash" aria-hidden="true" /> {pending ? "Working…" : "Revoke login"}
+            <i className="fa-solid fa-user-slash" aria-hidden="true" />
+            {pending ? "Working…" : "Revoke login"}
           </button>
-        </>
+        </div>
       ) : issued ? (
-        <div className="ofc-banner is-ok" style={{ margin: 0 }}>
-          <i className="fa-solid fa-key" aria-hidden="true" />
-          <div>
-            <p><strong>Share these details once</strong>. The password is not stored here.</p>
-            <p>Email: <code>{issued.email}</code></p>
-            <p>Temporary password: <code>{issued.password}</code></p>
-            <p>They should sign in at the school website and change the password.</p>
-          </div>
+        <div className="ofc-portal-issued" role="status">
+          <header>
+            <span className="ofc-portal-issued-icon" aria-hidden="true">
+              <i className="fa-solid fa-key" />
+            </span>
+            <div>
+              <strong>Share these details once</strong>
+              <p>The password is not stored here. They should sign in on the school website and change it.</p>
+            </div>
+          </header>
+          <dl className="ofc-portal-creds">
+            <div>
+              <dt>Email</dt>
+              <dd><code>{issued.email}</code></dd>
+            </div>
+            <div>
+              <dt>Temporary password</dt>
+              <dd><code>{issued.password}</code></dd>
+            </div>
+          </dl>
         </div>
       ) : (
         <form
-          className="ofc-student-login-form"
+          className="ofc-portal-form"
           onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -83,18 +104,22 @@ export function StudentLoginPanel({
             });
           }}
         >
-          <p>Create a student portal account so they can see homework, timetable, and message classmates.</p>
-          <label className="ofc-field">
-            Login email
+          <div className="ofc-portal-status">
+            <span className="ofc-portal-pill is-off">No login</span>
+            <p>Create access so they can see homework, timetable and message classmates.</p>
+          </div>
+          <label className="ofc-portal-field">
+            <span>Login email</span>
             <input name="email" type="email" required placeholder="student@example.com" autoComplete="off" />
           </label>
-          <button className="admin-btn" type="submit" disabled={pending}>
-            <i className="fa-solid fa-user-plus" aria-hidden="true" /> {pending ? "Creating…" : "Issue login"}
+          <button className="ofc-portal-btn is-primary" type="submit" disabled={pending}>
+            <i className="fa-solid fa-user-plus" aria-hidden="true" />
+            {pending ? "Creating…" : "Issue login"}
           </button>
         </form>
       )}
-      {error ? <p className="ofc-form-error">{error}</p> : null}
-      {ok && !issued ? <p className="ofc-form-ok">{ok}</p> : null}
+      {error ? <p className="ofc-portal-msg is-error">{error}</p> : null}
+      {ok && !issued ? <p className="ofc-portal-msg is-ok">{ok}</p> : null}
     </div>
   );
 }

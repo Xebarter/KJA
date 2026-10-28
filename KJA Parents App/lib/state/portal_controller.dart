@@ -5,13 +5,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
 import '../data/portal_repository.dart';
+import '../data/portal_store.dart';
 import '../data/sample_portal.dart';
 import '../models.dart';
 
 class PortalController extends ChangeNotifier {
-  PortalController({PortalRepository? repository}) : _repository = repository ?? PortalRepository();
+  PortalController({PortalRepository? repository, PortalStore? store})
+      : _repository = repository ?? PortalRepository(),
+        _store = store ?? PortalStore();
 
   final PortalRepository _repository;
+  final PortalStore _store;
   StreamSubscription<AuthState>? _authSub;
 
   bool booting = true;
@@ -56,16 +60,37 @@ class PortalController extends ChangeNotifier {
       configured = config.isReady;
       if (configured) {
         await _start(config.url, config.anonKey);
-        if (_supabaseReady && Supabase.instance.client.auth.currentSession != null) {
+        final userId = _supabaseReady ? Supabase.instance.client.auth.currentUser?.id : null;
+        if (userId != null) {
+          // Reopen from the last saved portal so splash is not blocked on the network.
+          final cached = await _store.loadPortal(userId);
+          if (cached != null && !cached.unavailable) {
+            snapshot = cached;
+            preview = false;
+            booting = false;
+            notifyListeners();
+            unawaited(_refreshInBackground());
+            return;
+          }
           await _load(quiet: true);
         }
       }
     } catch (_) {
       banner ??= 'Could not finish starting the app.';
     } finally {
-      booting = false;
-      notifyListeners();
+      if (booting) {
+        booting = false;
+        notifyListeners();
+      }
     }
+  }
+
+  Future<void> _refreshInBackground() async {
+    refreshing = true;
+    notifyListeners();
+    await _load(quiet: false);
+    refreshing = false;
+    notifyListeners();
   }
 
   Future<String?> saveConnection(String url, String anonKey) async {
@@ -134,6 +159,7 @@ class PortalController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final userId = _supabaseReady ? Supabase.instance.client.auth.currentUser?.id : null;
     preview = false;
     snapshot = null;
     banner = null;
@@ -142,6 +168,9 @@ class PortalController extends ChangeNotifier {
       try {
         await Supabase.instance.client.auth.signOut();
       } catch (_) {}
+    }
+    if (userId != null) {
+      unawaited(_store.clearPortal(userId));
     }
     notifyListeners();
   }
@@ -472,6 +501,10 @@ class PortalController extends ChangeNotifier {
       snapshot = next;
       preview = false;
       banner = null;
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId != null) {
+        unawaited(_store.savePortal(userId, next));
+      }
       if (!quiet) notifyListeners();
       return null;
     } on PortalException catch (error) {
@@ -485,12 +518,13 @@ class PortalController extends ChangeNotifier {
           await Supabase.instance.client.auth.signOut();
         } catch (_) {}
       }
-      banner = error.message;
+      // Keep a cached shell when refresh fails; only surface the banner.
+      if (snapshot == null) banner = error.message;
       if (!quiet) notifyListeners();
       return error.message;
     } catch (_) {
       const message = 'Could not load your family record.';
-      banner = message;
+      if (snapshot == null) banner = message;
       if (!quiet) notifyListeners();
       return message;
     }

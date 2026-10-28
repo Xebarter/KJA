@@ -73,15 +73,25 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
+        BrandHero(
+          eyebrow: 'ACCOUNT',
+          title: 'My details',
+          detail: widget.portal.email,
+          trailing: PupilFace(
+            name: _name.text.isEmpty ? widget.portal.displayName : _name.text,
+            radius: 24,
+            color: KjaColors.sky,
+          ),
+        ),
+        const SizedBox(height: 14),
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(widget.portal.email, style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 14),
+              const Text('Profile', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
+              const SizedBox(height: 12),
               TextField(controller: _name, decoration: const InputDecoration(labelText: 'Full name')),
               const SizedBox(height: 10),
               TextField(
@@ -100,38 +110,41 @@ class _ProfilePageState extends State<ProfilePage> {
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 12),
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Password', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-              const SizedBox(height: 10),
+              const Text('Password', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
+              const SizedBox(height: 12),
               TextField(controller: _password, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
               const SizedBox(height: 10),
               TextField(controller: _confirm, obscureText: true, decoration: const InputDecoration(labelText: 'Confirm password')),
-              const SizedBox(height: 14),
-              OutlinedButton(
-                onPressed: _pwdBusy ? null : _changePassword,
-                child: Text(_pwdBusy ? 'Updating…' : 'Update password'),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: _pwdBusy ? null : _changePassword,
+                  child: Text(_pwdBusy ? 'Updating…' : 'Update password'),
+                ),
               ),
             ],
           ),
         ),
         if (widget.portal.children.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           SoftCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Linked children', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 8),
+                const Text('Linked children', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
+                const SizedBox(height: 6),
                 ...widget.portal.children.map(
                   (child) => ListTile(
                     contentPadding: EdgeInsets.zero,
                     leading: PupilFace(name: child.fullName, studentId: child.id, photoUrl: child.photoUrl, radius: 20),
                     title: Text(child.fullName, style: const TextStyle(fontWeight: FontWeight.w800)),
-                    subtitle: Text(child.classLabel),
+                    subtitle: Text(child.classLabel, style: const TextStyle(fontWeight: FontWeight.w600)),
                   ),
                 ),
               ],

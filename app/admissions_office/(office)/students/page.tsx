@@ -8,6 +8,7 @@ import { OFFICE, className, parseStudentFilters, studentFilterHref, studentStatu
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Students" };
+export const dynamic = "force-dynamic";
 
 const COLUMNS = "id, student_number, full_name, preferred_name, sex, age, date_of_birth, class_code, stream, house, campus, status, staff_child, medical_notes, needs_review, family_id, family_code, father_name, father_phone, mother_name, mother_phone, siblings";
 
@@ -30,8 +31,9 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   const filters = parseStudentFilters(await searchParams);
   const from = (filters.page - 1) * filters.size;
 
-  // The summary tiles break down the current scope, ignoring the quick filters they toggle.
-  const scopeOnly: StudentFilters = { ...filters, sex: "", staff: false, medical: false, review: false };
+  // Summary tiles break down the current class/status scope. They ignore the search box and the
+  // quick filters they toggle, so typing in the finder does not re-count every tile.
+  const scopeOnly: StudentFilters = { ...filters, q: "", sex: "", staff: false, medical: false, review: false };
   const tally = (changes: Partial<StudentFilters>) =>
     studentsQuery(supabase, { ...scopeOnly, ...changes }, "id", { count: "exact", head: true });
 

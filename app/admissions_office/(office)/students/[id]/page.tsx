@@ -398,7 +398,7 @@ export default async function StudentPage({
               </div>
 
               <aside className="app-detail-side">
-                <Card title="Student portal" icon="fa-laptop">
+                <Card title="Student portal" icon="fa-laptop-code">
                   <StudentLoginPanel
                     studentId={id}
                     studentName={student.full_name}
@@ -432,9 +432,9 @@ export default async function StudentPage({
 
                 <Card
                   title="Notes"
-                  icon="fa-comment"
+                  icon="fa-pen-to-square"
                   count={noteCount}
-                  footer={activity.length > 5 ? <TabLink tab="timeline" className="ofc-card-foot-link">See the full timeline <i className="fa-solid fa-arrow-right" aria-hidden="true" /></TabLink> : null}
+                  footer={activity.length > 5 ? <TabLink tab="timeline" className="ofc-card-foot-link">Full timeline <i className="fa-solid fa-arrow-right" aria-hidden="true" /></TabLink> : null}
                 >
                   <StudentNoteForm id={id} />
                   {activity.length ? timeline(activity.slice(0, 5)) : null}

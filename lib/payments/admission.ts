@@ -3,10 +3,10 @@ import { revalidatePath } from "next/cache";
 import { notifyAdmissionApplication } from "@/lib/admin-alerts";
 import { getContent } from "@/lib/content";
 import { composeFees } from "@/lib/info-pages";
-import { SITE_URL } from "@/lib/newsroom";
 import { serviceClient } from "@/lib/supabase/service";
 import { createCollection, fetchCollection, paymentsConfigured, requestPinPrompt } from "@/lib/payments/gateway";
 import { displayMsisdn, networkOf, normalizeMsisdn } from "@/lib/payments/mobile";
+import { paymentsCallbackUrl } from "@/lib/payments/public-url";
 
 export type ApplicationDraft = {
   user_id: string | null;
@@ -96,11 +96,6 @@ export function tokenMatches(expected: string, given: string | null | undefined)
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-function callbackUrl() {
-  const base = (process.env.PAYMENTS_CALLBACK_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
-  return `${base}/api/payments/callback`;
-}
-
 function receiptNumber(row: PaymentRow, paidAt: string) {
   const date = new Date(paidAt);
   const stamp = `${date.getUTCFullYear()}${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
@@ -153,7 +148,7 @@ export async function startAdmissionPayment(draft: ApplicationDraft, payerPhone:
       name: draft.parent_name,
       description: `Admission fee - ${fee.campus} campus`,
       reference: row.id,
-      callbackUrl: callbackUrl(),
+      callbackUrl: paymentsCallbackUrl(),
     });
     await db.from("admission_payments").update({ provider_ref: collection.id }).eq("id", row.id);
     await requestPinPrompt(collection.id);

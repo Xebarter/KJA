@@ -6,7 +6,7 @@ import { isUuid } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
 import { createCollection, fetchCollection, paymentsConfigured, requestPinPrompt } from "@/lib/payments/gateway";
 import { displayMsisdn, networkOf, normalizeMsisdn } from "@/lib/payments/mobile";
-import { SITE_URL } from "@/lib/newsroom";
+import { paymentsCallbackUrl } from "@/lib/payments/public-url";
 
 export type ClubPaymentLine = {
   id: string;
@@ -76,11 +76,6 @@ type ClubLedgerLine = {
 
 const UNAVAILABLE = "Online payment is temporarily unavailable. You can still pay at the accounts office, and they will record it.";
 const WAIT_MS = 10 * 60_000;
-
-function callbackUrl() {
-  const base = (process.env.PAYMENTS_CALLBACK_BASE_URL || process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
-  return `${base}/api/payments/callback`;
-}
 
 function basketTitle(titles: string[]) {
   if (titles.length <= 1) return titles[0] || "Club";
@@ -562,7 +557,7 @@ export async function startClubPayment(
       name: payerName || "Parent",
       description: `Club fee - ${clubTitle} - ${childName} - ${termLabel}`.slice(0, 180),
       reference: row.id,
-      callbackUrl: callbackUrl(),
+      callbackUrl: paymentsCallbackUrl(),
     });
     await db.from("club_collections").update({ provider_ref: collection.id }).eq("id", row.id);
     await requestPinPrompt(collection.id);

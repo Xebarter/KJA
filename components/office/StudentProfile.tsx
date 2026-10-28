@@ -115,7 +115,7 @@ export function StudentNoteForm({ id }: { id: string }) {
   const fieldId = useId();
   return (
     <form
-      className="app-note-form"
+      className="ofc-note-form"
       onSubmit={(event) => {
         event.preventDefault();
         const data = new FormData(event.currentTarget);
@@ -123,18 +123,24 @@ export function StudentNoteForm({ id }: { id: string }) {
       }}
     >
       <input type="hidden" name="id" value={id} />
-      <label className="visually-hidden" htmlFor={fieldId}>Add a note</label>
-      <textarea
-        id={fieldId}
-        name="body"
-        value={body}
-        onChange={(event) => setBody(event.target.value)}
-        placeholder="Add a note for the office: a phone call, a meeting, a document received…"
-        maxLength={4000}
-      />
-      <div className="app-note-actions">
-        <small>Only office staff can see notes.</small>
-        <button type="submit" className="admin-btn" disabled={pending || !body.trim()}>{pending ? "Saving…" : "Add note"}</button>
+      <label className="ofc-note-field" htmlFor={fieldId}>
+        <span>Office note</span>
+        <textarea
+          id={fieldId}
+          name="body"
+          value={body}
+          onChange={(event) => setBody(event.target.value)}
+          placeholder="Phone call, meeting, document received…"
+          maxLength={4000}
+          rows={3}
+        />
+      </label>
+      <div className="ofc-note-actions">
+        <small>Visible only to office staff</small>
+        <button type="submit" className="ofc-portal-btn is-primary" disabled={pending || !body.trim()}>
+          <i className="fa-solid fa-plus" aria-hidden="true" />
+          {pending ? "Saving…" : "Add note"}
+        </button>
       </div>
       <Feedback result={result} />
     </form>

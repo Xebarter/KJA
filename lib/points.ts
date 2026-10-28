@@ -253,13 +253,19 @@ export async function loadPointReasons(supabase: SupabaseClient) {
 }
 
 export async function loadTermAwards(supabase: SupabaseClient, termId: string) {
+  const page = (from: number, to: number) =>
+    supabase.from("point_awards").select(AWARD_COLUMNS).eq("term_id", termId).order("id").range(from, to);
   try {
-    const rows = await fetchAll<AwardRow>((from, to) =>
-      supabase.from("point_awards").select(AWARD_COLUMNS).eq("term_id", termId).order("id").range(from, to),
-    );
+    const rows = await fetchAll<AwardRow>(page);
     return { awards: rows.map(mapPointAward), error: null as string | null };
   } catch (error) {
-    return { awards: [] as PointAward[], error: error instanceof Error ? error.message : "Could not load points." };
+    const message = error instanceof Error ? error.message : "Could not load points.";
+    if (schemaMissing(message)) return { awards: [] as PointAward[], error: message };
+    const again = await supabase.from("point_awards").select(AWARD_COLUMNS).eq("term_id", termId).order("id").limit(1000);
+    if (!again.error && again.data) {
+      return { awards: (again.data as AwardRow[]).map(mapPointAward), error: null as string | null };
+    }
+    return { awards: [] as PointAward[], error: again.error?.message || message };
   }
 }
 
@@ -291,6 +297,8 @@ export function parseAwardEntries(value: unknown): AwardEntry[] | null {
   return entries;
 }
 
+/** True only when the points tables or RPCs are missing. A URL or permission error that mentions the table is not this. */
 export function schemaMissing(message: string | null | undefined) {
-  return Boolean(message && /point_awards|point_reasons|award_pupil_points|void_pupil_points|schema cache|does not exist/i.test(message));
+  if (!message) return false;
+  return /PGRST205|schema cache|could not find the (?:table|function) [^\n]*(?:point_awards|point_reasons|award_pupil_points|void_pupil_points)|relation [^\n]*(?:point_awards|point_reasons)[^\n]*does not exist|(?:function|column) [^\n]*(?:award_pupil_points|void_pupil_points|point_awards|point_reasons)[^\n]*does not exist/i.test(message);
 }

@@ -1,4 +1,24 @@
 import { execFileSync, spawnSync } from "node:child_process";
+import { createConnection } from "node:net";
+
+/**
+ * Fast TCP probe — avoids Windows `netstat` on the common cold-start path
+ * where the desktop ports are already free.
+ */
+export function isPortInUse(port: number, host = "127.0.0.1"): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = createConnection({ port, host });
+    const done = (used: boolean) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(used);
+    };
+    socket.setTimeout(250);
+    socket.once("connect", () => done(true));
+    socket.once("timeout", () => done(false));
+    socket.once("error", () => done(false));
+  });
+}
 
 /** PIDs listening on a TCP port (Windows). */
 export function pidsOnPort(port: number): number[] {
@@ -68,25 +88,30 @@ export function freePort(port: number) {
   }
 }
 
+/** Only run netstat/kill when a TCP probe says the port is taken. */
+export async function freePortIfNeeded(port: number) {
+  if (!(await isPortInUse(port))) return;
+  freePort(port);
+}
+
 /**
  * Free the port if needed, then return as soon as nothing is listening.
  * Avoids repeated netstat when the port is already free (common cold start).
  */
 export async function waitPortFree(port: number, timeoutMs = 4_000) {
-  const occupied = pidsOnPort(port);
-  if (occupied.length === 0) return;
+  if (!(await isPortInUse(port))) return;
 
   freePort(port);
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
-    if (pidsOnPort(port).length === 0) return;
+    if (!(await isPortInUse(port))) return;
     await new Promise((r) => setTimeout(r, 120));
     freePort(port);
   }
-  const left = pidsOnPort(port);
-  if (left.length) {
+  if (await isPortInUse(port)) {
+    const left = pidsOnPort(port);
     throw new Error(
-      `Port ${port} is still in use (pid ${left.join(", ")}). Close that process and try again.`,
+      `Port ${port} is still in use (pid ${left.join(", ") || "unknown"}). Close that process and try again.`,
     );
   }
 }

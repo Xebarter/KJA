@@ -13,7 +13,7 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
-  late final AnimationController _enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 720))
+  late final AnimationController _enter = AnimationController(vsync: this, duration: const Duration(milliseconds: 280))
     ..forward();
 
   @override
@@ -26,13 +26,13 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
   Widget build(BuildContext context) {
     final curve = CurvedAnimation(parent: _enter, curve: Curves.easeOutCubic);
     return Scaffold(
-      backgroundColor: KjaColors.pageTop,
+      backgroundColor: KjaColors.navyDeep,
       body: DecoratedBox(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [KjaColors.pageTop, KjaColors.pageMid, KjaColors.pageBottom],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [KjaColors.navyDeep, KjaColors.navy, Color(0xFF1E5A8A)],
           ),
         ),
         child: Center(
@@ -45,27 +45,27 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _SplashMark(),
-                  SizedBox(height: 18),
+                  SizedBox(height: 20),
                   Text(
                     'KJA Parents',
                     style: TextStyle(
-                      color: KjaColors.ink,
-                      fontSize: 26,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.4,
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.45,
                       height: 1,
                     ),
                   ),
-                  SizedBox(height: 6),
+                  SizedBox(height: 8),
                   Text(
                     'Kampala Junior Academy',
-                    style: TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 14, height: 1.2),
+                    style: TextStyle(color: Color(0xFFFDA31B), fontWeight: FontWeight.w700, fontSize: 14.5, height: 1.2),
                   ),
-                  SizedBox(height: 28),
+                  SizedBox(height: 30),
                   SizedBox(
                     width: 22,
                     height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: KjaColors.navy),
+                    child: CircularProgressIndicator(strokeWidth: 2.2, color: KjaColors.gold),
                   ),
                 ],
               ),
@@ -83,17 +83,18 @@ class _SplashMark extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 88,
-      height: 88,
+      width: 96,
+      height: 96,
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: Colors.white,
+        border: Border.all(color: KjaColors.gold.withValues(alpha: 0.55), width: 2),
         boxShadow: [
-          BoxShadow(color: KjaColors.navy.withValues(alpha: 0.08), blurRadius: 16, offset: const Offset(0, 6)),
+          BoxShadow(color: Colors.black.withValues(alpha: 0.22), blurRadius: 24, offset: const Offset(0, 10)),
         ],
       ),
       padding: const EdgeInsets.all(5),
-      child: const SchoolMark(size: 78),
+      child: const SchoolMark(size: 86),
     );
   }
 }
@@ -327,10 +328,15 @@ class GateBackdrop extends StatelessWidget {
     return DecoratedBox(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFFFF8EF), Color(0xFFE8F8F0), Color(0xFFE8F4FF), Color(0xFFFFF1F0)],
-          stops: [0, 0.35, 0.7, 1],
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            Color(0xFF0C243C),
+            Color(0xFF163A5F),
+            Color(0xFF1E4D7B),
+            Color(0xFFF4F7FB),
+          ],
+          stops: [0, 0.28, 0.48, 0.72],
         ),
       ),
       child: child,
@@ -365,36 +371,58 @@ class GateScaffold extends StatelessWidget {
                 children: [
                   Column(
                     children: [
-                      const SchoolMark(size: 128),
-                      const SizedBox(height: 18),
+                      Container(
+                        width: 118,
+                        height: 118,
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: Colors.white,
+                          border: Border.all(color: KjaColors.gold.withValues(alpha: 0.55), width: 2),
+                          boxShadow: [
+                            BoxShadow(color: Colors.black.withValues(alpha: 0.18), blurRadius: 28, offset: const Offset(0, 12)),
+                          ],
+                        ),
+                        child: const SchoolMark(size: 106),
+                      ),
+                      const SizedBox(height: 20),
                       Text(
                         title,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 32, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: KjaColors.ink),
+                        style: const TextStyle(
+                          fontSize: 32,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: -0.55,
+                          color: Colors.white,
+                        ),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         subtitle,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: KjaColors.navy),
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: KjaColors.gold.withValues(alpha: 0.95),
+                        ),
                       ),
-                      const SizedBox(height: 6),
+                      const SizedBox(height: 8),
                       Text(
                         support,
                         textAlign: TextAlign.center,
-                        style: const TextStyle(color: KjaColors.soft, height: 1.4, fontSize: 14),
+                        style: TextStyle(color: Colors.white.withValues(alpha: 0.78), height: 1.45, fontSize: 14, fontWeight: FontWeight.w600),
                       ),
-                      const SizedBox(height: 26),
+                      const SizedBox(height: 28),
                       DecoratedBox(
                         decoration: BoxDecoration(
                           color: Colors.white,
-                          borderRadius: BorderRadius.circular(28),
+                          borderRadius: BorderRadius.circular(22),
                           border: Border.all(color: const Color(0xFFF0F3F8)),
                           boxShadow: [
-                            BoxShadow(color: KjaColors.navy.withValues(alpha: 0.07), blurRadius: 32, offset: const Offset(0, 14)),
+                            BoxShadow(color: KjaColors.navyDeep.withValues(alpha: 0.16), blurRadius: 28, offset: const Offset(0, 12)),
                           ],
                         ),
-                        child: Padding(padding: const EdgeInsets.fromLTRB(18, 22, 18, 22), child: child),
+                        child: Padding(padding: const EdgeInsets.fromLTRB(18, 20, 18, 20), child: child),
                       ),
                     ],
                   ),

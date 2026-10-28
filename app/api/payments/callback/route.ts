@@ -7,8 +7,9 @@ import { serviceClient } from "@/lib/supabase/service";
 export const dynamic = "force-dynamic";
 
 /*
- * Gateway callback. The body is treated only as a hint: the payment is re-read from the
- * gateway with our secret key, so a forged callback can never mark anything as paid.
+ * Paytota webhook / success_callback. The body is only a hint: we re-read the purchase
+ * from the gateway with our secret key, so a forged callback can never mark anything paid.
+ * Configure the same URL in Paytota Developers → Webhooks (purchase.paid, purchase.payment_failure).
  */
 export async function POST(request: Request) {
   let body: Record<string, unknown> = {};
@@ -17,8 +18,16 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ ok: false }, { status: 400 });
   }
-  const providerRef = typeof body.id === "string" ? body.id : null;
-  const reference = typeof body.reference === "string" ? body.reference : null;
+  // Purchase payloads put the gateway id on `id`. Some wrappers nest the purchase object.
+  const nested = body.purchase && typeof body.purchase === "object" ? (body.purchase as Record<string, unknown>) : null;
+  const providerRef =
+    (typeof body.id === "string" && body.id) ||
+    (typeof nested?.id === "string" && nested.id) ||
+    null;
+  const reference =
+    (typeof body.reference === "string" && body.reference) ||
+    (typeof nested?.reference === "string" && nested.reference) ||
+    null;
   const db = serviceClient();
   if (!db || (!providerRef && !reference)) return NextResponse.json({ ok: false }, { status: 400 });
 

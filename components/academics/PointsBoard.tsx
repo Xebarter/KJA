@@ -38,12 +38,14 @@ export function PointsBoard({
   terms,
   rows,
   save,
+  loadError,
 }: {
   termId: string;
   termLabel: string;
   terms: TermChoice[];
   rows: PointRow[];
   save: Save;
+  loadError?: string | null;
 }) {
   const [filter, setFilter] = useState<PointListFilter>(emptyPointFilter);
   const [openId, setOpenId] = useState<string | null>(null);
@@ -91,6 +93,8 @@ export function PointsBoard({
       </header>
 
       <p className="ivn-print-only">{termLabel} · {nf(visible.length)} {visible.length === 1 ? "pupil" : "pupils"}</p>
+
+      {loadError ? <p className="admin-empty" role="alert">{loadError}</p> : null}
 
       <div className="ivn-point-strip" aria-label="Points summary">
         <div className="is-navy">

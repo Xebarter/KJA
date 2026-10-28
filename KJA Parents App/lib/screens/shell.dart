@@ -80,7 +80,9 @@ class _ParentShellState extends State<ParentShell> {
         centerTitle: true,
         titleSpacing: 0,
         toolbarHeight: 64,
-        shape: const Border(bottom: BorderSide(color: KjaColors.line)),
+        shape: const Border(
+          bottom: BorderSide(color: KjaColors.line),
+        ),
         title: SizedBox(
           width: double.infinity,
           height: 64,
@@ -97,17 +99,10 @@ class _ParentShellState extends State<ParentShell> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: Colors.white,
-                        border: Border.all(color: KjaColors.line),
-                        boxShadow: [
-                          BoxShadow(
-                            color: KjaColors.ink.withValues(alpha: 0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
+                        border: Border.all(color: KjaColors.gold.withValues(alpha: 0.35), width: 1.2),
                       ),
                       clipBehavior: Clip.antiAlias,
-                      child: const Padding(padding: EdgeInsets.all(5), child: SchoolMark(size: 28)),
+                      child: const Padding(padding: EdgeInsets.all(4), child: SchoolMark(size: 30)),
                     ),
                     const SizedBox(width: 10),
                     Column(
@@ -118,22 +113,26 @@ class _ParentShellState extends State<ParentShell> {
                           'KJA Parents',
                           style: TextStyle(
                             color: KjaColors.navy,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w900,
+                            fontSize: 15.5,
+                            fontWeight: FontWeight.w800,
                             letterSpacing: -0.2,
                             height: 1.1,
                           ),
                         ),
                         const SizedBox(height: 2),
-                        Text(
-                          _destination.menuLabel,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            color: KjaColors.soft,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            height: 1.1,
+                        AnimatedSwitcher(
+                          duration: const Duration(milliseconds: 180),
+                          child: Text(
+                            _destination.menuLabel,
+                            key: ValueKey(_destination),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: KjaColors.soft,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              height: 1.1,
+                            ),
                           ),
                         ),
                       ],
@@ -172,12 +171,12 @@ class _ParentShellState extends State<ParentShell> {
           ),
         ),
         bottom: widget.controller.refreshing
-            ? const PreferredSize(
-                preferredSize: Size.fromHeight(2),
+            ? PreferredSize(
+                preferredSize: const Size.fromHeight(2.5),
                 child: LinearProgressIndicator(
-                  minHeight: 2,
-                  color: KjaColors.sky,
-                  backgroundColor: Color(0xFFE8EDF2),
+                  minHeight: 2.5,
+                  color: KjaColors.gold,
+                  backgroundColor: KjaColors.navy.withValues(alpha: 0.08),
                 ),
               )
             : null,
@@ -228,15 +227,31 @@ class _ParentShellState extends State<ParentShell> {
                 ),
               ),
             Expanded(
-              child: _destination == AppDestination.communications
-                  ? _page()
-                  : _destination == AppDestination.clubs
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 220),
+                switchInCurve: Curves.easeOutCubic,
+                switchOutCurve: Curves.easeInCubic,
+                transitionBuilder: (child, animation) {
+                  final slide = Tween<Offset>(
+                    begin: const Offset(0, 0.015),
+                    end: Offset.zero,
+                  ).animate(animation);
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(position: slide, child: child),
+                  );
+                },
+                child: KeyedSubtree(
+                  key: ValueKey(_destination),
+                  child: _destination == AppDestination.communications || _destination == AppDestination.clubs
                       ? _page()
                       : RefreshIndicator(
                           color: KjaColors.navy,
                           onRefresh: widget.controller.refresh,
                           child: _page(),
                         ),
+                ),
+              ),
             ),
           ],
         ),

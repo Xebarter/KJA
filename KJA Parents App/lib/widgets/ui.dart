@@ -6,8 +6,6 @@ import '../pupil_photos.dart';
 import '../theme.dart';
 
 /// School crest used in splash, gates, drawer, and header.
-/// Source is a circle on a white square; clip corners. [widthFactor]/[heightFactor]
-/// keep the mark square even when a ListView forces a wide cross-axis constraint.
 class SchoolMark extends StatelessWidget {
   const SchoolMark({super.key, this.size = 44});
 
@@ -43,6 +41,28 @@ class SchoolMark extends StatelessWidget {
   }
 }
 
+/// Standard list padding for portal destinations.
+const kPortalPadding = EdgeInsets.fromLTRB(16, 12, 16, 32);
+
+/// Scroll host used by every destination — consistent inset and bounce.
+class PortalScroll extends StatelessWidget {
+  const PortalScroll({super.key, required this.children, this.padding = kPortalPadding, this.controller});
+
+  final List<Widget> children;
+  final EdgeInsetsGeometry padding;
+  final ScrollController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      controller: controller,
+      padding: padding,
+      physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+      children: children,
+    );
+  }
+}
+
 class ToneIcon extends StatelessWidget {
   const ToneIcon({
     super.key,
@@ -67,12 +87,9 @@ class ToneIcon extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(
-        color: tone.wash,
+        color: active ? Color.lerp(tone.wash, Colors.white, 0.15) : tone.wash,
         borderRadius: BorderRadius.circular(size * 0.32),
-        border: active ? Border.all(color: tone.ink.withValues(alpha: 0.22)) : null,
-        boxShadow: active
-            ? [BoxShadow(color: tone.ink.withValues(alpha: 0.18), blurRadius: 10, offset: const Offset(0, 4))]
-            : null,
+        border: Border.all(color: tone.ink.withValues(alpha: active ? 0.22 : 0.08)),
       ),
       child: Icon(icon, size: iconSize, color: tone.ink),
     );
@@ -106,7 +123,7 @@ class HeaderIconButton extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onPressed,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(15),
             child: Stack(
               clipBehavior: Clip.none,
               children: [
@@ -122,14 +139,14 @@ class HeaderIconButton extends StatelessWidget {
                       color: enabled ? tone.ink.withValues(alpha: 0.12) : const Color(0xFFE8EDF2),
                     ),
                   ),
-                  child: Icon(icon, size: 22, color: enabled ? tone.ink : KjaColors.mute),
+                  child: Icon(icon, size: 21, color: enabled ? tone.ink : KjaColors.mute),
                 ),
                 if (badge > 0)
                   Positioned(
                     right: -2,
                     top: -2,
                     child: Container(
-                      constraints: const BoxConstraints(minWidth: 18),
+                      constraints: const BoxConstraints(minWidth: 17),
                       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                       decoration: BoxDecoration(
                         color: KjaColors.rose,
@@ -157,8 +174,7 @@ class HeaderIconButton extends StatelessWidget {
   }
 }
 
-/// Quiet page context. Prefer this over a colored hero when the app bar
-/// already names the screen.
+/// Quiet page context with optional tone accent.
 class PageIntro extends StatelessWidget {
   const PageIntro({
     super.key,
@@ -166,26 +182,29 @@ class PageIntro extends StatelessWidget {
     this.eyebrow,
     this.detail,
     this.footer,
+    this.tone,
   });
 
   final String title;
   final String? eyebrow;
   final String? detail;
   final Widget? footer;
+  final Tone? tone;
 
   @override
   Widget build(BuildContext context) {
+    final accent = tone ?? Tone.navy;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if ((eyebrow ?? '').isNotEmpty) ...[
           Text(
             eyebrow!,
-            style: const TextStyle(
-              color: KjaColors.mute,
-              fontWeight: FontWeight.w700,
-              fontSize: 12,
-              letterSpacing: 0.15,
+            style: TextStyle(
+              color: accent.ink.withValues(alpha: 0.78),
+              fontWeight: FontWeight.w800,
+              fontSize: 11.5,
+              letterSpacing: 0.55,
             ),
           ),
           const SizedBox(height: 6),
@@ -194,10 +213,10 @@ class PageIntro extends StatelessWidget {
           title,
           style: const TextStyle(
             color: KjaColors.ink,
-            fontSize: 22,
+            fontSize: 24,
             fontWeight: FontWeight.w800,
             height: 1.15,
-            letterSpacing: -0.35,
+            letterSpacing: -0.4,
           ),
         ),
         if ((detail ?? '').isNotEmpty) ...[
@@ -206,7 +225,7 @@ class PageIntro extends StatelessWidget {
             detail!,
             style: const TextStyle(
               color: KjaColors.soft,
-              height: 1.4,
+              height: 1.45,
               fontSize: 14,
               fontWeight: FontWeight.w600,
             ),
@@ -214,6 +233,118 @@ class PageIntro extends StatelessWidget {
         ],
         if (footer != null) ...[const SizedBox(height: 12), footer!],
       ],
+    );
+  }
+}
+
+/// Navy greeting panel used on Home and key destinations.
+class BrandHero extends StatelessWidget {
+  const BrandHero({
+    super.key,
+    required this.title,
+    this.eyebrow,
+    this.detail,
+    this.trailing,
+    this.child,
+    this.colors = const [KjaColors.navyDeep, KjaColors.navy, Color(0xFF1E5A8A)],
+  });
+
+  final String title;
+  final String? eyebrow;
+  final String? detail;
+  final Widget? trailing;
+  final Widget? child;
+  final List<Color> colors;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 16, 16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(22),
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: colors,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: colors.first.withValues(alpha: 0.18),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -22,
+            top: -30,
+            child: Container(
+              width: 110,
+              height: 110,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        if ((eyebrow ?? '').isNotEmpty) ...[
+                          Text(
+                            eyebrow!,
+                            style: TextStyle(
+                              color: KjaColors.gold.withValues(alpha: 0.95),
+                              fontWeight: FontWeight.w800,
+                              fontSize: 11.5,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                        ],
+                        Text(
+                          title,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                            height: 1.15,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                        if ((detail ?? '').isNotEmpty) ...[
+                          const SizedBox(height: 6),
+                          Text(
+                            detail!,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.78),
+                              height: 1.4,
+                              fontWeight: FontWeight.w600,
+                              fontSize: 13.5,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                  if (trailing != null) ...[const SizedBox(width: 10), trailing!],
+                ],
+              ),
+              if (child != null) ...[const SizedBox(height: 14), child!],
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -226,39 +357,89 @@ class SoftCard extends StatelessWidget {
     this.color = Colors.white,
     this.onTap,
     this.expand = true,
+    this.accent,
+    this.glow = false,
   });
 
   final Widget child;
   final EdgeInsets padding;
   final Color color;
   final VoidCallback? onTap;
-  /// When false, do not force infinite width (needed inside horizontal lists).
   final bool expand;
+  final Color? accent;
+  final bool glow;
 
   @override
   Widget build(BuildContext context) {
+    final edge = accent;
+    const radius = 18.0;
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(radius),
         boxShadow: [
-          BoxShadow(color: KjaColors.ink.withValues(alpha: 0.045), blurRadius: 18, offset: const Offset(0, 8)),
+          BoxShadow(
+            color: KjaColors.ink.withValues(alpha: glow ? 0.06 : 0.035),
+            blurRadius: glow ? 16 : 12,
+            offset: const Offset(0, 6),
+          ),
         ],
       ),
       child: Material(
         color: color,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(22),
-          side: BorderSide(color: KjaColors.line.withValues(alpha: 0.95)),
+          borderRadius: BorderRadius.circular(radius),
+          side: BorderSide(color: edge?.withValues(alpha: 0.22) ?? KjaColors.line),
         ),
         child: InkWell(
           onTap: onTap,
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(radius),
           child: Container(
             width: expand ? double.infinity : null,
             padding: padding,
+            decoration: edge == null
+                ? null
+                : BoxDecoration(
+                    border: Border(
+                      left: BorderSide(color: edge, width: 3),
+                    ),
+                  ),
             child: child,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class StatusPill extends StatelessWidget {
+  const StatusPill({
+    super.key,
+    required this.label,
+    this.tone = Tone.sky,
+    this.filled = false,
+  });
+
+  final String label;
+  final Tone tone;
+  final bool filled;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: filled ? tone.ink : tone.wash,
+        borderRadius: BorderRadius.circular(999),
+        border: filled ? null : Border.all(color: tone.ink.withValues(alpha: 0.12)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: filled ? Colors.white : tone.ink,
+          fontWeight: FontWeight.w800,
+          fontSize: 11.5,
+          letterSpacing: 0.1,
         ),
       ),
     );
@@ -278,16 +459,29 @@ class EmptyNote extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(20, 28, 20, 28),
       child: Column(
         children: [
-          ToneIcon(icon: icon, tone: Tone.sky, size: 52, iconSize: 24),
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Tone.sky.wash,
+              border: Border.all(color: Tone.sky.ink.withValues(alpha: 0.1)),
+            ),
+            child: Icon(icon, size: 24, color: Tone.sky.ink),
+          ),
           const SizedBox(height: 14),
           if (title != null) ...[
-            Text(title!, textAlign: TextAlign.center, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
+            Text(
+              title!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15),
+            ),
             const SizedBox(height: 6),
           ],
           Text(
             message,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: KjaColors.soft, height: 1.45, fontSize: 14),
+            style: const TextStyle(color: KjaColors.soft, height: 1.45, fontSize: 14, fontWeight: FontWeight.w600),
           ),
         ],
       ),
@@ -306,10 +500,19 @@ class SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
+        Container(
+          width: 3,
+          height: 16,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(99),
+            color: KjaColors.gold,
+          ),
+        ),
+        const SizedBox(width: 10),
         Expanded(
           child: Text(
             title,
-            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800, letterSpacing: -0.2),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800, letterSpacing: -0.2),
           ),
         ),
         if (action != null)
@@ -356,7 +559,7 @@ class PupilFace extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [tone.withValues(alpha: 0.9), tone],
+              colors: [tone.withValues(alpha: 0.85), tone],
             ),
           ),
           child: Center(
@@ -387,12 +590,49 @@ class PupilFace extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: Colors.white,
-            boxShadow: [BoxShadow(color: KjaColors.ink.withValues(alpha: 0.08), blurRadius: 10, offset: const Offset(0, 3))],
-            border: Border.all(color: Colors.white, width: 2.5),
+            boxShadow: [
+              BoxShadow(color: KjaColors.ink.withValues(alpha: 0.07), blurRadius: 8, offset: const Offset(0, 3)),
+            ],
+            border: Border.all(color: Colors.white, width: 2),
           ),
           child: ClipOval(child: child),
         );
       },
+    );
+  }
+}
+
+class DateStamp extends StatelessWidget {
+  const DateStamp({super.key, required this.day, required this.month, this.tone = Tone.sky});
+
+  final String day;
+  final String month;
+  final Tone tone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 56,
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [tone.wash, Colors.white],
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: tone.ink.withValues(alpha: 0.12)),
+      ),
+      child: Column(
+        children: [
+          Text(day, style: TextStyle(color: tone.ink, fontWeight: FontWeight.w900, fontSize: 20, height: 1)),
+          const SizedBox(height: 2),
+          Text(
+            month.toUpperCase(),
+            style: TextStyle(color: tone.ink.withValues(alpha: 0.75), fontWeight: FontWeight.w800, fontSize: 10, letterSpacing: 0.4),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -412,13 +652,13 @@ class ParentDock extends StatelessWidget {
       color: Colors.transparent,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.96),
-          border: const Border(top: BorderSide(color: KjaColors.line)),
+          color: Colors.white.withValues(alpha: 0.97),
+          border: Border(top: BorderSide(color: KjaColors.line.withValues(alpha: 0.9))),
           boxShadow: [
-            BoxShadow(color: KjaColors.ink.withValues(alpha: 0.05), blurRadius: 18, offset: const Offset(0, -4)),
+            BoxShadow(color: KjaColors.ink.withValues(alpha: 0.07), blurRadius: 24, offset: const Offset(0, -8)),
           ],
         ),
-        child: Padding(
+          child: Padding(
           padding: EdgeInsets.fromLTRB(12, 8, 12, bottom > 0 ? bottom : 10),
           child: Row(
             children: [
@@ -441,7 +681,7 @@ class ParentDock extends StatelessWidget {
         child: Material(
           color: Colors.transparent,
           child: InkWell(
-            borderRadius: BorderRadius.circular(18),
+            borderRadius: BorderRadius.circular(20),
             onTap: () => onSelect(dest),
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 200),
@@ -449,7 +689,8 @@ class ParentDock extends StatelessWidget {
               padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
               decoration: BoxDecoration(
                 color: active ? tone.wash : Colors.transparent,
-                borderRadius: BorderRadius.circular(18),
+                borderRadius: BorderRadius.circular(20),
+                border: active ? Border.all(color: tone.ink.withValues(alpha: 0.12)) : null,
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -457,7 +698,7 @@ class ParentDock extends StatelessWidget {
                   Stack(
                     clipBehavior: Clip.none,
                     children: [
-                      ToneIcon(icon: dest.icon, tone: tone, size: 38, iconSize: 19, active: active),
+                      ToneIcon(icon: dest.icon, tone: tone, size: 40, iconSize: 20, active: active),
                       if (badge > 0)
                         Positioned(
                           right: -4,
@@ -477,12 +718,12 @@ class ParentDock extends StatelessWidget {
                         ),
                     ],
                   ),
-                  const SizedBox(height: 5),
+                  const SizedBox(height: 6),
                   Text(
                     dest.label,
                     style: TextStyle(
                       color: active ? tone.ink : KjaColors.soft,
-                      fontWeight: active ? FontWeight.w800 : FontWeight.w600,
+                      fontWeight: active ? FontWeight.w900 : FontWeight.w600,
                       fontSize: 12,
                     ),
                   ),
@@ -511,29 +752,23 @@ class ParentDock extends StatelessWidget {
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 200),
                   curve: Curves.easeOutCubic,
-                  width: 54,
-                  height: 54,
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    gradient: LinearGradient(
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                      colors: active
-                          ? const [Color(0xFF1E4D7B), KjaColors.navy]
-                          : const [Color(0xFF38BDF8), KjaColors.skyDeep],
-                    ),
+                    color: active ? KjaColors.navy : KjaColors.skyDeep,
                     border: Border.all(color: Colors.white, width: 3),
                     boxShadow: [
                       BoxShadow(
-                        color: KjaColors.navy.withValues(alpha: active ? 0.28 : 0.16),
-                        blurRadius: 14,
-                        offset: const Offset(0, 6),
+                        color: KjaColors.navy.withValues(alpha: active ? 0.22 : 0.12),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
                       ),
                     ],
                   ),
-                  child: const Icon(Icons.home_rounded, color: Colors.white, size: 26),
+                  child: const Icon(Icons.home_rounded, color: Colors.white, size: 24),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 5),
                 Text(
                   'Home',
                   style: TextStyle(
@@ -580,7 +815,6 @@ class ParentMenu extends StatelessWidget {
       scaffold!.closeDrawer();
       return;
     }
-    // Drawer local route only — never pop the app's sole home route.
     final nav = Navigator.maybeOf(context);
     if (nav != null && nav.canPop()) nav.pop();
   }
@@ -677,15 +911,18 @@ class _SideHeader extends StatelessWidget {
                 onTap: onHome,
                 customBorder: const CircleBorder(),
                 child: Container(
-                  width: 44,
-                  height: 44,
+                  width: 46,
+                  height: 46,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white,
-                    border: Border.all(color: KjaColors.sky.withValues(alpha: 0.2)),
+                    border: Border.all(color: KjaColors.gold.withValues(alpha: 0.35), width: 1.5),
+                    boxShadow: [
+                      BoxShadow(color: KjaColors.navy.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 3)),
+                    ],
                   ),
                   clipBehavior: Clip.antiAlias,
-                  child: const Padding(padding: EdgeInsets.all(5), child: SchoolMark(size: 34)),
+                  child: const Padding(padding: EdgeInsets.all(5), child: SchoolMark(size: 36)),
                 ),
               ),
             ),
@@ -710,18 +947,18 @@ class _SideHeader extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onHome,
-            borderRadius: BorderRadius.circular(22),
+            borderRadius: BorderRadius.circular(24),
             child: Ink(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+              padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
-                  colors: [Color(0xFF1E4D7B), KjaColors.navy, Color(0xFF0F2740)],
+                  colors: [KjaColors.navyDeep, KjaColors.navy, Color(0xFF1E5A8A)],
                 ),
-                borderRadius: BorderRadius.circular(22),
+                borderRadius: BorderRadius.circular(24),
                 boxShadow: [
-                  BoxShadow(color: KjaColors.navy.withValues(alpha: 0.22), blurRadius: 16, offset: const Offset(0, 6)),
+                  BoxShadow(color: KjaColors.navy.withValues(alpha: 0.28), blurRadius: 18, offset: const Offset(0, 8)),
                 ],
               ),
               child: Row(
@@ -736,14 +973,21 @@ class _SideHeader extends StatelessWidget {
                           'Hi, $first',
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(color: Colors.white, fontSize: 19, fontWeight: FontWeight.w900, height: 1.1, letterSpacing: -0.2),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 19,
+                            fontWeight: FontWeight.w900,
+                            height: 1.1,
+                            letterSpacing: -0.2,
+                          ),
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 7),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: Colors.white.withValues(alpha: 0.16),
+                            color: Colors.white.withValues(alpha: 0.14),
                             borderRadius: BorderRadius.circular(99),
+                            border: Border.all(color: KjaColors.gold.withValues(alpha: 0.35)),
                           ),
                           child: Text(
                             subtitle,
@@ -770,8 +1014,16 @@ class _SideGroupLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 14, 4, 6),
-      child: Text(title, style: const TextStyle(color: KjaColors.ink, fontSize: 13, fontWeight: FontWeight.w900)),
+      padding: const EdgeInsets.fromLTRB(6, 16, 4, 7),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          color: KjaColors.mute,
+          fontSize: 11,
+          fontWeight: FontWeight.w900,
+          letterSpacing: 0.7,
+        ),
+      ),
     );
   }
 }
@@ -805,22 +1057,22 @@ class _SideLink extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: active ? Colors.white : Colors.white.withValues(alpha: 0.55),
-              borderRadius: BorderRadius.circular(18),
+              borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: active ? tone.ink.withValues(alpha: 0.35) : tone.ink.withValues(alpha: 0.1),
-                width: active ? 1.6 : 1,
+                color: active ? tone.ink.withValues(alpha: 0.22) : tone.ink.withValues(alpha: 0.06),
+                width: 1,
               ),
             ),
             child: Row(
               children: [
-                ToneIcon(icon: destination.icon, tone: tone, size: 42, iconSize: 22, active: active),
+                ToneIcon(icon: destination.icon, tone: tone, size: 40, iconSize: 20, active: active),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     destination.menuLabel,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: active ? tone.ink : KjaColors.ink),
+                    style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: active ? tone.ink : KjaColors.ink),
                   ),
                 ),
                 if (badge > 0)

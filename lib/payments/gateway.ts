@@ -115,12 +115,15 @@ export async function createCollection(input: {
 }) {
   const { brandId } = settings();
   if (!brandId) throw new GatewayError("Payments are not configured.");
+  // Paytota expects product prices as strings in the purchase create payload.
+  const amount = Math.round(Number(input.amount));
+  if (!Number.isFinite(amount) || amount <= 0) throw new GatewayError("Payment amount is invalid.");
   const body = await call("/api/v1/purchases/", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       client: { email: input.email, phone: input.phone, country: "UG", full_name: input.name },
-      purchase: { currency: "UGX", products: [{ name: input.description, price: input.amount }] },
+      purchase: { currency: "UGX", products: [{ name: input.description.slice(0, 180), price: String(amount) }] },
       reference: input.reference,
       skip_capture: false,
       brand_id: brandId,
@@ -132,13 +135,14 @@ export async function createCollection(input: {
   return collection;
 }
 
-/** Sends the PIN prompt to the payer's phone. */
+/** Sends the PIN prompt to the payer's phone (Paytota STK / s2s execute). */
 export async function requestPinPrompt(id: string) {
   const form = new FormData();
   form.set("s2s", "true");
   form.set("pm", EXECUTE_METHOD);
+  // Do not set Content-Type manually — fetch must attach the multipart boundary.
   const body = await call(`/p/${encodeURIComponent(id)}/`, { method: "POST", body: form, auth: false });
-  const status = String(body?.status ?? "");
+  const status = String(body?.status ?? "").toLowerCase();
   if (status === "error" || status === "failed") {
     throw new GatewayError(`Prompt rejected: ${JSON.stringify(body).slice(0, 300)}`);
   }

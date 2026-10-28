@@ -13,8 +13,9 @@ export function normalizeMsisdn(input: string) {
 export function networkOf(msisdn: string | null): MobileNetwork | null {
   if (!msisdn) return null;
   const prefix = msisdn.slice(3, 5);
+  // MTN Uganda: 076–079. Airtel Uganda: 070, 074, 075, plus former Warid/Orange 072/073.
   if (["76", "77", "78", "79"].includes(prefix)) return "MTN Mobile Money";
-  if (["70", "74", "75"].includes(prefix)) return "Airtel Money";
+  if (["70", "72", "73", "74", "75"].includes(prefix)) return "Airtel Money";
   return null;
 }
 

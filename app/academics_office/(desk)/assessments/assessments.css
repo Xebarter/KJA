@@ -999,6 +999,15 @@ dialog.msh-screen {
 }
 dialog.msh-screen:not([open]) { display: flex; }
 dialog.msh-screen::backdrop { background: #141d24; }
+/* Electron title strip + Windows caption buttons stay above the sheet */
+html.kja-is-desktop dialog.msh-screen {
+  top: var(--kja-desktop-titlebar-height, 48px);
+  height: calc(100vh - var(--kja-desktop-titlebar-height, 48px));
+  height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
+}
+html.kja-is-desktop dialog.msh-screen::backdrop {
+  top: var(--kja-desktop-titlebar-height, 48px);
+}
 .msh-bar {
   display: flex;
   align-items: center;

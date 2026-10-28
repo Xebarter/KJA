@@ -12,8 +12,8 @@ import type { BootStatus, SyncStatus } from "../shared/status";
 import { EMPTY_SYNC } from "../shared/status";
 import { startProxy, type ProxyHandle } from "../proxy/server";
 import { loadDesktopEnv } from "./env";
-import { startNext, type NextHandle } from "./next-host";
-import { freePort, waitPortFree } from "./ports-win";
+import { isNextHealthy, startNext, type NextHandle } from "./next-host";
+import { freePortIfNeeded } from "./ports-win";
 import { createDeskWindow, createSplashWindow } from "./windows";
 
 let splash: BrowserWindow | null = null;
@@ -74,55 +74,64 @@ function waitForDeskPaint(win: BrowserWindow): Promise<void> {
     };
     // Prefer first paint signals; do not wait for every image/font.
     win.webContents.once("dom-ready", done);
-    win.webContents.once("did-finish-load", () => setTimeout(done, 120));
+    win.webContents.once("did-finish-load", () => setTimeout(done, 80));
     setTimeout(done, SPLASH_WARMUP_CAP_MS);
   });
 }
 
-async function boot() {
+async function boot(opts: { nextWarm: boolean }) {
   const bootStarted = Date.now();
-  emitBoot({ phase: "starting", message: "Reading configuration…" });
+  emitBoot({
+    phase: "starting",
+    message: opts.nextWarm ? "Reopening desks…" : "Reading configuration…",
+  });
   const env = loadDesktopEnv();
 
-  emitBoot({ phase: "proxy", message: "Starting desks…" });
+  emitBoot({
+    phase: "proxy",
+    message: opts.nextWarm ? "Connecting…" : "Starting desks…",
+  });
   const dbPath = join(app.getPath("userData"), "kja-proxy.sqlite");
 
-  // Clear leftover listeners from a previous crash without blocking when free.
-  freePort(PROXY_PORT);
+  // Warm relaunch: paint the desk shell first so the click feels instant.
+  if (opts.nextWarm) {
+    desk = await createDeskWindow();
+    if (!desk.isDestroyed()) desk.show();
+  }
 
-  // Run proxy, Next, and desk-window creation together — biggest cold-start win.
-  const portReady = waitPortFree(NEXT_PORT)
-    .then(() => true)
-    .catch(() => {
-      freePort(NEXT_PORT);
-      return true;
-    });
+  // Proxy is in-process — clear a stale listener only when the TCP probe says taken.
+  const proxyPortReady = freePortIfNeeded(PROXY_PORT);
 
-  const proxyPromise = startProxy({
-    upstreamUrl: env.upstreamSupabaseUrl,
-    anonKey: env.anonKey,
-    serviceRoleKey: env.serviceRoleKey,
-    dbPath,
-    port: PROXY_PORT,
-    onStatus: emitSync,
-    onTableChange: emitTableChange,
-  }).then(async (handle) => {
-    proxy = handle;
-    emitSync(handle.getStatus());
-    await fetch(`${PROXY_URL}/__kja/health`).catch(() => {
-      throw new Error("Local data proxy failed to start.");
-    });
-    return handle;
-  });
+  // Skip freeing Next when a warm host is already healthy (biggest relaunch win).
+  const nextPromise = opts.nextWarm
+    ? startNext(env, { portReady: true, keepWarm: true })
+    : freePortIfNeeded(NEXT_PORT).then(() => {
+        emitBoot({ phase: "next", message: "Opening staff sign-in…" });
+        return startNext(env, { portReady: true, keepWarm: true });
+      });
 
-  const nextPromise = portReady.then(() => {
-    emitBoot({ phase: "next", message: "Opening staff sign-in…" });
-    return startNext(env, { portReady: true });
-  });
+  const proxyPromise = proxyPortReady.then(() =>
+    startProxy({
+      upstreamUrl: env.upstreamSupabaseUrl,
+      anonKey: env.anonKey,
+      serviceRoleKey: env.serviceRoleKey,
+      dbPath,
+      port: PROXY_PORT,
+      onStatus: emitSync,
+      onTableChange: emitTableChange,
+    }).then(async (handle) => {
+      proxy = handle;
+      emitSync(handle.getStatus());
+      await fetch(`${PROXY_URL}/__kja/health`).catch(() => {
+        throw new Error("Local data proxy failed to start.");
+      });
+      return handle;
+    }),
+  );
 
-  const deskPromise = createDeskWindow();
+  const deskPromise = desk ? Promise.resolve(desk) : createDeskWindow();
 
-  const [, next, deskWin] = await Promise.all([proxyPromise, nextPromise, deskPromise]);
+  const [next, , deskWin] = await Promise.all([nextPromise, proxyPromise, deskPromise]);
   nextHandle = next;
   desk = deskWin;
 
@@ -136,7 +145,10 @@ async function boot() {
   const painted = waitForDeskPaint(desk);
   await desk.loadURL(`${NEXT_URL}${DESK_ENTRY_PATH}`);
   await painted;
-  console.log(`[desktop] boot ${Date.now() - bootStarted}ms`);
+  console.log(
+    `[desktop] boot ${Date.now() - bootStarted}ms` +
+      (next.reused ? " (warm next)" : " (cold next)"),
+  );
   revealDesk();
 }
 
@@ -147,13 +159,6 @@ app.whenReady().then(async () => {
   // Drop File / Edit / View / Window / Help — the in-app title strip owns that space.
   Menu.setApplicationMenu(null);
 
-  // Show splash immediately, then boot in parallel underneath.
-  splash = createSplashWindow();
-  const splashLoad =
-    process.env.ELECTRON_RENDERER_URL
-      ? splash.loadURL(`${process.env.ELECTRON_RENDERER_URL}/splash/index.html`)
-      : splash.loadFile(join(__dirname, "../renderer/splash/index.html"));
-
   ipcMain.handle("boot:get", () => bootStatus);
   ipcMain.handle("sync:get", () => syncStatus);
   ipcMain.handle("sync:flush", async () => {
@@ -162,10 +167,33 @@ app.whenReady().then(async () => {
   });
   ipcMain.handle("sync:online", () => net.isOnline());
 
+  // Probe before painting splash — warm relaunches skip the splash entirely.
+  const nextWarm = await isNextHealthy();
+
+  if (!nextWarm) {
+    // Cold start: native window appears on click; React fills in status text.
+    splash = createSplashWindow();
+    const splashLoad =
+      process.env.ELECTRON_RENDERER_URL
+        ? splash.loadURL(`${process.env.ELECTRON_RENDERER_URL}/splash/index.html`)
+        : splash.loadFile(join(__dirname, "../renderer/splash/index.html"));
+    void splashLoad.catch(() => undefined);
+  } else {
+    emitBoot({ phase: "starting", message: "Reopening desks…" });
+  }
+
   try {
-    await Promise.all([splashLoad.catch(() => undefined), boot()]);
+    await boot({ nextWarm });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
+    if (!splash || splash.isDestroyed()) {
+      splash = createSplashWindow();
+      const splashLoad =
+        process.env.ELECTRON_RENDERER_URL
+          ? splash.loadURL(`${process.env.ELECTRON_RENDERER_URL}/splash/index.html`)
+          : splash.loadFile(join(__dirname, "../renderer/splash/index.html"));
+      void splashLoad.catch(() => undefined);
+    }
     emitBoot({ phase: "error", message: "Could not start", error: message });
   }
 });
@@ -175,11 +203,7 @@ app.on("window-all-closed", () => {
 });
 
 async function shutdown() {
-  try {
-    await nextHandle?.close();
-  } catch {
-    /* ignore */
-  }
+  // Leave Next warm on the fixed port — next click reuses it.
   nextHandle = null;
   try {
     await proxy?.close();
@@ -187,8 +211,8 @@ async function shutdown() {
     /* ignore */
   }
   proxy = null;
-  freePort(NEXT_PORT);
-  freePort(PROXY_PORT);
+  // Proxy is in-process; ensure its port is free for the next Electron start.
+  await freePortIfNeeded(PROXY_PORT);
 }
 
 app.on("before-quit", (event) => {

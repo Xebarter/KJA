@@ -12,31 +12,41 @@ class CalendarPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
+        PageIntro(
+          tone: Tone.sky,
+          eyebrow: 'SCHOOL',
+          title: 'Calendar',
+          detail: portal.events.isEmpty
+              ? 'Class and school dates appear here when published.'
+              : '${portal.events.length} upcoming ${portal.events.length == 1 ? 'date' : 'dates'}.',
+        ),
+        const SizedBox(height: 12),
         if (portal.events.isEmpty)
           const EmptyNote(
             icon: Icons.event_rounded,
             title: 'No upcoming dates',
-            message:
-                'Class calendars and school office dates appear here as soon as they are published.',
+            message: 'Class calendars and school office dates appear here as soon as they are published.',
           )
         else
           ...portal.events.map((event) {
+            final starts = parseDate(event.startsOn);
+            final day = starts == null ? '—' : '${starts.day}';
+            final month = starts == null
+                ? ''
+                : [
+                    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+                  ][starts.month - 1];
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: SoftCard(
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const ToneIcon(
-                      icon: Icons.event_rounded,
-                      tone: Tone.sky,
-                      size: 44,
-                      iconSize: 22,
-                    ),
-                    const SizedBox(width: 12),
+                    DateStamp(day: day, month: month),
+                    const SizedBox(width: 14),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -44,10 +54,12 @@ class CalendarPage extends StatelessWidget {
                           Text(
                             event.title,
                             style: const TextStyle(
-                              fontWeight: FontWeight.w900,
-                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 15.5,
+                              letterSpacing: -0.15,
                             ),
                           ),
+                          const SizedBox(height: 4),
                           Text(
                             [
                               shortDate(event.startsOn, withYear: true),
@@ -56,15 +68,17 @@ class CalendarPage extends StatelessWidget {
                                 .whereType<String>()
                                 .where((s) => s.isNotEmpty)
                                 .join(' · '),
-                            style: const TextStyle(color: KjaColors.soft),
+                            style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 13),
                           ),
                           if ((event.summary ?? '').isNotEmpty) ...[
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 8),
                             Text(
                               event.summary!,
                               style: const TextStyle(
-                                height: 1.35,
+                                height: 1.4,
                                 color: KjaColors.soft,
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13.5,
                               ),
                             ),
                           ],

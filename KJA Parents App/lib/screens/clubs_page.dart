@@ -25,7 +25,7 @@ String? _networkOf(String phone) {
   if (!RegExp(r'^7\d{8}$').hasMatch(digits)) return null;
   final prefix = digits.substring(0, 2);
   if (const {'76', '77', '78', '79'}.contains(prefix)) return 'MTN Mobile Money';
-  if (const {'70', '74', '75'}.contains(prefix)) return 'Airtel Money';
+  if (const {'70', '72', '73', '74', '75'}.contains(prefix)) return 'Airtel Money';
   return null;
 }
 
@@ -247,10 +247,22 @@ class _ClubsPageState extends State<ClubsPage> {
             color: KjaColors.navy,
             onRefresh: widget.controller.refresh,
             child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+              padding: kPortalPadding,
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
               children: [
+                const PageIntro(
+                  tone: Tone.coral,
+                  eyebrow: 'SCHOOL',
+                  title: 'Clubs',
+                  detail: 'Browse, join, and pay for after-school clubs.',
+                ),
+                const SizedBox(height: 12),
                 if (portal.children.isEmpty)
-                  const EmptyNote(icon: Icons.extension_rounded, message: 'Link a child before managing clubs.')
+                  const EmptyNote(
+                    icon: Icons.extension_rounded,
+                    title: 'Link a child first',
+                    message: 'Link a child before managing clubs.',
+                  )
                 else ...[
                   TextField(
                     controller: _search,
@@ -273,7 +285,11 @@ class _ClubsPageState extends State<ClubsPage> {
                   ),
                   const SizedBox(height: 14),
                   if (allClubs.isEmpty)
-                    const EmptyNote(icon: Icons.extension_rounded, message: 'No clubs are open for this child right now.')
+                    const EmptyNote(
+                      icon: Icons.extension_rounded,
+                      title: 'No clubs open',
+                      message: 'No clubs are open for this child right now.',
+                    )
                   else if (clubs.isEmpty)
                     EmptyNote(
                       icon: Icons.search_off_rounded,

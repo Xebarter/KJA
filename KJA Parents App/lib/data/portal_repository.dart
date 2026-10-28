@@ -27,27 +27,35 @@ class PortalRepository {
     if (user == null) throw PortalException('Sign in to continue.');
 
     Map<String, dynamic>? profileRow;
-    try {
-      await _db.from('profiles').upsert({
-        'id': user.id,
-        'role': 'parent',
-        'email': user.email,
-        'full_name': user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
-      }, onConflict: 'id', ignoreDuplicates: true);
-      profileRow = await _one(_db.from('profiles').select('*').eq('id', user.id).limit(1));
-    } catch (_) {}
+    // Profile + claim RPCs in parallel — sequential round-trips were the slow boot path.
+    await Future.wait<void>([
+      () async {
+        try {
+          await _db.from('profiles').upsert({
+            'id': user.id,
+            'role': 'parent',
+            'email': user.email,
+            'full_name': user.userMetadata?['full_name'] ?? user.userMetadata?['name'],
+          }, onConflict: 'id', ignoreDuplicates: true);
+          profileRow = await _one(_db.from('profiles').select('*').eq('id', user.id).limit(1));
+        } catch (_) {}
+      }(),
+      () async {
+        try {
+          await _db.rpc('claim_guardian_links');
+        } catch (_) {}
+      }(),
+      () async {
+        try {
+          await _db.rpc('claim_application_links');
+        } catch (_) {}
+      }(),
+    ]);
 
     final role = (profileRow?['role'] as String?)?.trim();
     if (role == 'student') {
       throw PortalException('This account is a pupil login. Use the KJA Pupils app instead.');
     }
-
-    try {
-      await _db.rpc('claim_guardian_links');
-    } catch (_) {}
-    try {
-      await _db.rpc('claim_application_links');
-    } catch (_) {}
 
     final allowed = await _isParentGuardian(user.id, role);
     if (!allowed) {
@@ -133,16 +141,29 @@ class PortalRepository {
     final currentTerm = settled[10] as Map<String, dynamic>?;
     final currentTermId = currentTerm?['id']?.toString();
 
-    final clubPaymentRows = (studentIds.isEmpty || currentTermId == null)
-        ? <Map<String, dynamic>>[]
-        : await _rows(
-            _db
-                .from('club_payments')
-                .select('student_id, club_id, receipt_no')
-                .eq('term_id', currentTermId)
-                .isFilter('voided_at', null)
-                .inFilter('student_id', studentIds),
-          );
+    final photoPaths = <String, String?>{
+      for (final s in students) s['id'].toString(): s['photo_path'] as String?,
+    };
+
+    final extras = await Future.wait<Object?>([
+      (studentIds.isEmpty || currentTermId == null)
+          ? Future.value(<Map<String, dynamic>>[])
+          : _rows(
+              _db
+                  .from('club_payments')
+                  .select('student_id, club_id, receipt_no')
+                  .eq('term_id', currentTermId)
+                  .isFilter('voided_at', null)
+                  .inFilter('student_id', studentIds),
+            ),
+      _resolvePhotoUrls(photoPaths),
+      _loadPointAwards(studentIds),
+      _loadFamilyEvents(students, currentTermId),
+    ]);
+    final clubPaymentRows = extras[0] as List<Map<String, dynamic>>;
+    final photoUrls = extras[1] as Map<String, String>;
+    final pointAwards = extras[2] as List<PointAward>;
+    final familyEvents = extras[3] as List<SchoolEvent>;
 
     final termLabel = <String, String>{
       for (final row in termRows)
@@ -185,12 +206,6 @@ class PortalRepository {
       if (sid.isEmpty) continue;
       clubCountByChild[sid] = (clubCountByChild[sid] ?? 0) + 1;
     }
-
-    final photoPaths = <String, String?>{
-      for (final s in students) s['id'].toString(): s['photo_path'] as String?,
-    };
-    final photoUrls = await _resolvePhotoUrls(photoPaths);
-    final pointAwards = await _loadPointAwards(studentIds);
 
     final children = students.map((s) {
       final id = s['id'].toString();
@@ -317,7 +332,7 @@ class PortalRepository {
             ),
           )
           .toList(),
-      events: await _loadFamilyEvents(students, currentTermId),
+      events: familyEvents,
       points: pointAwards,
       mustResetPassword: _flag(user.userMetadata?['must_reset_password']),
     );
@@ -932,18 +947,24 @@ class PortalRepository {
   }
 
   Future<Map<String, String>> _resolvePhotoUrls(Map<String, String?> paths) async {
-    final out = <String, String>{};
-    for (final entry in paths.entries) {
+    if (paths.isEmpty) return const {};
+    final entries = paths.entries.toList();
+    final resolved = await Future.wait(entries.map((entry) async {
       final proxy = PupilPhotoUrl.siteProxy(studentId: entry.key, photoPath: entry.value);
-      if (proxy != null) out[entry.key] = proxy;
       final path = entry.value?.trim() ?? '';
-      if (path.isEmpty) continue;
+      if (path.isEmpty) {
+        return MapEntry(entry.key, proxy);
+      }
       try {
         final signed = await _db.storage.from('student-photos').createSignedUrl(path, 60 * 60 * 12);
-        if (signed.isNotEmpty) out[entry.key] = signed;
+        if (signed.isNotEmpty) return MapEntry(entry.key, signed);
       } catch (_) {}
-    }
-    return out;
+      return MapEntry(entry.key, proxy);
+    }));
+    return {
+      for (final entry in resolved)
+        if (entry.value != null && entry.value!.isNotEmpty) entry.key: entry.value!,
+    };
   }
 
   ParentMessage _message(Map<String, dynamic> row) => ParentMessage(

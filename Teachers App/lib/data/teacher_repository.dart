@@ -132,43 +132,69 @@ class TeacherRepository {
     }
 
     final allowedPosts = {for (final post in subjects) post.key};
-    final pupilRows = await _db
-        .from('students')
-        .select(
-          'id, full_name, student_number, class_code, stream, profile_id, photo_path, status',
-        )
-        .eq('status', 'active')
-        .order('full_name');
-    final pupils = <Pupil>[
-      for (final row in _maps(pupilRows))
-        Pupil(
-          id: asText(row['id']),
-          fullName: asText(row['full_name'], 'Pupil'),
-          classCode: asText(row['class_code']),
-          stream: asText(row['stream']),
-          studentNumber: _nullable(row['student_number']),
-          profileId: _nullable(row['profile_id']),
-          photoPath: _nullable(row['photo_path']),
-        ),
-    ];
-    final photoUrls = await _signedStudentPhotos(pupils);
-    if (photoUrls.isNotEmpty) {
-      for (var i = 0; i < pupils.length; i++) {
-        final url = photoUrls[pupils[i].id];
-        if (url == null) continue;
-        final pupil = pupils[i];
-        pupils[i] = Pupil(
-          id: pupil.id,
-          fullName: pupil.fullName,
-          classCode: pupil.classCode,
-          stream: pupil.stream,
-          studentNumber: pupil.studentNumber,
-          profileId: pupil.profileId,
-          photoPath: pupil.photoPath,
-          photoUrl: url,
+    // Only the classes this teacher leads or teaches — not the whole school roll.
+    final rollKeys = <String>{
+      for (final post in classes) '${post.classCode}|${post.stream}',
+      for (final post in subjects) '${post.classCode}|${post.stream}',
+    };
+    final pupils = <Pupil>[];
+    if (rollKeys.isNotEmpty) {
+      final rollPosts = <ClassPost>[
+        ...classes,
+        for (final post in subjects)
+          if (!classes.any(
+            (row) =>
+                row.classCode == post.classCode && row.stream == post.stream,
+          ))
+            ClassPost(
+              classCode: post.classCode,
+              stream: post.stream,
+              label: classLabelOf(post.classCode, post.stream),
+            ),
+      ];
+      // Prefer a narrow or-filter so we do not download the whole school.
+      final orFilter = [
+        for (final post in rollPosts)
+          'and(class_code.eq.${post.classCode},stream.eq.${post.stream})',
+      ].join(',');
+      dynamic pupilRows;
+      try {
+        pupilRows = await _db
+            .from('students')
+            .select(
+              'id, full_name, student_number, class_code, stream, profile_id, photo_path, status',
+            )
+            .eq('status', 'active')
+            .or(orFilter)
+            .order('full_name');
+      } catch (_) {
+        pupilRows = await _db
+            .from('students')
+            .select(
+              'id, full_name, student_number, class_code, stream, profile_id, photo_path, status',
+            )
+            .eq('status', 'active')
+            .order('full_name');
+      }
+      for (final row in _maps(pupilRows)) {
+        final code = asText(row['class_code']);
+        final stream = asText(row['stream']);
+        if (!rollKeys.contains('$code|$stream')) continue;
+        pupils.add(
+          Pupil(
+            id: asText(row['id']),
+            fullName: asText(row['full_name'], 'Pupil'),
+            classCode: code,
+            stream: stream,
+            studentNumber: _nullable(row['student_number']),
+            profileId: _nullable(row['profile_id']),
+            photoPath: _nullable(row['photo_path']),
+          ),
         );
       }
     }
+    // Photo signing is deferred — it is many storage round-trips and is not
+    // needed to paint the desk (cached bytes / path are enough for later).
     final pupilNames = {for (final pupil in pupils) pupil.id: pupil.fullName};
 
     final papers = <Paper>[];
@@ -218,21 +244,26 @@ class TeacherRepository {
       });
 
       if (papers.isNotEmpty) {
-        final scoreRows = await _db
-            .from('assessment_scores')
-            .select('assessment_id, student_id, score, missed');
-        final paperIds = {for (final paper in papers) paper.id};
-        for (final row in _maps(scoreRows)) {
-          final assessmentId = asText(row['assessment_id']);
-          if (!paperIds.contains(assessmentId)) continue;
-          scores.add(
-            Score(
-              assessmentId: assessmentId,
-              studentId: asText(row['student_id']),
-              score: asDouble(row['score']),
-              missed: row['missed'] == true,
-            ),
+        final paperIds = [for (final paper in papers) paper.id];
+        for (var i = 0; i < paperIds.length; i += 80) {
+          final chunk = paperIds.sublist(
+            i,
+            i + 80 > paperIds.length ? paperIds.length : i + 80,
           );
+          final scoreRows = await _db
+              .from('assessment_scores')
+              .select('assessment_id, student_id, score, missed')
+              .inFilter('assessment_id', chunk);
+          for (final row in _maps(scoreRows)) {
+            scores.add(
+              Score(
+                assessmentId: asText(row['assessment_id']),
+                studentId: asText(row['student_id']),
+                score: asDouble(row['score']),
+                missed: row['missed'] == true,
+              ),
+            );
+          }
         }
       }
 
@@ -273,14 +304,20 @@ class TeacherRepository {
 
       if (homeworkIds.isNotEmpty) {
         try {
-          final doneRows = await _db
-              .from('homework_completions')
-              .select('assignment_id');
           final counts = <String, int>{};
-          for (final row in _maps(doneRows)) {
-            final id = asText(row['assignment_id']);
-            if (!homeworkIds.contains(id)) continue;
-            counts[id] = (counts[id] ?? 0) + 1;
+          for (var i = 0; i < homeworkIds.length; i += 80) {
+            final chunk = homeworkIds.sublist(
+              i,
+              i + 80 > homeworkIds.length ? homeworkIds.length : i + 80,
+            );
+            final doneRows = await _db
+                .from('homework_completions')
+                .select('assignment_id')
+                .inFilter('assignment_id', chunk);
+            for (final row in _maps(doneRows)) {
+              final id = asText(row['assignment_id']);
+              counts[id] = (counts[id] ?? 0) + 1;
+            }
           }
           if (counts.isNotEmpty) {
             for (var i = 0; i < homework.length; i++) {
@@ -304,13 +341,65 @@ class TeacherRepository {
         } catch (_) {}
       }
 
-      final resourceRows = await _db
-          .from('class_resources')
-          .select(
-            'id, class_code, stream, subject_id, kind, title, body, link_url, file_path, file_name, published_at, teacher_staff_id',
-          )
-          .order('created_at', ascending: false)
-          .limit(200);
+      final pupilIdSet = {for (final pupil in pupils) pupil.id};
+      final classTeacher = classes.isNotEmpty;
+
+      final parallel = await Future.wait<dynamic>([
+        _db
+            .from('class_resources')
+            .select(
+              'id, class_code, stream, subject_id, kind, title, body, link_url, file_path, file_name, published_at, teacher_staff_id',
+            )
+            .order('created_at', ascending: false)
+            .limit(200),
+        _db
+            .from('attendance')
+            .select('student_id, status, note')
+            .eq('attended_on', today),
+        _db
+            .from('attendance_closures')
+            .select('class_code, stream')
+            .eq('attended_on', today),
+        _db
+            .from('academic_dates')
+            .select(
+              'id, title, kind, starts_on, ends_on, note, class_code, stream',
+            )
+            .eq('term_id', term.id)
+            .order('starts_on'),
+        _db
+            .from('grade_bands')
+            .select('id, section, label, min_score, max_score, sort_order'),
+        if (classTeacher)
+          _db
+              .from('class_notices')
+              .select('id, class_code, stream, title, body, created_at')
+              .eq('term_id', term.id)
+              .order('created_at', ascending: false)
+              .limit(40),
+        if (classTeacher)
+          _db
+              .from('student_conversations')
+              .select(
+                'id, kind, class_code, stream, student_low_id, student_high_id, created_at',
+              ),
+        if (classTeacher)
+          _db
+              .from('student_messages')
+              .select('conversation_id, body, created_at, flagged, hidden')
+              .order('created_at', ascending: false)
+              .limit(400),
+      ]);
+
+      final resourceRows = parallel[0];
+      final markRows = parallel[1];
+      final closureRows = parallel[2];
+      final dateRows = parallel[3];
+      final bandRowsEarly = parallel[4];
+      final noticeRows = classTeacher ? parallel[5] : const [];
+      final conversationRows = classTeacher ? parallel[6] : const [];
+      final recentRows = classTeacher ? parallel[7] : const [];
+
       for (final row in _maps(resourceRows)) {
         final code = asText(row['class_code']);
         final stream = asText(row['stream']);
@@ -337,23 +426,17 @@ class TeacherRepository {
         );
       }
 
-      final markRows = await _db
-          .from('attendance')
-          .select('student_id, status, note')
-          .eq('attended_on', today);
       for (final row in _maps(markRows)) {
+        final studentId = asText(row['student_id']);
+        if (pupilIdSet.isNotEmpty && !pupilIdSet.contains(studentId)) continue;
         marks.add(
           AttendanceMark(
-            studentId: asText(row['student_id']),
+            studentId: studentId,
             status: asText(row['status'], 'present'),
             note: _nullable(row['note']),
           ),
         );
       }
-      final closureRows = await _db
-          .from('attendance_closures')
-          .select('class_code, stream')
-          .eq('attended_on', today);
       for (final row in _maps(closureRows)) {
         closures.add(
           RegisterClosure(
@@ -363,13 +446,6 @@ class TeacherRepository {
         );
       }
 
-      final dateRows = await _db
-          .from('academic_dates')
-          .select(
-            'id, title, kind, starts_on, ends_on, note, class_code, stream',
-          )
-          .eq('term_id', term.id)
-          .order('starts_on');
       for (final row in _maps(dateRows)) {
         dates.add(
           SchoolDate(
@@ -387,13 +463,21 @@ class TeacherRepository {
         );
       }
 
-      if (classes.isNotEmpty) {
-        final noticeRows = await _db
-            .from('class_notices')
-            .select('id, class_code, stream, title, body, created_at')
-            .eq('term_id', term.id)
-            .order('created_at', ascending: false)
-            .limit(40);
+      for (final row in _maps(bandRowsEarly)) {
+        bands.add(
+          GradeBand(
+            id: asText(row['id']),
+            section: asText(row['section'], 'primary'),
+            label: asText(row['label']),
+            minScore: asDouble(row['min_score']) ?? 0,
+            maxScore: asDouble(row['max_score']) ?? 0,
+            sortOrder: asInt(row['sort_order']) ?? 0,
+          ),
+        );
+      }
+      bands.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+      if (classTeacher) {
         for (final row in _maps(noticeRows)) {
           notices.add(
             ClassNotice(
@@ -406,17 +490,6 @@ class TeacherRepository {
             ),
           );
         }
-
-        final conversationRows = await _db
-            .from('student_conversations')
-            .select(
-              'id, kind, class_code, stream, student_low_id, student_high_id, created_at',
-            );
-        final recentRows = await _db
-            .from('student_messages')
-            .select('conversation_id, body, created_at, flagged, hidden')
-            .order('created_at', ascending: false)
-            .limit(400);
         final previews = <String, Map<String, dynamic>>{};
         final flaggedIds = <String>{};
         final hiddenIds = <String>{};
@@ -437,10 +510,14 @@ class TeacherRepository {
           String stream = asText(row['stream']);
           String title;
           if (kind == 'class_group') {
+            if (!rollKeys.contains('$code|$stream')) continue;
             title = 'Class chat · ${classLabelOf(code, stream)}';
           } else {
             final lowId = asText(row['student_low_id']);
             final highId = asText(row['student_high_id']);
+            if (!pupilIdSet.contains(lowId) && !pupilIdSet.contains(highId)) {
+              continue;
+            }
             Pupil? lowPupil;
             for (final pupil in pupils) {
               if (pupil.id == lowId) lowPupil = pupil;
@@ -470,28 +547,31 @@ class TeacherRepository {
             ),
           );
         }
+        flaggedMessages = threads.where((row) => row.flagged).length;
         threads.sort(
           (a, b) => (b.previewAt ?? '').compareTo(a.previewAt ?? ''),
         );
       }
     }
 
-    final bandRows = await _db
-        .from('grade_bands')
-        .select('id, section, label, min_score, max_score, sort_order');
-    for (final row in _maps(bandRows)) {
-      bands.add(
-        GradeBand(
-          id: asText(row['id']),
-          section: asText(row['section'], 'primary'),
-          label: asText(row['label']),
-          minScore: asDouble(row['min_score']) ?? 0,
-          maxScore: asDouble(row['max_score']) ?? 0,
-          sortOrder: asInt(row['sort_order']) ?? 0,
-        ),
-      );
+    if (bands.isEmpty) {
+      final bandRows = await _db
+          .from('grade_bands')
+          .select('id, section, label, min_score, max_score, sort_order');
+      for (final row in _maps(bandRows)) {
+        bands.add(
+          GradeBand(
+            id: asText(row['id']),
+            section: asText(row['section'], 'primary'),
+            label: asText(row['label']),
+            minScore: asDouble(row['min_score']) ?? 0,
+            maxScore: asDouble(row['max_score']) ?? 0,
+            sortOrder: asInt(row['sort_order']) ?? 0,
+          ),
+        );
+      }
+      bands.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     }
-    bands.sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
 
     final pointReasons = <PointReason>[];
     final pointAwards = <PointAward>[];
@@ -513,27 +593,37 @@ class TeacherRepository {
           ),
         );
       }
-      if (term != null) {
-        for (final row in await _paged(
-          (from, to) => _db
-              .from('point_awards')
-              .select('id, student_id, points, reason_id, reason_label, teacher_name, created_at, voided_at')
-              .eq('term_id', term.id)
-              .order('id')
-              .range(from, to),
-        )) {
-          pointAwards.add(
-            PointAward(
-              id: asText(row['id']),
-              studentId: asText(row['student_id']),
-              points: asInt(row['points']) ?? 0,
-              reasonId: _nullable(row['reason_id']),
-              reasonLabel: asText(row['reason_label']),
-              teacherName: asText(row['teacher_name'], 'Teacher'),
-              createdAt: asText(row['created_at']),
-              voided: row['voided_at'] != null,
-            ),
+      if (term != null && pupils.isNotEmpty) {
+        final pupilIds = [for (final pupil in pupils) pupil.id];
+        for (var i = 0; i < pupilIds.length; i += 80) {
+          final chunk = pupilIds.sublist(
+            i,
+            i + 80 > pupilIds.length ? pupilIds.length : i + 80,
           );
+          for (final row in await _paged(
+            (from, to) => _db
+                .from('point_awards')
+                .select(
+                  'id, student_id, points, reason_id, reason_label, teacher_name, created_at, voided_at',
+                )
+                .eq('term_id', term.id)
+                .inFilter('student_id', chunk)
+                .order('id')
+                .range(from, to),
+          )) {
+            pointAwards.add(
+              PointAward(
+                id: asText(row['id']),
+                studentId: asText(row['student_id']),
+                points: asInt(row['points']) ?? 0,
+                reasonId: _nullable(row['reason_id']),
+                reasonLabel: asText(row['reason_label']),
+                teacherName: asText(row['teacher_name'], 'Teacher'),
+                createdAt: asText(row['created_at']),
+                voided: row['voided_at'] != null,
+              ),
+            );
+          }
         }
       }
     } catch (_) {}
@@ -1087,16 +1177,17 @@ class TeacherRepository {
     } catch (_) {}
   }
 
-  Future<Map<String, String>> _signedStudentPhotos(List<Pupil> pupils) async {
+  /// Signs photo paths for pupils that do not already have a URL.
+  Future<Map<String, String>> signStudentPhotos(List<Pupil> pupils) async {
     final ready = [
       for (final pupil in pupils)
-        if ((pupil.photoPath ?? '').trim().isNotEmpty) pupil,
+        if ((pupil.photoUrl == null || pupil.photoUrl!.isEmpty) &&
+            (pupil.photoPath ?? '').trim().isNotEmpty)
+          pupil,
     ];
     if (ready.isEmpty) return const {};
-    final first = await _signStudentPhoto(ready.first.photoPath!);
-    if (first == null) return const {};
-    final urls = <String, String>{ready.first.id: first};
-    await Future.wait(ready.skip(1).map((pupil) async {
+    final urls = <String, String>{};
+    await Future.wait(ready.map((pupil) async {
       final url = await _signStudentPhoto(pupil.photoPath!);
       if (url != null) urls[pupil.id] = url;
     }));

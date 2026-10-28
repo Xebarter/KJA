@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "ug.ac.kja.kja_teachers"
-    compileSdk = flutter.compileSdkVersion
+    // file_picker / flutter_plugin_android_lifecycle require API 36+.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

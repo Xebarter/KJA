@@ -9,8 +9,10 @@ Flutter parent portal for Kampala Junior Academy — mirrors the website `/accou
 ```bash
 SUPABASE_URL=…
 SUPABASE_ANON_KEY=…
-KJA_SITE_URL=https://kja.ug
+KJA_SITE_URL=https://kja-phi.vercel.app
 ```
+
+`KJA_SITE_URL` must be the Next.js site (Vercel), not WordPress `https://kja.ug`. Admission, club and school-fee Mobile Money calls go to `/api/parents/*` on that host.
 
 Never put the service-role key in the app.
 
@@ -28,11 +30,11 @@ flutter run
 - **Header menu:** Reports, School fees, Applications, Clubs, Calendar, Notifications, My details
 - **Header bell:** Notifications
 
-School fee and club **Mobile Money** payments stay in the app (PIN prompt). Admission payments still open in the website browser (`KJA_SITE_URL`).
+Mobile Money for **applications**, **clubs** and **school fees** stays in the app (PIN prompt on the phone). Status is polled from the Next.js API while you wait.
 
 ## App icon
 
-Navy (`#1A3A5C`) adaptive background — distinct from the white Pupils app icon.
+Premium blue (`#0A2F5C`) adaptive background — crest recolored sapphire/navy with champagne gold accents.
 
 ```bash
 dart run flutter_launcher_icons

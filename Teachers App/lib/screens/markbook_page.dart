@@ -35,6 +35,7 @@ class MarkbookPage extends StatefulWidget {
 
 class _MarkbookPageState extends State<MarkbookPage> {
   final _scores = <String, TextEditingController>{};
+  final _scoreFocus = <String, FocusNode>{};
   final _missed = <String, bool>{};
   final _bands = <String, String?>{};
   var _index = 0;
@@ -72,6 +73,9 @@ class _MarkbookPageState extends State<MarkbookPage> {
     for (final controller in _scores.values) {
       controller.dispose();
     }
+    for (final node in _scoreFocus.values) {
+      node.dispose();
+    }
     super.dispose();
   }
 
@@ -104,6 +108,7 @@ class _MarkbookPageState extends State<MarkbookPage> {
         final controller = TextEditingController(text: value == null ? '' : _trim(value));
         controller.addListener(_scheduleDraft);
         _scores[pupil.id] = controller;
+        _scoreFocus[pupil.id] = FocusNode(debugLabel: 'mark-${pupil.id}');
       }
       final blank = missed
           ? false
@@ -118,6 +123,7 @@ class _MarkbookPageState extends State<MarkbookPage> {
     _index = pupils.isEmpty ? 0 : firstBlank;
     _review = !current.open;
     _ready = true;
+    if (!_review && !nursery) _keepScoreKeyboard();
   }
 
   List<GradeBand> _nurseryBands(TeacherSnapshot portal) {
@@ -244,14 +250,53 @@ class _MarkbookPageState extends State<MarkbookPage> {
     await widget.controller.saveMarkDraft(paper: current, rows: rows);
   }
 
+  FocusNode? _focusForIndex(List<Pupil> pupils) {
+    if (pupils.isEmpty) return null;
+    final pupil = pupils[_index.clamp(0, pupils.length - 1)];
+    if (_missed[pupil.id] == true) return null;
+    return _scoreFocus[pupil.id];
+  }
+
+  /// After the pupil card swaps, put the caret back so typing needs no extra tap.
+  void _keepScoreKeyboard() {
+    void focusNow() {
+      if (!mounted || _review) return;
+      final current = paper;
+      final portal = widget.controller.snapshot;
+      if (current == null || portal == null) return;
+      if (classSectionOf(current.classCode) == 'nursery') return;
+      final pupils = portal.pupilsIn(current.classCode, current.stream);
+      if (pupils.isEmpty) return;
+      final pupil = pupils[_index.clamp(0, pupils.length - 1)];
+      if (_missed[pupil.id] == true) return;
+      final controller = _scores[pupil.id];
+      final focus = _scoreFocus[pupil.id];
+      if (controller == null || focus == null) return;
+      focus.requestFocus();
+      final text = controller.text;
+      if (text.isNotEmpty) {
+        controller.selection = TextSelection(baseOffset: 0, extentOffset: text.length);
+      }
+    }
+
+    // Twice: once after setState, again after AnimatedSwitcher mounts the new field.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      focusNow();
+      WidgetsBinding.instance.addPostFrameCallback((_) => focusNow());
+    });
+  }
+
   void _advance(Paper current, bool nursery, int count) {
     final error = _validateCurrent(current, nursery);
     if (error != null) {
       setState(() => _hint = error);
+      _keepScoreKeyboard();
       return;
     }
-    FocusScope.of(context).unfocus();
     if (_index >= count - 1) {
+      _focusForIndex(
+        widget.controller.snapshot?.pupilsIn(current.classCode, current.stream) ?? const [],
+      )?.unfocus();
       setState(() {
         _hint = null;
         _review = true;
@@ -262,18 +307,19 @@ class _MarkbookPageState extends State<MarkbookPage> {
         _forward = true;
         _index += 1;
       });
+      _keepScoreKeyboard();
     }
     unawaited(_persistDraft());
   }
 
   void _back() {
     if (_index == 0) return;
-    FocusScope.of(context).unfocus();
     setState(() {
       _hint = null;
       _forward = false;
       _index -= 1;
     });
+    _keepScoreKeyboard();
     unawaited(_persistDraft());
   }
 
@@ -346,7 +392,10 @@ class _MarkbookPageState extends State<MarkbookPage> {
         title: Text(current.name),
         actions: [
           TextButton(
-            onPressed: () => setState(() => _review = true),
+            onPressed: () {
+              _scoreFocus[pupil.id]?.unfocus();
+              setState(() => _review = true);
+            },
             child: const Text('Sheet'),
           ),
         ],
@@ -397,13 +446,17 @@ class _MarkbookPageState extends State<MarkbookPage> {
                   missed: _missed[pupil.id] == true,
                   bandId: _bands[pupil.id],
                   score: _scores[pupil.id],
+                  scoreFocus: _scoreFocus[pupil.id],
                   hint: _hint,
-                  onMissed: (value) => setState(() {
-                    _missed[pupil.id] = value;
-                    _hint = null;
-                    if (value) _scores[pupil.id]?.clear();
-                    _scheduleDraft();
-                  }),
+                  onMissed: (value) {
+                    setState(() {
+                      _missed[pupil.id] = value;
+                      _hint = null;
+                      if (value) _scores[pupil.id]?.clear();
+                      _scheduleDraft();
+                    });
+                    if (!value) _keepScoreKeyboard();
+                  },
                   onBand: (id) => setState(() {
                     _bands[pupil.id] = id;
                     _missed[pupil.id] = false;
@@ -414,40 +467,43 @@ class _MarkbookPageState extends State<MarkbookPage> {
                 ),
               ),
             ),
-            Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton(
-                          style: OutlinedButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56),
-                            backgroundColor: Colors.white,
-                            foregroundColor: tone.ink,
-                            disabledForegroundColor: tone.ink.withValues(alpha: 0.35),
-                            side: BorderSide(color: tone.ink.withValues(alpha: index == 0 ? 0.16 : 0.35)),
-                            textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+            // Keep Next/Back from stealing focus (which would close the number keyboard).
+            ExcludeFocus(
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 480),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(56),
+                              backgroundColor: Colors.white,
+                              foregroundColor: tone.ink,
+                              disabledForegroundColor: tone.ink.withValues(alpha: 0.35),
+                              side: BorderSide(color: tone.ink.withValues(alpha: index == 0 ? 0.16 : 0.35)),
+                              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                            ),
+                            onPressed: index == 0 ? null : _back,
+                            child: const Text('Back'),
                           ),
-                          onPressed: index == 0 ? null : _back,
-                          child: const Text('Back'),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton(
-                          style: FilledButton.styleFrom(
-                            minimumSize: const Size.fromHeight(56),
-                            backgroundColor: tone.ink,
-                            textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: FilledButton(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(56),
+                              backgroundColor: tone.ink,
+                              textStyle: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+                            ),
+                            onPressed: () => _advance(current, nursery, pupils.length),
+                            child: Text(index == pupils.length - 1 ? 'Finish' : 'Next'),
                           ),
-                          onPressed: () => _advance(current, nursery, pupils.length),
-                          child: Text(index == pupils.length - 1 ? 'Finish' : 'Next'),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -584,6 +640,7 @@ class _PupilCard extends StatelessWidget {
     required this.missed,
     required this.bandId,
     required this.score,
+    required this.scoreFocus,
     required this.hint,
     required this.onMissed,
     required this.onBand,
@@ -598,6 +655,7 @@ class _PupilCard extends StatelessWidget {
   final bool missed;
   final String? bandId;
   final TextEditingController? score;
+  final FocusNode? scoreFocus;
   final String? hint;
   final ValueChanged<bool> onMissed;
   final ValueChanged<String> onBand;
@@ -662,6 +720,7 @@ class _PupilCard extends StatelessWidget {
           TextField(
             key: ValueKey('score-${pupil.id}'),
             controller: score,
+            focusNode: scoreFocus,
             autofocus: true,
             textAlign: TextAlign.center,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),

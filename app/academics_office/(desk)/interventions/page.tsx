@@ -74,6 +74,9 @@ export default async function InterventionsPage({ searchParams }: { searchParams
 
   const pointRows = buildPointRows(pupils.map(pointPupilFromRoll), awardsPack.awards);
   const pointsMissing = schemaMissing(awardsPack.error);
+  const pointsLoadError = pointsMissing
+    ? "Run supabase/0055_pupil_points.sql before using points."
+    : awardsPack.error;
   const initialView = params.view === "points" || (params.term && selected && term && params.term !== term.id) ? "points" : "cases";
 
   return (
@@ -86,8 +89,6 @@ export default async function InterventionsPage({ searchParams }: { searchParams
           ? <>{term.label}. Follow up pupils who need support{openCount ? <> · <strong>{nf(openCount)}</strong> open</> : ""}{dueCount ? <> · <strong>{nf(dueCount)}</strong> due</> : ""}.</>
           : "Set a current term first."}
       />
-      {pointsMissing ? <p className="admin-empty">Run supabase/0055_pupil_points.sql before using points.</p> : null}
-      {awardsPack.error && !pointsMissing ? <p className="admin-empty">{awardsPack.error}</p> : null}
       {term ? (
         <InterventionsWorkbench
           initialView={initialView}
@@ -103,11 +104,12 @@ export default async function InterventionsPage({ searchParams }: { searchParams
           reasons={[...INTERVENTION_REASONS]}
           termId={term.id}
           saveCase={saveIntervention}
-          points={selected && !pointsMissing ? {
+          points={selected ? {
             termId: selected.id,
             termLabel: selected.label,
             terms: terms.map((row) => ({ id: row.id, label: row.label, current: row.is_current })),
             rows: pointRows,
+            loadError: pointsLoadError,
             save: voidPupilPoints,
           } : null}
         />

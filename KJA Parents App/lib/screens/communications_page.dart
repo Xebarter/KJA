@@ -81,14 +81,20 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
       );
     }
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
+        const PageIntro(
+          tone: Tone.mint,
+          eyebrow: 'INBOX',
+          title: 'Communications',
+          detail: 'Message the school office and follow open threads.',
+        ),
+        const SizedBox(height: 12),
         SoftCard(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('New message', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
+              const Text('New message', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
               const SizedBox(height: 10),
               Wrap(
                 spacing: 8,
@@ -109,13 +115,14 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
                 maxLines: 5,
                 decoration: const InputDecoration(hintText: 'Write your message…'),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 12),
               Align(
                 alignment: Alignment.centerRight,
-                child: FilledButton(
+                child: FilledButton.icon(
                   style: FilledButton.styleFrom(backgroundColor: KjaColors.mintDeep),
                   onPressed: _busy ? null : () => _send(),
-                  child: Text(_busy ? 'Sending…' : 'Send'),
+                  icon: const Icon(Icons.send_rounded, size: 18),
+                  label: Text(_busy ? 'Sending…' : 'Send'),
                 ),
               ),
             ],
@@ -123,23 +130,26 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
         ),
         const SizedBox(height: 16),
         const SectionTitle(title: 'Threads'),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (threads.isEmpty)
-          const EmptyNote(icon: Icons.forum_rounded, message: 'No conversations yet. Start one above.')
+          const EmptyNote(icon: Icons.forum_rounded, title: 'No conversations yet', message: 'Start one above to reach the school office.')
         else
           ...threads.map((thread) {
+            final hasUnread = thread.unread > 0;
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: SoftCard(
+                accent: hasUnread ? KjaColors.mintDeep : null,
                 onTap: () => _openThread(thread),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     ToneIcon(
                       icon: thread.fromSchool ? Icons.school_rounded : Icons.person_rounded,
-                      tone: thread.unread > 0 ? Tone.mint : Tone.sky,
+                      tone: hasUnread ? Tone.mint : Tone.sky,
                       size: 42,
                       iconSize: 20,
+                      active: hasUnread,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -151,18 +161,11 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
                               Expanded(
                                 child: Text(
                                   thread.subject,
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.w900,
-                                    color: thread.unread > 0 ? KjaColors.ink : KjaColors.ink,
-                                  ),
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
                                 ),
                               ),
-                              if (thread.unread > 0)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                  decoration: BoxDecoration(color: KjaColors.rose, borderRadius: BorderRadius.circular(99)),
-                                  child: Text('${thread.unread}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w800, fontSize: 11)),
-                                ),
+                              if (hasUnread)
+                                StatusPill(label: '${thread.unread}', tone: Tone.rose, filled: true),
                             ],
                           ),
                           const SizedBox(height: 4),
@@ -170,7 +173,7 @@ class _CommunicationsPageState extends State<CommunicationsPage> {
                             thread.last.body,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(color: KjaColors.soft, height: 1.35),
+                            style: const TextStyle(color: KjaColors.soft, height: 1.4, fontWeight: FontWeight.w600, fontSize: 13.5),
                           ),
                           const SizedBox(height: 6),
                           Text(
@@ -217,15 +220,21 @@ class _ThreadView extends StatelessWidget {
       children: [
         Material(
           color: Colors.white,
-          child: ListTile(
-            leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: onBack),
-            title: Text(thread.subject, style: const TextStyle(fontWeight: FontWeight.w900)),
-            subtitle: Text('${thread.items.length} messages'),
+          elevation: 0,
+          child: Container(
+            decoration: const BoxDecoration(
+              border: Border(bottom: BorderSide(color: KjaColors.line)),
+            ),
+            child: ListTile(
+              leading: IconButton(icon: const Icon(Icons.arrow_back_rounded), onPressed: onBack),
+              title: Text(thread.subject, style: const TextStyle(fontWeight: FontWeight.w800)),
+              subtitle: Text('${thread.items.length} messages', style: const TextStyle(fontWeight: FontWeight.w600)),
+            ),
           ),
         ),
         Expanded(
           child: ListView.builder(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 12),
             itemCount: thread.items.length,
             itemBuilder: (context, index) {
               final message = thread.items[index];
@@ -235,11 +244,16 @@ class _ThreadView extends StatelessWidget {
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.78),
-                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  padding: const EdgeInsets.fromLTRB(14, 11, 14, 11),
                   decoration: BoxDecoration(
                     color: mine ? KjaColors.skyWash : Colors.white,
-                    borderRadius: BorderRadius.circular(18),
-                    border: Border.all(color: mine ? KjaColors.sky.withValues(alpha: 0.25) : KjaColors.line),
+                    borderRadius: BorderRadius.only(
+                      topLeft: const Radius.circular(16),
+                      topRight: const Radius.circular(16),
+                      bottomLeft: Radius.circular(mine ? 16 : 5),
+                      bottomRight: Radius.circular(mine ? 5 : 16),
+                    ),
+                    border: Border.all(color: mine ? KjaColors.sky.withValues(alpha: 0.18) : KjaColors.line),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,7 +267,7 @@ class _ThreadView extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(message.body, style: const TextStyle(height: 1.4)),
+                      Text(message.body, style: const TextStyle(height: 1.45, fontWeight: FontWeight.w600)),
                     ],
                   ),
                 ),
@@ -263,8 +277,12 @@ class _ThreadView extends StatelessWidget {
         ),
         SafeArea(
           top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: KjaColors.line)),
+            ),
             child: Row(
               children: [
                 Expanded(
@@ -277,7 +295,10 @@ class _ThreadView extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 IconButton.filled(
-                  style: IconButton.styleFrom(backgroundColor: KjaColors.mintDeep),
+                  style: IconButton.styleFrom(
+                    backgroundColor: KjaColors.mintDeep,
+                    minimumSize: const Size(48, 48),
+                  ),
                   onPressed: busy ? null : onSend,
                   icon: busy
                       ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))

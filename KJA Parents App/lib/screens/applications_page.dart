@@ -30,7 +30,7 @@ String? _networkOf(String phone) {
   if (!RegExp(r'^7\d{8}$').hasMatch(digits)) return null;
   final prefix = digits.substring(0, 2);
   if (const {'76', '77', '78', '79'}.contains(prefix)) return 'MTN Mobile Money';
-  if (const {'70', '74', '75'}.contains(prefix)) return 'Airtel Money';
+  if (const {'70', '72', '73', '74', '75'}.contains(prefix)) return 'Airtel Money';
   return null;
 }
 
@@ -310,14 +310,15 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
     final network = _networkOf(_payPhone.text);
     final waiting = _paying && _waitingId != null;
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 36),
+    return PortalScroll(
       children: [
         const PageIntro(
+          tone: Tone.lilac,
+          eyebrow: 'SCHOOL',
           title: 'Apply for a place',
           detail: 'Fill in the child, choose a campus, then pay the admission fee by Mobile Money.',
         ),
-        const SizedBox(height: 18),
+        const SizedBox(height: 14),
         if (_paying || _statusNote != null || _error != null) ...[
           _StatusBanner(
             paying: _paying,
@@ -326,10 +327,10 @@ class _ApplicationsPageState extends State<ApplicationsPage> {
             error: _error,
             onCancel: waiting ? _cancelWait : null,
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 12),
         ],
         SoftCard(
-          padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 18),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [

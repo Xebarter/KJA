@@ -16,7 +16,7 @@ String? _networkOf(String phone) {
   if (!RegExp(r'^7\d{8}$').hasMatch(digits)) return null;
   final prefix = digits.substring(0, 2);
   if (const {'76', '77', '78', '79'}.contains(prefix)) return 'MTN Mobile Money';
-  if (const {'70', '74', '75'}.contains(prefix)) return 'Airtel Money';
+  if (const {'70', '72', '73', '74', '75'}.contains(prefix)) return 'Airtel Money';
   return null;
 }
 
@@ -237,32 +237,34 @@ class _FeesPageState extends State<FeesPage> {
     final fee = _selected;
     final network = _networkOf(_phone.text);
 
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
+    return PortalScroll(
       children: [
-        if (outstanding > 0) ...[
-          SoftCard(
-            child: Text(
-              '${moneyUgx(outstanding)} outstanding',
-              style: const TextStyle(
-                fontWeight: FontWeight.w800,
-                fontSize: 15,
-                color: KjaColors.ink,
-              ),
-            ),
+        if (outstanding > 0)
+          BrandHero(
+            eyebrow: 'SCHOOL FEES',
+            title: moneyUgx(outstanding),
+            detail: 'Outstanding across your linked children.',
+            colors: const [Color(0xFF7C2D12), KjaColors.coralDeep, Color(0xFFEA580C)],
+            trailing: ToneIcon(icon: Icons.receipt_long_rounded, tone: Tone.coral, size: 44, iconSize: 22),
+          )
+        else
+          const PageIntro(
+            tone: Tone.coral,
+            eyebrow: 'FAMILY',
+            title: 'School fees',
+            detail: 'Balances, Mobile Money payments, and receipts.',
           ),
-          const SizedBox(height: 16),
-        ],
+        const SizedBox(height: 14),
         if (_payable.isNotEmpty) ...[
           SoftCard(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Pay with Mobile Money', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16)),
-                const SizedBox(height: 4),
+                const Text('Pay with Mobile Money', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
+                const SizedBox(height: 6),
                 const Text(
                   'We send a PIN prompt to your phone. Approve it here in the app — no browser needed.',
-                  style: TextStyle(color: KjaColors.soft, height: 1.35),
+                  style: TextStyle(color: KjaColors.soft, height: 1.4, fontWeight: FontWeight.w600, fontSize: 13.5),
                 ),
                 const SizedBox(height: 12),
                 InputDecorator(
@@ -378,17 +380,36 @@ class _FeesPageState extends State<FeesPage> {
             return Padding(
               padding: const EdgeInsets.only(bottom: 10),
               child: SoftCard(
+                accent: item.hasDue ? KjaColors.coralDeep : KjaColors.mintDeep,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(nameById[item.childId] ?? 'Child', style: const TextStyle(fontWeight: FontWeight.w900)),
-                    Text('${item.term}${item.dueOn != null ? ' · due ${shortDate(item.dueOn)}' : ''}', style: const TextStyle(color: KjaColors.soft)),
-                    const SizedBox(height: 10),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            nameById[item.childId] ?? 'Child',
+                            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15),
+                          ),
+                        ),
+                        StatusPill(
+                          label: item.hasDue ? 'Due' : 'Clear',
+                          tone: item.hasDue ? Tone.coral : Tone.mint,
+                          filled: item.hasDue,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${item.term}${item.dueOn != null ? ' · due ${shortDate(item.dueOn)}' : ''}',
+                      style: const TextStyle(color: KjaColors.soft, fontWeight: FontWeight.w600, fontSize: 13),
+                    ),
+                    const SizedBox(height: 12),
                     ClipRRect(
                       borderRadius: BorderRadius.circular(99),
                       child: LinearProgressIndicator(
                         value: progress.toDouble(),
-                        minHeight: 8,
+                        minHeight: 7,
                         backgroundColor: KjaColors.line,
                         color: item.hasDue ? KjaColors.coral : KjaColors.mint,
                       ),
@@ -396,7 +417,12 @@ class _FeesPageState extends State<FeesPage> {
                     const SizedBox(height: 10),
                     Row(
                       children: [
-                        Expanded(child: Text('Invoiced ${moneyUgx(item.amountDue)}', style: const TextStyle(fontSize: 12, color: KjaColors.soft))),
+                        Expanded(
+                          child: Text(
+                            'Invoiced ${moneyUgx(item.amountDue)}',
+                            style: const TextStyle(fontSize: 12.5, color: KjaColors.soft, fontWeight: FontWeight.w600),
+                          ),
+                        ),
                         Text(
                           item.hasDue ? 'Due ${moneyUgx(item.balance)}' : 'Paid in full',
                           style: TextStyle(
@@ -411,33 +437,37 @@ class _FeesPageState extends State<FeesPage> {
               ),
             );
           }),
-        const SizedBox(height: 12),
+        const SizedBox(height: 14),
         const SectionTitle(title: 'Receipts'),
-        const SizedBox(height: 8),
+        const SizedBox(height: 10),
         if (portal.receipts.isEmpty)
-          const EmptyNote(icon: Icons.payments_rounded, message: 'No receipts yet.')
+          const EmptyNote(icon: Icons.payments_rounded, title: 'No receipts yet', message: 'Confirmed payments will be listed here.')
         else
           ...portal.receipts.take(20).map((receipt) {
             return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: 10),
               child: SoftCard(
                 child: Row(
                   children: [
-                    ToneIcon(icon: Icons.payments_rounded, tone: Tone.mint, size: 40, iconSize: 20),
+                    ToneIcon(icon: Icons.payments_rounded, tone: Tone.mint, size: 40, iconSize: 19),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(receipt.receiptNo.isEmpty ? 'Receipt' : receipt.receiptNo, style: const TextStyle(fontWeight: FontWeight.w800)),
+                          Text(
+                            receipt.receiptNo.isEmpty ? 'Receipt' : receipt.receiptNo,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          const SizedBox(height: 2),
                           Text(
                             '${nameById[receipt.childId] ?? 'Child'} · ${shortDate(receipt.paidOn, withYear: true)} · ${receipt.method}',
-                            style: const TextStyle(color: KjaColors.soft, fontSize: 12),
+                            style: const TextStyle(color: KjaColors.soft, fontSize: 12, fontWeight: FontWeight.w600),
                           ),
                         ],
                       ),
                     ),
-                    Text(moneyUgx(receipt.amount), style: const TextStyle(fontWeight: FontWeight.w900)),
+                    Text(moneyUgx(receipt.amount), style: const TextStyle(fontWeight: FontWeight.w800, color: KjaColors.mintDeep)),
                   ],
                 ),
               ),
