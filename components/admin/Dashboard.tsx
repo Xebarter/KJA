@@ -90,17 +90,34 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
     { label: "Vacancies", value: counts.vacancies, href: "/admin/content/vacancies", icon: "fa-briefcase" },
   ];
 
-  const shortcuts: DashShortcut[] = [
+  const deskLinks: DashShortcut[] = [
     { href: "/admin/applications", label: "Applications", icon: "fa-file-signature", badge: newApplications || undefined },
     { href: "/admin/stories", label: "Stories", icon: "fa-newspaper" },
     { href: "/admin/students", label: "Students", icon: "fa-user-graduate" },
     { href: "/admin/communications", label: "Communications", icon: "fa-comments" },
     { href: "/admin/inbox/enquiries", label: "Enquiries", icon: "fa-envelope", badge: unreadMessages || undefined },
     { href: "/admin/team", label: "Team", icon: "fa-user-shield" },
-    { href: "/academics_office", label: "Academics", icon: "fa-graduation-cap", external: true },
+  ];
+  const officeLinks: DashShortcut[] = [
     { href: "/admissions_office", label: "Admissions", icon: "fa-building-user", external: true },
+    { href: "/academics_office", label: "Academics", icon: "fa-graduation-cap", external: true },
     { href: "/accounts", label: "Accounts", icon: "fa-calculator", external: true },
   ];
+
+  function renderGoLink(item: DashShortcut) {
+    const body = (
+      <>
+        <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+        <span>{item.label}</span>
+        {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
+      </>
+    );
+    return item.external ? (
+      <a key={item.href} href={item.href} className="dash-go-link">{body}</a>
+    ) : (
+      <Link key={item.href} href={item.href} className="dash-go-link">{body}</Link>
+    );
+  }
 
   return (
     <div className="dash">
@@ -152,21 +169,11 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
       ) : null}
 
       <nav className="dash-go" aria-label="Quick links">
-        {shortcuts.map((item) =>
-          item.external ? (
-            <a key={item.href} href={item.href} className="dash-go-link">
-              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-              <span>{item.label}</span>
-              {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
-            </a>
-          ) : (
-            <Link key={item.href} href={item.href} className="dash-go-link">
-              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-              <span>{item.label}</span>
-              {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
-            </Link>
-          ),
-        )}
+        <div className="dash-go-main">{deskLinks.map(renderGoLink)}</div>
+        <div className="dash-go-offices" aria-label="School offices">
+          <span className="dash-go-label">Offices</span>
+          <div className="dash-go-office-links">{officeLinks.map(renderGoLink)}</div>
+        </div>
       </nav>
 
       <div className="admin-kpis">

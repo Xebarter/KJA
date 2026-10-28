@@ -5,13 +5,17 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../config.dart';
 import '../data/portal_repository.dart';
+import '../data/portal_store.dart';
 import '../data/sample_portal.dart';
 import '../models.dart';
 
 class PortalController extends ChangeNotifier {
-  PortalController({PortalRepository? repository}) : _repository = repository ?? PortalRepository();
+  PortalController({PortalRepository? repository, PortalStore? store})
+      : _repository = repository ?? PortalRepository(),
+        _store = store ?? PortalStore();
 
   final PortalRepository _repository;
+  final PortalStore _store;
   StreamSubscription<AuthState>? _authSub;
 
   bool booting = true;
@@ -28,16 +32,52 @@ class PortalController extends ChangeNotifier {
       configured = config.isReady;
       if (configured) {
         await _start(config.url, config.anonKey);
-        if (_supabaseReady && Supabase.instance.client.auth.currentSession != null) {
-          await _load(quiet: true);
+        final userId = _supabaseReady ? Supabase.instance.client.auth.currentUser?.id : null;
+        if (userId != null) {
+          // Reopen from the last saved portal so splash is not blocked on the network.
+          final cached = await _store.loadPortal(userId);
+          if (cached != null && !cached.preview) {
+            snapshot = cached;
+            preview = false;
+            booting = false;
+            notifyListeners();
+            unawaited(_refreshInBackground());
+            return;
+          }
+          // First open after install (or cleared cache): leave splash as soon as
+          // Supabase is ready, then fill the portal in the background.
+          final metaName = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'];
+          final email = Supabase.instance.client.auth.currentUser?.email ?? '';
+          snapshot = PortalSnapshot(
+            displayName: (metaName is String && metaName.trim().isNotEmpty) ? metaName.trim() : 'Student',
+            classLabel: '',
+            email: email,
+            mustResetPassword: false,
+            preview: false,
+          );
+          booting = false;
+          notifyListeners();
+          unawaited(_refreshInBackground());
+          return;
         }
       }
     } catch (_) {
       banner ??= 'Could not finish starting the app.';
     } finally {
-      booting = false;
-      notifyListeners();
+      if (booting) {
+        booting = false;
+        notifyListeners();
+      }
     }
+  }
+
+  Future<void> _refreshInBackground() async {
+    refreshing = true;
+    notifyListeners();
+    final stubOnly = snapshot != null && snapshot!.pupil == null && !snapshot!.preview;
+    await _load(quiet: false, signOutOnFailure: stubOnly);
+    refreshing = false;
+    notifyListeners();
   }
 
   Future<String?> saveConnection(String url, String anonKey) async {
@@ -110,9 +150,15 @@ class PortalController extends ChangeNotifier {
   }
 
   Future<void> signOut() async {
+    final userId = _supabaseReady ? Supabase.instance.client.auth.currentUser?.id : null;
     preview = false;
     snapshot = null;
     banner = null;
+    if (userId != null) {
+      try {
+        await _store.clearPortal(userId);
+      } catch (_) {}
+    }
     if (_supabaseReady) {
       try {
         await Supabase.instance.client.auth.signOut();
@@ -138,6 +184,8 @@ class PortalController extends ChangeNotifier {
     if (error != null) {
       snapshot = current.copyWith(homework: previous);
       notifyListeners();
+    } else {
+      unawaited(_persistSnapshot());
     }
     return error;
   }
@@ -155,7 +203,11 @@ class PortalController extends ChangeNotifier {
     notifyListeners();
     if (preview || userId == null) return;
     final error = await _repository.markNoticesRead(ids, userId);
-    if (error != null) banner = error;
+    if (error != null) {
+      banner = error;
+    } else {
+      unawaited(_persistSnapshot());
+    }
   }
 
   Future<String?> changePassword(String password, String confirm) async {
@@ -166,6 +218,7 @@ class PortalController extends ChangeNotifier {
     if (error == null && snapshot != null) {
       snapshot = snapshot!.copyWith(mustResetPassword: false);
       notifyListeners();
+      unawaited(_persistSnapshot());
     }
     return error;
   }
@@ -174,6 +227,7 @@ class PortalController extends ChangeNotifier {
     if (snapshot == null) return;
     snapshot = snapshot!.copyWith(conversations: conversations);
     notifyListeners();
+    unawaited(_persistSnapshot());
   }
 
   PortalRepository get repository => _repository;
@@ -213,17 +267,16 @@ class PortalController extends ChangeNotifier {
       preview = false;
       banner = null;
       if (!quiet) notifyListeners();
+      unawaited(_persistSnapshot());
       unawaited(_enrichInBackground());
       return null;
     } on PortalException catch (error) {
       final wrongAccount = error.message.contains('not a pupil login');
-      // Only drop the session for a wrong role / missing link at first sign-in.
+      final emptyShell = snapshot == null || snapshot!.pupil == null;
+      // Only drop the session for a wrong role at first sign-in / cold restore.
       // Network blips should not force another password attempt.
-      if (signOutOnFailure && snapshot == null && wrongAccount) {
-        try {
-          await Supabase.instance.client.auth.signOut();
-        } catch (_) {}
-      } else if (signOutOnFailure && snapshot == null && error.message.contains('Sign in to continue')) {
+      if (signOutOnFailure && emptyShell && (wrongAccount || error.message.contains('Sign in to continue'))) {
+        snapshot = null;
         try {
           await Supabase.instance.client.auth.signOut();
         } catch (_) {}
@@ -239,6 +292,15 @@ class PortalController extends ChangeNotifier {
     }
   }
 
+  Future<void> _persistSnapshot() async {
+    final current = snapshot;
+    final userId = _supabaseReady ? Supabase.instance.client.auth.currentUser?.id : null;
+    if (current == null || userId == null || preview) return;
+    try {
+      await _store.savePortal(userId, current);
+    } catch (_) {}
+  }
+
   Future<void> _enrichInBackground() async {
     final current = snapshot;
     if (current == null || preview || !_supabaseReady) return;
@@ -248,6 +310,7 @@ class PortalController extends ChangeNotifier {
       // Keep homework/notices the user may have updated while extras were loading.
       snapshot = next.copyWith(homework: snapshot!.homework, notices: snapshot!.notices);
       notifyListeners();
+      unawaited(_persistSnapshot());
     } catch (_) {}
   }
 

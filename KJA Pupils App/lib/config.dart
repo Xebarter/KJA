@@ -53,7 +53,7 @@ class AppConfig {
     // the keys already loaded from .env or dart-define.
     SharedPreferences? prefs;
     try {
-      prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 8));
+      prefs = await SharedPreferences.getInstance().timeout(const Duration(seconds: 2));
     } catch (_) {
       prefs = null;
     }

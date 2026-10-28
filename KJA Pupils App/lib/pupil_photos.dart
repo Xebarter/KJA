@@ -53,11 +53,20 @@ class PupilPhotoUrl {
 
   /// Website proxy URL with the current session token in the query string.
   /// [photoPath] is optional (cache-bust only); the server looks up the path.
+  static String? _sessionToken() {
+    try {
+      return Supabase.instance.client.auth.currentSession?.accessToken.trim() ?? '';
+    } catch (_) {
+      // Supabase not initialized yet (preview / cold splash).
+      return '';
+    }
+  }
+
   static String? siteProxy({required String studentId, String? photoPath}) {
     final id = studentId.trim();
     if (id.isEmpty) return null;
-    final token = Supabase.instance.client.auth.currentSession?.accessToken.trim() ?? '';
-    if (token.isEmpty) return null;
+    final token = _sessionToken();
+    if (token == null || token.isEmpty) return null;
     final access = Uri.encodeQueryComponent(token);
     final path = photoPath?.trim() ?? '';
     if (path.isEmpty) {
@@ -71,8 +80,8 @@ class PupilPhotoUrl {
   static String? teacherProxy({required String staffId, String? photoPath}) {
     final id = staffId.trim();
     if (id.isEmpty) return null;
-    final token = Supabase.instance.client.auth.currentSession?.accessToken.trim() ?? '';
-    if (token.isEmpty) return null;
+    final token = _sessionToken();
+    if (token == null || token.isEmpty) return null;
     final access = Uri.encodeQueryComponent(token);
     final path = photoPath?.trim() ?? '';
     if (path.isEmpty) {

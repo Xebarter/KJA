@@ -55,6 +55,18 @@ export function isPlainTableWrite(method: string, pathname: string): boolean {
   return Boolean(parseRestTable(pathname));
 }
 
+function applyFreshAccessToken(
+  store: ProxyStore,
+  userId: string,
+  headers: Record<string, string>,
+) {
+  const token = store.getMeta(`access_token:${userId}`);
+  if (!token) return;
+  // Prefer a still-valid token captured from a later request over the frozen outbox JWT.
+  headers.authorization = `Bearer ${token}`;
+  headers.Authorization = `Bearer ${token}`;
+}
+
 export async function flushOutbox(
   store: ProxyStore,
   forward: OutboxForward,
@@ -65,6 +77,7 @@ export async function flushOutbox(
   for (const row of pending) {
     try {
       const headers = JSON.parse(row.headers) as Record<string, string>;
+      applyFreshAccessToken(store, row.user_id, headers);
       const result = await forward({
         method: row.method,
         url: row.url,
@@ -74,7 +87,7 @@ export async function flushOutbox(
       if (result.ok || (result.status >= 200 && result.status < 300)) {
         store.markOutbox(row.id, "done", null, row.attempts + 1);
         const table = parseRestTable(new URL(row.url).pathname);
-        if (table) store.invalidateTable(row.user_id, table);
+        if (table) store.invalidateTableAllUsers(table);
         flushed += 1;
       } else {
         const err = result.body.toString("utf8").slice(0, 500);
@@ -136,7 +149,7 @@ export function applyOptimisticWrite(
         store.upsertEntity(userId, table, String((row as { id: unknown }).id), row as object);
       }
     }
-    store.invalidateTable(userId, table);
+    store.invalidateTableAllUsers(table);
     if (prefer === "minimal") {
       return { status: 201, body: Buffer.alloc(0), contentType: "application/json" };
     }
@@ -156,7 +169,7 @@ export function applyOptimisticWrite(
       const existing = store.getEntity(userId, table, id) ?? { id };
       const next = { ...existing, ...patch, id };
       store.upsertEntity(userId, table, id, next);
-      store.invalidateTable(userId, table);
+      store.invalidateTableAllUsers(table);
       if (prefer === "minimal") {
         return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
       }
@@ -182,7 +195,7 @@ export function applyOptimisticWrite(
       const id = decodeURIComponent(idMatch[1]);
       const existing = store.getEntity(userId, table, id);
       store.deleteEntity(userId, table, id);
-      store.invalidateTable(userId, table);
+      store.invalidateTableAllUsers(table);
       if (prefer === "minimal") {
         return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
       }

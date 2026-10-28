@@ -7,6 +7,7 @@ import {
   CACHE_FRESH_MS,
   CRITICAL_HYDRATE_PATHS,
   HYDRATE_CONCURRENCY,
+  LIVE_REST_TABLES,
   MAX_CACHE_BYTES,
   NEXT_PORT,
   PROXY_PORT,
@@ -286,6 +287,12 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (result.ok && result.body.length > 0 && result.body.length <= MAX_CACHE_BYTES) {
           const path = new URL(u).pathname;
           const table = parseRestTable(path);
+          // Applications desks must not be warmed into SQLite — stale lists look like failed CRUD.
+          if (table && LIVE_REST_TABLES.has(table)) {
+            warmed += 1;
+            config.onTableChange?.(userId, table);
+            return;
+          }
           const ct = result.headers["content-type"] || "";
           if (!(ct.includes("json") && isEmptyJsonBody(result.body))) {
             store.putCache({
@@ -546,20 +553,25 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         }
 
         const result = await forward({ method, url: upstreamUrl, headers, body });
-        if (userId) {
-          const table = parseRestTable(pathname);
-          if (table) {
-            store.invalidateTable(userId, table);
-            if (result.ok && result.body.length && result.body.length < MAX_CACHE_BYTES) {
-              try {
-                const json = JSON.parse(result.body.toString("utf8"));
-                store.ingestJsonArray(userId, table, json);
-              } catch {
-                /* ignore */
-              }
+        const table = parseRestTable(pathname);
+        if (table) {
+          // Drop every user's cached list/detail for this table so desks re-read Supabase.
+          store.invalidateTableAllUsers(table);
+          if (
+            userId &&
+            result.ok &&
+            result.body.length &&
+            result.body.length < MAX_CACHE_BYTES &&
+            !LIVE_REST_TABLES.has(table)
+          ) {
+            try {
+              const json = JSON.parse(result.body.toString("utf8"));
+              store.ingestJsonArray(userId, table, json);
+            } catch {
+              /* ignore */
             }
-            config.onTableChange?.(userId, table);
           }
+          config.onTableChange?.(userId || "*", table);
         }
         reply(result.status, result.body, pickResponseHeaders(result.headers));
         emit();
@@ -577,12 +589,16 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       }
 
       // GET cache (REST + storage objects)
+      const getTable = parseRestTable(pathname);
+      const liveDeskTable = Boolean(getTable && LIVE_REST_TABLES.has(getTable));
       const cacheableGet =
         method === "GET" &&
         (pathname.startsWith("/rest/v1/") || pathname.startsWith("/storage/v1/object/")) &&
         !pathname.startsWith("/rest/v1/rpc/") &&
         userId &&
-        !serviceRole;
+        !serviceRole &&
+        // Online Applications / payments must always round-trip to Supabase.
+        !(online && liveDeskTable);
 
       if (cacheableGet && userId) {
         store.touchGetLog(userId, upstreamUrl);
@@ -634,6 +650,11 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         }
       }
 
+      // Live desks online but not signed in (or no user id): still forward, never cache.
+      if (method === "GET" && online && liveDeskTable && userId) {
+        store.touchGetLog(userId, upstreamUrl);
+      }
+
       if (!online && method === "GET") {
         reply(
           503,
@@ -680,6 +701,9 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         } else if (skipEmptyJson && table) {
           store.invalidateUrl(userId, upstreamUrl);
         }
+      } else if (online && liveDeskTable && userId && getTable) {
+        // Ensure any older SQLite copy cannot win after a live round-trip.
+        store.invalidateTable(userId, getTable);
       }
 
       reply(result.status, result.body, pickResponseHeaders(result.headers));
@@ -855,6 +879,11 @@ async function refreshGet(
   try {
     const result = await forward({ method: "GET", url: upstreamUrl, headers, body: null });
     if (!result.ok || result.body.length > MAX_CACHE_BYTES) return false;
+    const table = parseRestTable(pathname);
+    if (table && LIVE_REST_TABLES.has(table)) {
+      store.invalidateTableAllUsers(table);
+      return true;
+    }
     const ct = result.headers["content-type"] || "";
     if (ct.includes("json") && isEmptyJsonBody(result.body)) {
       const had = Boolean(store.getCache(userId, upstreamUrl, "GET"));
@@ -863,7 +892,6 @@ async function refreshGet(
     }
     const prev = store.getCache(userId, upstreamUrl, "GET");
     const changed = !prev || !prev.body.equals(result.body);
-    const table = parseRestTable(pathname);
     store.putCache({
       user_id: userId,
       url: upstreamUrl,

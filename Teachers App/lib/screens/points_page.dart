@@ -151,6 +151,12 @@ class _PointsPageState extends State<PointsPage> {
       if (ok != true || !mounted) return;
     }
 
+    final verb = _give ? 'Gave' : 'Took';
+    final signed = _give ? '+$_amount' : '-$_amount';
+    final count = targets.length;
+    final summary =
+        '$verb $signed · $count pupil${count == 1 ? '' : 's'}';
+
     setState(() => _busy = true);
     final error = await widget.controller.awardPoints([
       for (final pupil in targets)
@@ -169,11 +175,41 @@ class _PointsPageState extends State<PointsPage> {
         _query = '';
       }
     });
-    final verb = _give ? 'Gave' : 'Took';
-    final signed = _give ? '+$_amount' : '-$_amount';
-    _toast(
-      error ??
-          '$verb $signed · ${targets.length} pupil${targets.length == 1 ? '' : 's'}.',
+    if (error != null) {
+      _toast(error);
+      return;
+    }
+    HapticFeedback.mediumImpact();
+    await _showAwardSuccess(summary);
+  }
+
+  Future<void> _showAwardSuccess(String summary) async {
+    if (!mounted) return;
+    await showGeneralDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      barrierLabel: 'Dismiss',
+      barrierColor: Colors.black.withValues(alpha: 0.28),
+      transitionDuration: const Duration(milliseconds: 220),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return const SizedBox.shrink();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curved = CurvedAnimation(
+          parent: animation,
+          curve: Curves.easeOutCubic,
+          reverseCurve: Curves.easeInCubic,
+        );
+        return FadeTransition(
+          opacity: curved,
+          child: ScaleTransition(
+            scale: Tween<double>(begin: 0.92, end: 1).animate(curved),
+            child: Center(
+              child: _AwardSuccessDialog(summary: summary),
+            ),
+          ),
+        );
+      },
     );
   }
 
@@ -326,14 +362,15 @@ class _PointsPageState extends State<PointsPage> {
                         runSpacing: 8,
                         children: [
                           for (final reason in reasons)
-                            ChoiceChip(
-                              label: Text(reason.label),
+                            _ReasonChip(
+                              label: reason.label,
                               selected: reason.id == reasonId,
-                              onSelected: (_) {
+                              color: ink,
+                              wash: wash,
+                              onTap: () {
                                 HapticFeedback.selectionClick();
                                 setState(() => _reasonId = reason.id);
                               },
-                              visualDensity: VisualDensity.compact,
                             ),
                         ],
                       ),
@@ -375,7 +412,7 @@ class _PointsPageState extends State<PointsPage> {
               ),
               const SizedBox(height: 12),
               SoftCard(
-                padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+                padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                 child: Row(
                   children: [
                     Expanded(
@@ -389,12 +426,19 @@ class _PointsPageState extends State<PointsPage> {
                           color: KjaColors.soft,
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
+                          height: 1.2,
                         ),
                       ),
                     ),
                     if (pupils.isNotEmpty)
                       TextButton(
                         onPressed: () => _selectAll(pupils),
+                        style: TextButton.styleFrom(
+                          minimumSize: const Size(56, 36),
+                          padding: const EdgeInsets.symmetric(horizontal: 12),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
                         child: Text(allSelected ? 'Clear' : 'All'),
                       ),
                   ],
@@ -495,6 +539,10 @@ class _AwardBar extends StatelessWidget {
       signed,
       ?reasonLabel,
     ].join(' · ');
+    const buttonHeight = 48.0;
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(14),
+    );
 
     return Material(
       color: Colors.white,
@@ -517,43 +565,79 @@ class _AwardBar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: onAwardClass,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: color,
-                      side: BorderSide(color: color.withValues(alpha: 0.35)),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      busy ? '…' : 'Whole class · $classCount',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+            SizedBox(
+              height: buttonHeight,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: onAwardClass,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: color,
+                        disabledForegroundColor: color.withValues(alpha: 0.4),
+                        side: BorderSide(
+                          color: onAwardClass == null
+                              ? color.withValues(alpha: 0.18)
+                              : color.withValues(alpha: 0.4),
+                        ),
+                        minimumSize: const Size.fromHeight(buttonHeight),
+                        maximumSize: const Size.fromHeight(buttonHeight),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: shape,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      child: Text(
+                        busy ? '…' : 'Class · $classCount',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          height: 1.1,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  flex: 2,
-                  child: FilledButton(
-                    onPressed: onAwardSelected,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: color,
-                      disabledBackgroundColor: color.withValues(alpha: 0.35),
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                    ),
-                    child: Text(
-                      busy
-                          ? 'Awarding…'
-                          : selectedCount == 0
-                              ? 'Tap pupils'
-                              : 'Award · $selectedCount',
-                      style: const TextStyle(fontWeight: FontWeight.w800),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    flex: 2,
+                    child: FilledButton(
+                      onPressed: onAwardSelected,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: color,
+                        disabledBackgroundColor: color.withValues(alpha: 0.35),
+                        disabledForegroundColor: Colors.white.withValues(alpha: 0.85),
+                        foregroundColor: Colors.white,
+                        minimumSize: const Size.fromHeight(buttonHeight),
+                        maximumSize: const Size.fromHeight(buttonHeight),
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        shape: shape,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        visualDensity: VisualDensity.compact,
+                        elevation: 0,
+                      ),
+                      child: Text(
+                        busy
+                            ? 'Awarding…'
+                            : selectedCount == 0
+                                ? 'Tap pupils'
+                                : 'Award · $selectedCount',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 14,
+                          height: 1.1,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
@@ -696,8 +780,8 @@ class _ModeChip extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
+        child: SizedBox(
+          height: 44,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -709,6 +793,7 @@ class _ModeChip extends StatelessWidget {
                   color: selected ? Colors.white : color,
                   fontWeight: FontWeight.w800,
                   fontSize: 14,
+                  height: 1.1,
                 ),
               ),
             ],
@@ -742,16 +827,172 @@ class _AmountChip extends StatelessWidget {
       child: InkWell(
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 40, minWidth: 48),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Center(
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: selected ? Colors.white : color,
+                  fontWeight: FontWeight.w900,
+                  fontSize: 14,
+                  height: 1.1,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReasonChip extends StatelessWidget {
+  const _ReasonChip({
+    required this.label,
+    required this.selected,
+    required this.color,
+    required this.wash,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool selected;
+  final Color color;
+  final Color wash;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          curve: Curves.easeOutCubic,
+          constraints: const BoxConstraints(minHeight: 40),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: selected ? color : KjaColors.line,
+              width: selected ? 1.5 : 1,
+            ),
+            color: selected ? color : wash.withValues(alpha: 0.45),
+          ),
+          alignment: Alignment.center,
           child: Text(
             label,
             style: TextStyle(
-              color: selected ? Colors.white : color,
-              fontWeight: FontWeight.w900,
-              fontSize: 14,
+              color: selected ? Colors.white : KjaColors.ink,
+              fontWeight: FontWeight.w800,
+              fontSize: 13,
+              height: 1.15,
             ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AwardSuccessDialog extends StatefulWidget {
+  const _AwardSuccessDialog({required this.summary});
+
+  final String summary;
+
+  @override
+  State<_AwardSuccessDialog> createState() => _AwardSuccessDialogState();
+}
+
+class _AwardSuccessDialogState extends State<_AwardSuccessDialog> {
+  @override
+  void initState() {
+    super.initState();
+    Future<void>.delayed(const Duration(milliseconds: 1600), () {
+      if (!mounted) return;
+      Navigator.of(context).maybePop();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: Container(
+        width: 280,
+        margin: const EdgeInsets.symmetric(horizontal: 28),
+        padding: const EdgeInsets.fromLTRB(22, 26, 22, 22),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(color: KjaColors.mint.withValues(alpha: 0.22)),
+          boxShadow: [
+            BoxShadow(
+              color: KjaColors.mintDeep.withValues(alpha: 0.12),
+              blurRadius: 28,
+              offset: const Offset(0, 14),
+            ),
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.06),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 64,
+              height: 64,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    KjaColors.mint.withValues(alpha: 0.18),
+                    KjaColors.mintWash,
+                  ],
+                ),
+                border: Border.all(
+                  color: KjaColors.mint.withValues(alpha: 0.35),
+                ),
+              ),
+              child: const Icon(
+                Icons.check_rounded,
+                color: KjaColors.mintDeep,
+                size: 34,
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Points awarded',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                color: KjaColors.mintDeep,
+                fontWeight: FontWeight.w800,
+                fontSize: 18,
+                letterSpacing: -0.2,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              widget.summary,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                color: KjaColors.soft,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                height: 1.35,
+              ),
+            ),
+          ],
         ),
       ),
     );

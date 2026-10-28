@@ -54,7 +54,7 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.examplekeyexamplekeyexamp
     await tester.tap(find.descendant(of: find.byType(PupilDock), matching: find.text('Chat')));
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(find.text('Class chat'), findsOneWidget);
-    expect(find.text('Classmates'), findsOneWidget);
+    expect(find.text('Class group'), findsOneWidget);
+    expect(find.text('Friends'), findsOneWidget);
   });
 }

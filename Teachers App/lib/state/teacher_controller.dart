@@ -239,6 +239,11 @@ class TeacherController extends ChangeNotifier {
         snapshot = current.copyWith(pointAwards: [...added, ...current.pointAwards]);
       },
       online: () => _repository.awardPoints(snapshot: current, entries: entries),
+      // Local desk is already updated; skip the heavy reload and return
+      // immediately so Award never sits on "Awarding..." while the RPC
+      // and parent/pupil notifications finish in the background.
+      reloadAfterOnline: false,
+      awaitOnline: false,
     );
   }
 
@@ -924,44 +929,57 @@ class TeacherController extends ChangeNotifier {
     String? fileName,
     bool skipLocalApply = false,
     bool reloadAfterOnline = true,
+    bool awaitOnline = true,
   }) async {
     if (!skipLocalApply) {
       applyLocal?.call();
       await _persistDesk();
       notifyListeners();
     }
-    try {
-      await online();
-      offline = false;
-      if (reloadAfterOnline) {
-        final error = await _load();
+
+    Future<String?> runOnline() async {
+      try {
+        await online();
+        offline = false;
+        if (reloadAfterOnline) {
+          final error = await _load();
+          notifyListeners();
+          unawaited(flushOutbox());
+          return error;
+        }
+        await _updateStatusBanner();
         notifyListeners();
         unawaited(flushOutbox());
-        return error;
-      }
-      await _updateStatusBanner();
-      notifyListeners();
-      unawaited(flushOutbox());
-      return null;
-    } catch (error) {
-      if (!_isConnectivityError(error)) {
+        return null;
+      } catch (error) {
+        if (!_isConnectivityError(error)) {
+          if (!awaitOnline) {
+            banner = _message(error);
+          }
+          notifyListeners();
+          return _message(error);
+        }
+        await _store.enqueue(
+          kind: kind,
+          payload: payload,
+          fileBytes: fileBytes,
+          fileName: fileName,
+          replaceSamePaperDraft:
+              kind == 'saveMarks' && payload['submit'] != true,
+        );
+        offline = true;
+        await _updateStatusBanner();
+        _scheduleFlush();
         notifyListeners();
-        return _message(error);
+        return null;
       }
-      await _store.enqueue(
-        kind: kind,
-        payload: payload,
-        fileBytes: fileBytes,
-        fileName: fileName,
-        replaceSamePaperDraft:
-            kind == 'saveMarks' && payload['submit'] != true,
-      );
-      offline = true;
-      await _updateStatusBanner();
-      _scheduleFlush();
-      notifyListeners();
+    }
+
+    if (!awaitOnline) {
+      unawaited(runOnline());
       return null;
     }
+    return runOnline();
   }
 
   Future<String?> _mutateOnline(Future<void> Function() action) async {

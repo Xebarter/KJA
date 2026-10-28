@@ -248,48 +248,100 @@ function SampleSheet({
 }) {
   const signature = sample ? sample.sections.map((section) => section.lines.map((line) => line.text).join("|")).join("||") : "";
   return (
-    <section className={`cmt-card cmt-sheet${pending ? " is-pending" : ""}`} aria-label="Sample report" aria-busy={pending}>
-      <header className="cmt-card-head">
+    <section className={`cmt-card cmt-sheet${pending ? " is-pending" : ""}`} aria-label="Sample report card" aria-busy={pending}>
+      <header className="cmt-card-head cmt-sheet-toolbar">
         <div className="cmt-card-title">
-          <span className="cmt-card-icon" aria-hidden="true"><i className="fa-solid fa-user-graduate" /></span>
+          <span className="cmt-card-icon" aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
           <div>
-            <p>Sample report</p>
-            <h2>{sample ? `${sample.learner} · ${sample.klass}` : "Sample unavailable"}</h2>
+            <p>Live preview</p>
+            <h2>Sample report card</h2>
           </div>
         </div>
         <button className="cmt-btn is-ghost" type="button" onClick={onRefresh} disabled={pending}>
-          {pending ? "Updating…" : "Update sample"}
+          <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-rotate"}`} aria-hidden="true" />
+          {pending ? "Updating…" : "Refresh"}
         </button>
       </header>
       {error ? <p className="cmt-error is-block" role="alert">{error}</p> : null}
       {sample ? (
         <div className="cmt-sheet-body" key={signature}>
-          <p className="cmt-sheet-meta">
-            <span>Academic <strong>{sample.academic}</strong></span>
-            <span>Co-curricular <strong>{sample.cocurricular}</strong></span>
-            {sample.warnings ? <span className="is-warn">{sample.warnings} {sample.warnings === 1 ? "check" : "checks"} still open</span> : null}
-          </p>
-          <p className="cmt-sheet-marks">{sample.marks}</p>
-          {sample.sections.map((section) => (
-            <div className="cmt-sheet-block" key={section.id}>
-              <h3>{section.title}</h3>
-              {section.lines.some((line) => line.label) ? (
-                <dl>
-                  {section.lines.map((line, index) => (
-                    <div key={`${section.id}-${index}`}>
-                      <dt>{line.label}</dt>
-                      <dd className={line.tone === "ok" ? undefined : `is-${line.tone}`}>{line.text}</dd>
-                    </div>
-                  ))}
-                </dl>
-              ) : section.lines.map((line, index) => (
-                <p key={`${section.id}-${index}`} className={line.tone === "ok" ? undefined : `is-${line.tone}`}>
-                  {line.tone === "watch" ? <em>Review</em> : null}
-                  {line.text}
-                </p>
-              ))}
+          <article className="cmt-report">
+            <header className="cmt-report-brand">
+              <span className="cmt-report-seal" aria-hidden="true">
+                <img src="/images/icon.png" alt="" />
+              </span>
+              <div className="cmt-report-brand-copy">
+                <p className="cmt-report-kicker">Kampala Junior Academy</p>
+                <h3>End of term report</h3>
+                <p>Comment bank preview · not a published card</p>
+              </div>
+            </header>
+
+            <div className="cmt-report-learner">
+              <div>
+                <span>Learner</span>
+                <strong>{sample.learner}</strong>
+              </div>
+              <div>
+                <span>Class</span>
+                <strong>{sample.klass}</strong>
+              </div>
             </div>
-          ))}
+
+            <div className="cmt-report-bands" aria-label="Overall bands">
+              <div className="cmt-report-band">
+                <span>Academic</span>
+                <strong>{sample.academic}</strong>
+              </div>
+              <div className="cmt-report-band">
+                <span>Co-curricular</span>
+                <strong>{sample.cocurricular}</strong>
+              </div>
+              {sample.warnings ? (
+                <div className="cmt-report-band is-warn">
+                  <span>Bank checks</span>
+                  <strong>{sample.warnings} open</strong>
+                </div>
+              ) : null}
+            </div>
+
+            <div className="cmt-report-marks">
+              <p className="cmt-report-section-label">Sample marks</p>
+              <p>{sample.marks}</p>
+            </div>
+
+            {sample.sections.map((section) => (
+              <section className="cmt-report-section" key={section.id}>
+                <h4>{section.title}</h4>
+                {section.lines.some((line) => line.label) ? (
+                  <dl>
+                    {section.lines.map((line, index) => (
+                      <div key={`${section.id}-${index}`} className={line.tone === "ok" ? undefined : `is-${line.tone}`}>
+                        <dt>{line.label}</dt>
+                        <dd>{line.text}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                ) : (
+                  section.lines.map((line, index) => (
+                    <p key={`${section.id}-${index}`} className={line.tone === "ok" ? undefined : `is-${line.tone}`}>
+                      {line.tone === "watch" ? <em>Review</em> : null}
+                      {line.text}
+                    </p>
+                  ))
+                )}
+              </section>
+            ))}
+
+            <footer className="cmt-report-foot">
+              <span>Generated from the active comment bank</span>
+            </footer>
+          </article>
+        </div>
+      ) : !error ? (
+        <div className="cmt-sheet-empty">
+          <i className="fa-regular fa-file-lines" aria-hidden="true" />
+          <p>No sample available yet. Refresh after the bank is ready.</p>
         </div>
       ) : null}
     </section>

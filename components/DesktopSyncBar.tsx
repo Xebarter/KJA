@@ -59,8 +59,11 @@ export function DesktopSyncBar() {
       const current = desktopBridge();
       void current?.getSyncStatus().then((next) => {
         if (!next.online) return;
-        // Term / calendar / clubs landing after hydrate — refresh RSC trees.
+        // Live desks + term/calendar/clubs — refresh RSC trees after proxy invalidates.
         if (
+          payload.table === "applications" ||
+          payload.table === "application_activity" ||
+          payload.table === "admission_payments" ||
           payload.table === "fee_terms" ||
           payload.table === "academic_dates" ||
           payload.table === "clubs" ||

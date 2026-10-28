@@ -39,3 +39,13 @@ export const SPLASH_WARMUP_CAP_MS = 700;
 
 /** Path the desk opens on (staff sign-in gate). */
 export const DESK_ENTRY_PATH = "/admin/login";
+
+/**
+ * Collaborative desks where stale SQLite GETs look like broken CRUD.
+ * When online, these always hit Supabase; offline still uses any cached copy.
+ */
+export const LIVE_REST_TABLES = new Set([
+  "applications",
+  "application_activity",
+  "admission_payments",
+]);

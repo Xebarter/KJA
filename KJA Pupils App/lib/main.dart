@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
 
 import 'app.dart';
-import 'config.dart';
 import 'state/portal_controller.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await AppConfig.loadDotenv();
   final controller = PortalController();
+  // Paint the native → Flutter splash immediately. Dotenv / prefs / Supabase run in boot.
   runApp(KjaPupilsApp(controller: controller));
-  await controller.boot();
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    controller.boot();
+  });
 }
