@@ -69,7 +69,7 @@ export function AcademicsShell({
   const [office, setOffice] = useState(initialOffice);
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => setDesktop(isDesktopClient()), []);
-  const linkPrefetch = desktop ? undefined : false;
+  const linkPrefetch = false;
   const show = (href: string) => {
     if (pages === null) return true;
     const id = pageIdForPath("academics", href);

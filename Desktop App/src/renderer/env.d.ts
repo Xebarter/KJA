@@ -7,6 +7,7 @@ interface KjaDesktopApi {
   getBootStatus: () => Promise<BootStatus>;
   getSyncStatus: () => Promise<SyncStatus>;
   flushOutbox: () => Promise<SyncStatus>;
+  retryBoot: () => Promise<boolean>;
   onBootStatus: (cb: (status: BootStatus) => void) => () => void;
   onSyncStatus: (cb: (status: SyncStatus) => void) => () => void;
   onTableChanged: (cb: (payload: { userId: string; table: string }) => void) => () => void;

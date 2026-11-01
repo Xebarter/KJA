@@ -5,6 +5,7 @@ export type KjaDesktopApi = {
   getBootStatus: () => Promise<BootStatus>;
   getSyncStatus: () => Promise<SyncStatus>;
   flushOutbox: () => Promise<SyncStatus>;
+  retryBoot: () => Promise<boolean>;
   onBootStatus: (cb: (status: BootStatus) => void) => () => void;
   onSyncStatus: (cb: (status: SyncStatus) => void) => () => void;
   onTableChanged: (cb: (payload: { userId: string; table: string }) => void) => () => void;
@@ -16,6 +17,7 @@ const api: KjaDesktopApi = {
   getBootStatus: () => ipcRenderer.invoke("boot:get"),
   getSyncStatus: () => ipcRenderer.invoke("sync:get"),
   flushOutbox: () => ipcRenderer.invoke("sync:flush"),
+  retryBoot: () => ipcRenderer.invoke("boot:retry"),
   onBootStatus: (cb) => {
     const handler = (_: Electron.IpcRendererEvent, status: BootStatus) => cb(status);
     ipcRenderer.on("boot:status", handler);

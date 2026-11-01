@@ -3,6 +3,7 @@ import path from "node:path";
 import { bandMidpoint, classLabel, classSection, kampalaLong, kindLabel, loadCurrentTerm, mapBand, num, ranks, streamOf, weightedPercent, type BandRow } from "@/lib/academics";
 import { requireAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
+import { contentDisposition } from "@/lib/download-headers";
 import { readMarksheetQuery, sittingColumns, type SittingPaper } from "@/lib/marksheet";
 import { arrangeMarksheet, markPercent, marksheetSortLabel, marksheetWorkbookFilename, markTone, parseMarksheetSort } from "@/lib/marksheet-order";
 import { buildMarksheetWorkbook } from "@/lib/marksheet-workbook";
@@ -224,7 +225,7 @@ export async function GET(request: Request) {
   return new Response(new Uint8Array(bytes), {
     headers: {
       "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "content-disposition": `attachment; filename="${filename.replace(/"/g, "")}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+      "content-disposition": contentDisposition(filename),
       "cache-control": "no-store",
     },
   });

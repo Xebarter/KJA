@@ -18,7 +18,8 @@ export const MAX_CACHE_BYTES = 2 * 1024 * 1024;
 export const BOOT_REPLAY_CAP = 80;
 
 /** Parallel upstream fetches while warming the desktop cache. */
-export const HYDRATE_CONCURRENCY = 10;
+/** Keep post-login warm-up gentle so the desks host is not wedged under load. */
+export const HYDRATE_CONCURRENCY = 4;
 
 /**
  * Critical PostgREST paths warmed first (with the user JWT) so desks never
@@ -32,10 +33,19 @@ export const CRITICAL_HYDRATE_PATHS = [
 ] as const;
 
 /**
- * Max wait after the login page starts loading before we show the desk anyway.
- * Kept short — reveal as soon as the gate paints (or this cap).
+ * Hard cap for `loadURL` of the staff gate when Next was already warm.
+ * Keep-warm hosts that accept TCP but never finish SSR stuck the splash at 94%.
  */
-export const SPLASH_WARMUP_CAP_MS = 700;
+export const DESK_LOAD_TIMEOUT_MS = 8_000;
+
+/** First paint after a cold `next` start can compile the login route — allow longer. */
+export const DESK_LOAD_COLD_TIMEOUT_MS = 45_000;
+
+/**
+ * Last-resort cap after navigation starts. Prefer waiting for real page content;
+ * this only prevents an infinite splash if the gate never paints.
+ */
+export const SPLASH_WARMUP_CAP_MS = 10_000;
 
 /** Path the desk opens on (staff sign-in gate). */
 export const DESK_ENTRY_PATH = "/admin/login";

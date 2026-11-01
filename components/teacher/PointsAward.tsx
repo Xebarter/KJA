@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition, type KeyboardEvent } from "react";
 import { DeskForm } from "@/components/academics/Form";
-import { formatPoints, pointPolarity, type PointReason } from "@/lib/points";
+import { formatPoints, type PointPolarity, type PointReason } from "@/lib/points";
 
 export type AwardPupil = {
   id: string;
@@ -11,14 +11,9 @@ export type AwardPupil = {
   total: number;
 };
 
-type Mode = "class" | "chosen";
-type Amounts = Record<string, number>;
-type Reasons = Record<string, string>;
+const AMOUNTS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const;
 
-const STEPS = [-10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-
-function reasonsFor(reasons: PointReason[], points: number) {
-  const polarity = pointPolarity(points);
+function reasonsFor(reasons: PointReason[], polarity: PointPolarity) {
   return reasons.filter((reason) => reason.polarity === polarity);
 }
 
@@ -35,135 +30,225 @@ export function PointsAward({
   termLabel: string;
   award: (formData: FormData) => Promise<{ error?: string; ok?: string }>;
 }) {
+  const searchRef = useRef<HTMLInputElement>(null);
   const [classKey, setClassKey] = useState(classes[0]?.key || "");
-  const [mode, setMode] = useState<Mode>("class");
-  const [classPoints, setClassPoints] = useState(1);
-  const [classReason, setClassReason] = useState("");
-  const [amounts, setAmounts] = useState<Amounts>({});
-  const [rowReasons, setRowReasons] = useState<Reasons>({});
-  const [sharedReason, setSharedReason] = useState("");
+  const [polarity, setPolarity] = useState<PointPolarity>("positive");
+  const [amount, setAmount] = useState(1);
+  const [reasonId, setReasonId] = useState("");
+  const [everyone, setEveryone] = useState(false);
+  const [selected, setSelected] = useState<Record<string, true>>({});
+  const [query, setQuery] = useState("");
+  const [, startTransition] = useTransition();
+
   const pupils = pupilsByClass[classKey] || [];
+  const reasonList = useMemo(() => reasonsFor(reasons, polarity), [reasons, polarity]);
+  const signed = polarity === "negative" ? -amount : amount;
 
-  const chosen = useMemo(() => {
-    return pupils
-      .map((pupil) => ({ pupil, points: amounts[pupil.id] || 0 }))
-      .filter((row) => row.points !== 0);
-  }, [pupils, amounts]);
-  const signs = new Set(chosen.map((row) => (row.points < 0 ? "negative" : "positive")));
-  const mixed = signs.size > 1;
-  const sharedPoints = chosen[0]?.points || classPoints;
-  const sharedList = reasonsFor(reasons, mode === "class" ? classPoints : sharedPoints);
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return pupils;
+    return pupils.filter(
+      (pupil) => pupil.name.toLowerCase().includes(q) || pupil.number.toLowerCase().includes(q),
+    );
+  }, [pupils, query]);
 
-  function setAmount(id: string, points: number) {
-    setAmounts((current) => ({ ...current, [id]: points }));
-    setRowReasons((current) => {
+  const picked = useMemo(() => {
+    if (everyone) return pupils;
+    return pupils.filter((pupil) => selected[pupil.id]);
+  }, [pupils, everyone, selected]);
+
+  const ready = Boolean(reasonId && amount > 0 && picked.length > 0);
+  const entries = ready
+    ? picked.map((pupil) => ({
+        student_id: pupil.id,
+        points: signed,
+        reason_id: reasonId,
+      }))
+    : [];
+
+  useEffect(() => {
+    searchRef.current?.focus({ preventScroll: true });
+  }, [classKey]);
+
+  function switchClass(next: string) {
+    setClassKey(next);
+    setSelected({});
+    setEveryone(false);
+    setQuery("");
+  }
+
+  function switchPolarity(next: PointPolarity) {
+    if (next === polarity) return;
+    setPolarity(next);
+    setReasonId("");
+  }
+
+  function togglePupil(id: string) {
+    setEveryone(false);
+    startTransition(() => {
+      setSelected((current) => {
+        const next = { ...current };
+        if (next[id]) delete next[id];
+        else next[id] = true;
+        return next;
+      });
+    });
+  }
+
+  function selectVisible() {
+    setEveryone(false);
+    setSelected((current) => {
       const next = { ...current };
-      const reason = reasons.find((item) => item.id === current[id]);
-      if (reason && reason.polarity !== pointPolarity(points)) delete next[id];
+      for (const pupil of filtered) next[pupil.id] = true;
       return next;
     });
   }
 
-  function setWholePoints(points: number) {
-    setClassPoints(points);
-    const reason = reasons.find((item) => item.id === classReason);
-    if (reason && reason.polarity !== pointPolarity(points)) setClassReason("");
+  function clearPicks() {
+    setEveryone(false);
+    setSelected({});
   }
 
-  function entries() {
-    if (mode === "class") {
-      if (!classReason || !pupils.length) return [];
-      return pupils.map((pupil) => ({ student_id: pupil.id, points: classPoints, reason_id: classReason }));
-    }
-    return chosen.map((row) => ({
-      student_id: row.pupil.id,
-      points: row.points,
-      reason_id: mixed ? rowReasons[row.pupil.id] || "" : sharedReason,
-    }));
+  function onSearchKey(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key !== "Enter" || filtered.length !== 1) return;
+    event.preventDefault();
+    togglePupil(filtered[0].id);
   }
 
-  const ready = entries().every((row) => row.reason_id && row.points !== 0) && entries().length > 0;
+  const pickCount = everyone ? pupils.length : Object.keys(selected).length;
+  const summary = ready
+    ? `${formatPoints(signed)} · ${picked.length}`
+    : pickCount
+      ? "Choose amount & reason"
+      : "Find pupils";
 
   return (
     <section className="pts-award">
-      <header className="pts-hero">
-        <div>
-          <p className="pts-kicker"><i className="fa-solid fa-star" aria-hidden="true" /> {termLabel}</p>
-          <h2>Award points</h2>
-          <p>Give the whole class the same number, or choose pupils and set each amount from 1 to 10. A negative number switches to the other list of reasons.</p>
-        </div>
-      </header>
-
-      <div className="pts-tools">
-        <label className="pts-pick"><span>Class</span>
-          <select value={classKey} onChange={(event) => { setClassKey(event.target.value); setAmounts({}); setRowReasons({}); setSharedReason(""); }}>
-            {classes.map((item) => <option key={item.key} value={item.key}>{item.label} · {item.count}</option>)}
+      <div className="pts-toolbar">
+        <label className="pts-class">
+          <span className="pts-sr">Class</span>
+          <select value={classKey} onChange={(event) => switchClass(event.target.value)} aria-label="Class">
+            {classes.map((item) => (
+              <option key={item.key} value={item.key}>
+                {item.label} ({item.count})
+              </option>
+            ))}
           </select>
         </label>
-        <div className="pts-modes" role="group" aria-label="Who receives points">
-          <button type="button" className={mode === "class" ? "is-on" : ""} onClick={() => setMode("class")}>Whole class</button>
-          <button type="button" className={mode === "chosen" ? "is-on" : ""} onClick={() => setMode("chosen")}>Choose pupils</button>
-        </div>
+        <p className="pts-term" title={termLabel}>{termLabel}</p>
       </div>
 
-      {mode === "class" ? (
-        <div className="pts-panel">
-          <AmountPicker value={classPoints} onChange={setWholePoints} />
-          <ReasonPicker reasons={sharedList} value={classReason} onChange={setClassReason} />
-          <p className="pts-note">This goes to all {pupils.length} {pupils.length === 1 ? "pupil" : "pupils"} in the class. The pupil and their parents are notified.</p>
-        </div>
-      ) : (
-        <div className="pts-panel">
-          {!mixed && chosen.length ? <ReasonPicker reasons={sharedList} value={sharedReason} onChange={setSharedReason} /> : null}
-          <ul className="pts-roster">
-            {pupils.map((pupil) => {
-              const points = amounts[pupil.id] || 0;
-              const list = reasonsFor(reasons, points || 1);
-              return (
-                <li key={pupil.id}>
-                  <div className="pts-who">
+      <label className="pts-search">
+        <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+        <input
+          ref={searchRef}
+          type="search"
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          onKeyDown={onSearchKey}
+          placeholder="Search name or number…"
+          autoComplete="off"
+          autoCorrect="off"
+          spellCheck={false}
+          aria-label="Search pupils"
+        />
+        {query ? (
+          <button type="button" className="pts-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
+            <i className="fa-solid fa-xmark" aria-hidden="true" />
+          </button>
+        ) : null}
+      </label>
+
+      <div className="pts-pick-bar">
+        <button type="button" className={everyone ? "is-on" : ""} onClick={() => { setEveryone(true); setSelected({}); }}>
+          Everyone
+        </button>
+        <button type="button" onClick={selectVisible} disabled={!filtered.length || everyone}>
+          Visible
+        </button>
+        <button type="button" onClick={clearPicks} disabled={!pickCount}>
+          Clear
+        </button>
+        <span className="pts-pick-count">{pickCount || "—"}</span>
+      </div>
+
+      {filtered.length ? (
+        <ul className="pts-roster" role="listbox" aria-label="Pupils" aria-multiselectable="true">
+          {filtered.map((pupil) => {
+            const on = everyone || Boolean(selected[pupil.id]);
+            return (
+              <li key={pupil.id}>
+                <button
+                  type="button"
+                  className={`pts-pupil${on ? " is-on" : ""}`}
+                  onClick={() => togglePupil(pupil.id)}
+                  aria-selected={on}
+                  role="option"
+                >
+                  <span className="pts-check" aria-hidden="true">
+                    <i className={`fa-solid ${on ? "fa-check" : ""}`} />
+                  </span>
+                  <span className="pts-who">
                     <strong>{pupil.name}</strong>
-                    <small>{pupil.number} · this term {formatPoints(pupil.total)}</small>
-                  </div>
-                  <AmountPicker value={points} allowZero onChange={(next) => setAmount(pupil.id, next)} />
-                  {mixed && points !== 0 ? (
-                    <ReasonPicker reasons={list} value={rowReasons[pupil.id] || ""} onChange={(id) => setRowReasons((current) => ({ ...current, [pupil.id]: id }))} />
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        </div>
+                    <small>{pupil.number}</small>
+                  </span>
+                  <span className={`pts-total${pupil.total < 0 ? " is-down" : pupil.total > 0 ? " is-up" : ""}`}>
+                    {formatPoints(pupil.total)}
+                  </span>
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="pts-empty">{pupils.length ? "No match" : "No pupils"}</p>
       )}
 
-      <DeskForm action={award} className="pts-send">
-        <input type="hidden" name="entries" value={JSON.stringify(entries())} />
-        <button className="pts-commit" type="submit" disabled={!ready}>Award points</button>
+      <div className="pts-controls">
+        <div className="pts-seg" role="group" aria-label="Give or take">
+          <button type="button" className={`is-give${polarity === "positive" ? " is-on" : ""}`} onClick={() => switchPolarity("positive")}>
+            Give
+          </button>
+          <button type="button" className={`is-take${polarity === "negative" ? " is-on" : ""}`} onClick={() => switchPolarity("negative")}>
+            Take
+          </button>
+        </div>
+
+        <div className="pts-amounts" role="group" aria-label="Amount">
+          {AMOUNTS.map((step) => (
+            <button
+              key={step}
+              type="button"
+              className={`${amount === step ? "is-on" : ""} ${polarity === "negative" ? "is-take" : "is-give"}`}
+              onClick={() => setAmount(step)}
+            >
+              {polarity === "negative" ? `−${step}` : step}
+            </button>
+          ))}
+        </div>
+
+        <label className="pts-reason">
+          <span className="pts-sr">Reason</span>
+          <select value={reasonId} onChange={(event) => setReasonId(event.target.value)} aria-label="Reason">
+            <option value="">Reason…</option>
+            {reasonList.map((reason) => (
+              <option key={reason.id} value={reason.id}>
+                {reason.label}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
+      <DeskForm action={award} className="pts-send" status={polarity === "negative" ? "Take points" : "Give points"}>
+        <input type="hidden" name="entries" value={JSON.stringify(entries)} />
+        <div className="pts-footer">
+          <p className={`pts-summary${ready ? " is-ready" : ""}`}>{summary}</p>
+          <button className={`pts-commit${polarity === "negative" ? " is-take" : ""}`} type="submit" disabled={!ready}>
+            {polarity === "negative" ? "Take" : "Give"}
+          </button>
+        </div>
       </DeskForm>
     </section>
-  );
-}
-
-function AmountPicker({ value, onChange, allowZero = false }: { value: number; onChange: (points: number) => void; allowZero?: boolean }) {
-  return (
-    <div className="pts-amounts" role="group" aria-label="Points">
-      {allowZero ? <button type="button" className={value === 0 ? "is-on" : ""} onClick={() => onChange(0)}>Skip</button> : null}
-      {STEPS.map((step) => (
-        <button key={step} type="button" className={`${value === step ? "is-on" : ""} ${step < 0 ? "is-down" : "is-up"}`} onClick={() => onChange(step)}>
-          {step > 0 ? `+${step}` : step}
-        </button>
-      ))}
-    </div>
-  );
-}
-
-function ReasonPicker({ reasons, value, onChange }: { reasons: PointReason[]; value: string; onChange: (id: string) => void }) {
-  return (
-    <label className="pts-pick"><span>{reasons[0]?.polarity === "negative" ? "Why these points were taken" : "Why these points were given"}</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)} required>
-        <option value="">Choose a reason</option>
-        {reasons.map((reason) => <option key={reason.id} value={reason.id}>{reason.label}</option>)}
-      </select>
-    </label>
   );
 }

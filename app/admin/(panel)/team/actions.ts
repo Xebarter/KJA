@@ -16,6 +16,7 @@ function refresh() {
   revalidatePath("/admissions_office", "layout");
   revalidatePath("/accounts", "layout");
   revalidatePath("/academics_office", "layout");
+  revalidatePath("/library", "layout");
   revalidatePath("/teacher");
   revalidatePath("/choose-dashboard");
 }

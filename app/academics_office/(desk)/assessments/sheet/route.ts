@@ -2,6 +2,7 @@ import { bandMidpoint, classLabel, classOrder, classSection, kampalaToday, kindL
 import { requireAcademics } from "@/lib/academics-access";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
+import { contentDisposition } from "@/lib/download-headers";
 import { buildMarksWorkbook, marksWorkbookFilename, MarksBookError, type MarksBookBand, type MarksBookPaper, type MarksBookScore } from "@/lib/marks-workbook";
 import { isCocurricularSubject } from "@/lib/subject-kind";
 import { className, fetchAll, isUuid } from "@/lib/students";
@@ -36,6 +37,16 @@ function shortDay(iso: string | null) {
 }
 
 export async function POST(request: Request) {
+  try {
+    return await prepareWorkbook(request);
+  } catch (error) {
+    console.error("[assessments/sheet]", error);
+    const message = error instanceof MarksBookError ? error.message : "The workbook could not be prepared.";
+    return new Response(message, { status: error instanceof MarksBookError ? 400 : 500 });
+  }
+}
+
+async function prepareWorkbook(request: Request) {
   const auth = await requireAcademics();
   if ("error" in auth) return new Response(auth.error, { status: 401 });
   let body: { papers?: unknown };
@@ -231,12 +242,12 @@ export async function POST(request: Request) {
     return new Response(new Uint8Array(bytes), {
       headers: {
         "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "content-disposition": `attachment; filename="${filename.replace(/"/g, "")}"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        "content-disposition": contentDisposition(filename),
         "cache-control": "no-store",
       },
     });
   } catch (error) {
-    const message = error instanceof MarksBookError ? error.message : "The workbook could not be prepared.";
-    return new Response(message, { status: 400 });
+    if (error instanceof MarksBookError) return new Response(error.message, { status: 400 });
+    throw error;
   }
 }

@@ -19,16 +19,20 @@ export type RollPupil = {
 
 export type DayMark = { student_id: string; status: AttendanceStatus; note: string | null };
 
-export function loadRoll(supabase: SupabaseClient, userId: string) {
-  return remember(`academics-roll:${userId}`, ROLL_MS, async () => {
-    const rows = await fetchAll<RollPupil>((from, to) =>
-      supabase
+export function loadRoll(supabase: SupabaseClient, userId: string, classCodes?: string[]) {
+  const codes = [...new Set((classCodes || []).map((code) => String(code || "").trim()).filter(Boolean))].sort();
+  const key = codes.length ? `academics-roll:${userId}:${codes.join(",")}` : `academics-roll:${userId}`;
+  return remember(key, ROLL_MS, async () => {
+    const rows = await fetchAll<RollPupil>((from, to) => {
+      let query = supabase
         .from("students")
         .select("id, full_name, student_number, sex, class_code, stream, campus, photo_path")
         .eq("status", "active")
         .order("id")
-        .range(from, to),
-    );
+        .range(from, to);
+      if (codes.length) query = query.in("class_code", codes);
+      return query;
+    });
     return rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
   });
 }

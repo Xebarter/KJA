@@ -36,6 +36,11 @@ export type ProxyConfig = {
   port?: number;
   onStatus?: (status: SyncStatus) => void;
   onTableChange?: (userId: string, table: string) => void;
+  /**
+   * Prefer Electron `net.fetch` in the main process — Node's undici fetch can
+   * fail TLS/DNS in ways Chromium does not, which falsely marked desks offline.
+   */
+  fetchImpl?: typeof fetch;
 };
 
 export type ProxyHandle = {
@@ -214,20 +219,34 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
     const target = args.url.startsWith("http")
       ? args.url
       : `${upstreamBase}${args.url.startsWith("/") ? "" : "/"}${args.url}`;
-    const res = await fetch(target, {
-      method: args.method,
-      headers: filterForwardHeaders(args.headers),
-      body:
-        args.body && args.method !== "GET" && args.method !== "HEAD"
-          ? new Uint8Array(args.body)
-          : undefined,
-    });
-    const buf = Buffer.from(await res.arrayBuffer());
-    const headers: Record<string, string> = {};
-    res.headers.forEach((v, k) => {
-      headers[k] = v;
-    });
-    return { status: res.status, ok: res.ok, body: buf, headers };
+    let lastError: unknown;
+    // Brief retries — right after login, hydrate + desk RSC can stampede upstream.
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await fetch(target, {
+          method: args.method,
+          headers: filterForwardHeaders(args.headers),
+          body:
+            args.body && args.method !== "GET" && args.method !== "HEAD"
+              ? new Uint8Array(args.body)
+              : undefined,
+          // Hung upstream must not pin the desks host / Electron proxy forever.
+          signal: AbortSignal.timeout(45_000),
+        });
+        const buf = Buffer.from(await res.arrayBuffer());
+        const headers: Record<string, string> = {};
+        res.headers.forEach((v, k) => {
+          headers[k] = v;
+        });
+        return { status: res.status, ok: res.ok, body: buf, headers };
+      } catch (error) {
+        lastError = error;
+        if (attempt < 2) {
+          await new Promise<void>((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+        }
+      }
+    }
+    throw lastError instanceof Error ? lastError : new Error(String(lastError || "fetch failed"));
   };
 
   const doFlush = async () => {
@@ -425,8 +444,12 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
               (token ? userIdFromAuthHeader(`Bearer ${token}`) : null);
             if (token && uid) {
               rememberAccessToken(uid, token);
-              // Kick a fast user-auth hydrate so desks don't paint empty caches.
-              void hydrateUser(uid).catch((e) => console.warn("[proxy] post-login hydrate failed", e));
+              // Defer hydrate slightly so the first Teacher desk RSC (roll pages)
+              // is not racing a full cache warm-up — that race caused "fetch failed".
+              void (async () => {
+                await new Promise<void>((resolve) => setTimeout(resolve, 1_200));
+                await hydrateUser(uid).catch((e) => console.warn("[proxy] post-login hydrate failed", e));
+              })();
             }
           } catch {
             /* ignore parse errors */
@@ -774,31 +797,61 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
 
   emit();
 
-  // Connectivity probe
-  const probe = setInterval(() => {
-    void (async () => {
+  // Connectivity probe — reachability of Supabase, not OS "internet" status.
+  const doFetch = config.fetchImpl ?? fetch;
+  let failStreak = 0;
+  const probeOnce = async () => {
+    const headers = {
+      apikey: config.anonKey,
+      Authorization: `Bearer ${config.anonKey}`,
+    };
+    const tryUrl = async (path: string) => {
+      const ctrl = new AbortController();
+      const t = setTimeout(() => ctrl.abort(), 5_000);
       try {
-        const ctrl = new AbortController();
-        const t = setTimeout(() => ctrl.abort(), 4000);
-        const res = await fetch(`${upstreamBase}/auth/v1/health`, {
+        const res = await doFetch(`${upstreamBase}${path}`, {
+          method: "GET",
           signal: ctrl.signal,
-          headers: { apikey: config.anonKey },
+          headers,
         });
+        // Any HTTP response means the project is reachable (401/404 still = online).
+        return res.status > 0 && res.status < 500;
+      } finally {
         clearTimeout(t);
-        const next = res.ok || res.status < 500;
-        if (next !== online) {
-          online = next;
-          emit();
-          if (online) void doFlush();
-        }
-      } catch {
-        if (online) {
-          online = false;
-          emit();
-        }
       }
-    })();
-  }, 8000);
+    };
+    try {
+      const ok =
+        (await tryUrl("/auth/v1/health")) ||
+        (await tryUrl("/rest/v1/"));
+      if (ok) {
+        failStreak = 0;
+        if (!online) {
+          online = true;
+          emit();
+          void doFlush();
+        }
+        return;
+      }
+      failStreak += 1;
+    } catch (e) {
+      failStreak += 1;
+      console.warn(
+        "[proxy] upstream probe failed",
+        failStreak,
+        e instanceof Error ? e.message : e,
+      );
+    }
+    // Need two misses in a row so a single blip does not flash "Working offline".
+    if (failStreak >= 2 && online) {
+      online = false;
+      emit();
+    }
+  };
+  void probeOnce();
+  const probe = setInterval(() => {
+    void probeOnce();
+  }, 5_000);
 
   return {
     port: listenPort,

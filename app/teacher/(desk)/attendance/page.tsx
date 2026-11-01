@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { cancelRegister, saveAttendance } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { OpenRegisters } from "@/components/academics/OpenRegisters";
@@ -20,20 +21,41 @@ function shift(iso: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function TeacherAttendancePage({ searchParams }: { searchParams: Promise<{ date?: string; class?: string; stream?: string }> }) {
+export default async function TeacherAttendancePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ date?: string; class?: string; stream?: string }>;
+}) {
   const query = await searchParams;
   const teacher = await requireTeacher();
   if ("error" in teacher) return <AcademicsGate title="Attendance" state={{ notice: "auth", message: teacher.error }} />;
   if (teacher.termError) return <AcademicsGate title="Attendance" state={{ notice: "schema", message: teacher.termError }} />;
-  if (!teacher.classes.length) return <Empty icon="fa-clipboard-user" title="Not a class teacher">Attendance is for the class you lead this term.</Empty>;
+  if (!teacher.classes.length) {
+    return (
+      <Empty icon="fa-clipboard-user" title="Not a class teacher">
+        Attendance is for the class you lead this term.
+      </Empty>
+    );
+  }
 
   const { supabase, user, term, classes } = teacher;
   const today = kampalaToday();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : today;
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
+
+  // One class → open the register immediately.
+  if (!classCode && classes.length === 1) {
+    const only = classes[0];
+    redirect(`${PATH}?date=${date}&class=${only.classCode}&stream=${streamQuery(only.stream)}`);
+  }
+
   const [pupils, marks, closures] = await Promise.all([
-    loadRoll(supabase, user.id),
+    loadRoll(
+      supabase,
+      user.id,
+      classes.map((post) => post.classCode),
+    ),
     loadDayMarks(supabase, user.id, date),
     loadClosures(supabase, date),
   ]);
@@ -56,27 +78,59 @@ export default async function TeacherAttendancePage({ searchParams }: { searchPa
     };
   });
   const openGroups = date === today ? groups.filter((group) => group.pupils > 0 && group.done < group.pupils && !group.closed) : [];
-  const current = groups.find((group) => group.code === classCode && (stream === null || group.stream === stream) && leadsClass(classes, group.code, group.stream)) || null;
+  const current =
+    groups.find((group) => group.code === classCode && (stream === null || group.stream === stream) && leadsClass(classes, group.code, group.stream)) ||
+    null;
   const index = current ? groups.findIndex((group) => group.key === current.key) : -1;
   const stillOpen = (group: (typeof groups)[number]) => group.pupils > 0 && group.done < group.pupils && !group.closed;
   const next = current ? groups.slice(index + 1).find(stillOpen) || groups.slice(0, index).find(stillOpen) || null : null;
 
   return (
-    <div className="app-page ofc-page att-page">
+    <div className="app-page ofc-page att-page tch-att-page">
       <PageHeader
-        kicker="Daily register"
+        kicker="Register"
         icon="fa-clipboard-user"
         title={current ? current.name : "Attendance"}
-        description={current ? <>{term ? `${term.label} · ` : ""}<strong>{current.rows.length.toLocaleString("en-GB")}</strong> on this register.</> : "Mark the register for a class you lead."}
-        actions={current ? (
-          <>
-            <Link className="admin-hero-btn" href={`${PATH}?date=${date}`}>All classes</Link>
-            <Link className="admin-hero-btn" href={`${PATH}?date=${shift(date, -1)}&class=${current.code}&stream=${streamQuery(current.stream)}`}>Previous day</Link>
-            {next ? <Link className="admin-hero-btn is-primary" href={next.href}>{next.name}</Link> : null}
-          </>
-        ) : null}
+        description={
+          current ? (
+            <>
+              {term ? `${term.label} · ` : ""}
+              <strong>{current.rows.length.toLocaleString("en-GB")}</strong> pupils
+            </>
+          ) : (
+            "Open a class to mark the register."
+          )
+        }
+        actions={
+          current && classes.length > 1 ? (
+            <>
+              <Link className="admin-hero-btn" href={`${PATH}?date=${date}`}>
+                Classes
+              </Link>
+              <Link
+                className="admin-hero-btn"
+                href={`${PATH}?date=${shift(date, -1)}&class=${current.code}&stream=${streamQuery(current.stream)}`}
+              >
+                Previous day
+              </Link>
+              {next ? (
+                <Link className="admin-hero-btn is-primary" href={next.href}>
+                  {next.name}
+                </Link>
+              ) : null}
+            </>
+          ) : current ? (
+            <Link
+              className="admin-hero-btn"
+              href={`${PATH}?date=${shift(date, -1)}&class=${current.code}&stream=${streamQuery(current.stream)}`}
+            >
+              Previous day
+            </Link>
+          ) : null
+        }
       />
-      {!current && openGroups.length ? (
+
+      {!current && openGroups.length > 1 ? (
         <OpenRegisters
           date={date}
           termId={term?.id || ""}
@@ -92,8 +146,10 @@ export default async function TeacherAttendancePage({ searchParams }: { searchPa
           cancel={cancelRegister}
         />
       ) : null}
+
       <RegisterDesk
         key={`${date}-${current?.key || "day"}`}
+        variant="teacher"
         date={date}
         today={today}
         termLabel={term?.label ?? null}
@@ -101,29 +157,33 @@ export default async function TeacherAttendancePage({ searchParams }: { searchPa
         classCode={current?.code || ""}
         streamValue={current ? streamQuery(current.stream) : null}
         groups={groups}
-        current={current ? {
-          name: current.name,
-          code: current.code,
-          stream: current.stream,
-          termId: term?.id || "",
-          canMark: true,
-          nextHref: next?.href ?? null,
-          nextLabel: next?.name ?? null,
-          cancelled: current.closed,
-          pupils: current.rows.map((pupil) => {
-            const mark = marked.get(pupil.id);
-            return {
-              id: pupil.id,
-              name: pupil.full_name,
-              number: pupil.student_number,
-              href: `${TEACHER_BASE}/performance`,
-              status: mark?.status || "",
-              note: mark?.note || "",
-              sex: pupil.sex === "M" || pupil.sex === "F" ? pupil.sex : null,
-              photoPath: pupil.photo_path,
-            };
-          }),
-        } : null}
+        current={
+          current
+            ? {
+                name: current.name,
+                code: current.code,
+                stream: current.stream,
+                termId: term?.id || "",
+                canMark: true,
+                nextHref: next?.href ?? null,
+                nextLabel: next?.name ?? null,
+                cancelled: current.closed,
+                pupils: current.rows.map((pupil) => {
+                  const mark = marked.get(pupil.id);
+                  return {
+                    id: pupil.id,
+                    name: pupil.full_name,
+                    number: pupil.student_number,
+                    href: `${TEACHER_BASE}/performance`,
+                    status: mark?.status || "",
+                    note: mark?.note || "",
+                    sex: pupil.sex === "M" || pupil.sex === "F" ? pupil.sex : null,
+                    photoPath: pupil.photo_path,
+                  };
+                }),
+              }
+            : null
+        }
         save={saveAttendance}
         cancel={cancelRegister}
       />

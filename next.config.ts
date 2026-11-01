@@ -13,8 +13,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
     serverActions: { bodySizeLimit: "21mb" },
-    // Website: 30s. Desktop shell: longer so sidebar hops reuse the RSC payload.
-    staleTimes: { dynamic: isDesktop ? 120 : 30 },
+    // Website: 30s. Desktop shell: longer so sidebar hops reuse the RSC payload
+    // (Teacher desk soft-nav especially benefits — layouts stay force-dynamic).
+    staleTimes: { dynamic: isDesktop ? 300 : 30 },
   },
   images: {
     formats: ["image/avif", "image/webp"],
@@ -29,6 +30,16 @@ const nextConfig: NextConfig = {
       { source: "/religion-faith", destination: "/religion", permanent: true },
       { source: "/religion-faith/", destination: "/religion", permanent: true },
       { source: "/calendar", destination: "/events", permanent: false },
+      { source: "/library/catalogue", destination: "/library/books", permanent: false },
+      { source: "/library/catalogue/", destination: "/library/books", permanent: false },
+      {
+        source: "/library/stock",
+        has: [{ type: "query", key: "count", value: "(?<count>.*)" }],
+        destination: "/library/books?view=stock&count=:count",
+        permanent: false,
+      },
+      { source: "/library/stock", destination: "/library/books?view=stock", permanent: false },
+      { source: "/library/stock/", destination: "/library/books?view=stock", permanent: false },
     ];
   },
   async rewrites() {

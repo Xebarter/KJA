@@ -61,10 +61,12 @@ npm run dev
 
 1. `npm run pack` builds the website with `KJA_DESKTOP=1` and `KJA_DESKTOP_PACK=1` (`distDir: .next-desktop`, `output: 'standalone'`, longer router `staleTimes`).
 2. The pack build bakes `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:47321` into the client so login uses the loopback proxy; `KJA_UPSTREAM_SUPABASE_URL` keeps the real project URL for the proxy.
-3. electron-builder copies `.next-desktop/standalone` and `public` into the app resources.
-4. An `afterPack` hook copies `standalone/node_modules` (electron-builder drops root `node_modules`) and CSS/JS into `.next-desktop/static` (custom `distDir`).
-5. Do **not** run website `next dev` and Desktop App at the same time against a shared cache — they use separate folders (`.next` vs `.next-desktop`).
-6. Installer output is under `Desktop App/release/`.
+3. `pack:next` also writes `resources/desktop.env` (upstream URL + anon key) so the installed app can start without a developer `.env` on the machine.
+4. electron-builder copies `.next-desktop/standalone`, `public`, and `desktop.env` into the app resources.
+5. An `afterPack` hook copies `standalone/node_modules` (electron-builder drops root `node_modules`) and CSS/JS into `.next-desktop/static` (custom `distDir`).
+6. Cold start shows an instant native splash; the first open after install still waits on Next.js, then later clicks reuse the warm desks process.
+7. Do **not** run website `next dev` and Desktop App at the same time against a shared cache — they use separate folders (`.next` vs `.next-desktop`).
+8. Installer output is under `Desktop App/release/`.
 
 ## Website hooks (desktop-gated)
 

@@ -10,7 +10,7 @@ import {
   type Grant,
 } from "@/lib/dashboard-access";
 import { isParentGuardian } from "@/lib/parent-access";
-import { STAFF_ROLE_COOKIE, staffRoleCookieOptions } from "@/lib/staff-role-cookie";
+import { STAFF_ROLE_COOKIE, TEACHER_OK_COOKIE, staffRoleCookieOptions } from "@/lib/staff-role-cookie";
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -55,6 +55,31 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Unsigned staff gate: skip auth network so Desktop never hangs on a dead token refresh.
+  const hasSupabaseAuth = request.cookies.getAll().some(
+    (c) => c.name.includes("auth-token") || (c.name.startsWith("sb-") && c.name.includes("auth")),
+  );
+  if (isAdminLogin && !hasSupabaseAuth && !isServerAction) {
+    const headers = new Headers(request.headers);
+    headers.set("x-kja-path", path);
+    return NextResponse.next({ request: { headers } });
+  }
+
+  // Known teacher soft-nav: skip getUser + profiles + teaching_staff. Layout still
+  // runs requireTeacher(); this only removes the middleware tax that made Desktop
+  // sidebar hops feel sluggish. Requires TEACHER_OK_COOKIE (not merely role=staff)
+  // so academics-granted staff still get bounced on a full check.
+  if (
+    isTeacher &&
+    hasSupabaseAuth &&
+    !isServerAction &&
+    request.cookies.get(TEACHER_OK_COOKIE)?.value === "1"
+  ) {
+    const headers = new Headers(request.headers);
+    headers.set("x-kja-path", path);
+    return NextResponse.next({ request: { headers } });
+  }
+
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set("x-kja-path", path);
   let response = NextResponse.next({ request: { headers: requestHeaders } });
@@ -85,7 +110,13 @@ export async function middleware(request: NextRequest) {
   }
 
   // getUser attaches the session for PostgREST (RLS). getClaims alone is not enough for profile reads.
-  const { data: userData } = await supabase.auth.getUser();
+  // Cap wait so a hung auth refresh cannot freeze Desktop on /admin/login forever.
+  const userData = await Promise.race([
+    supabase.auth.getUser().then((r) => r.data),
+    new Promise<{ user: null }>((resolve) => {
+      setTimeout(() => resolve({ user: null }), 3_500);
+    }),
+  ]);
   const user = userData.user ? { id: userData.user.id } : null;
 
   let accessPromise: Promise<{ role: string | null; grants: Grant[] }> | null = null;
@@ -118,6 +149,7 @@ export async function middleware(request: NextRequest) {
       dest.startsWith("/admissions_office") ||
       dest.startsWith("/accounts") ||
       dest.startsWith("/academics_office") ||
+      dest.startsWith("/library") ||
       dest.startsWith("/teacher")
     );
   }
@@ -172,16 +204,25 @@ export async function middleware(request: NextRequest) {
     const access = await loadAccess();
     if (access.role) response.cookies.set(STAFF_ROLE_COOKIE, access.role, staffRoleCookieOptions());
     if (access.grants.some((grant) => grant.dashboard === "academics")) {
+      response.cookies.set(TEACHER_OK_COOKIE, "", { ...staffRoleCookieOptions(), maxAge: 0 });
       return passOr(send(landingPath(access.grants, "academics") ?? "/academics_office"));
     }
     if (access.role === "staff") {
       const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", user.id).eq("active", true).maybeSingle();
-      if (teacher?.id) return response;
+      if (teacher?.id) {
+        response.cookies.set(TEACHER_OK_COOKIE, "1", staffRoleCookieOptions());
+        return response;
+      }
       // Staff without a teaching_staff row (or a failed lookup): do not bounce to /teacher again.
+      response.cookies.set(TEACHER_OK_COOKIE, "", { ...staffRoleCookieOptions(), maxAge: 0 });
       return response;
     }
     const dest = elsewhere(access.role, access.grants);
-    if (dest.startsWith("/teacher")) return response;
+    if (dest.startsWith("/teacher")) {
+      response.cookies.set(TEACHER_OK_COOKIE, "1", staffRoleCookieOptions());
+      return response;
+    }
+    response.cookies.set(TEACHER_OK_COOKIE, "", { ...staffRoleCookieOptions(), maxAge: 0 });
     return passOr(send(dest));
   }
 
@@ -255,6 +296,8 @@ export const config = {
     "/accounts/:path*",
     "/academics_office",
     "/academics_office/:path*",
+    "/library",
+    "/library/:path*",
     "/teacher",
     "/teacher/:path*",
     "/choose-dashboard",

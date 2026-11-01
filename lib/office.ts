@@ -4,7 +4,7 @@ import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { isOfficeRole, OFFICE_BASE } from "@/lib/office-nav";
 import { forgetPrefix } from "@/lib/remember";
-import { STAFF_ROLE_COOKIE } from "@/lib/staff-role-cookie";
+import { STAFF_ROLE_COOKIE, TEACHER_OK_COOKIE } from "@/lib/staff-role-cookie";
 import { createClient } from "@/lib/supabase/server";
 
 export { isOfficeRole, OFFICE_BASE, OFFICE_ROLES, ROLE_LABELS, officeNav } from "@/lib/office-nav";
@@ -31,8 +31,9 @@ export function refreshOffice(...paths: string[]) {
   for (const path of paths) revalidatePath(path);
 }
 
-/** Clear the middleware role hint (call from sign-out). */
+/** Clear the middleware role / teacher-ok hints (call from sign-out). */
 export async function clearStaffRoleCookie() {
   const jar = await cookies();
   jar.set(STAFF_ROLE_COOKIE, "", { path: "/", maxAge: 0 });
+  jar.set(TEACHER_OK_COOKIE, "", { path: "/", maxAge: 0 });
 }

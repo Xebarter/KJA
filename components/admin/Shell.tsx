@@ -63,7 +63,7 @@ function Seal() {
 function NavLink({ href, icon, badge, children }: { href: string; icon: string; badge?: number; children: React.ReactNode }) {
   const active = isActive(usePathname(), href);
   return (
-    <Link href={href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+    <Link href={href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
       <i className={`fa-solid ${icon}`} aria-hidden="true" />
       <span>{children}</span>
       {badge ? <em className="admin-nav-badge" aria-label={`${badge} new`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -162,7 +162,7 @@ export function AdminShell({
       <DesktopChrome desk="Admin" />
       <DeskWarmup hrefs={sections.map((section) => section.href)} />
       <header className="admin-topbar">
-        <Link href={home} className="admin-topbar-brand">
+        <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>KJA Admin</strong>
@@ -183,7 +183,7 @@ export function AdminShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="admin-side" className="admin-side">
-        <Link href={home} className="admin-brand">
+        <Link href={home} prefetch={false} className="admin-brand">
           <Seal />
           <span>
             <strong>KJA Admin</strong>

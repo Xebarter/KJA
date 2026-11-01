@@ -68,7 +68,11 @@ export default async function TeacherAssessmentsPage() {
 
   const [subjectsQuery, pupils, enteredById] = await Promise.all([
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
-    loadRoll(supabase, user.id),
+    loadRoll(
+      supabase,
+      user.id,
+      posts.map((post) => post.classCode),
+    ),
     term && rows.length
       ? groupOf(supabase.from("assessment_scores").select("assessment_id, id.count(), assessments!inner(term_id)").eq("assessments.term_id", term.id), "assessment_id", "count")
       : Promise.resolve(new Map<string, number>()),

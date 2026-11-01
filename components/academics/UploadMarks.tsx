@@ -78,6 +78,15 @@ function openPapers(sitting: Sitting | undefined) {
   return sitting.classes.flatMap((group) => group.roll ? group.papers.filter((paper) => paper.status === "open") : []);
 }
 
+function errorMessage(text: string) {
+  const trimmed = text.trim();
+  if (!trimmed) return "The workbook could not be prepared.";
+  if (/^<!DOCTYPE html|<html[\s>]/i.test(trimmed) || trimmed.includes("Internal Server Error")) {
+    return "The workbook could not be prepared. Try again, or ask the office if the problem continues.";
+  }
+  return trimmed.slice(0, 400);
+}
+
 function fileNameFrom(header: string | null) {
   const encoded = header?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   if (encoded) {
@@ -286,7 +295,7 @@ export function UploadMarks({
         body: JSON.stringify({ papers: chosen.map((paper) => paper.id) }),
       });
       if (!response.ok) {
-        setError((await response.text()) || "The workbook could not be prepared.");
+        setError(errorMessage(await response.text()));
         return;
       }
       const blob = await response.blob();

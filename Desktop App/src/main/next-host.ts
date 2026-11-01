@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { existsSync } from "node:fs";
+import http from "node:http";
 import { createConnection } from "node:net";
 import { join } from "node:path";
 import { app } from "electron";
@@ -14,7 +15,7 @@ export type NextHandle = {
 };
 
 /** True when something accepts TCP on the Next port (server process is listening). */
-function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
+export function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
   return new Promise((resolve) => {
     const socket = createConnection({ port, host });
     const done = (ok: boolean) => {
@@ -29,26 +30,50 @@ function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
   });
 }
 
-/** Cheap HTTP check — any status means the Next HTTP stack is up. */
-async function nextHttpAlive(timeoutMs = 800): Promise<boolean> {
-  try {
-    const ctrl = new AbortController();
-    const t = setTimeout(() => ctrl.abort(), timeoutMs);
-    const res = await fetch(`http://127.0.0.1:${NEXT_PORT}/`, {
-      redirect: "manual",
-      signal: ctrl.signal,
+/**
+ * Cheap HTTP check — hits a tiny route (not the heavy site homepage).
+ * Uses `node:http` (not undici `fetch`) so system HTTP_PROXY cannot black-hole
+ * loopback and falsely report "Desks stopped responding".
+ */
+export function nextHttpAlive(timeoutMs = 800): Promise<boolean> {
+  return new Promise((resolve) => {
+    const req = http.get(
+      {
+        host: "127.0.0.1",
+        port: NEXT_PORT,
+        path: "/api/desktop/ready",
+        timeout: timeoutMs,
+        agent: false,
+      },
+      (res) => {
+        res.resume();
+        resolve(typeof res.statusCode === "number" && res.statusCode > 0);
+      },
+    );
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(false);
     });
-    clearTimeout(t);
-    return res.status > 0;
-  } catch {
-    return false;
-  }
+    req.on("error", () => resolve(false));
+  });
 }
 
-/** True when a previous desktop session left a usable Next host on the fixed port. */
+/**
+ * True when a previous desktop session left a usable Next host on the fixed port.
+ * Only probe `/api/desktop/ready` — hitting `/admin/login` here can hang on SSR
+ * and itself stuck the splash before the desk window ever navigated.
+ */
 export async function isNextHealthy(): Promise<boolean> {
   if (!(await portOpen(NEXT_PORT))) return false;
-  return nextHttpAlive();
+  return nextHttpAlive(1_200);
+}
+
+/** Kill whatever owns the Next port (hung keep-warm) and start a fresh host. */
+export async function restartNext(env: DesktopEnv): Promise<NextHandle> {
+  console.warn(`[next] restarting host on ${NEXT_PORT}`);
+  freePort(NEXT_PORT);
+  await new Promise((r) => setTimeout(r, 350));
+  return startNext(env, { portReady: true, keepWarm: true });
 }
 
 /**
@@ -58,6 +83,7 @@ export async function isNextHealthy(): Promise<boolean> {
 async function waitForNextListening(timeoutMs: number, child: ChildProcess): Promise<void> {
   const start = Date.now();
   let lastErr = "";
+  let tcpUpAt: number | null = null;
   while (Date.now() - start < timeoutMs) {
     if (child.exitCode != null || child.signalCode != null) {
       throw new Error(
@@ -65,8 +91,11 @@ async function waitForNextListening(timeoutMs: number, child: ChildProcess): Pro
       );
     }
     if (await portOpen(NEXT_PORT)) {
-      if (await nextHttpAlive(1_500)) return;
+      if (tcpUpAt == null) tcpUpAt = Date.now();
+      if (await nextHttpAlive(400)) return;
       lastErr = "TCP up, HTTP not ready yet";
+      await new Promise((r) => setTimeout(r, 50));
+      continue;
     }
     await new Promise((r) => setTimeout(r, 80));
   }
@@ -74,6 +103,9 @@ async function waitForNextListening(timeoutMs: number, child: ChildProcess): Pro
 }
 
 function desktopEnv(env: DesktopEnv): NodeJS.ProcessEnv {
+  const noProxy = [process.env.NO_PROXY, process.env.no_proxy, "127.0.0.1,localhost"]
+    .filter(Boolean)
+    .join(",");
   return {
     ...process.env,
     NODE_ENV: "production",
@@ -85,6 +117,9 @@ function desktopEnv(env: DesktopEnv): NodeJS.ProcessEnv {
     SUPABASE_SERVICE_ROLE_KEY: env.serviceRoleKey || process.env.SUPABASE_SERVICE_ROLE_KEY || "",
     PORT: String(NEXT_PORT),
     HOSTNAME: "127.0.0.1",
+    // Keep loopback desks off any corporate HTTP(S)_PROXY.
+    NO_PROXY: noProxy,
+    no_proxy: noProxy,
   };
 }
 
@@ -141,7 +176,7 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
       },
       stdio: ["ignore", "pipe", "pipe"],
       windowsHide: true,
-      // Survive Electron exit so relaunch skips the multi-second Next cold start.
+      // Own process group so Quit can leave desks warm for the next click.
       detached: keepWarm,
     });
   } else {
@@ -190,11 +225,19 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
     );
   }
 
-  // Drop pipes + unref so Electron can quit without taking Next with it.
+  // After listen: detach from the Electron lifetime so Quit leaves desks warm.
+  // Do NOT destroy stdout/stderr pipes — on Windows that EPIPE-kills Next (exit 1)
+  // right after Ready and the watchdog then restart-storms forever.
   if (keepWarm) {
-    child.stdout?.destroy();
-    child.stderr?.destroy();
-    child.unref();
+    try {
+      child.stdout?.removeAllListeners("data");
+      child.stderr?.removeAllListeners("data");
+      child.stdout?.resume();
+      child.stderr?.resume();
+      child.unref();
+    } catch {
+      /* ignore */
+    }
   }
 
   const running = child;

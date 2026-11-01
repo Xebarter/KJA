@@ -12,6 +12,7 @@ import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { ACCOUNTS_BASE, accountsNav, type AccountsBadge } from "@/lib/accounts-nav";
 import { pageIdForPath } from "@/lib/dashboard-access";
+import { isDesktopClient } from "@/lib/desktop";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 const ACCOUNTS_PLACES: SidebarHit[] = [
@@ -65,7 +66,8 @@ export function AccountsShell({
   useEffect(() => setOpen(false), [pathname]);
 
   useEffect(() => {
-    // Website keeps eager nav prefetch; DeskWarmup covers the desktop shell.
+    // Desktop: never stampede the local Next host with sidebar prefetches.
+    if (isDesktopClient()) return;
     for (const item of accountsNav) router.prefetch(item.href);
     router.prefetch(`${ACCOUNTS_BASE}/payments/new`);
     router.prefetch(`${ACCOUNTS_BASE}/expenses/new`);
@@ -105,7 +107,7 @@ export function AccountsShell({
         ]}
       />
       <header className="admin-topbar">
-        <Link href={home} className="admin-topbar-brand">
+        <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -126,7 +128,7 @@ export function AccountsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="accounts-side" className="admin-side">
-        <Link href={home} className="admin-brand">
+        <Link href={home} prefetch={false} className="admin-brand">
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -135,7 +137,7 @@ export function AccountsShell({
         </Link>
 
         {term && show(`${ACCOUNTS_BASE}/settings`) ? (
-          <Link href={`${ACCOUNTS_BASE}/settings#terms`} className="acc-term-pill" title="Change the current term in Fee setup">
+          <Link href={`${ACCOUNTS_BASE}/settings#terms`} prefetch={false} className="acc-term-pill" title="Change the current term in Fee setup">
             <i className="fa-regular fa-calendar" aria-hidden="true" />
             <span>
               <small>Current term</small>
@@ -170,13 +172,13 @@ export function AccountsShell({
             );
           })}
           {show(`${ACCOUNTS_BASE}/payments/new`) ? (
-            <Link href={`${ACCOUNTS_BASE}/payments/new`} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
+            <Link href={`${ACCOUNTS_BASE}/payments/new`} prefetch={false} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
               <i className="fa-solid fa-cash-register" aria-hidden="true" />
               <span>Record a payment</span>
             </Link>
           ) : null}
           {show(`${ACCOUNTS_BASE}/expenses/new`) ? (
-            <Link href={`${ACCOUNTS_BASE}/expenses/new`} className={pathname === `${ACCOUNTS_BASE}/expenses/new` ? "active" : ""}>
+            <Link href={`${ACCOUNTS_BASE}/expenses/new`} prefetch={false} className={pathname === `${ACCOUNTS_BASE}/expenses/new` ? "active" : ""}>
               <i className="fa-solid fa-file-circle-plus" aria-hidden="true" />
               <span>Add an expense</span>
             </Link>

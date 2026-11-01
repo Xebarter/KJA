@@ -23,6 +23,8 @@ export type BootPhase =
 export type BootStatus = {
   phase: BootPhase;
   message: string;
+  /** 0–100 splash progress. */
+  progress?: number;
   error?: string;
 };
 

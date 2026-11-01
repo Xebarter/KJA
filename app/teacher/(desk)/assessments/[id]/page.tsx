@@ -37,7 +37,7 @@ export default async function TeacherMarkbookPage({ params }: { params: Promise<
   const nursery = classSection(paper.class_code) === "nursery";
   const maxScore = num(paper.max_score) ?? 100;
   const [pupils, scores, subject, bandsQuery] = await Promise.all([
-    loadRoll(supabase, user.id).then((rows) =>
+    loadRoll(supabase, user.id, [String(paper.class_code)]).then((rows) =>
       rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
     ),
     supabase.from("assessment_scores").select("student_id, score, missed").eq("assessment_id", id),

@@ -152,7 +152,7 @@ export default async function TeacherPerformancePage({
   const kindFilter = ASSESSMENT_KINDS.some((entry) => entry.value === query.kind) ? String(query.kind) : "";
 
   const [pupils, allPapers, bandsQuery] = await Promise.all([
-    loadRoll(supabase, user.id).then((roll) =>
+    loadRoll(supabase, user.id, [selected.classCode]).then((roll) =>
       roll.filter((pupil) => pupil.class_code === selected.classCode && streamOf(pupil.stream) === selected.stream),
     ),
     fetchAll<PaperRow>((from, to) =>

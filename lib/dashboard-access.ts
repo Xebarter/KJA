@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { contentGroups } from "@/lib/admin";
 import { ACADEMICS_BASE, academicsNav } from "@/lib/academics-nav";
 import { ACCOUNTS_BASE, accountsNav } from "@/lib/accounts-nav";
+import { LIBRARY_BASE, libraryNav } from "@/lib/library-nav";
 import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
 import { safeNext } from "@/lib/safe-next";
 
-export const DASHBOARDS = ["admin", "admissions", "accounts", "academics"] as const;
+export const DASHBOARDS = ["admin", "admissions", "accounts", "academics", "library"] as const;
 export type DashboardId = (typeof DASHBOARDS)[number];
 
 export type Grant = { dashboard: DashboardId; pages: string[] };
@@ -44,6 +45,12 @@ export const DASHBOARD_META: Record<DashboardId, { label: string; description: s
     description: "Classes, attendance, assessments, and report cards.",
     href: ACADEMICS_BASE,
     icon: "fa-graduation-cap",
+  },
+  library: {
+    label: "Library",
+    description: "Books, loans, reservations, and fines for Lower and Upper Primary.",
+    href: LIBRARY_BASE,
+    icon: "fa-book-open",
   },
 };
 
@@ -122,6 +129,7 @@ export const DASHBOARD_PAGES: Record<DashboardId, DashboardPage[]> = {
   admissions: navPages(OFFICE_BASE, officeNav),
   accounts: navPages(ACCOUNTS_BASE, accountsNav, { students: [`${ACCOUNTS_BASE}/families`] }),
   academics: navPages(ACADEMICS_BASE, academicsNav, { classes: [`${ACADEMICS_BASE}/students`] }),
+  library: navPages(LIBRARY_BASE, libraryNav),
 };
 
 export function isDashboardId(value: string): value is DashboardId {
@@ -141,7 +149,9 @@ export function visibleContentKeys(pages: string[] | null) {
 
 export function legacyGrants(role: string | null | undefined): Grant[] {
   if (role === "admin") return DASHBOARDS.map((dashboard) => ({ dashboard, pages: [] }));
-  if (role === "admissions" || role === "accounts" || role === "academics") return [{ dashboard: role, pages: [] }];
+  if (role === "admissions" || role === "accounts" || role === "academics" || role === "library") {
+    return [{ dashboard: role, pages: [] }];
+  }
   return [];
 }
 
@@ -149,7 +159,7 @@ export function isFullAdmin(grants: Grant[]) {
   return DASHBOARDS.every((dashboard) => grants.some((grant) => grant.dashboard === dashboard && grant.pages.length === 0));
 }
 
-export function roleForGrants(grants: Grant[]): "admin" | "admissions" | "accounts" | "academics" | "officer" {
+export function roleForGrants(grants: Grant[]): "admin" | "admissions" | "accounts" | "academics" | "library" | "officer" {
   if (isFullAdmin(grants)) return "admin";
   const ids = [...new Set(grants.map((grant) => grant.dashboard))];
   if (ids.length === 1 && ids[0] !== "admin") return ids[0];
@@ -174,6 +184,7 @@ export function dashboardForPath(pathname: string): DashboardId | null {
   if (path === OFFICE_BASE || path.startsWith(`${OFFICE_BASE}/`)) return "admissions";
   if (path === ACCOUNTS_BASE || path.startsWith(`${ACCOUNTS_BASE}/`)) return "accounts";
   if (path === ACADEMICS_BASE || path.startsWith(`${ACADEMICS_BASE}/`)) return "academics";
+  if (path === LIBRARY_BASE || path.startsWith(`${LIBRARY_BASE}/`)) return "library";
   return null;
 }
 
@@ -261,11 +272,20 @@ export async function loadGrants(supabase: SupabaseClient, userId: string, role:
     const dashboard = String(row.dashboard || "");
     if (!isDashboardId(dashboard)) continue;
     const pages = Array.isArray(row.pages)
-      ? row.pages.map((page) => {
-          const id = String(page);
-          // Legacy admin "messages" grant → Enquiries page id.
-          return id === "messages" ? "enquiries" : id;
-        }).filter(Boolean)
+      ? [
+          ...new Set(
+            row.pages
+              .map((page) => {
+                const id = String(page);
+                // Legacy admin "messages" grant → Enquiries page id.
+                if (id === "messages") return "enquiries";
+                // Library Catalogue + Stock merged into Books.
+                if (id === "catalogue" || id === "stock") return "books";
+                return id;
+              })
+              .filter(Boolean),
+          ),
+        ]
       : [];
     grants.push({ dashboard, pages });
   }
@@ -277,6 +297,7 @@ const PAGE_IDS: Record<DashboardId, Set<string>> = {
   admissions: new Set(DASHBOARD_PAGES.admissions.map((page) => page.id)),
   accounts: new Set(DASHBOARD_PAGES.accounts.map((page) => page.id)),
   academics: new Set(DASHBOARD_PAGES.academics.map((page) => page.id)),
+  library: new Set(DASHBOARD_PAGES.library.map((page) => page.id)),
 };
 
 /** Form fields: `full=1`, or `grant=accounts:*` / `grant=accounts:invoices`. */

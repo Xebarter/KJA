@@ -12,6 +12,7 @@ function isStaffDestination(path: string) {
     path.startsWith("/admissions_office") ||
     path.startsWith("/accounts") ||
     path.startsWith("/academics_office") ||
+    path.startsWith("/library") ||
     path.startsWith("/teacher")
   );
 }
@@ -20,6 +21,7 @@ export function LoginForm({ desktop }: { desktop: boolean }) {
   const searchParams = useSearchParams();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   const configured = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
   return (
@@ -109,7 +111,23 @@ export function LoginForm({ desktop }: { desktop: boolean }) {
             </label>
             <label>
               Password
-              <input name="password" type="password" autoComplete="current-password" required />
+              <span className="login-password">
+                <input
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  required
+                />
+                <button
+                  type="button"
+                  className="login-password-toggle"
+                  onClick={() => setShowPassword((current) => !current)}
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  <i className={`fa-solid ${showPassword ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+                </button>
+              </span>
             </label>
             <button className="admin-btn" type="submit" disabled={busy}>
               {busy ? "Signing in…" : "Sign in"}

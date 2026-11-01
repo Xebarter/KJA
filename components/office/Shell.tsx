@@ -110,7 +110,7 @@ export function OfficeShell({
       <DesktopChrome desk="Admissions" />
       <DeskWarmup hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
-        <Link href={home} className="admin-topbar-brand">
+        <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -131,7 +131,7 @@ export function OfficeShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="office-side" className="admin-side">
-        <Link href={home} className="admin-brand">
+        <Link href={home} prefetch={false} className="admin-brand">
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -160,7 +160,7 @@ export function OfficeShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <Link href={item.href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -170,7 +170,7 @@ export function OfficeShell({
           })}
           <hr className="admin-nav-rule" />
           {show(`${OFFICE_BASE}/students/new`) ? (
-            <Link href={`${OFFICE_BASE}/students/new`} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
+            <Link href={`${OFFICE_BASE}/students/new`} prefetch={false} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
               <i className="fa-solid fa-user-plus" aria-hidden="true" />
               <span>Enrol a student</span>
             </Link>

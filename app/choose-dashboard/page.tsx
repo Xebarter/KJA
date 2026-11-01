@@ -1,11 +1,13 @@
-import Link from "next/link";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { leaveDashboard } from "@/app/choose-dashboard/actions";
+import { DeskButtons } from "@/app/choose-dashboard/DeskButtons";
+import { DesktopChrome } from "@/components/DesktopChrome";
 import { DASHBOARD_META, DASHBOARDS, homeForGrants, landingPath, loadGrants } from "@/lib/dashboard-access";
 import { createClient } from "@/lib/supabase/server";
 import "./choose.css";
 
-export const metadata = { title: "Choose a desk" };
+export const metadata = { title: "Desks" };
 
 function firstName(full: string) {
   const part = full.trim().split(/\s+/)[0];
@@ -26,55 +28,42 @@ export default async function ChooseDashboardPage() {
   if (grants.length === 0) redirect("/account");
   if (grants.length === 1) redirect(homeForGrants(grants));
 
-  const name = profile?.full_name?.trim() || user.email || "there";
-  const greeting = profile?.full_name?.trim() ? firstName(profile.full_name) : name;
+  const greeting = profile?.full_name?.trim() ? firstName(profile.full_name) : null;
   const ordered = DASHBOARDS.map((id) => grants.find((g) => g.dashboard === id)).filter(Boolean) as typeof grants;
+  const desktop = (await cookies()).get("kja-desktop")?.value === "1";
+  const desks = ordered.map((grant) => {
+    const meta = DASHBOARD_META[grant.dashboard];
+    return {
+      id: grant.dashboard,
+      label: meta.label,
+      href: landingPath(grants, grant.dashboard) ?? meta.href,
+      icon: meta.icon,
+    };
+  });
 
   return (
-    <main className="cd">
-      <div className="cd-stage" aria-hidden="true">
-        <div className="cd-photo" />
-        <div className="cd-veil" />
-        <div className="cd-glow" />
-      </div>
-
-      <div className="cd-panel">
-        <div className="cd-brand">
-          <img src="/web-app-manifest-512x512.png" alt="" width={72} height={72} />
-          <p className="cd-kicker">Staff desks</p>
+    <>
+      {desktop ? <DesktopChrome desk="Desks" /> : null}
+      <main className={`cd${desktop ? " is-desktop" : ""}`}>
+        <div className="cd-stage" aria-hidden="true">
+          <div className="cd-photo" />
+          <div className="cd-veil" />
+          <div className="cd-glow" />
         </div>
 
-        <h1>Choose a desk</h1>
-        <p className="cd-lede">Hi {greeting}.</p>
+        <div className="cd-panel">
+          <div className="cd-brand">
+            <img src="/web-app-manifest-512x512.png" alt="" width={56} height={56} />
+            {greeting ? <p className="cd-hello">Hi, {greeting}</p> : null}
+          </div>
 
-        <ul className="cd-list">
-          {ordered.map((grant, index) => {
-            const meta = DASHBOARD_META[grant.dashboard];
-            const href = landingPath(grants, grant.dashboard) ?? meta.href;
-            const limited = grant.pages.length > 0;
-            return (
-              <li key={grant.dashboard} style={{ ["--i" as string]: index }}>
-                <Link href={href} className={`cd-tile is-${grant.dashboard}`}>
-                  <span className="cd-tile-icon" aria-hidden="true">
-                    <i className={`fa-solid ${meta.icon}`} />
-                  </span>
-                  <span className="cd-tile-copy">
-                    <strong>{meta.label}</strong>
-                    <small>{limited ? `${grant.pages.length} page${grant.pages.length === 1 ? "" : "s"}` : meta.description}</small>
-                  </span>
-                  <span className="cd-tile-go" aria-hidden="true">
-                    <i className="fa-solid fa-arrow-right" />
-                  </span>
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
+          <DeskButtons desks={desks} />
 
-        <form action={leaveDashboard} className="cd-out">
-          <button type="submit">Sign out</button>
-        </form>
-      </div>
-    </main>
+          <form action={leaveDashboard} className="cd-out">
+            <button type="submit">Sign out</button>
+          </form>
+        </div>
+      </main>
+    </>
   );
 }

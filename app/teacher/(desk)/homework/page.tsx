@@ -21,7 +21,11 @@ export default async function TeacherHomeworkPage() {
     supabase.from("homework_assignments").select("id, class_code, stream, subject_id, title, instructions, due_on, published_at, created_at").eq("term_id", term.id).order("due_on", { ascending: false }),
     supabase.from("class_resources").select("id, class_code, stream, subject_id, kind, title, body, link_url, file_path, file_name, teacher_name, published_at, created_at").order("created_at", { ascending: false }).limit(200),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
-    loadRoll(supabase, user.id),
+    loadRoll(
+      supabase,
+      user.id,
+      posts.map((post) => post.classCode),
+    ),
     supabase.from("homework_completions").select("assignment_id, student_id"),
   ]);
   if (assignmentsQuery.error) {

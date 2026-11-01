@@ -4,6 +4,12 @@ html.kja-is-desktop {
   --kja-desktop-titlebar-height: 48px;
 }
 
+/* Default: page content must receive clicks under Electron titleBarOverlay. */
+html.kja-is-desktop body {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+}
+
 html.kja-is-desktop .admin-shell {
   min-height: 100vh;
   min-height: 100dvh;
@@ -11,10 +17,13 @@ html.kja-is-desktop .admin-shell {
 }
 
 html.kja-is-desktop .admin-side {
+  /* Fill the column under the title bar — height:auto left a cream gap below short navs. */
   top: var(--kja-desktop-titlebar-height, 48px);
-  height: auto;
+  height: calc(100vh - var(--kja-desktop-titlebar-height, 48px));
+  height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
   max-height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
-  align-self: start;
+  min-height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
+  align-self: stretch;
   position: sticky;
 }
 

@@ -13,6 +13,7 @@ import {
   type DashboardId,
   type Grant,
 } from "@/lib/dashboard-access";
+import { LIBRARY_IDS, LIBRARY_LABELS, type LibraryId } from "@/lib/library-nav";
 
 export type TeamPerson = {
   id: string;
@@ -22,6 +23,7 @@ export type TeamPerson = {
   isYou: boolean;
   fullAdmin: boolean;
   grants: Grant[];
+  libraries: LibraryId[];
 };
 
 /** Teachers from Academics → Staff — managed there; listed here for desk visibility. */
@@ -54,6 +56,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "admissions", label: "Admissions" },
   { id: "accounts", label: "Accounts" },
   { id: "academics", label: "Academics" },
+  { id: "library", label: "Library" },
 ];
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -64,6 +67,7 @@ function emptySelection(): Selection {
     admissions: { all: false, pages: [] },
     accounts: { all: false, pages: [] },
     academics: { all: false, pages: [] },
+    library: { all: false, pages: [] },
   };
 }
 
@@ -173,6 +177,7 @@ export function TeamManager({
   const [editing, setEditing] = useState<TeamPerson | null>(null);
   const [full, setFull] = useState(false);
   const [selection, setSelection] = useState<Selection>(emptySelection);
+  const [libraryScope, setLibraryScope] = useState<LibraryId[]>(["lower"]);
   const [issuedQueue, setIssuedQueue] = useState<Issued[]>(() => teacherSync?.issued ?? []);
   const issued = issuedQueue[0] || null;
   const [formKey, setFormKey] = useState(0);
@@ -183,7 +188,7 @@ export function TeamManager({
 
   const adminCount = people.filter((person) => person.fullAdmin).length;
   const counts = useMemo(() => {
-    const tally: Record<Filter, number> = { all: people.length, admin: 0, admissions: 0, accounts: 0, academics: 0 };
+    const tally: Record<Filter, number> = { all: people.length, admin: 0, admissions: 0, accounts: 0, academics: 0, library: 0 };
     for (const person of people) {
       for (const grant of person.grants) tally[grant.dashboard] += 1;
     }
@@ -244,6 +249,7 @@ export function TeamManager({
     setEditing(person);
     setFull(next.full);
     setSelection(next.selection);
+    setLibraryScope(person.libraries.length ? person.libraries : ["lower"]);
     setResult(null);
     document.getElementById("team-invite")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -252,12 +258,25 @@ export function TeamManager({
     setEditing(null);
     setFull(false);
     setSelection(emptySelection());
+    setLibraryScope(["lower"]);
     setFormKey((value) => value + 1);
     setResult(null);
   }
 
   function toggleDashboard(dashboard: DashboardId, all: boolean) {
     setSelection((current) => ({ ...current, [dashboard]: { all, pages: all ? [] : current[dashboard].pages } }));
+    if (dashboard === "library" && all && !libraryScope.length) setLibraryScope(["lower"]);
+  }
+
+  function toggleLibraryScope(id: LibraryId) {
+    setLibraryScope((current) => {
+      const has = current.includes(id);
+      if (has) {
+        const next = current.filter((item) => item !== id);
+        return next.length ? next : current;
+      }
+      return LIBRARY_IDS.filter((item) => item === id || current.includes(item));
+    });
   }
 
   function togglePage(dashboard: DashboardId, page: string) {
@@ -576,11 +595,31 @@ export function TeamManager({
                               </label>
                             ))}
                           </div>
+                          {dashboard === "library" && active ? (
+                            <div className="tm-library-scope">
+                              <p>Libraries they manage</p>
+                              {LIBRARY_IDS.map((id) => (
+                                <label key={id} className="tm-page">
+                                  <input
+                                    type="checkbox"
+                                    name="library_scope"
+                                    value={id}
+                                    checked={libraryScope.includes(id)}
+                                    onChange={() => toggleLibraryScope(id)}
+                                  />
+                                  <span>{LIBRARY_LABELS[id]}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : null}
                         </details>
                       );
                     })}
                   </div>
                 )}
+                {full
+                  ? LIBRARY_IDS.map((id) => <input key={id} type="hidden" name="library_scope" value={id} />)
+                  : null}
               </div>
 
               <div className="tm-form-actions">

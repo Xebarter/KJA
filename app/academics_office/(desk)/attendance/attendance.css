@@ -607,19 +607,82 @@
 .reg-search input:focus { outline: none; }
 .reg-search:focus-within { border-color: #19232b; }
 .reg-rest {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
   height: 38px;
   padding: 0 .85rem;
   border: 1px solid #e6e1d6;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #fff;
   color: #19232b;
   font: inherit;
   font-size: .82rem;
-  font-weight: 600;
+  font-weight: 700;
   cursor: pointer;
-  transition: border-color .16s ease, background-color .16s ease;
+  transition: border-color .16s ease, background-color .16s ease, color .16s ease, box-shadow .16s ease;
+}
+.reg-rest em {
+  color: #8a8174;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  font-weight: 800;
 }
 .reg-rest:hover { border-color: #19232b; background: #faf8f5; }
+.reg-rest.is-primary {
+  border-color: transparent;
+  background: #127238;
+  color: #fff;
+  box-shadow: 0 8px 18px -12px rgba(18, 114, 56, .55);
+}
+.reg-rest.is-primary em { color: rgba(255, 255, 255, .78); }
+.reg-rest.is-primary:hover { background: #0f6230; border-color: transparent; }
+
+.reg-seg-short { display: none; }
+.reg-seg-full { display: inline; }
+
+.reg-page.is-teacher .reg-strip {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.reg-page.is-teacher .reg-sheet-head {
+  background:
+    linear-gradient(#fda31b, #fda31b) top / 100% 3px no-repeat,
+    #faf8f5;
+}
+.reg-page.is-teacher .reg-submit {
+  background: #fda31b;
+  color: #19232b;
+  font-weight: 800;
+}
+.reg-page.is-teacher .reg-submit:hover:not(:disabled) {
+  background: #ffb13a;
+  filter: none;
+}
+.reg-page.is-teacher .reg-submit:disabled {
+  background: #e7e1d6;
+  color: #8a8174;
+}
+.reg-page.is-teacher .reg-directory a:hover {
+  box-shadow: inset 3px 0 0 #fda31b;
+}
+.reg-page.is-teacher .reg-seg {
+  grid-template-columns: repeat(4, minmax(2.55rem, 1fr));
+  min-width: 11.5rem;
+}
+.reg-page.is-teacher .reg-seg-short { display: inline; }
+.reg-page.is-teacher .reg-seg-full { display: none; }
+.reg-page.is-teacher .reg-seg button {
+  font-size: .82rem;
+  font-weight: 800;
+}
+.reg-page.is-teacher .reg-cols,
+.reg-page.is-teacher .reg-table li {
+  grid-template-columns: minmax(12rem, 1.2fr) auto minmax(7rem, .7fr);
+}
+.tch-att-page {
+  display: grid;
+  gap: 1rem;
+}
 
 .reg-cols,
 .reg-table li { grid-template-columns: minmax(13rem, 1.15fr) auto minmax(9rem, .8fr); }
@@ -754,6 +817,8 @@
   .reg-strip { grid-template-columns: 1fr 1fr; }
   .reg-strip > div:not(.reg-meter):nth-child(3) { border-left: 0; }
   .reg-strip > div:not(.reg-meter):nth-child(n + 3) { border-top: 1px solid #efeae2; }
+  .reg-page.is-teacher .reg-strip { grid-template-columns: 1fr 1fr; }
+  .reg-page.is-teacher .reg-strip > div:not(.reg-meter):nth-child(3) { border-left: 0; border-top: 1px solid #efeae2; }
   .reg-sheet-head > p { text-align: left; }
   .reg-cols { display: none; }
   .reg-table li {
@@ -762,6 +827,9 @@
     padding: .9rem 1rem;
   }
   .reg-seg { width: 100%; }
+  .reg-seg-short { display: inline; }
+  .reg-seg-full { display: none; }
+  .reg-seg button { font-weight: 800; }
   .reg-directory a {
     grid-template-columns: auto minmax(0, 1fr) auto;
     grid-template-areas:

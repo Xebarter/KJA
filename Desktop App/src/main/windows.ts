@@ -23,8 +23,10 @@ export function createSplashWindow(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     frame: false,
-    // Show the native chrome immediately — do not wait for React/CSS.
+    // Native chrome first — content is a tiny inline HTML page (no React).
     show: true,
+    center: true,
+    alwaysOnTop: true,
     backgroundColor: "#141D24",
     icon: loadAppIcon(),
     webPreferences: {
@@ -35,27 +37,23 @@ export function createSplashWindow(): BrowserWindow {
     },
   });
 
+  win.once("ready-to-show", () => {
+    if (!win.isDestroyed()) {
+      win.show();
+      win.focus();
+    }
+  });
+  // Drop always-on-top after the first second so it does not stick over dialogs.
+  setTimeout(() => {
+    if (!win.isDestroyed()) win.setAlwaysOnTop(false);
+  }, 1_200);
+
   return win;
 }
 
 export async function createDeskWindow(): Promise<BrowserWindow> {
   const ses = session.fromPartition(SESSION_PARTITION);
   ensureDownloadHandler(ses);
-  // Next may surface as 127.0.0.1 or localhost — set the desktop cookie on both.
-  // Fire in parallel; do not serialize cookie I/O on the open path.
-  await Promise.all(
-    [NEXT_URL, NEXT_URL.replace("127.0.0.1", "localhost")].map((url) =>
-      ses.cookies.set({
-        url,
-        name: "kja-desktop",
-        value: "1",
-        path: "/",
-        httpOnly: false,
-        secure: false,
-        sameSite: "lax",
-      }),
-    ),
-  );
 
   const win = new BrowserWindow({
     width: 1440,
@@ -120,11 +118,45 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
     return { action: "deny" };
   });
 
+  const paintForUrl = (url: string) => {
+    try {
+      const path = new URL(url).pathname;
+      const darkGate =
+        path === "/admin/login" ||
+        path.startsWith("/admin/login/") ||
+        path === "/choose-dashboard";
+      // Match desk paper while SSR loads — avoids a black flash / stuck black frame.
+      win.setBackgroundColor(darkGate ? "#141D24" : "#efe8dc");
+    } catch {
+      /* ignore */
+    }
+  };
+
   win.webContents.on("will-navigate", (event, url) => {
-    if (isInAppUrl(url)) return;
+    if (isInAppUrl(url)) {
+      paintForUrl(url);
+      return;
+    }
     event.preventDefault();
     void shell.openExternal(url);
   });
+  win.webContents.on("did-navigate", (_event, url) => paintForUrl(url));
+  win.webContents.on("did-navigate-in-page", (_event, url) => paintForUrl(url));
+
+  // Cookie can finish while the window exists — do not block construction.
+  await Promise.all(
+    [NEXT_URL, NEXT_URL.replace("127.0.0.1", "localhost")].map((url) =>
+      ses.cookies.set({
+        url,
+        name: "kja-desktop",
+        value: "1",
+        path: "/",
+        httpOnly: false,
+        secure: false,
+        sameSite: "lax",
+      }),
+    ),
+  );
 
   return win;
 }

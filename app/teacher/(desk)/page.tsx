@@ -173,7 +173,15 @@ export default async function TeacherHomePage() {
           .limit(12)
       : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
     hasClass
-      ? Promise.all([loadRoll(supabase, user.id), loadDayMarks(supabase, user.id, today), loadClosures(supabase, today)])
+      ? Promise.all([
+          loadRoll(
+            supabase,
+            user.id,
+            classes.map((post) => post.classCode),
+          ).catch(() => [] as Awaited<ReturnType<typeof loadRoll>>),
+          loadDayMarks(supabase, user.id, today).catch(() => [] as Awaited<ReturnType<typeof loadDayMarks>>),
+          loadClosures(supabase, today),
+        ])
       : Promise.resolve(null),
   ]);
 

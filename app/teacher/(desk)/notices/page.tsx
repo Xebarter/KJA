@@ -38,7 +38,11 @@ export default async function TeacherNoticesPage() {
       .eq("term_id", teacher.term.id)
       .order("created_at", { ascending: false })
       .limit(40),
-    loadRoll(teacher.supabase, teacher.user.id),
+    loadRoll(
+      teacher.supabase,
+      teacher.user.id,
+      teacher.classes.map((post) => post.classCode),
+    ),
   ]);
 
   const error = noticesQuery.error;

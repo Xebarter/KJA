@@ -480,20 +480,38 @@ export function studentsQuery(
   }
 }
 
+/** Undici / proxy blips right after Desktop login often surface as this exact message. */
+function isTransientFetchError(message: string) {
+  return /fetch failed|failed to fetch|econnreset|econnrefused|etimedout|socket hang up|network|aborted|\b502\b|\b503\b|\b504\b/i.test(
+    message,
+  );
+}
+
+function wait(ms: number) {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
 /** Fetches every row of a query in pages, for exports and statistics on the whole register. */
 export async function fetchAll<T>(build: (from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>, limit = 10000) {
   const size = 1000;
   const take = async (from: number) => {
-    const { data, error } = await build(from, from + size - 1);
-    if (error) throw new Error(error.message);
-    return (data || []) as T[];
+    let lastMessage = "fetch failed";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const { data, error } = await build(from, from + size - 1);
+      if (!error) return (data || []) as T[];
+      lastMessage = error.message || lastMessage;
+      if (!isTransientFetchError(lastMessage) || attempt === 2) break;
+      await wait(120 * (attempt + 1));
+    }
+    throw new Error(lastMessage);
   };
   const first = await take(0);
   if (first.length < size || first.length >= limit) return first.slice(0, limit);
 
   // Remaining pages load in parallel batches so soft nav is not a long sequential waterfall.
+  // Keep the batch modest — Desktop login already hydrates the proxy in parallel.
   const rows = [...first];
-  const batch = 4;
+  const batch = 2;
   for (let from = size; from < limit; from += size * batch) {
     const offsets: number[] = [];
     for (let i = 0; i < batch && from + i * size < limit; i++) offsets.push(from + i * size);

@@ -11,6 +11,7 @@
 # Local environment files (keep the template available)
 .env*
 !.env.example
+Desktop App/resources/desktop.env
 
 # Debug logs
 *.log

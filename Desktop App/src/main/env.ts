@@ -42,12 +42,21 @@ export function resolveRepoRoot(): string {
 
 export function loadDesktopEnv(): DesktopEnv {
   const repoRoot = resolveRepoRoot();
-  const websiteRoot = app.isPackaged ? repoRoot : repoRoot;
-  const merged = {
-    ...parseEnvFile(join(websiteRoot, ".env")),
-    ...parseEnvFile(join(websiteRoot, ".env.local")),
-    ...process.env,
-  };
+  // Packaged installs must not depend on the developer's machine .env path.
+  // Prefer an explicit desktop.env next to resources, then standalone/.env.
+  const merged = app.isPackaged
+    ? {
+        ...parseEnvFile(join(repoRoot, ".env")),
+        ...parseEnvFile(join(repoRoot, ".env.local")),
+        ...parseEnvFile(join(process.resourcesPath, "desktop.env")),
+        ...process.env,
+      }
+    : {
+        ...parseEnvFile(join(repoRoot, ".env")),
+        ...parseEnvFile(join(repoRoot, ".env.local")),
+        ...parseEnvFile(join(resolve(__dirname, "../.."), ".env")),
+        ...process.env,
+      };
 
   const upstream =
     merged.KJA_UPSTREAM_SUPABASE_URL ||

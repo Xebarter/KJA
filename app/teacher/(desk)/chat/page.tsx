@@ -49,7 +49,11 @@ export default async function TeacherChatPage({
   const flaggedOnly = String(Array.isArray(query.flagged) ? query.flagged[0] : query.flagged || "") === "1";
   const threadId = String(Array.isArray(query.c) ? query.c[0] : query.c || "");
 
-  const pupils = await loadRoll(teacher.supabase, teacher.user.id);
+  const pupils = await loadRoll(
+    teacher.supabase,
+    teacher.user.id,
+    teacher.classes.map((post) => post.classCode),
+  );
   const classes = teacher.classes.map((post) => ({
     value: `${post.classCode}|${post.stream}`,
     label: post.label,

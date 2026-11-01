@@ -27,7 +27,11 @@ export default async function TeacherPointsPage() {
   }
 
   const [pupils, reasonsPack, awardsPack] = await Promise.all([
-    loadRoll(teacher.supabase, teacher.user.id),
+    loadRoll(
+      teacher.supabase,
+      teacher.user.id,
+      [...posts.values()].map((post) => post.classCode),
+    ),
     loadPointReasons(teacher.supabase),
     loadTermAwards(teacher.supabase, teacher.term.id),
   ]);
@@ -56,15 +60,15 @@ export default async function TeacherPointsPage() {
 
   const tally = tallyAwards(awardsPack.awards);
 
+  const lede =
+    tally.given || tally.taken
+      ? `${teacher.term.label} · +${tally.given} / −${tally.taken}`
+      : teacher.term.label;
+
   return (
     <div className="app-page ofc-page tch-page tch-pts-page">
-      <PageHeader
-        kicker="My class"
-        icon="fa-star"
-        title="Points"
-        description={<>{teacher.term.label} · <strong>{tally.given}</strong> given and <strong>{tally.taken}</strong> taken for pupils you teach.</>}
-      />
-      {missing ? <p className="admin-empty">Run supabase/0055_pupil_points.sql before awarding points.</p> : null}
+      <PageHeader kicker="Class" icon="fa-star" title="Points" description={lede} />
+      {missing ? <p className="admin-empty">Points tables are not installed yet.</p> : null}
       {!missing && (reasonsPack.error || awardsPack.error) ? <p className="admin-empty">{reasonsPack.error || awardsPack.error}</p> : null}
       {!missing ? (
         <PointsAward

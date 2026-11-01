@@ -6,6 +6,7 @@ import {
   roleForGrants,
   type Grant,
 } from "@/lib/dashboard-access";
+import { LIBRARY_IDS, isLibraryId, type LibraryId } from "@/lib/library-nav";
 import { EMAIL } from "@/lib/office-forms";
 import { serviceClient } from "@/lib/supabase/service";
 import { matchTeacherPasswords, resolveTeacherPassword } from "@/lib/teacher-portal-login";
@@ -39,10 +40,40 @@ async function replaceGrants(service: Service, profileId: string, grants: Grant[
   return error?.message;
 }
 
+function librariesFromForm(formData: FormData): LibraryId[] {
+  const chosen = formData.getAll("library_scope").map(String).filter(isLibraryId);
+  return LIBRARY_IDS.filter((id) => chosen.includes(id));
+}
+
+async function replaceLibraryScope(service: Service, profileId: string, grants: Grant[], formData: FormData) {
+  const hasLibrary = grants.some((grant) => grant.dashboard === "library");
+  if (!hasLibrary) {
+    await service.from("library_staff_scope").delete().eq("profile_id", profileId);
+    return null;
+  }
+  const libraries = librariesFromForm(formData);
+  if (!libraries.length) return "Choose Lower Primary, Upper Primary, or both for the Library desk.";
+  const { error } = await service.from("library_staff_scope").upsert({
+    profile_id: profileId,
+    libraries,
+    updated_at: new Date().toISOString(),
+  });
+  return error?.message ?? null;
+}
+
 function describe(grants: Grant[]) {
   if (isFullAdmin(grants)) return "every dashboard";
   const labels = grants.map((grant) => {
-    const name = grant.dashboard === "admin" ? "Admin" : grant.dashboard === "admissions" ? "Admissions" : grant.dashboard === "accounts" ? "Accounts" : "Academics";
+    const name =
+      grant.dashboard === "admin"
+        ? "Admin"
+        : grant.dashboard === "admissions"
+          ? "Admissions"
+          : grant.dashboard === "accounts"
+            ? "Accounts"
+            : grant.dashboard === "library"
+              ? "Library"
+              : "Academics";
     return grant.pages.length === 0 ? name : `${name} (${grant.pages.length} page${grant.pages.length === 1 ? "" : "s"})`;
   });
   return labels.join(", ");
@@ -76,7 +107,7 @@ export async function saveTeamLogin(formData: FormData): Promise<TeamLoginResult
   if (mismatch) return { error: mismatch };
 
   const existingId = String(formData.get("id") || "").trim();
-  if (existingId) return updateExisting(service, existingId, name, grants, nextRole, password);
+  if (existingId) return updateExisting(service, existingId, name, grants, nextRole, password, undefined, false, formData);
 
   const email = normalizeEmail(String(formData.get("email") || ""));
   if (!EMAIL.test(email)) return { error: "Enter a valid email address." };
@@ -92,7 +123,7 @@ export async function saveTeamLogin(formData: FormData): Promise<TeamLoginResult
   if (profile) {
     const blocked = await ownedElsewhere(service, profile.id);
     if (blocked) return { error: blocked };
-    return updateExisting(service, profile.id, name, grants, nextRole, password, email, false);
+    return updateExisting(service, profile.id, name, grants, nextRole, password, email, false, formData);
   }
 
   const resolved = resolveTeacherPassword(password);
@@ -126,6 +157,11 @@ export async function saveTeamLogin(formData: FormData): Promise<TeamLoginResult
     await service.auth.admin.deleteUser(userId);
     return { error: grantError };
   }
+  const scopeError = await replaceLibraryScope(service, userId, grants, formData);
+  if (scopeError) {
+    await service.auth.admin.deleteUser(userId);
+    return { error: scopeError };
+  }
   return {
     ok: `${name} can sign in to ${describe(grants)}. Share the password now. It will not be shown again.`,
     email,
@@ -144,6 +180,7 @@ async function updateExisting(
   password: string,
   email?: string,
   issueTemporary = false,
+  formData?: FormData,
 ): Promise<TeamLoginResult> {
   const { data: profile, error } = await service.from("profiles").select("id, role, email, full_name").eq("id", profileId).maybeSingle();
   if (error) return { error: error.message };
@@ -166,6 +203,10 @@ async function updateExisting(
 
   const grantError = await replaceGrants(service, profileId, grants);
   if (grantError) return { error: grantError };
+  if (formData) {
+    const scopeError = await replaceLibraryScope(service, profileId, grants, formData);
+    if (scopeError) return { error: scopeError };
+  }
 
   let issued: { password: string; temporary: boolean } | null = null;
   if (password || issueTemporary) {
@@ -244,6 +285,7 @@ export async function removeTeamLogin(profileId: string): Promise<TeamLoginResul
   }
   const { error: clearError } = await service.from("dashboard_access").delete().eq("profile_id", profileId);
   if (clearError) return { error: clearError.message };
+  await service.from("library_staff_scope").delete().eq("profile_id", profileId);
   const { error } = await service.from("profiles").update({ role: "parent" }).eq("id", profileId);
   if (error) return { error: error.message };
   return { ok: "Dashboard access removed. Their parent portal account is unchanged." };

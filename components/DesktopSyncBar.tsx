@@ -54,26 +54,32 @@ export function DesktopSyncBar() {
       setStatus(next);
       if (next.hydrating) setHoldComplete(false);
     });
+    let refreshTimer = 0;
+    const scheduleRefresh = () => {
+      window.clearTimeout(refreshTimer);
+      // Debounce so proxy invalidations do not cancel in-flight teacher soft-navs.
+      refreshTimer = window.setTimeout(() => router.refresh(), 700);
+    };
     const offTable = api.onTableChanged((payload) => {
       if (!navigator.onLine) return;
       const current = desktopBridge();
       void current?.getSyncStatus().then((next) => {
-        if (!next.online) return;
-        // Live desks + term/calendar/clubs — refresh RSC trees after proxy invalidates.
+        if (!next.online || next.hydrating) return;
+        // Only desks that actually depend on these tables — not every table change.
         if (
           payload.table === "applications" ||
           payload.table === "application_activity" ||
           payload.table === "admission_payments" ||
           payload.table === "fee_terms" ||
           payload.table === "academic_dates" ||
-          payload.table === "clubs" ||
-          next.hydrating === false
+          payload.table === "clubs"
         ) {
-          router.refresh();
+          scheduleRefresh();
         }
       });
     });
     return () => {
+      window.clearTimeout(refreshTimer);
       offSync();
       offTable();
     };

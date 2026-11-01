@@ -54,13 +54,15 @@ export type RegisterDeskProps = {
   } | null;
   save: (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
   cancel: (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
+  /** Teacher desk: tighter chrome for one or a few classes. */
+  variant?: "office" | "teacher";
 };
 
-const STATUSES: { value: Status; label: string }[] = [
-  { value: "present", label: "Present" },
-  { value: "late", label: "Late" },
-  { value: "excused", label: "Excused" },
-  { value: "absent", label: "Absent" },
+const STATUSES: { value: Status; label: string; short: string }[] = [
+  { value: "present", label: "Present", short: "P" },
+  { value: "late", label: "Late", short: "L" },
+  { value: "excused", label: "Excused", short: "E" },
+  { value: "absent", label: "Absent", short: "A" },
 ];
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -78,11 +80,26 @@ function seed(pupils: RegisterPupil[]) {
   return Object.fromEntries(pupils.map((pupil) => [pupil.id, { status: pupil.status, note: pupil.note }])) as Record<string, Mark>;
 }
 
-export function RegisterDesk({ date, today, termLabel, path, classCode, streamValue, groups, current, save, cancel }: RegisterDeskProps) {
+export function RegisterDesk({
+  date,
+  today,
+  termLabel,
+  path,
+  classCode,
+  streamValue,
+  groups,
+  current,
+  save,
+  cancel,
+  variant = "office",
+}: RegisterDeskProps) {
+  const teacher = variant === "teacher";
   const router = useRouter();
   const [marks, setMarks] = useState<Record<string, Mark>>(() => seed(current?.pupils || []));
   const [search, setSearch] = useState("");
-  const [which, setWhich] = useState<"open" | "all" | "done">(() => (groups.some((group) => group.done < group.pupils && !group.closed) ? "open" : "all"));
+  const [which, setWhich] = useState<"open" | "all" | "done">(() =>
+    groups.some((group) => group.done < group.pupils && !group.closed) ? "open" : "all",
+  );
   const [focus, setFocus] = useState<"all" | "open" | "absent" | "late">("all");
 
   function go(nextDate: string) {
@@ -114,10 +131,11 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
     return tally;
   }, [current, marks]);
 
-  const dirty = current?.pupils.some((pupil) => {
-    const mark = marks[pupil.id];
-    return mark?.status !== pupil.status || (mark?.note || "") !== pupil.note;
-  }) ?? false;
+  const dirty =
+    current?.pupils.some((pupil) => {
+      const mark = marks[pupil.id];
+      return mark?.status !== pupil.status || (mark?.note || "") !== pupil.note;
+    }) ?? false;
 
   const query = search.trim().toLowerCase();
   function shows(pupil: RegisterPupil) {
@@ -149,32 +167,60 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
     });
   }
 
-  const summary = [
-    `${nf(counts.present)} present`,
-    `${nf(counts.late)} late`,
-    `${nf(counts.excused)} excused`,
-    `${nf(counts.absent)} absent`,
-    counts.unmarked ? `${nf(counts.unmarked)} unmarked` : "Complete",
-  ].join("  ·  ");
+  const summary = current
+    ? [
+        `${nf(counts.present)} present`,
+        counts.late ? `${nf(counts.late)} late` : null,
+        counts.excused ? `${nf(counts.excused)} excused` : null,
+        `${nf(counts.absent)} absent`,
+        counts.unmarked ? `${nf(counts.unmarked)} left` : "Complete",
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : teacher
+      ? "Choose a class"
+      : "Choose a class to take the register";
+
   const parts = dateParts(date);
   const schoolShare = roll ? Math.round((markedPupils / roll) * 100) : 0;
-  const classShare = current?.pupils.length ? Math.round(((current.pupils.length - counts.unmarked) / current.pupils.length) * 100) : 0;
+  const classShare = current?.pupils.length
+    ? Math.round(((current.pupils.length - counts.unmarked) / current.pupils.length) * 100)
+    : 0;
   const share = current ? classShare : schoolShare;
   const openClasses = groups.filter((group) => group.done < group.pupils && !group.closed).length;
+  const flattenSections = teacher || groups.every((group) => group.section === groups[0]?.section);
 
   const sections = (["nursery", "primary"] as const)
-    .map((section) => ({ section, label: section === "nursery" ? "Nursery" : "Primary", rows: shown.filter((group) => group.section === section) }))
+    .map((section) => ({
+      section,
+      label: section === "nursery" ? "Nursery" : "Primary",
+      rows: shown.filter((group) => group.section === section),
+    }))
     .filter((section) => section.rows.length);
 
   return (
-    <div className="reg-page">
+    <div className={`reg-page${teacher ? " is-teacher" : ""}`}>
       <section className="reg-strip" aria-label={current ? current.name : "This day"}>
         {current ? (
+          teacher ? (
+            <>
+              <Stat icon="fa-check" label="Present" value={nf(counts.present)} note={`Of ${nf(current.pupils.length)}`} tone={counts.present ? "ok" : undefined} />
+              <Stat icon="fa-user-xmark" label="Absent" value={nf(counts.absent + counts.excused)} note={counts.late ? `${nf(counts.late)} late` : "On roll"} tone={counts.absent || counts.excused ? "warn" : "ok"} />
+              <Stat icon="fa-pen" label="Left" value={nf(counts.unmarked)} note={dirty ? "Unsaved" : "Saved"} tone={counts.unmarked ? "warn" : "ok"} />
+            </>
+          ) : (
+            <>
+              <Stat icon="fa-check" label="Present" value={nf(counts.present)} note={`Of ${nf(current.pupils.length)}`} tone={counts.present ? "ok" : undefined} />
+              <Stat icon="fa-clock" label="Late" value={nf(counts.late)} note="After the bell" tone={counts.late ? "warn" : undefined} />
+              <Stat icon="fa-user-xmark" label="Absent" value={nf(counts.absent)} note={counts.excused ? `${nf(counts.excused)} excused` : "None excused"} tone={counts.absent ? "warn" : "ok"} />
+              <Stat icon="fa-pen" label="Unmarked" value={nf(counts.unmarked)} note={dirty ? "Not saved yet" : "Saved"} tone={counts.unmarked ? "warn" : "ok"} />
+            </>
+          )
+        ) : teacher ? (
           <>
-            <Stat icon="fa-check" label="Present" value={nf(counts.present)} note={`Of ${nf(current.pupils.length)}`} tone={counts.present ? "ok" : undefined} />
-            <Stat icon="fa-clock" label="Late" value={nf(counts.late)} note="After the bell" tone={counts.late ? "warn" : undefined} />
-            <Stat icon="fa-user-xmark" label="Absent" value={nf(counts.absent)} note={counts.excused ? `${nf(counts.excused)} excused` : "None excused"} tone={counts.absent ? "warn" : "ok"} />
-            <Stat icon="fa-pen" label="Unmarked" value={nf(counts.unmarked)} note={dirty ? "Not saved yet" : "Saved"} tone={counts.unmarked ? "warn" : "ok"} />
+            <Stat icon="fa-circle-check" label="Done" value={nf(doneClasses)} note={`Of ${nf(groups.length)}`} tone={groups.length && doneClasses === groups.length ? "ok" : undefined} />
+            <Stat icon="fa-hourglass-half" label="Open" value={nf(openClasses)} note="Still to mark" tone={openClasses ? "warn" : "ok"} />
+            <Stat icon="fa-user-xmark" label="Absent" value={nf(dayAbsent)} note="Today" tone={dayAbsent ? "warn" : "ok"} />
           </>
         ) : (
           <>
@@ -185,46 +231,92 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
           </>
         )}
         <div className="reg-meter">
-          <span className="reg-meter-bar" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
-          <p>{current ? `${nf(current.pupils.length - counts.unmarked)} of ${nf(current.pupils.length)} marked on this register` : `${nf(markedPupils)} of ${nf(roll)} pupils marked today`}</p>
+          <span className="reg-meter-bar" aria-hidden="true">
+            <span style={{ width: `${share}%` }} />
+          </span>
+          <p>
+            {current
+              ? `${nf(current.pupils.length - counts.unmarked)} of ${nf(current.pupils.length)} marked`
+              : `${nf(markedPupils)} of ${nf(roll)} marked`}
+          </p>
         </div>
       </section>
+
       <section className="reg-sheet" aria-label={current ? current.name : "Classes"}>
         <header className="reg-sheet-head">
           <div className="reg-nav">
-            <button type="button" onClick={() => go(shift(date, -1))} aria-label="Previous day"><i className="fa-solid fa-chevron-left" aria-hidden="true" /></button>
+            <button type="button" onClick={() => go(shift(date, -1))} aria-label="Previous day">
+              <i className="fa-solid fa-chevron-left" aria-hidden="true" />
+            </button>
             <label className="reg-dateplate">
               <strong>{parts.day}</strong>
               <span>
                 <em>{parts.weekday}</em>
-                <small>{parts.rest}{termLabel ? ` · ${termLabel}` : ""}</small>
+                <small>
+                  {parts.rest}
+                  {termLabel ? ` · ${termLabel}` : ""}
+                </small>
               </span>
-              <input type="date" key={date} defaultValue={date} suppressHydrationWarning aria-label={longDate(date)} onChange={(event) => { if (event.target.value) go(event.target.value); }} />
+              <input
+                type="date"
+                key={date}
+                defaultValue={date}
+                suppressHydrationWarning
+                aria-label={longDate(date)}
+                onChange={(event) => {
+                  if (event.target.value) go(event.target.value);
+                }}
+              />
             </label>
-            <button type="button" onClick={() => go(shift(date, 1))} aria-label="Next day"><i className="fa-solid fa-chevron-right" aria-hidden="true" /></button>
-            {date !== today ? <button type="button" className="reg-today" onClick={() => go(today)}>Today</button> : <span className="reg-today is-here">Today</span>}
+            <button type="button" onClick={() => go(shift(date, 1))} aria-label="Next day">
+              <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+            </button>
+            {date !== today ? (
+              <button type="button" className="reg-today" onClick={() => go(today)}>
+                Today
+              </button>
+            ) : (
+              <span className="reg-today is-here">Today</span>
+            )}
           </div>
-          <p>{current ? summary : "Choose a class to take the register"}</p>
+          <p>{summary}</p>
         </header>
 
         {!current ? (
           <>
-            <div className="reg-tabs" role="tablist" aria-label="Which classes">
-              {([
-                ["open", "Open", openClasses],
-                ["all", "All classes", groups.length],
-                ["done", "Complete", doneClasses],
-              ] as const).map(([value, label, count]) => (
-                <button key={value} type="button" role="tab" aria-selected={which === value} className={which === value ? "is-on" : ""} onClick={() => setWhich(value)}>
-                  {label}<em>{nf(count)}</em>
-                </button>
-              ))}
-            </div>
+            {groups.length > 1 ? (
+              <div className="reg-tabs" role="tablist" aria-label="Which classes">
+                {(
+                  [
+                    ["open", "Open", openClasses],
+                    ["all", "All", groups.length],
+                    ["done", "Done", doneClasses],
+                  ] as const
+                ).map(([value, label, count]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    role="tab"
+                    aria-selected={which === value}
+                    className={which === value ? "is-on" : ""}
+                    onClick={() => setWhich(value)}
+                  >
+                    {label}
+                    <em>{nf(count)}</em>
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {shown.length ? (
               <div className="reg-directory">
                 {sections.map((section) => (
                   <div key={section.section}>
-                    <h2 className="reg-section"><span>{section.label}</span><em>{nf(section.rows.length)}</em></h2>
+                    {!flattenSections ? (
+                      <h2 className="reg-section">
+                        <span>{section.label}</span>
+                        <em>{nf(section.rows.length)}</em>
+                      </h2>
+                    ) : null}
                     <ul>
                       {section.rows.map((group) => {
                         const complete = group.pupils > 0 && group.done === group.pupils;
@@ -232,18 +324,27 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
                         return (
                           <li key={group.key}>
                             <Link href={group.href} className={complete ? "is-done" : group.closed ? "is-closed" : "is-open"}>
-                              <span className="reg-mark" aria-hidden="true">{group.code}</span>
+                              <span className="reg-mark" aria-hidden="true">
+                                {group.code}
+                              </span>
                               <span className="reg-class-name">
                                 <strong>{group.name}</strong>
                                 <small className={group.absent ? "is-absent" : ""}>
-                                  {nf(group.pupils)} on roll{group.absent ? ` · ${nf(group.absent)} absent` : ""}
+                                  {nf(group.pupils)} on roll
+                                  {group.absent ? ` · ${nf(group.absent)} absent` : ""}
                                 </small>
                               </span>
                               <span className="reg-marked">
-                                <span className="reg-bar" aria-hidden="true"><span style={{ width: `${width}%` }} /></span>
-                                <em>{group.done}/{group.pupils}</em>
+                                <span className="reg-bar" aria-hidden="true">
+                                  <span style={{ width: `${width}%` }} />
+                                </span>
+                                <em>
+                                  {group.done}/{group.pupils}
+                                </em>
                               </span>
-                              <span className="reg-pill">{complete ? "Complete" : group.closed ? "Cancelled" : `${nf(group.pupils - group.done)} to mark`}</span>
+                              <span className="reg-pill">
+                                {complete ? "Complete" : group.closed ? "Cancelled" : `${nf(group.pupils - group.done)} left`}
+                              </span>
                               <i className="fa-solid fa-chevron-right" aria-hidden="true" />
                             </Link>
                           </li>
@@ -253,113 +354,165 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
                   </div>
                 ))}
               </div>
-            ) : <p className="reg-quiet">{which === "open" ? "Every class is marked for this day." : "Nothing in this view."}</p>}
+            ) : (
+              <p className="reg-quiet">{which === "open" ? "Every class is marked." : "Nothing in this view."}</p>
+            )}
           </>
         ) : (
           <>
-          {date === today && counts.unmarked ? (
-            <div className="reg-class-alert">
-              <p>{current.cancelled ? `${current.name} is off today's Attendance count.` : `${nf(counts.unmarked)} still unmarked. This class is on the Attendance count.`}</p>
-              {current.canMark ? (
-                <RegisterClosure
-                  action={cancel}
-                  date={date}
-                  termId={current.termId}
-                  classCode={current.code}
-                  stream={current.stream}
-                  name={current.name}
-                  restoring={current.cancelled}
-                />
-              ) : null}
-            </div>
-          ) : null}
-          <DeskForm action={save} className="reg-form">
-            <input type="hidden" name="date" value={date} />
-            <input type="hidden" name="term_id" value={current.termId} />
-            <input type="hidden" name="class_code" value={current.code} />
-            <input type="hidden" name="stream" value={current.stream} />
-            <div className="reg-tools">
-              <div className="reg-tools-row">
-                <label className="reg-search">
-                  <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-                  <span className="sr-only">Search this register</span>
-                  <input value={search} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} placeholder="Search this register" />
-                </label>
-                {current.canMark && counts.unmarked ? (
-                  <button type="button" className="reg-rest" onClick={markRest}>Mark {nf(counts.unmarked)} unmarked present</button>
+            {date === today && counts.unmarked ? (
+              <div className="reg-class-alert">
+                <p>
+                  {current.cancelled
+                    ? `${current.name} is off today's count.`
+                    : teacher
+                      ? `${nf(counts.unmarked)} still to mark.`
+                      : `${nf(counts.unmarked)} still unmarked. This class is on the Attendance count.`}
+                </p>
+                {current.canMark ? (
+                  <RegisterClosure
+                    action={cancel}
+                    date={date}
+                    termId={current.termId}
+                    classCode={current.code}
+                    stream={current.stream}
+                    name={current.name}
+                    restoring={current.cancelled}
+                  />
                 ) : null}
               </div>
-              <div className="reg-focus" role="tablist" aria-label="Show pupils">
-                {([
-                  ["all", "All", current.pupils.length],
-                  ["open", "Unmarked", counts.unmarked],
-                  ["absent", "Absent", counts.absent],
-                  ["late", "Late", counts.late],
-                ] as const).map(([value, label, count]) => (
-                  <button key={value} type="button" className={focus === value ? "is-on" : ""} aria-pressed={focus === value} onClick={() => setFocus(value)}>
-                    {label}<em>{nf(count)}</em>
-                  </button>
-                ))}
-              </div>
-            </div>
-            {current.pupils.length ? (
-              <div className="reg-table">
-                <div className="reg-cols" aria-hidden="true"><span>Pupil</span><span>Attendance</span><span>Note</span></div>
-                <ul>
-                  {current.pupils.map((pupil, index) => {
-                    const mark = marks[pupil.id] || { status: "", note: "" };
-                    const sex = pupil.sex === "M" ? "Boy" : pupil.sex === "F" ? "Girl" : "";
-                    return (
-                      <li key={pupil.id} hidden={!shows(pupil)} className={mark.status ? `is-${mark.status}` : ""}>
-                        {mark.status ? <input type="hidden" name={`status:${pupil.id}`} value={mark.status} /> : null}
-                        {mark.status ? <input type="hidden" name={`note:${pupil.id}`} value={mark.note} /> : null}
-                        <span className="reg-who">
-                          <StudentFace id={pupil.id} name={pupil.name} photoPath={pupil.photoPath} className="reg-face" />
-                          <span>
-                            <Link href={pupil.href}>{pupil.name}</Link>
-                            <small>{[String(index + 1).padStart(2, "0"), pupil.number, sex].filter(Boolean).join(" · ")}</small>
-                          </span>
-                        </span>
-                        <span className="reg-seg" role="group" aria-label={`Attendance for ${pupil.name}`}>
-                          {STATUSES.map((status) => (
-                            <button
-                              key={status.value}
-                              type="button"
-                              className={mark.status === status.value ? `is-on is-${status.value}` : ""}
-                              aria-pressed={mark.status === status.value}
-                              disabled={!current.canMark}
-                              onClick={() => choose(pupil.id, status.value)}
-                            >
-                              {status.label}
-                            </button>
-                          ))}
-                        </span>
-                        <label className="reg-note">
-                          <span className="sr-only">Note for {pupil.name}</span>
-                          <input
-                            value={mark.note}
-                            placeholder="Note"
-                            readOnly={!current.canMark}
-                            onChange={(event) => setMarks((prev) => ({ ...prev, [pupil.id]: { ...(prev[pupil.id] || mark), note: event.target.value } }))}
-                          />
-                        </label>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : <p className="reg-quiet">No active pupils in this class.</p>}
-            {current.pupils.length && !anyVisible ? <p className="reg-quiet">{query ? `No pupil matches “${search.trim()}”.` : "No pupil in this view."}</p> : null}
-            {current.canMark ? (
-              <footer className="reg-foot">
-                <p>{dirty ? "Unsaved changes" : counts.unmarked ? `${nf(counts.unmarked)} still unmarked` : "Register saved"}</p>
-                <div>
-                  {current.nextHref ? <Link href={current.nextHref}>{current.nextLabel}</Link> : null}
-                  <button className="reg-submit" type="submit" disabled={!dirty}>Save register</button>
+            ) : null}
+
+            <DeskForm action={save} className="reg-form">
+              <input type="hidden" name="date" value={date} />
+              <input type="hidden" name="term_id" value={current.termId} />
+              <input type="hidden" name="class_code" value={current.code} />
+              <input type="hidden" name="stream" value={current.stream} />
+
+              <div className="reg-tools">
+                <div className="reg-tools-row">
+                  <label className="reg-search">
+                    <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+                    <span className="sr-only">Search this register</span>
+                    <input
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter") event.preventDefault();
+                      }}
+                      placeholder="Find a pupil"
+                    />
+                  </label>
+                  {current.canMark && counts.unmarked ? (
+                    <button type="button" className="reg-rest is-primary" onClick={markRest}>
+                      Mark rest present
+                      <em>{nf(counts.unmarked)}</em>
+                    </button>
+                  ) : null}
                 </div>
-              </footer>
-            ) : <p className="reg-quiet">Only the class teacher can save this register.</p>}
-          </DeskForm>
+                <div className="reg-focus" role="tablist" aria-label="Show pupils">
+                  {(
+                    [
+                      ["all", "All", current.pupils.length],
+                      ["open", "Left", counts.unmarked],
+                      ["absent", "Absent", counts.absent],
+                      ["late", "Late", counts.late],
+                    ] as const
+                  ).map(([value, label, count]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      className={focus === value ? "is-on" : ""}
+                      aria-pressed={focus === value}
+                      onClick={() => setFocus(value)}
+                    >
+                      {label}
+                      <em>{nf(count)}</em>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {current.pupils.length ? (
+                <div className="reg-table">
+                  <div className="reg-cols" aria-hidden="true">
+                    <span>Pupil</span>
+                    <span>Attendance</span>
+                    <span>Note</span>
+                  </div>
+                  <ul>
+                    {current.pupils.map((pupil, index) => {
+                      const mark = marks[pupil.id] || { status: "", note: "" };
+                      const sex = pupil.sex === "M" ? "Boy" : pupil.sex === "F" ? "Girl" : "";
+                      return (
+                        <li key={pupil.id} hidden={!shows(pupil)} className={mark.status ? `is-${mark.status}` : ""}>
+                          {mark.status ? <input type="hidden" name={`status:${pupil.id}`} value={mark.status} /> : null}
+                          {mark.status ? <input type="hidden" name={`note:${pupil.id}`} value={mark.note} /> : null}
+                          <span className="reg-who">
+                            <StudentFace id={pupil.id} name={pupil.name} photoPath={pupil.photoPath} className="reg-face" />
+                            <span>
+                              <Link href={pupil.href}>{pupil.name}</Link>
+                              <small>{[String(index + 1).padStart(2, "0"), pupil.number, sex].filter(Boolean).join(" · ")}</small>
+                            </span>
+                          </span>
+                          <span className="reg-seg" role="group" aria-label={`Attendance for ${pupil.name}`}>
+                            {STATUSES.map((status) => (
+                              <button
+                                key={status.value}
+                                type="button"
+                                className={mark.status === status.value ? `is-on is-${status.value}` : ""}
+                                aria-pressed={mark.status === status.value}
+                                aria-label={status.label}
+                                title={status.label}
+                                disabled={!current.canMark}
+                                onClick={() => choose(pupil.id, status.value)}
+                              >
+                                <span className="reg-seg-short">{status.short}</span>
+                                <span className="reg-seg-full">{status.label}</span>
+                              </button>
+                            ))}
+                          </span>
+                          <label className="reg-note">
+                            <span className="sr-only">Note for {pupil.name}</span>
+                            <input
+                              value={mark.note}
+                              placeholder="Note"
+                              readOnly={!current.canMark}
+                              onChange={(event) =>
+                                setMarks((prev) => ({
+                                  ...prev,
+                                  [pupil.id]: { ...(prev[pupil.id] || mark), note: event.target.value },
+                                }))
+                              }
+                            />
+                          </label>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ) : (
+                <p className="reg-quiet">No pupils in this class.</p>
+              )}
+
+              {current.pupils.length && !anyVisible ? (
+                <p className="reg-quiet">{query ? `No pupil matches “${search.trim()}”.` : "No pupil in this view."}</p>
+              ) : null}
+
+              {current.canMark ? (
+                <footer className="reg-foot">
+                  <p>{dirty ? "Unsaved changes" : counts.unmarked ? `${nf(counts.unmarked)} still to mark` : "Register saved"}</p>
+                  <div>
+                    {current.nextHref ? <Link href={current.nextHref}>{current.nextLabel}</Link> : null}
+                    <button className="reg-submit" type="submit" disabled={!dirty}>
+                      Save register
+                    </button>
+                  </div>
+                </footer>
+              ) : (
+                <p className="reg-quiet">Only the class teacher can save this register.</p>
+              )}
+            </DeskForm>
           </>
         )}
       </section>
@@ -367,10 +520,24 @@ export function RegisterDesk({ date, today, termLabel, path, classCode, streamVa
   );
 }
 
-function Stat({ icon, label, value, note, tone }: { icon: string; label: string; value: string; note: string; tone?: "ok" | "warn" }) {
+function Stat({
+  icon,
+  label,
+  value,
+  note,
+  tone,
+}: {
+  icon: string;
+  label: string;
+  value: string;
+  note: string;
+  tone?: "ok" | "warn";
+}) {
   return (
     <div className={tone ? `is-${tone}` : ""}>
-      <span className="reg-stat-icon" aria-hidden="true"><i className={`fa-solid ${icon}`} /></span>
+      <span className="reg-stat-icon" aria-hidden="true">
+        <i className={`fa-solid ${icon}`} />
+      </span>
       <span className="reg-stat-copy">
         <span>{label}</span>
         <strong>{value}</strong>
@@ -383,7 +550,11 @@ function Stat({ icon, label, value, note, tone }: { icon: string; label: string;
 function dateParts(iso: string) {
   const [year, month, day] = iso.split("-").map(Number);
   const date = new Date(Date.UTC(year, (month || 1) - 1, day || 1));
-  return { weekday: WEEKDAYS[date.getUTCDay()], day: String(day).padStart(2, "0"), rest: `${MONTHS[(month || 1) - 1]} ${year}` };
+  return {
+    weekday: WEEKDAYS[date.getUTCDay()],
+    day: String(day).padStart(2, "0"),
+    rest: `${MONTHS[(month || 1) - 1]} ${year}`,
+  };
 }
 
 function shift(iso: string, days: number) {

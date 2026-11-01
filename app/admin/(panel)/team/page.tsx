@@ -5,6 +5,7 @@ import { requireFullAdmin } from "@/lib/admin-applications";
 import { OPEN_STATUSES, initials } from "@/lib/applications";
 import { ACADEMICS_BASE } from "@/lib/academics";
 import { isDashboardId, isFullAdmin, legacyGrants, type Grant } from "@/lib/dashboard-access";
+import { LIBRARY_IDS, type LibraryId } from "@/lib/library-nav";
 import { serviceClient } from "@/lib/supabase/service";
 import { syncAssignedTeacherDeskLogins } from "@/lib/teacher-desk-sync";
 
@@ -31,8 +32,12 @@ export default async function TeamPage() {
   // Read teachers with the service role — admin session RLS on teaching_staff is academics-only
   // and was silently returning an empty list on /admin/team.
   const db = serviceClient() ?? supabase;
-  const [profileQuery, accessQuery, openQuery, teacherQuery] = await Promise.all([
-    supabase.from("profiles").select("id, full_name, email, role").in("role", ["admin", "admissions", "accounts", "academics", "officer"]).order("full_name"),
+  const [profileQuery, accessQuery, openQuery, teacherQuery, scopeQuery] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select("id, full_name, email, role")
+      .in("role", ["admin", "admissions", "accounts", "academics", "library", "officer"])
+      .order("full_name"),
     supabase.from("dashboard_access").select("profile_id, dashboard, pages"),
     supabase.from("applications").select("assigned_to").in("status", OPEN_STATUSES),
     db
@@ -40,6 +45,7 @@ export default async function TeamPage() {
       .select("id, full_name, email, title, campus, profile_id, active")
       .eq("active", true)
       .order("full_name"),
+    db.from("library_staff_scope").select("profile_id, libraries"),
   ]);
 
   const stored = new Map<string, Grant[]>();
@@ -61,19 +67,32 @@ export default async function TeamPage() {
     else unassigned += 1;
   }
 
+  const scopes = new Map<string, LibraryId[]>();
+  for (const row of scopeQuery.data || []) {
+    const libs = Array.isArray(row.libraries)
+      ? LIBRARY_IDS.filter((id) => row.libraries.map(String).includes(id))
+      : [];
+    if (libs.length) scopes.set(row.profile_id as string, libs);
+  }
+
   const people: TeamPerson[] = (profileQuery.data || []).flatMap((row) => {
     const role = String(row.role || "");
     const grants = stored.get(row.id as string) ?? (accessQuery.error ? legacyGrants(role) : legacyGrants(role === "officer" ? null : role));
     if (!grants.length) return [];
     const name = (row.full_name as string | null)?.trim() || (row.email as string | null) || "Unnamed";
+    const fullAdmin = role === "admin" || isFullAdmin(grants);
+    const libraries = fullAdmin
+      ? [...LIBRARY_IDS]
+      : scopes.get(row.id as string) ?? (grants.some((grant) => grant.dashboard === "library") ? (["lower"] as LibraryId[]) : []);
     return [{
       id: row.id as string,
       name,
       email: (row.email as string | null) ?? null,
       open: load.get(row.id as string) ?? 0,
       isYou: row.id === user.id,
-      fullAdmin: role === "admin" || isFullAdmin(grants),
+      fullAdmin,
       grants,
+      libraries,
     }];
   }).sort((a, b) => Number(b.isYou) - Number(a.isYou) || a.name.localeCompare(b.name));
 

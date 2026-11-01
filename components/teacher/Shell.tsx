@@ -49,10 +49,21 @@ export function TeacherShell({
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Home";
   const homeHref = locked ? `${TEACHER_BASE}/profile` : TEACHER_BASE;
   const role = locked ? "Finish profile" : classTeacher ? "Class teacher" : "Subject teacher";
-  const linkPrefetch = desktop ? undefined : false;
+  // Website: no mass Link prefetch (viewport stampede). Desktop: Link still
+  // stays false — hover/pointer + eager DeskWarmup fill the client router cache.
+  const linkPrefetch = false;
 
   useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -69,9 +80,16 @@ export function TeacherShell({
   return (
     <div className={`admin-shell ofc-shell tch-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Teacher desk" />
-      <DeskWarmup hrefs={nav.map((item) => item.href)} />
+      <DeskWarmup hrefs={nav.map((item) => item.href)} eager />
       <header className="admin-topbar">
-        <Link href={homeHref} className="admin-topbar-brand" prefetch={linkPrefetch}>
+        <Link
+          href={homeHref}
+          className="admin-topbar-brand"
+          prefetch={linkPrefetch}
+          onMouseEnter={() => warm(homeHref)}
+          onFocus={() => warm(homeHref)}
+          onPointerDown={() => warm(homeHref)}
+        >
           <Seal />
           <span>
             <strong>Teacher desk</strong>
@@ -93,7 +111,15 @@ export function TeacherShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="teacher-side" className="admin-side" aria-label="Teacher navigation">
-        <Link href={homeHref} className="admin-brand" prefetch={linkPrefetch} onClick={() => setOpen(false)}>
+        <Link
+          href={homeHref}
+          className="admin-brand"
+          prefetch={linkPrefetch}
+          onMouseEnter={() => warm(homeHref)}
+          onFocus={() => warm(homeHref)}
+          onPointerDown={() => warm(homeHref)}
+          onClick={() => setOpen(false)}
+        >
           <Seal />
           <span>
             <strong>Teacher desk</strong>
@@ -113,6 +139,9 @@ export function TeacherShell({
                   className={active ? "active" : ""}
                   aria-current={active ? "page" : undefined}
                   prefetch={linkPrefetch}
+                  onMouseEnter={() => warm(item.href)}
+                  onFocus={() => warm(item.href)}
+                  onPointerDown={() => warm(item.href)}
                   onClick={() => setOpen(false)}
                   title={item.label}
                 >

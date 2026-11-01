@@ -5,44 +5,84 @@ import { useEffect } from "react";
 import { isDesktopClient } from "@/lib/desktop";
 
 /**
- * Prefetch visible desk nav routes two at a time so sidebar switches hit the
- * client router cache. Only runs inside the Electron desk (kja-desktop cookie).
+ * Prefetch desk sidebar routes after the window is idle so soft-nav hits the
+ * client router cache. Desktop-only (kja-desktop cookie).
+ *
+ * One href at a time (batch prefetch stampeded local Next + middleware).
+ * `eager` starts sooner with a tighter gap — use on Teacher desk where hops
+ * must feel instant after the first paint.
  */
-export function DeskWarmup({ hrefs }: { hrefs: string[] }) {
+export function DeskWarmup({ hrefs, eager = false }: { hrefs: string[]; eager?: boolean }) {
   const router = useRouter();
 
   useEffect(() => {
     if (!isDesktopClient()) return;
     const unique = [...new Set(hrefs.filter(Boolean))];
+    if (!unique.length) return;
+
     let cancelled = false;
-    let i = 0;
+    let idleId = 0;
+    let gapTimer = 0;
+    const gapMs = eager ? 90 : 350;
+    const idleTimeoutMs = eager ? 900 : 5_000;
+    const fallbackDelayMs = eager ? 350 : 1_800;
+
+    const prefetchOne = (href: string) =>
+      new Promise<void>((resolve) => {
+        let settled = false;
+        const done = () => {
+          if (settled) return;
+          settled = true;
+          resolve();
+        };
+        try {
+          void Promise.resolve(router.prefetch(href)).finally(done);
+        } catch {
+          done();
+        }
+        window.setTimeout(done, 2_000);
+      });
 
     const run = async () => {
-      while (!cancelled && i < unique.length) {
-        const batch = unique.slice(i, i + 2);
-        i += 2;
-        await Promise.all(
-          batch.map(
-            (href) =>
-              new Promise<void>((resolve) => {
-                try {
-                  void Promise.resolve(router.prefetch(href)).finally(() => resolve());
-                } catch {
-                  resolve();
-                }
-                // Soft timeout so a hung prefetch cannot block the queue
-                window.setTimeout(resolve, 1500);
-              }),
-          ),
-        );
+      for (const href of unique) {
+        if (cancelled || document.hidden) break;
+        await prefetchOne(href);
+        if (cancelled) break;
+        await new Promise<void>((resolve) => {
+          gapTimer = window.setTimeout(resolve, gapMs);
+        });
       }
     };
 
-    void run();
+    const start = () => {
+      if (cancelled) return;
+      void run();
+    };
+
+    // Eager desks (Teacher): don't wait on idle — start after a short settle so
+    // the first sidebar click usually hits a warm client router cache.
+    if (eager) {
+      idleId = window.setTimeout(start, fallbackDelayMs);
+    } else if (typeof requestIdleCallback === "function") {
+      idleId = requestIdleCallback(start, { timeout: idleTimeoutMs }) as unknown as number;
+    } else {
+      idleId = window.setTimeout(start, fallbackDelayMs);
+    }
+
     return () => {
       cancelled = true;
+      if (!eager && typeof cancelIdleCallback === "function") {
+        try {
+          cancelIdleCallback(idleId as unknown as number);
+        } catch {
+          window.clearTimeout(idleId);
+        }
+      } else {
+        window.clearTimeout(idleId);
+      }
+      window.clearTimeout(gapTimer);
     };
-  }, [router, hrefs.join("|")]);
+  }, [router, hrefs.join("|"), eager]);
 
   return null;
 }

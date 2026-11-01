@@ -261,6 +261,9 @@ export async function subscribeNewsletter(formData: FormData) {
 }
 
 export async function signOut() {
+  const { forgetPrefix } = await import("@/lib/remember");
+  forgetPrefix("teacher-session:");
+  forgetPrefix("academics-session:");
   const supabase = await createClient();
   if (supabase) await supabase.auth.signOut();
   try {
