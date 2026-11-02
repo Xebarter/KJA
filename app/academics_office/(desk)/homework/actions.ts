@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
+import { buildHomeworkExamPdf } from "@/lib/homework-exam-pdf";
 import { notifyClassParents } from "@/lib/parent-notify";
 
 type ActionResult = { error?: string; ok?: string };
@@ -29,10 +30,67 @@ const FILE_TYPES: Record<string, string> = {
   "application/zip": "zip",
 };
 
-function cleanHtml(raw: string, max = 20000) {
+function cleanHtml(raw: string, max = 400_000) {
   const text = raw.trim();
   if (!text || text === "<p></p>") return "";
   return text.slice(0, max);
+}
+
+function shortDue(iso: string) {
+  const [year, month, day] = iso.split("-").map(Number);
+  if (!year || !month || !day) return iso;
+  return new Date(Date.UTC(year, month - 1, day)).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** Build + store an A4 PDF from the homework document. */
+async function storeExamPdf(
+  supabase: SupabaseClient,
+  assignmentIds: string[],
+  input: {
+    title: string;
+    instructions: string;
+    subjectName?: string | null;
+    classLabel?: string | null;
+    dueOn?: string | null;
+    termLabel?: string | null;
+  },
+) {
+  if (!input.instructions.trim() || !assignmentIds.length) return;
+  try {
+    const bytes = await buildHomeworkExamPdf({
+      title: input.title,
+      subject: input.subjectName,
+      classLabel: input.classLabel,
+      dueOn: input.dueOn ? shortDue(input.dueOn) : null,
+      term: input.termLabel,
+      bodyHtml: input.instructions,
+      supabase,
+    });
+    const buffer = Buffer.from(bytes);
+    for (const id of assignmentIds) {
+      const path = `homework/${id}.pdf`;
+      const { error: uploadError } = await supabase.storage.from("class-resources").upload(path, buffer, {
+        contentType: "application/pdf",
+        upsert: true,
+      });
+      if (uploadError) {
+        console.error("[homework pdf upload]", uploadError.message);
+        continue;
+      }
+      await supabase
+        .from("homework_assignments")
+        .update({ exam_pdf_path: path, exam_pdf_size: buffer.byteLength, updated_at: new Date().toISOString() })
+        .eq("id", id);
+    }
+  } catch (error) {
+    // Homework still saves — pupils can read HTML until PDF rebuild succeeds.
+    console.error("[homework pdf]", error);
+  }
 }
 
 function teacherLabel(profileName: string | null | undefined, email: string | null | undefined) {
@@ -126,6 +184,29 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
     .select("id, class_code, stream");
   if (error) return { error: error.message };
 
+  if (instructions && data?.length) {
+    const [{ data: subjectRow }, { data: termRow }] = await Promise.all([
+      supabase.from("subjects").select("name").eq("id", subjectId).maybeSingle(),
+      supabase.from("fee_terms").select("label").eq("id", termId).maybeSingle(),
+    ]);
+    const classLabel =
+      targets.length === 1
+        ? `${targets[0].classCode}${targets[0].stream ? ` ${targets[0].stream}` : ""}`
+        : `${targets.length} classes`;
+    await storeExamPdf(
+      supabase,
+      data.map((row) => String(row.id)),
+      {
+        title,
+        instructions,
+        subjectName: subjectRow?.name || null,
+        classLabel,
+        dueOn,
+        termLabel: termRow?.label || null,
+      },
+    );
+  }
+
   if (publish) {
     for (const row of data || []) {
       await notifyClass(supabase, row.class_code, row.stream || "", "New homework", title, "/student/homework", "homework");
@@ -153,7 +234,7 @@ export async function publishHomework(id: string): Promise<ActionResult> {
 
   const { data: row, error: loadError } = await supabase
     .from("homework_assignments")
-    .select("id, title, class_code, stream, subject_id, term_id, published_at")
+    .select("id, title, instructions, due_on, class_code, stream, subject_id, term_id, published_at, exam_pdf_path")
     .eq("id", id)
     .maybeSingle();
   if (loadError) return { error: loadError.message };
@@ -166,6 +247,21 @@ export async function publishHomework(id: string): Promise<ActionResult> {
     subjectId: String(row.subject_id || ""),
   });
   if (blocked) return blocked;
+
+  if (row.instructions && !row.exam_pdf_path) {
+    const [{ data: subjectRow }, { data: termRow }] = await Promise.all([
+      supabase.from("subjects").select("name").eq("id", row.subject_id).maybeSingle(),
+      supabase.from("fee_terms").select("label").eq("id", row.term_id).maybeSingle(),
+    ]);
+    await storeExamPdf(supabase, [id], {
+      title: String(row.title),
+      instructions: String(row.instructions),
+      subjectName: subjectRow?.name || null,
+      classLabel: `${row.class_code}${row.stream ? ` ${row.stream}` : ""}`,
+      dueOn: row.due_on ? String(row.due_on) : null,
+      termLabel: termRow?.label || null,
+    });
+  }
 
   const { error } = await supabase
     .from("homework_assignments")

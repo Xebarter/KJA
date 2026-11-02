@@ -190,25 +190,36 @@ export async function getStudentPortal() {
         )
       : Promise.resolve([] as StudentClassmate[]),
     termId
-      ? rows<{
-          id: string;
-          title: string;
-          instructions: string | null;
-          due_on: string;
-          published_at: string | null;
-          class_code: string;
-          stream: string;
-          subject_id: string;
-        }>(
-          supabase
-            .from("homework_assignments")
-            .select("id, title, instructions, due_on, published_at, class_code, stream, subject_id")
-            .not("published_at", "is", null)
-            .eq("term_id", termId)
-            .eq("class_code", student.class_code || "")
-            .eq("stream", student.stream || "")
-            .order("due_on"),
-        )
+      ? (async () => {
+          type HwRow = {
+            id: string;
+            title: string;
+            instructions: string | null;
+            exam_pdf_path?: string | null;
+            due_on: string;
+            published_at: string | null;
+            class_code: string;
+            stream: string;
+            subject_id: string;
+          };
+          const base = () =>
+            supabase
+              .from("homework_assignments")
+              .not("published_at", "is", null)
+              .eq("term_id", termId)
+              .eq("class_code", student.class_code || "")
+              .eq("stream", student.stream || "")
+              .order("due_on");
+          const withPdf = await base().select(
+            "id, title, instructions, exam_pdf_path, due_on, published_at, class_code, stream, subject_id",
+          );
+          if (!withPdf.error) return (withPdf.data || []) as HwRow[];
+          // Pre-migration databases without exam_pdf_path.
+          const legacy = await base().select(
+            "id, title, instructions, due_on, published_at, class_code, stream, subject_id",
+          );
+          return (legacy.data || []) as HwRow[];
+        })()
       : Promise.resolve([]),
     rows<{ assignment_id: string; done_at: string }>(
       supabase.from("homework_completions").select("assignment_id, done_at").eq("student_id", student.id),
@@ -307,7 +318,15 @@ export async function getStudentPortal() {
   const doneMap = new Map(completions.map((row) => [row.assignment_id, row.done_at]));
   const subjectName = new Map(subjects.map((row) => [row.id, row.name]));
   const homework: StudentHomework[] = homeworkRows.map((row) => ({
-    ...row,
+    id: row.id,
+    title: row.title,
+    instructions: row.instructions,
+    exam_pdf_path: row.exam_pdf_path ?? null,
+    due_on: row.due_on,
+    published_at: row.published_at,
+    class_code: row.class_code,
+    stream: row.stream,
+    subject_id: row.subject_id,
     subject_name: subjectName.get(row.subject_id) || null,
     done: doneMap.has(row.id),
     done_at: doneMap.get(row.id) || null,

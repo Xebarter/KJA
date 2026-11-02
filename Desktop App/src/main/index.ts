@@ -1,5 +1,6 @@
-import { app, BrowserWindow, ipcMain, Menu, net, screen } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, screen } from "electron";
 import { existsSync, readFileSync } from "node:fs";
+import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   PROXY_PORT,
@@ -25,7 +26,7 @@ import {
 } from "./next-host";
 import { freePortIfNeeded } from "./ports-win";
 import { splashHtml } from "./splash-html";
-import { createDeskWindow, createSplashWindow } from "./windows";
+import { createDeskWindow, createSplashWindow, safeDownloadName, saveFilters } from "./windows";
 
 let splash: BrowserWindow | null = null;
 let desk: BrowserWindow | null = null;
@@ -38,13 +39,13 @@ let bootProgressFloor = 0;
 let desktopEnvRef: DesktopEnv | null = null;
 let nextWatchdog: ReturnType<typeof setInterval> | null = null;
 let nextRecovering = false;
-/** Grace window after a Next start/restart — avoid killing a host that is still booting. */
+/** Grace window after a Next start/restart - avoid killing a host that is still booting. */
 let nextGraceUntil = 0;
 let nextHttpFailStreak = 0;
 
 let bootInFlight: Promise<void> | null = null;
 
-/** Keep-warm Next can accept TCP while HTTP is dead — recover without forcing a relaunch. */
+/** Keep-warm Next can accept TCP while HTTP is dead - recover without forcing a relaunch. */
 function startNextWatchdog() {
   if (nextWatchdog) return;
   nextWatchdog = setInterval(() => {
@@ -63,11 +64,11 @@ function startNextWatchdog() {
         return;
       }
       nextHttpFailStreak += 1;
-      // TCP-up / HTTP-down is normal for a few seconds after spawn — require streaks.
+      // TCP-up / HTTP-down is normal for a few seconds after spawn - require streaks.
       if (nextHttpFailStreak < 2) return;
       nextRecovering = true;
       nextHttpFailStreak = 0;
-      console.warn("[desktop] desks host wedged — restarting");
+      console.warn("[desktop] desks host wedged - restarting");
       try {
         if (!desktopEnvRef) return;
         nextGraceUntil = Date.now() + 45_000;
@@ -135,7 +136,7 @@ if (!gotLock) {
       win.show();
       win.focus();
     }
-    // Stuck error splash from a prior failed boot — try again instead of only focusing it.
+    // Stuck error splash from a prior failed boot - try again instead of only focusing it.
     if (bootStatus.phase === "error") void runBoot();
   });
 }
@@ -213,7 +214,7 @@ function revealDesk() {
 
 /**
  * Navigate with a hard timeout. Electron's `loadURL` promise never settles when
- * keep-warm Next accepts TCP but never finishes SSR — that froze the splash at 94%.
+ * keep-warm Next accepts TCP but never finishes SSR - that froze the splash at 94%.
  */
 function navigateWithTimeout(win: BrowserWindow, url: string, timeoutMs: number): Promise<void> {
   return new Promise((resolve, reject) => {
@@ -236,7 +237,7 @@ function navigateWithTimeout(win: BrowserWindow, url: string, timeoutMs: number)
       isMainFrame: boolean,
     ) => {
       if (!isMainFrame) return;
-      // -3 = aborted (e.g. our stop() on timeout) — let the timer path reject.
+      // -3 = aborted (e.g. our stop() on timeout) - let the timer path reject.
       if (errorCode === -3) return;
       finish(new Error(`Load failed (${errorCode}): ${errorDescription}`));
     };
@@ -283,13 +284,13 @@ async function waitForDeskContent(win: BrowserWindow): Promise<void> {
     }
     await delay(120);
   }
-  // Timed out with a URL loaded — still reveal rather than infinite splash.
+  // Timed out with a URL loaded - still reveal rather than infinite splash.
   console.warn("[desktop] desk content check timed out; revealing anyway");
 }
 
 /**
  * Load the staff gate and wait until the document has real content.
- * Do not treat about:blank / early dom-ready as "ready" — that showed blank desks.
+ * Do not treat about:blank / early dom-ready as "ready" - that showed blank desks.
  */
 async function waitForNextHttp(timeoutMs: number): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
@@ -363,7 +364,7 @@ async function openDeskGate(
     await loadDeskGate(win, firstTimeout);
   } catch (e) {
     console.warn("[desktop] desk gate load failed", e);
-    // Stale auth cookies can hang middleware getUser — clear and retry once.
+    // Stale auth cookies can hang middleware getUser - clear and retry once.
     await clearDeskAuthCookies(win);
     if ((await nextHttpAlive(1_500)) || (await portOpen(NEXT_PORT))) {
       emitBoot({ phase: "warmup", message: "Opening sign-in…", progress: 94 });
@@ -483,7 +484,7 @@ async function boot() {
         port: PROXY_PORT,
         onStatus: emitSync,
         onTableChange: emitTableChange,
-        // Chromium networking — more reliable than Node fetch for "are we online?".
+        // Chromium networking - more reliable than Node fetch for "are we online?".
         fetchImpl: net.fetch.bind(net) as typeof fetch,
       }).then(async (handle) => {
         proxy = handle;
@@ -544,8 +545,45 @@ app.whenReady().then(async () => {
     return syncStatus;
   });
   ipcMain.handle("sync:online", () => net.isOnline());
+  // Blob/fetch downloads from the desks - Save dialog then write bytes to disk.
+  ipcMain.handle(
+    "download:save",
+    async (
+      event,
+      payload: { data?: ArrayBuffer; filename?: string },
+    ): Promise<
+      | { ok: true; path: string }
+      | { ok: false; canceled: true }
+      | { ok: false; canceled?: false; error: string }
+    > => {
+      try {
+        const data = payload?.data as ArrayBuffer | ArrayBufferView | undefined;
+        if (!data) return { ok: false, error: "Nothing to save." };
+        const filename = safeDownloadName(payload?.filename || "download");
+        const win = BrowserWindow.fromWebContents(event.sender);
+        const options: Electron.SaveDialogOptions = {
+          title: "Save file",
+          defaultPath: join(app.getPath("downloads"), filename),
+          filters: saveFilters(filename),
+        };
+        const result =
+          win && !win.isDestroyed()
+            ? await dialog.showSaveDialog(win, options)
+            : await dialog.showSaveDialog(options);
+        if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+        const bytes =
+          data instanceof ArrayBuffer
+            ? Buffer.from(data)
+            : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
+        await writeFile(result.filePath, bytes);
+        return { ok: true, path: result.filePath };
+      } catch (e) {
+        return { ok: false, error: e instanceof Error ? e.message : String(e) };
+      }
+    },
+  );
 
-  // Window first — before env / Next / proxy.
+  // Window first - before env / Next / proxy.
   showSplashNow();
   await runBoot();
 });

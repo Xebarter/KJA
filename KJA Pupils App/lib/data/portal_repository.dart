@@ -475,7 +475,7 @@ class PortalRepository {
       final assignments = await _rows(
         _db
             .from('homework_assignments')
-            .select('id, title, instructions, due_on, subject_id')
+            .select('id, title, instructions, exam_pdf_path, due_on, subject_id')
             .not('published_at', 'is', null)
             .eq('term_id', termId)
             .eq('class_code', pupil.classCode!)
@@ -486,21 +486,69 @@ class PortalRepository {
         _db.from('homework_completions').select('assignment_id, done_at').eq('student_id', pupil.id),
       );
       final done = {for (final row in completions) row['assignment_id'].toString(): row['done_at'] as String?};
-      return [
+      final items = <HomeworkItem>[
         for (final row in assignments)
           HomeworkItem(
             id: row['id'].toString(),
             title: (row['title'] as String?) ?? 'Homework',
             instructions: row['instructions'] as String?,
+            examPdfPath: (row['exam_pdf_path'] as String?)?.trim(),
             dueOn: (row['due_on'] as String?) ?? '',
             subjectName: subjectNames[row['subject_id']?.toString()],
             done: done.containsKey(row['id'].toString()),
             doneAt: done[row['id'].toString()],
           ),
       ];
+      // Sign exam PDFs in parallel so cards can open them in-app.
+      return Future.wait(items.map((item) async {
+        final path = item.examPdfPath?.trim();
+        if (path == null || path.isEmpty) return item;
+        try {
+          final url = await _db.storage.from('class-resources').createSignedUrl(path, 60 * 60 * 6);
+          return item.withExamPdfUrl(url);
+        } catch (_) {
+          return item;
+        }
+      }));
     } catch (_) {
-      return [];
+      // Older databases without exam_pdf_path — fall back to the classic columns.
+      try {
+        final assignments = await _rows(
+          _db
+              .from('homework_assignments')
+              .select('id, title, instructions, due_on, subject_id')
+              .not('published_at', 'is', null)
+              .eq('term_id', termId)
+              .eq('class_code', pupil.classCode!)
+              .eq('stream', pupil.stream ?? '')
+              .order('due_on'),
+        );
+        final completions = await _rows(
+          _db.from('homework_completions').select('assignment_id, done_at').eq('student_id', pupil.id),
+        );
+        final done = {for (final row in completions) row['assignment_id'].toString(): row['done_at'] as String?};
+        return [
+          for (final row in assignments)
+            HomeworkItem(
+              id: row['id'].toString(),
+              title: (row['title'] as String?) ?? 'Homework',
+              instructions: row['instructions'] as String?,
+              dueOn: (row['due_on'] as String?) ?? '',
+              subjectName: subjectNames[row['subject_id']?.toString()],
+              done: done.containsKey(row['id'].toString()),
+              doneAt: done[row['id'].toString()],
+            ),
+        ];
+      } catch (_) {
+        return [];
+      }
     }
+  }
+
+  Future<String?> homeworkExamUrl(String? path) async {
+    final object = path?.trim();
+    if (object == null || object.isEmpty) return null;
+    return _db.storage.from('class-resources').createSignedUrl(object, 60 * 60);
   }
 
   Future<List<Notice>> _notices(String userId) async {

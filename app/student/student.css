@@ -1363,6 +1363,20 @@ body:has(.kja-student) {
 
 .hw-subject { font-weight: 700; color: #334155; }
 
+.hw-exam-note {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  margin: .55rem 0 0;
+  padding: .45rem .7rem;
+  border-radius: 999px;
+  background: #f4efe6;
+  color: #5c4a28;
+  font-size: .78rem;
+  font-weight: 700;
+}
+.hw-exam-note i { font-size: .9rem; color: #8a1f1f; }
+
 .hw-instructions {
   margin: .55rem 0 0;
   padding: .65rem .8rem;
@@ -1410,6 +1424,17 @@ body:has(.kja-student) {
 
 .hw-btn--primary:hover:not(:disabled) {
   background: linear-gradient(145deg, #34d399, #10b981);
+}
+
+.hw-btn--exam {
+  background: linear-gradient(145deg, #243447, #19232b);
+  color: #fff;
+  box-shadow: 0 12px 24px -14px rgba(25, 35, 43, .75);
+  text-decoration: none;
+}
+.hw-btn--exam:hover {
+  background: linear-gradient(145deg, #31465c, #243447);
+  color: #fff;
 }
 
 .hw-btn--ghost {

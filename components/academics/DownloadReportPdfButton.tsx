@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
+import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 
 /** Fetches the stream PDF while showing the shared green progress ring. */
 export function DownloadReportPdfButton({
@@ -35,19 +36,8 @@ export function DownloadReportPdfButton({
         return;
       }
       const blob = await response.blob();
-      const disposition = response.headers.get("content-disposition") || "";
-      const matched = /filename\*?=(?:UTF-8''|")?([^\";]+)/i.exec(disposition);
-      const downloadName = matched
-        ? decodeURIComponent(matched[1].replace(/"/g, ""))
-        : filename;
-      const objectUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = objectUrl;
-      anchor.download = downloadName;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 2_000);
+      const downloadName = filenameFromDisposition(response.headers.get("content-disposition"), filename);
+      await saveClientDownload(blob, downloadName);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Couldn't download the PDF.");
     } finally {

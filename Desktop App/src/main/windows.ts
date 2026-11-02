@@ -1,19 +1,41 @@
 import { app, BrowserWindow, shell, session } from "electron";
-import { join } from "node:path";
+import { basename, extname, join } from "node:path";
 import { DESKTOP_COOKIE, NEXT_URL, SESSION_PARTITION } from "../shared/ports";
 import { loadAppIcon } from "./icon";
 
 let downloadsHooked = false;
 
+function safeDownloadName(name: string) {
+  const base = basename(name.replace(/[/\\]/g, "-")).trim() || "download";
+  return base.replace(/[\u0000-\u001f<>:"|?*]/g, "_");
+}
+
+function saveFilters(filename: string): Electron.FileFilter[] {
+  const ext = extname(filename).toLowerCase();
+  if (ext === ".xlsx") return [{ name: "Excel workbook", extensions: ["xlsx"] }, { name: "All files", extensions: ["*"] }];
+  if (ext === ".xls") return [{ name: "Excel workbook", extensions: ["xls", "xlsx"] }, { name: "All files", extensions: ["*"] }];
+  if (ext === ".pdf") return [{ name: "PDF", extensions: ["pdf"] }, { name: "All files", extensions: ["*"] }];
+  if (ext === ".csv") return [{ name: "CSV", extensions: ["csv"] }, { name: "All files", extensions: ["*"] }];
+  if (ext) return [{ name: `${ext.slice(1).toUpperCase()} file`, extensions: [ext.slice(1)] }, { name: "All files", extensions: ["*"] }];
+  return [{ name: "All files", extensions: ["*"] }];
+}
+
+/** Prompt for a path on Chromium-driven downloads (attachments, <a download>). */
 function ensureDownloadHandler(ses: Electron.Session) {
   if (downloadsHooked) return;
   downloadsHooked = true;
-  // Points Excel, marksheet/report attachments, and plain <a download> navigations.
   ses.on("will-download", (_event, item) => {
-    const name = item.getFilename() || "download";
-    item.setSavePath(join(app.getPath("downloads"), name));
+    const name = safeDownloadName(item.getFilename() || "download");
+    item.setSaveDialogOptions({
+      title: "Save file",
+      defaultPath: join(app.getPath("downloads"), name),
+      filters: saveFilters(name),
+    });
+    // Do not call setSavePath - Electron shows the Save dialog with the options above.
   });
 }
+
+export { safeDownloadName, saveFilters };
 
 export function createSplashWindow(): BrowserWindow {
   const win = new BrowserWindow({
@@ -23,7 +45,7 @@ export function createSplashWindow(): BrowserWindow {
     maximizable: false,
     fullscreenable: false,
     frame: false,
-    // Native chrome first — content is a tiny inline HTML page (no React).
+    // Native chrome first - content is a tiny inline HTML page (no React).
     show: true,
     center: true,
     alwaysOnTop: true,
@@ -89,7 +111,7 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
   });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
-    // about:blank then navigate — allow so homework/accounts previews can open.
+    // about:blank then navigate - allow so homework/accounts previews can open.
     if (url === "about:blank" || isInAppUrl(url)) {
       return {
         action: "allow",
@@ -125,7 +147,7 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
         path === "/admin/login" ||
         path.startsWith("/admin/login/") ||
         path === "/choose-dashboard";
-      // Match desk paper while SSR loads — avoids a black flash / stuck black frame.
+      // Match desk paper while SSR loads - avoids a black flash / stuck black frame.
       win.setBackgroundColor(darkGate ? "#141D24" : "#efe8dc");
     } catch {
       /* ignore */
@@ -143,7 +165,7 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
   win.webContents.on("did-navigate", (_event, url) => paintForUrl(url));
   win.webContents.on("did-navigate-in-page", (_event, url) => paintForUrl(url));
 
-  // Cookie can finish while the window exists — do not block construction.
+  // Cookie can finish while the window exists - do not block construction.
   await Promise.all(
     [NEXT_URL, NEXT_URL.replace("127.0.0.1", "localhost")].map((url) =>
       ses.cookies.set({

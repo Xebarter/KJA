@@ -80,6 +80,8 @@ class HomeworkItem {
     required this.dueOn,
     required this.done,
     this.instructions,
+    this.examPdfPath,
+    this.examPdfUrl,
     this.subjectName,
     this.doneAt,
   });
@@ -87,10 +89,14 @@ class HomeworkItem {
   final String id;
   final String title;
   final String? instructions;
+  final String? examPdfPath;
+  final String? examPdfUrl;
   final String dueOn;
   final String? subjectName;
   final bool done;
   final String? doneAt;
+
+  bool get hasExamPdf => (examPdfPath ?? '').trim().isNotEmpty || (examPdfUrl ?? '').trim().isNotEmpty;
 
   HomeworkItem marked(bool nextDone) {
     return HomeworkItem(
@@ -98,9 +104,25 @@ class HomeworkItem {
       title: title,
       dueOn: dueOn,
       instructions: instructions,
+      examPdfPath: examPdfPath,
+      examPdfUrl: examPdfUrl,
       subjectName: subjectName,
       done: nextDone,
       doneAt: nextDone ? DateTime.now().toUtc().toIso8601String() : null,
+    );
+  }
+
+  HomeworkItem withExamPdfUrl(String? url) {
+    return HomeworkItem(
+      id: id,
+      title: title,
+      dueOn: dueOn,
+      instructions: instructions,
+      examPdfPath: examPdfPath,
+      examPdfUrl: url,
+      subjectName: subjectName,
+      done: done,
+      doneAt: doneAt,
     );
   }
 }

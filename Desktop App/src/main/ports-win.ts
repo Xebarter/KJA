@@ -2,7 +2,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import { createConnection } from "node:net";
 
 /**
- * Fast TCP probe — avoids Windows `netstat` on the common cold-start path
+ * Fast TCP probe - avoids Windows `netstat` on the common cold-start path
  * where the desktop ports are already free.
  */
 export function isPortInUse(port: number, host = "127.0.0.1"): Promise<boolean> {

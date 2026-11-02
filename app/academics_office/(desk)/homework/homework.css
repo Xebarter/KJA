@@ -376,8 +376,14 @@
   text-transform: none;
 }
 .ahw-composer .ofc-field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-.ahw-composer .ofc-field select {
+.ahw-composer .ofc-field select,
+.ahw-composer .ofc-field .rte {
   width: 100%;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.ahw-composer .ofc-field input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
+.ahw-composer .ofc-field select {
   height: 42px;
   padding: 0 .85rem;
   border: 1px solid var(--ahw-line);
@@ -387,9 +393,12 @@
   font: inherit;
   font-size: .9rem;
   font-weight: 500;
-  letter-spacing: 0;
-  text-transform: none;
   transition: border-color .16s ease, box-shadow .16s ease;
+}
+.ahw-composer .ofc-field .rte {
+  font-weight: 400;
+  font-size: inherit;
+  color: var(--ahw-ink);
 }
 .ahw-composer .ofc-field input:focus,
 .ahw-composer .ofc-field select:focus {
@@ -550,6 +559,28 @@
 }
 .ahw-editor .rte-source { min-height: 200px; }
 .ahw-editor .rte-toolbar { border-radius: 14px 14px 0 0; }
+
+.ahw-hw-doc > span {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .35rem .75rem;
+}
+.ahw-hw-doc > span em {
+  font-style: normal;
+  font-weight: 600;
+  color: var(--ahw-mute);
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: .78rem;
+}
+.ahw-hw-doc .rte.is-doc {
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ahw-hw-doc .rte-source { min-height: 320px; }
+.ahw-editor .rte.is-doc,
+.ahw-editor .rte.is-doc .rte-toolbar { border-radius: 2px; }
 
 .ahw-file { position: relative; }
 .ahw-file input[type="file"] {

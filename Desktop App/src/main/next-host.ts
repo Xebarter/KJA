@@ -31,7 +31,7 @@ export function portOpen(port: number, host = "127.0.0.1"): Promise<boolean> {
 }
 
 /**
- * Cheap HTTP check — hits a tiny route (not the heavy site homepage).
+ * Cheap HTTP check - hits a tiny route (not the heavy site homepage).
  * Uses `node:http` (not undici `fetch`) so system HTTP_PROXY cannot black-hole
  * loopback and falsely report "Desks stopped responding".
  */
@@ -58,14 +58,53 @@ export function nextHttpAlive(timeoutMs = 800): Promise<boolean> {
   });
 }
 
+type ReadyProbe = { ok?: boolean; mode?: string };
+
+/** Read `/api/desktop/ready` JSON (or null when the host is down / not ours). */
+export function nextReadyProbe(timeoutMs = 1_200): Promise<ReadyProbe | null> {
+  return new Promise((resolve) => {
+    const req = http.get(
+      {
+        host: "127.0.0.1",
+        port: NEXT_PORT,
+        path: "/api/desktop/ready",
+        timeout: timeoutMs,
+        agent: false,
+      },
+      (res) => {
+        const chunks: Buffer[] = [];
+        res.on("data", (chunk) => chunks.push(Buffer.from(chunk)));
+        res.on("end", () => {
+          try {
+            const json = JSON.parse(Buffer.concat(chunks).toString("utf8")) as ReadyProbe;
+            resolve(json && typeof json === "object" ? json : null);
+          } catch {
+            resolve(null);
+          }
+        });
+      },
+    );
+    req.on("timeout", () => {
+      req.destroy();
+      resolve(null);
+    });
+    req.on("error", () => resolve(null));
+  });
+}
+
 /**
  * True when a previous desktop session left a usable Next host on the fixed port.
- * Only probe `/api/desktop/ready` — hitting `/admin/login` here can hang on SSR
- * and itself stuck the splash before the desk window ever navigated.
+ * Unpackaged (npm run dev) must not reuse the installed app's keep-warm standalone -
+ * that masked workbook fixes behind a stale HTML 500.
  */
 export async function isNextHealthy(): Promise<boolean> {
   if (!(await portOpen(NEXT_PORT))) return false;
-  return nextHttpAlive(1_200);
+  const probe = await nextReadyProbe(1_200);
+  if (!probe?.ok) return false;
+  const wantPack = app.isPackaged;
+  const mode = probe.mode || "pack";
+  if (wantPack) return mode === "pack";
+  return mode === "dev";
 }
 
 /** Kill whatever owns the Next port (hung keep-warm) and start a fresh host. */
@@ -77,7 +116,7 @@ export async function restartNext(env: DesktopEnv): Promise<NextHandle> {
 }
 
 /**
- * Wait until Next is accepting connections. Do NOT hit /admin/login here —
+ * Wait until Next is accepting connections. Do NOT hit /admin/login here -
  * the desk BrowserWindow loads that page once (double SSR was a major boot cost).
  */
 async function waitForNextListening(timeoutMs: number, child: ChildProcess): Promise<void> {
@@ -124,7 +163,7 @@ function desktopEnv(env: DesktopEnv): NodeJS.ProcessEnv {
 }
 
 export type StartNextOptions = {
-  /** Caller already freed the port — skip a second free pass. */
+  /** Caller already freed the port - skip a second free pass. */
   portReady?: boolean;
   /**
    * When true (default), leave the Next process running after Electron quits
@@ -151,10 +190,19 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
     return warmHandle();
   }
 
-  if (!options.portReady) {
+  // Port may be held by the wrong kind of host (packaged vs next-dev). Clear it.
+  if (await portOpen(NEXT_PORT)) {
+    const probe = await nextReadyProbe(800);
+    console.warn(
+      `[next] clearing incompatible host on ${NEXT_PORT}` +
+        (probe?.mode ? ` (was mode=${probe.mode})` : ""),
+    );
+    freePort(NEXT_PORT);
+    await new Promise((r) => setTimeout(r, 350));
+  } else if (!options.portReady) {
     await freePortIfNeeded(NEXT_PORT);
   } else if (await isPortInUse(NEXT_PORT)) {
-    // Port taken but unhealthy (crash mid-boot) — clear it.
+    // Port taken but unhealthy (crash mid-boot) - clear it.
     freePort(NEXT_PORT);
   }
 
@@ -226,7 +274,7 @@ export async function startNext(env: DesktopEnv, options: StartNextOptions = {})
   }
 
   // After listen: detach from the Electron lifetime so Quit leaves desks warm.
-  // Do NOT destroy stdout/stderr pipes — on Windows that EPIPE-kills Next (exit 1)
+  // Do NOT destroy stdout/stderr pipes - on Windows that EPIPE-kills Next (exit 1)
   // right after Ready and the watchdog then restart-storms forever.
   if (keepWarm) {
     try {

@@ -275,7 +275,7 @@ export function HomeworkDesk({
   const homeworkSubjects = subjectsFor(classKeys);
   const resourceSubjects = subjectsFor(classKey ? [classKey] : []);
   const subjectChoices = mode === "homework" ? homeworkSubjects : resourceSubjects;
-  const homeworkReady = Boolean(classKeys.length && subjectId && title.trim() && dueOn);
+  const homeworkReady = Boolean(classKeys.length && subjectId && title.trim() && dueOn && bodyHtml.trim());
   const resourceReady = Boolean(
     classKey &&
       title.trim() &&
@@ -704,7 +704,7 @@ export function HomeworkDesk({
                 <span className="ahw-step">2</span>
                 <div>
                   <strong>The task</strong>
-                  <p>Subject, due date, title and instructions.</p>
+                  <p>Subject, due date, title, then write the homework pupils will open as a PDF.</p>
                 </div>
               </div>
               <div className="ahw-fields">
@@ -734,16 +734,20 @@ export function HomeworkDesk({
                 </div>
                 <label className="ofc-field ahw-span">
                   <span>Title</span>
-                  <input ref={titleRef} name="title" required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="Read chapter 3 and answer the questions" />
+                  <input ref={titleRef} name="title" required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="English · comprehension homework" />
                 </label>
-                <div className="ofc-field ahw-span ahw-editor">
-                  <span>Instructions <em>optional</em></span>
+                <div className="ofc-field ahw-span ahw-editor ahw-hw-doc">
+                  <span>
+                    Homework
+                    <em>Type and format like Word — pupils open this as a PDF</em>
+                  </span>
                   <RichTextEditor
                     key={`hw-${editorKey}`}
+                    variant="homework"
                     initialHtml=""
                     onChange={setBodyHtml}
                     onUpload={uploadInline}
-                    placeholder="What should pupils do? Add steps, lists, or a picture of the worksheet…"
+                    placeholder="Start typing the homework…"
                   />
                 </div>
               </div>
@@ -1126,7 +1130,7 @@ export function HomeworkDesk({
             <div className="ahw-empty">
               <span className="ahw-empty-icon" aria-hidden="true"><i className="fa-solid fa-book-open" /></span>
               <strong>No homework this term</strong>
-              <p>Set a piece of work with clear instructions, then publish when the class should see it.</p>
+              <p>Write the homework, then publish when the class should see it.</p>
               <button type="button" onClick={openComposer}>Set homework</button>
             </div>
           )

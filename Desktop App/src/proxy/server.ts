@@ -37,7 +37,7 @@ export type ProxyConfig = {
   onStatus?: (status: SyncStatus) => void;
   onTableChange?: (userId: string, table: string) => void;
   /**
-   * Prefer Electron `net.fetch` in the main process — Node's undici fetch can
+   * Prefer Electron `net.fetch` in the main process - Node's undici fetch can
    * fail TLS/DNS in ways Chromium does not, which falsely marked desks offline.
    */
   fetchImpl?: typeof fetch;
@@ -220,7 +220,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       ? args.url
       : `${upstreamBase}${args.url.startsWith("/") ? "" : "/"}${args.url}`;
     let lastError: unknown;
-    // Brief retries — right after login, hydrate + desk RSC can stampede upstream.
+    // Brief retries - right after login, hydrate + desk RSC can stampede upstream.
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         const res = await fetch(target, {
@@ -269,7 +269,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
     if (!online || !userId) return 0;
     const token = readAccessToken(userId);
     if (!token) {
-      // Without a user JWT we must not replay — anon responses poison the user cache.
+      // Without a user JWT we must not replay - anon responses poison the user cache.
       console.warn("[proxy] hydrate skipped: no access token for", userId);
       return 0;
     }
@@ -306,7 +306,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (result.ok && result.body.length > 0 && result.body.length <= MAX_CACHE_BYTES) {
           const path = new URL(u).pathname;
           const table = parseRestTable(path);
-          // Applications desks must not be warmed into SQLite — stale lists look like failed CRUD.
+          // Applications desks must not be warmed into SQLite - stale lists look like failed CRUD.
           if (table && LIVE_REST_TABLES.has(table)) {
             warmed += 1;
             config.onTableChange?.(userId, table);
@@ -421,7 +421,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         return;
       }
 
-      // Auth token exchange — always upstream
+      // Auth token exchange - always upstream
       if (pathname.startsWith("/auth/v1/token")) {
         if (!online) {
           reply(
@@ -445,7 +445,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
             if (token && uid) {
               rememberAccessToken(uid, token);
               // Defer hydrate slightly so the first Teacher desk RSC (roll pages)
-              // is not racing a full cache warm-up — that race caused "fetch failed".
+              // is not racing a full cache warm-up - that race caused "fetch failed".
               void (async () => {
                 await new Promise<void>((resolve) => setTimeout(resolve, 1_200));
                 await hydrateUser(uid).catch((e) => console.warn("[proxy] post-login hydrate failed", e));
@@ -459,7 +459,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         return;
       }
 
-      // Cached auth user for middleware — avoid a round-trip on every soft nav
+      // Cached auth user for middleware - avoid a round-trip on every soft nav
       if (pathname === "/auth/v1/user" && method === "GET" && userId) {
         const exp = accessExpFromAuthHeader(auth);
         const cached = store.getAuthUser(userId);
@@ -698,7 +698,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       ) {
         const table = parseRestTable(pathname);
         const ct = result.headers["content-type"] || "";
-        // Never cache empty JSON lists — they poison desks with "no term" flashes.
+        // Never cache empty JSON lists - they poison desks with "no term" flashes.
         const skipEmptyJson = ct.includes("json") && isEmptyJsonBody(result.body);
         if (
           !skipEmptyJson &&
@@ -797,7 +797,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
 
   emit();
 
-  // Connectivity probe — reachability of Supabase, not OS "internet" status.
+  // Connectivity probe - reachability of Supabase, not OS "internet" status.
   const doFetch = config.fetchImpl ?? fetch;
   let failStreak = 0;
   const probeOnce = async () => {

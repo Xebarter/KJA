@@ -49,6 +49,7 @@ export type StudentHomework = {
   id: string;
   title: string;
   instructions: string | null;
+  exam_pdf_path: string | null;
   due_on: string;
   published_at: string | null;
   class_code: string;

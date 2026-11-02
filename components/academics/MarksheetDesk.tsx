@@ -17,6 +17,7 @@ import {
   type MarksheetSort,
   type MarksheetTone,
 } from "@/lib/marksheet-order";
+import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 
 export type MarksheetStatus = "open" | "submitted" | "approved";
 
@@ -424,16 +425,9 @@ export function MarksheetDesk({
         return;
       }
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const disposition = response.headers.get("content-disposition") || "";
-      const match = /filename\*=UTF-8''([^;]+)|filename="([^"]+)"/.exec(disposition);
-      link.href = url;
-      link.download = decodeURIComponent((match?.[1] || match?.[2] || "marksheet.xlsx").trim());
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const filename = filenameFromDisposition(response.headers.get("content-disposition"), "marksheet.xlsx");
+      const outcome = await saveClientDownload(blob, filename);
+      if (outcome === "canceled") return;
       if (dirty) router.refresh();
     } catch {
       setExportError("The workbook could not be prepared.");

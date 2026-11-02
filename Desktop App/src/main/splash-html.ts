@@ -1,4 +1,4 @@
-/** Instant splash HTML — logo + green percent progress (no React). */
+/** Instant splash HTML - logo + green percent progress (no React). */
 
 export function splashHtml(logoSrc: string): string {
   const logo = logoSrc

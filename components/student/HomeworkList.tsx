@@ -44,6 +44,18 @@ function looksLikeHtml(value: string) {
   return /<\/?[a-z][\s\S]*>/i.test(value);
 }
 
+/** Strip the homework editor wrapper so inline previews stay clean. */
+function unwrapHomeworkHtml(raw: string) {
+  if (!raw.includes("data-kja-doc")) return raw;
+  try {
+    const doc = new DOMParser().parseFromString(raw, "text/html");
+    const wrap = doc.querySelector("[data-kja-doc]");
+    return wrap ? wrap.innerHTML : raw;
+  } catch {
+    return raw;
+  }
+}
+
 export function HomeworkList({ items, filter }: { items: StudentHomework[]; filter: "open" | "done" | "all" }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -177,15 +189,33 @@ export function HomeworkList({ items, filter }: { items: StudentHomework[]; filt
                     {row.done && row.done_at ? ` · finished ${shortDate(row.done_at.slice(0, 10))}` : null}
                     {!row.done && (overdueItem || dueSoon) ? ` · due ${shortDate(row.due_on)}` : null}
                   </p>
-                  {row.instructions ? (
+                  {row.exam_pdf_path ? (
+                    <p className="hw-exam-note">
+                      <i className="fa-solid fa-file-pdf" aria-hidden="true" /> Homework ready as PDF
+                    </p>
+                  ) : row.instructions ? (
                     looksLikeHtml(row.instructions) ? (
-                      <div className="hw-instructions hw-prose" dangerouslySetInnerHTML={{ __html: row.instructions }} />
+                      <div
+                        className="hw-instructions hw-prose"
+                        dangerouslySetInnerHTML={{ __html: unwrapHomeworkHtml(row.instructions) }}
+                      />
                     ) : (
                       <p className="hw-instructions">{row.instructions}</p>
                     )
                   ) : null}
                 </div>
                 <div className="hw-actions">
+                  {row.exam_pdf_path ? (
+                    <a
+                      className="hw-btn hw-btn--exam"
+                      href={`/api/homework-exam?id=${encodeURIComponent(row.id)}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      <i className="fa-solid fa-file-pdf" aria-hidden="true" />
+                      Open homework
+                    </a>
+                  ) : null}
                   <button
                     type="button"
                     className={row.done ? "hw-btn hw-btn--ghost" : "hw-btn hw-btn--primary"}

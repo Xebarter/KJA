@@ -1,4 +1,4 @@
-/** Decode a JWT payload without verifying — the upstream still authenticates. */
+/** Decode a JWT payload without verifying - the upstream still authenticates. */
 export function decodeJwtPayload(token: string): Record<string, unknown> | null {
   const parts = token.split(".");
   if (parts.length < 2) return null;

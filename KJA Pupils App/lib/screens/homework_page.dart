@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../format.dart';
 import '../models.dart';
@@ -32,6 +33,38 @@ class _HomeworkPageState extends State<HomeworkPage> {
       _busyId = null;
       _error = error;
     });
+  }
+
+  Future<void> _openExam(HomeworkItem item) async {
+    setState(() {
+      _busyId = 'exam:${item.id}';
+      _error = null;
+    });
+    try {
+      var url = item.examPdfUrl?.trim();
+      if (url == null || url.isEmpty) {
+        url = await widget.controller.repository.homeworkExamUrl(item.examPdfPath);
+      }
+      if (!mounted) return;
+      if (url == null || url.isEmpty) {
+        setState(() => _error = 'Could not open that exam paper.');
+        return;
+      }
+      final uri = Uri.tryParse(url);
+      if (uri == null) {
+        setState(() => _error = 'That exam link looks broken.');
+        return;
+      }
+      final ok = await launchUrl(uri, mode: LaunchMode.inAppBrowserView);
+      if (!ok && mounted) {
+        final fallback = await launchUrl(uri, mode: LaunchMode.externalApplication);
+        if (!fallback && mounted) setState(() => _error = 'Could not open the exam on this device.');
+      }
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Could not open that exam paper.');
+    } finally {
+      if (mounted) setState(() => _busyId = null);
+    }
   }
 
   @override
@@ -84,8 +117,10 @@ class _HomeworkPageState extends State<HomeworkPage> {
             _HomeworkCard(
               item: row,
               today: today,
-              busy: _busyId == row.id,
+              busy: _busyId == row.id || _busyId == 'exam:${row.id}',
+              openingExam: _busyId == 'exam:${row.id}',
               onToggle: () => _toggle(row),
+              onOpenExam: row.hasExamPdf ? () => _openExam(row) : null,
             ),
       ],
     );
@@ -288,13 +323,17 @@ class _HomeworkCard extends StatelessWidget {
     required this.item,
     required this.today,
     required this.busy,
+    required this.openingExam,
     required this.onToggle,
+    this.onOpenExam,
   });
 
   final HomeworkItem item;
   final String today;
   final bool busy;
+  final bool openingExam;
   final VoidCallback onToggle;
+  final VoidCallback? onOpenExam;
 
   @override
   Widget build(BuildContext context) {
@@ -306,149 +345,193 @@ class _HomeworkCard extends StatelessWidget {
         : dueSoon
             ? 'Due today'
             : 'Due ${shortDate(item.dueOn)}';
+    final plainInstructions = stripHtml(item.instructions ?? '').trim();
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Material(
         color: Colors.white,
         borderRadius: BorderRadius.circular(22),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(22),
-          onTap: busy ? null : onToggle,
-          child: Ink(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: late ? KjaColors.coral.withValues(alpha: 0.35) : KjaColors.line),
-              boxShadow: [
-                BoxShadow(color: color.withValues(alpha: 0.08), blurRadius: 14, offset: const Offset(0, 6)),
-              ],
-            ),
-            child: IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Container(
-                    width: 7,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: item.done
-                            ? const [KjaColors.mint, Color(0xFF34D399)]
-                            : [color, color.withValues(alpha: 0.75)],
-                      ),
-                      borderRadius: const BorderRadius.horizontal(left: Radius.circular(22)),
+        child: Ink(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(22),
+            border: Border.all(color: late ? KjaColors.coral.withValues(alpha: 0.35) : KjaColors.line),
+            boxShadow: [
+              BoxShadow(color: color.withValues(alpha: 0.08), blurRadius: 14, offset: const Offset(0, 6)),
+            ],
+          ),
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Container(
+                  width: 7,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: item.done
+                          ? const [KjaColors.mint, Color(0xFF34D399)]
+                          : [color, color.withValues(alpha: 0.75)],
                     ),
+                    borderRadius: const BorderRadius.horizontal(left: Radius.circular(22)),
                   ),
-                  Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Container(
-                                width: 44,
-                                height: 44,
-                                decoration: BoxDecoration(
-                                  color: (item.done ? KjaColors.mint : color).withValues(alpha: 0.14),
-                                  borderRadius: BorderRadius.circular(14),
-                                ),
-                                child: Icon(
-                                  item.done ? Icons.check_rounded : subjectIcon(item.subjectName),
-                                  color: item.done ? KjaColors.mintDeep : color,
-                                ),
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Container(
+                              width: 44,
+                              height: 44,
+                              decoration: BoxDecoration(
+                                color: (item.done ? KjaColors.mint : color).withValues(alpha: 0.14),
+                                borderRadius: BorderRadius.circular(14),
                               ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      item.title,
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w800,
-                                        fontSize: 16,
-                                        height: 1.2,
-                                        decoration: item.done ? TextDecoration.lineThrough : null,
-                                        color: item.done ? KjaColors.soft : KjaColors.ink,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      item.subjectName ?? 'Subject',
-                                      style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
-                                    ),
-                                  ],
-                                ),
+                              child: Icon(
+                                item.done
+                                    ? Icons.check_rounded
+                                    : item.hasExamPdf
+                                        ? Icons.picture_as_pdf_rounded
+                                        : subjectIcon(item.subjectName),
+                                color: item.done ? KjaColors.mintDeep : color,
                               ),
-                            ],
-                          ),
-                          if ((item.instructions ?? '').trim().isNotEmpty) ...[
-                            const SizedBox(height: 10),
-                            Text(
-                              item.instructions!.trim(),
-                              maxLines: 3,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(color: KjaColors.soft, height: 1.4, fontSize: 14),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    item.title,
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                      fontSize: 16,
+                                      height: 1.2,
+                                      decoration: item.done ? TextDecoration.lineThrough : null,
+                                      color: item.done ? KjaColors.soft : KjaColors.ink,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    item.subjectName ?? 'Subject',
+                                    style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 13),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                decoration: BoxDecoration(
-                                  color: late
-                                      ? KjaColors.coralWash
-                                      : dueSoon
-                                          ? KjaColors.sunWash
-                                          : item.done
-                                              ? KjaColors.mintWash
-                                              : KjaColors.skyWash,
-                                  borderRadius: BorderRadius.circular(999),
-                                ),
-                                child: Text(
-                                  item.done ? 'Finished' : dueLabel,
-                                  style: TextStyle(
-                                    color: late
-                                        ? KjaColors.coralDeep
-                                        : dueSoon
-                                            ? KjaColors.sunDeep
-                                            : item.done
-                                                ? KjaColors.mintDeep
-                                                : KjaColors.skyDeep,
-                                    fontWeight: FontWeight.w800,
-                                    fontSize: 12,
+                        ),
+                        if (item.hasExamPdf) ...[
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFFEF2F2),
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: const Color(0xFFFECACA)),
+                            ),
+                            child: const Row(
+                              children: [
+                                Icon(Icons.picture_as_pdf_rounded, size: 18, color: Color(0xFFB91C1C)),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Exam paper PDF — open to view in the app',
+                                    style: TextStyle(
+                                      color: Color(0xFF991B1B),
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 13,
+                                      height: 1.3,
+                                    ),
                                   ),
                                 ),
+                              ],
+                            ),
+                          ),
+                        ] else if (plainInstructions.isNotEmpty) ...[
+                          const SizedBox(height: 10),
+                          Text(
+                            plainInstructions,
+                            maxLines: 3,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(color: KjaColors.soft, height: 1.4, fontSize: 14),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 8,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: late
+                                    ? KjaColors.coralWash
+                                    : dueSoon
+                                        ? KjaColors.sunWash
+                                        : item.done
+                                            ? KjaColors.mintWash
+                                            : KjaColors.skyWash,
+                                borderRadius: BorderRadius.circular(999),
                               ),
-                              const Spacer(),
-                              FilledButton(
-                                onPressed: busy ? null : onToggle,
+                              child: Text(
+                                item.done ? 'Finished' : dueLabel,
+                                style: TextStyle(
+                                  color: late
+                                      ? KjaColors.coralDeep
+                                      : dueSoon
+                                          ? KjaColors.sunDeep
+                                          : item.done
+                                              ? KjaColors.mintDeep
+                                              : KjaColors.skyDeep,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            if (onOpenExam != null)
+                              FilledButton.icon(
+                                onPressed: busy ? null : onOpenExam,
+                                icon: Icon(openingExam ? Icons.hourglass_top_rounded : Icons.menu_book_rounded, size: 18),
+                                label: Text(openingExam ? 'Opening…' : 'Open exam'),
                                 style: FilledButton.styleFrom(
-                                  backgroundColor: item.done ? KjaColors.soft : KjaColors.mint,
+                                  backgroundColor: const Color(0xFFDC2626),
                                   foregroundColor: Colors.white,
                                   minimumSize: const Size(0, 40),
                                   padding: const EdgeInsets.symmetric(horizontal: 14),
                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
                                   elevation: 0,
                                 ),
-                                child: Text(
-                                  busy ? '…' : (item.done ? 'Undo' : 'Done'),
-                                  style: const TextStyle(fontWeight: FontWeight.w800),
-                                ),
                               ),
-                            ],
-                          ),
-                        ],
-                      ),
+                            FilledButton(
+                              onPressed: busy ? null : onToggle,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: item.done ? KjaColors.soft : KjaColors.mint,
+                                foregroundColor: Colors.white,
+                                minimumSize: const Size(0, 40),
+                                padding: const EdgeInsets.symmetric(horizontal: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(999)),
+                                elevation: 0,
+                              ),
+                              child: Text(
+                                busy && !openingExam ? '…' : (item.done ? 'Undo' : 'Done'),
+                                style: const TextStyle(fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),

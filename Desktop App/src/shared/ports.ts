@@ -1,4 +1,4 @@
-/** Fixed loopback ports — baked into the desktop Next client bundle. */
+/** Fixed loopback ports - baked into the desktop Next client bundle. */
 export const PROXY_PORT = 47321;
 export const NEXT_PORT = 47322;
 
@@ -38,7 +38,7 @@ export const CRITICAL_HYDRATE_PATHS = [
  */
 export const DESK_LOAD_TIMEOUT_MS = 8_000;
 
-/** First paint after a cold `next` start can compile the login route — allow longer. */
+/** First paint after a cold `next` start can compile the login route - allow longer. */
 export const DESK_LOAD_COLD_TIMEOUT_MS = 45_000;
 
 /**

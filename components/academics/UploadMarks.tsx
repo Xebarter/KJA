@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { importMarks, type MarksImportResult, type MarksPreview } from "@/app/academics_office/(desk)/assessments/marks-actions";
 import { ProcessStatus } from "@/components/ProcessStatus";
+import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 
 export const MARKS_SHEET_EVENT = "kja-marks-sheet";
 
@@ -85,14 +86,6 @@ function errorMessage(text: string) {
     return "The workbook could not be prepared. Try again, or ask the office if the problem continues.";
   }
   return trimmed.slice(0, 400);
-}
-
-function fileNameFrom(header: string | null) {
-  const encoded = header?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
-  if (encoded) {
-    try { return decodeURIComponent(encoded); } catch { return encoded; }
-  }
-  return header?.match(/filename="([^"]+)"/)?.[1] || "KJA marks.xlsx";
 }
 
 function sizeLabel(bytes: number) {
@@ -299,14 +292,8 @@ export function UploadMarks({
         return;
       }
       const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = fileNameFrom(response.headers.get("content-disposition"));
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      const filename = filenameFromDisposition(response.headers.get("content-disposition"), "KJA marks.xlsx");
+      await saveClientDownload(blob, filename);
     } catch {
       setError("The workbook could not be downloaded. Try again.");
     } finally {
