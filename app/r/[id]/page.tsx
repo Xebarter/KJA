@@ -11,7 +11,8 @@ import {
   ProgressPanel,
   TermsPanel,
 } from "@/components/academics/online-report/panels";
-import { loadOnlineReportBundle, parseOnlineReportTab } from "@/lib/online-report";
+import { loadOnlineReportBundle } from "@/lib/online-report";
+import { parseOnlineReportTab } from "@/lib/online-report-tabs";
 import { isUuid } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
 

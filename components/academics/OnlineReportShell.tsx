@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { ONLINE_REPORT_TABS, type OnlineReportTab, parseOnlineReportTab } from "@/lib/online-report";
+import { ONLINE_REPORT_TABS, type OnlineReportTab, parseOnlineReportTab } from "@/lib/online-report-tabs";
 import "./online-report.css";
 
 export function OnlineReportShell({
