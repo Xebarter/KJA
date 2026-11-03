@@ -212,11 +212,18 @@ function reasonBreakdown(awards: PointAward[]) {
 }
 
 /** Supabase builders are PromiseLike (no .catch); wrap so optional packs cannot fail the whole page. */
-function softQuery<T>(query: PromiseLike<T>, fallback: { data: null | never[]; error: { message: string } }): Promise<T> {
-  return Promise.resolve(query).then(
-    (value) => value,
-    () => fallback as T,
-  );
+async function softQuery<T>(query: PromiseLike<T> | Promise<T>, message: string): Promise<T> {
+  try {
+    return await query;
+  } catch {
+    return {
+      data: null,
+      error: { message },
+      count: null,
+      status: 500,
+      statusText: message,
+    } as T;
+  }
 }
 
 /** Public QR report payload — service role, UUID is the access key. */
@@ -272,7 +279,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         .eq("student_id", studentId)
         .or(`status.eq.published,id.eq.${id}`)
         .order("id"),
-      { data: null, error: { message: "history unavailable" } },
+      "history unavailable",
     ),
     softQuery(
       supabase
@@ -282,7 +289,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         .eq("term_id", termId)
         .is("voided_at", null)
         .order("created_at", { ascending: false }),
-      { data: null, error: { message: "point_awards unavailable" } },
+      "point_awards unavailable",
     ),
     softQuery(
       supabase
@@ -291,20 +298,20 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         .eq("student_id", studentId)
         .eq("term_id", termId)
         .order("attended_on", { ascending: false }),
-      { data: null, error: { message: "attendance unavailable" } },
+      "attendance unavailable",
     ),
-    softQuery(
-      window
-        ? supabase
+    window
+      ? softQuery(
+          supabase
             .from("library_loans")
             .select("id, issued_at, due_at, returned_at, library_items(library_titles(title, authors))")
             .eq("student_id", studentId)
             .gte("issued_at", `${window.start}T00:00:00`)
             .lte("issued_at", `${window.end}T23:59:59`)
-            .order("issued_at", { ascending: false })
-        : Promise.resolve({ data: [] as never[], error: null }),
-      { data: [] as never[], error: { message: "library unavailable" } },
-    ),
+            .order("issued_at", { ascending: false }),
+          "library unavailable",
+        )
+      : Promise.resolve({ data: [] as never[], error: null }),
     (async () => {
       try {
         const consents = await supabase
@@ -336,7 +343,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         .select("score, missed, assessments!inner(id, name, kind, max_score, term_id, subject_id, subjects(id, name, kind))")
         .eq("student_id", studentId)
         .eq("assessments.term_id", termId),
-      { data: null, error: { message: "other subjects unavailable" } },
+      "other subjects unavailable",
     ),
   ]);
 
