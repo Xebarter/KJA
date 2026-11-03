@@ -131,6 +131,7 @@ function ListEditor({
   addLabel,
   imageKey,
   iconImage,
+  preview,
   onEdit,
 }: {
   name: keyof Settings;
@@ -140,6 +141,7 @@ function ListEditor({
   addLabel: string;
   imageKey?: string;
   iconImage?: boolean;
+  preview?: (row: Row) => ReactNode;
   onEdit: () => void;
 }) {
   const [rows, setRows] = useState<Row[]>(items);
@@ -202,6 +204,8 @@ function ListEditor({
               <span className="set-row-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
               {imageKey ? (
                 <ListImage src={row[imageKey]} icon={iconImage} busy={busyIndex === index} onPick={() => pickImage(index)} />
+              ) : preview ? (
+                <span className="set-row-preview">{preview(row)}</span>
               ) : null}
               <div className="set-row-fields">
                 {columns.map((column) => (
