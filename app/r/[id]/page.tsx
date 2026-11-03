@@ -1,4 +1,3 @@
-import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { OnlineReport } from "@/components/academics/OnlineReport";
 import { OnlineReportShell } from "@/components/academics/OnlineReportShell";
@@ -68,14 +67,12 @@ export default async function OnlineReportPage({
   };
 
   return (
-    <Suspense fallback={<div className="kor"><p className="kor-empty">Loading report…</p></div>}>
-      <OnlineReportShell
-        pupilName={bundle.pupilName}
-        termLabel={bundle.termLabel}
-        classLabel={bundle.classLabel}
-        initialTab={initialTab}
-        panels={panels}
-      />
-    </Suspense>
+    <OnlineReportShell
+      pupilName={bundle.pupilName}
+      termLabel={bundle.termLabel}
+      classLabel={bundle.classLabel}
+      initialTab={initialTab}
+      panels={panels}
+    />
   );
 }

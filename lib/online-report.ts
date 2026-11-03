@@ -262,21 +262,27 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
       .select("id, overall_score, overall_grade, overall_aggregate, status, fee_terms(label, year, term)")
       .eq("student_id", studentId)
       .or(`status.eq.published,id.eq.${id}`)
-      .order("id"),
+      .order("id")
+      .then((result) => result)
+      .catch(() => ({ data: null, error: { message: "history unavailable" } })),
     supabase
       .from("point_awards")
       .select("id, student_id, term_id, staff_id, teacher_name, points, reason_id, reason_label, created_at, voided_at")
       .eq("student_id", studentId)
       .eq("term_id", termId)
       .is("voided_at", null)
-      .order("created_at", { ascending: false }),
+      .order("created_at", { ascending: false })
+      .then((result) => result)
+      .catch(() => ({ data: null, error: { message: "point_awards unavailable" } })),
     supabase
       .from("attendance")
       .select("attended_on, status")
       .eq("student_id", studentId)
       .eq("term_id", termId)
-      .order("attended_on", { ascending: false }),
-    window
+      .order("attended_on", { ascending: false })
+      .then((result) => result)
+      .catch(() => ({ data: null, error: { message: "attendance unavailable" } })),
+    (window
       ? supabase
           .from("library_loans")
           .select("id, issued_at, due_at, returned_at, library_items(library_titles(title, authors))")
@@ -284,28 +290,42 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
           .gte("issued_at", `${window.start}T00:00:00`)
           .lte("issued_at", `${window.end}T23:59:59`)
           .order("issued_at", { ascending: false })
-      : Promise.resolve({ data: [] as never[], error: null }),
+      : Promise.resolve({ data: [] as never[], error: null })
+    )
+      .then((result) => result)
+      .catch(() => ({ data: [] as never[], error: { message: "library unavailable" } })),
     (async () => {
-      const consents = await supabase
-        .from("club_consents")
-        .select("id, club_id, consented_at")
-        .eq("student_id", studentId)
-        .is("withdrawn_at", null)
-        .order("consented_at", { ascending: false });
-      const clubIds = (consents.data || []).map((row) => String(row.club_id));
-      const [clubs, payments] = await Promise.all([
-        clubIds.length
-          ? supabase.from("clubs").select("id, title, campus, meeting").in("id", clubIds)
-          : Promise.resolve({ data: [] as { id: string; title: string; campus: string | null; meeting: string | null }[], error: null }),
-        supabase.from("club_payments").select("club_id").eq("student_id", studentId).eq("term_id", termId).is("voided_at", null),
-      ]);
-      return { consents: consents.data || [], clubs: clubs.data || [], payments: payments.data || [], error: consents.error || clubs.error || payments.error };
+      try {
+        const consents = await supabase
+          .from("club_consents")
+          .select("id, club_id, consented_at")
+          .eq("student_id", studentId)
+          .is("withdrawn_at", null)
+          .order("consented_at", { ascending: false });
+        const clubIds = (consents.data || []).map((row) => String(row.club_id));
+        const [clubs, payments] = await Promise.all([
+          clubIds.length
+            ? supabase.from("clubs").select("id, title, campus, meeting").in("id", clubIds)
+            : Promise.resolve({ data: [] as { id: string; title: string; campus: string | null; meeting: string | null }[], error: null }),
+          supabase.from("club_payments").select("club_id").eq("student_id", studentId).eq("term_id", termId).is("voided_at", null),
+        ]);
+        return {
+          consents: consents.data || [],
+          clubs: clubs.data || [],
+          payments: payments.data || [],
+          error: consents.error || clubs.error || payments.error,
+        };
+      } catch {
+        return { consents: [], clubs: [], payments: [], error: { message: "clubs unavailable" } };
+      }
     })(),
     supabase
       .from("assessment_scores")
       .select("score, missed, assessments!inner(id, name, kind, max_score, term_id, subject_id, subjects(id, name, kind))")
       .eq("student_id", studentId)
-      .eq("assessments.term_id", termId),
+      .eq("assessments.term_id", termId)
+      .then((result) => result)
+      .catch(() => ({ data: null, error: { message: "other subjects unavailable" } })),
   ]);
 
   if (!pupil) return null;

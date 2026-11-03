@@ -32,29 +32,37 @@ export function ProgressPanel({
   subjects: OnlineProgressSubject[];
 }) {
   const setBars = sets.filter((set) => set.count > 0);
+  const subjectTotals = subjects.filter((subject) => subject.total != null);
+  const multiPart = subjects.filter((subject) => subject.parts.filter((part) => part.score != null).length > 1);
+
   return (
     <section className="kor-panel">
-      <PanelHead title="Exam progress" note="Sets this term" />
+      <PanelHead title="Exam progress" note="This term" />
       {setBars.length > 1 ? (
-        <KorBarChart items={setBars.map((set) => ({ label: set.label, value: set.average }))} />
+        <>
+          <p className="kor-empty" style={{ marginBottom: "0.75rem" }}>
+            Average across subjects for each assessment set.
+          </p>
+          <KorBarChart items={setBars.map((set) => ({ label: set.label, value: set.average }))} />
+        </>
+      ) : subjectTotals.length ? (
+        <KorBarChart items={subjectTotals.map((subject) => ({ label: subject.name, value: subject.total }))} />
       ) : (
-        <Empty copy="Assessment set scores will appear here once midterm and end-of-term marks are on the card." />
+        <Empty copy="Subject scores will appear here once the academic record is on the card." />
       )}
 
-      {subjects.some((subject) => subject.parts.length > 1) ? (
+      {multiPart.length ? (
         <div className="kor-panel-block">
           <PanelHead title="By subject" note="Set comparison" />
           <ul className="kor-subject-charts">
-            {subjects
-              .filter((subject) => subject.parts.some((part) => part.score != null))
-              .map((subject) => (
-                <li key={subject.subjectId}>
-                  <h3>{subject.name}</h3>
-                  <KorBarChart
-                    items={subject.parts.map((part) => ({ label: part.label, value: part.score }))}
-                  />
-                </li>
-              ))}
+            {multiPart.map((subject) => (
+              <li key={subject.subjectId}>
+                <h3>{subject.name}</h3>
+                <KorBarChart
+                  items={subject.parts.map((part) => ({ label: part.label, value: part.score }))}
+                />
+              </li>
+            ))}
           </ul>
         </div>
       ) : null}
