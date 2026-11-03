@@ -242,22 +242,44 @@
 .set-row:hover, .set-row:focus-within { border-color: rgba(253, 163, 27, .45); background: #fffaf0; }
 .set-row-num { flex: 0 0 auto; width: 1.6rem; font-family: Yantramanav, Roboto, sans-serif; font-size: .8rem; font-weight: 800; color: #c2b398; text-align: center; }
 .set-row-preview {
+  position: relative;
   display: grid;
   place-items: center;
-  flex: 0 0 64px;
-  width: 64px;
-  height: 48px;
+  flex: 0 0 72px;
+  width: 72px;
+  height: 54px;
   overflow: hidden;
+  padding: 0;
   border-radius: 10px;
   background: #fff;
   border: 1px solid var(--admin-line);
   color: var(--admin-navy);
   font-size: 1.15rem;
+  cursor: pointer;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease;
 }
+button.set-row-preview { font: inherit; }
+.set-row-preview:hover, .set-row-preview:focus-visible {
+  border-color: var(--admin-gold);
+  box-shadow: 0 0 0 3px rgba(253, 163, 27, .2);
+  outline: none;
+}
+.set-row-preview:disabled { opacity: .7; cursor: progress; }
 .set-row-preview img { width: 100%; height: 100%; object-fit: cover; }
-.set-row-preview:has(img.is-icon) { background: var(--admin-navy); border-color: var(--admin-navy); }
+.set-row-preview.is-icon, .set-row-preview:has(img.is-icon) { background: var(--admin-navy); border-color: var(--admin-navy); }
 .set-row-preview img.is-icon { object-fit: contain; padding: .5rem; }
-.set-row-preview > i.fa-regular { color: #c9bda8; }
+.set-row-preview > i { color: #c9bda8; }
+.set-row-preview-hint {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  background: rgba(25, 35, 43, .55); color: #fff; opacity: 0; transition: opacity .16s ease;
+}
+.set-row-preview.has-image:hover .set-row-preview-hint,
+.set-row-preview.has-image:focus-visible .set-row-preview-hint,
+.set-row-preview.is-busy .set-row-preview-hint { opacity: 1; }
+.set-list-error {
+  display: flex; align-items: center; gap: .45rem; margin: .65rem 0 0;
+  color: #b42318; font-size: .86rem;
+}
 .set-row-fields { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem .7rem; }
 .set-row-fields label { display: grid; gap: .2rem; margin: 0; min-width: 0; }
 .set-row-fields label.is-wide { grid-column: 1 / -1; }

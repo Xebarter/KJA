@@ -107,7 +107,7 @@ export function AlumniProfileEditor({ record }: { record: AlumniProfileRow }) {
       setSlugTouched(true);
       setSavedPublished(form.published);
       if (isNew) {
-        router.push("/admin/content/alumni_profiles");
+        router.push("/admin/content/alumni?tab=profiles");
         router.refresh();
         return;
       }
@@ -141,7 +141,7 @@ export function AlumniProfileEditor({ record }: { record: AlumniProfileRow }) {
 
   return (
     <div className="app-page story-editor-page pg-editor alx-editor">
-      <Link className="app-back" href="/admin/content/alumni_profiles"><i className="fa-solid fa-arrow-left" /> All alumni profiles</Link>
+      <Link className="app-back" href="/admin/content/alumni?tab=profiles"><i className="fa-solid fa-arrow-left" /> Alumni</Link>
 
       <EditorHero
         kicker={`Alumni profiles · ${isNew ? "New profile" : "Edit profile"}`}
@@ -353,7 +353,7 @@ export function AlumniProfileEditor({ record }: { record: AlumniProfileRow }) {
                   setBaseline(JSON.stringify(form));
                   setAnswersBaseline(JSON.stringify(answers));
                   setBodyDirty(false);
-                  router.push("/admin/content/alumni_profiles");
+                  router.push("/admin/content/alumni?tab=profiles");
                   router.refresh();
                 } catch (error) {
                   setFeedback({ error: error instanceof Error ? error.message : "Could not delete the profile." });

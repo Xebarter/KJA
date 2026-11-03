@@ -1,9 +1,11 @@
 import { notFound, redirect } from "next/navigation";
 import { AlumniEventEditor } from "@/components/admin/AlumniEventEditor";
 import { AlumniProfileEditor } from "@/components/admin/AlumniProfileEditor";
-import { CampusEditor } from "@/components/admin/CampusEditor";
+import { CampusHub } from "@/components/admin/CampusHub";
 import { CampusSectionEditor } from "@/components/admin/CampusSectionEditor";
+import { EventEditor } from "@/components/admin/EventEditor";
 import { PageEditor } from "@/components/admin/PageEditor";
+import type { Article } from "@/lib/types";
 import { campusOptions, toCampusRow, toSectionRow } from "@/lib/campus-admin";
 import { campusInsight } from "@/lib/campus-profile";
 import { toAlumniEventRow, toAlumniProfileRow } from "@/lib/alumni-admin";
@@ -25,10 +27,18 @@ import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 import { featuredSlugs, toTeacherRow } from "@/lib/teacher-admin";
 import "../../../../teachers.css";
 
-export default async function EditPage({ params }: { params: Promise<{ table: string; id: string }> }) {
+export default async function EditPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ table: string; id: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const { table, id } = await params;
+  const query = await searchParams;
+  const pick = (key: string) => String((Array.isArray(query[key]) ? query[key]?.[0] : query[key]) ?? "");
   if (isStoryTable(table)) redirect(`/admin/stories/${table}/${id}`);
-  if (table === "alumni_photos") redirect("/admin/content/alumni_photos");
+  if (table === "alumni_photos") redirect("/admin/content/alumni");
   const resource = resources[table];
   if (!resource || !tableKey[table]) notFound();
   if (!supabaseConfigured()) {
@@ -47,14 +57,36 @@ export default async function EditPage({ params }: { params: Promise<{ table: st
     record = data;
   }
   if (table === "pages") return <PageEditor key={id} record={toPageRow(record ?? { published: false })} />;
+  if (table === "events") return <EventEditor key={id} record={(record ?? { published: false, title: "", slug: "" }) as Article} />;
   if (table === "campuses") {
-    const content = record ? await getAdminContent() : null;
-    const campus = content?.campuses.find((item) => String(item.id) === id);
-    return <CampusEditor key={id} record={toCampusRow(record ?? { published: false })} insight={content && campus ? campusInsight(campus, content) : null} />;
+    const content = await getAdminContent();
+    const campus = content.campuses.find((item) => String(item.id) === id);
+    const sections = content.campus_sections.map((row) => toSectionRow(row as unknown as Record<string, unknown>));
+    return (
+      <CampusHub
+        key={id}
+        record={toCampusRow(record ?? { published: false })}
+        insight={campus ? campusInsight(campus, content) : null}
+        sections={sections}
+        editable={supabaseConfigured()}
+        initialTab={pick("tab")}
+      />
+    );
   }
   if (table === "campus_sections") {
     const content = await getAdminContent();
-    return <CampusSectionEditor key={id} record={toSectionRow(record ?? { kind: "facility", sort_order: 0 })} campuses={campusOptions(content.campuses)} />;
+    const kind = pick("kind") || "facility";
+    const campusSlug = pick("campus");
+    const returnTo = pick("return") || "/admin/content/campuses";
+    const blank = { kind, campus_slug: campusSlug, sort_order: 0 };
+    return (
+      <CampusSectionEditor
+        key={id}
+        record={toSectionRow(record ?? blank)}
+        campuses={campusOptions(content.campuses)}
+        returnTo={returnTo}
+      />
+    );
   }
   if (table === "alumni_events") return <AlumniEventEditor key={id} record={toAlumniEventRow(record ?? { published: false })} />;
   if (table === "alumni_profiles") return <AlumniProfileEditor key={id} record={toAlumniProfileRow(record ?? { published: false })} />;

@@ -62,11 +62,11 @@ export const DASHBOARD_META: Record<DashboardId, { label: string; description: s
 };
 
 const CONTENT_SECTIONS: { id: string; label: string; group: string; icon: string; keys: readonly string[] }[] = [
-  { id: "content-website", label: "Website", group: "Website", icon: "fa-globe", keys: ["pages", "campuses", "campus_sections"] },
-  { id: "content-people", label: "People", group: "People", icon: "fa-chalkboard-user", keys: ["teachers"] },
-  { id: "content-events", label: "Events & gallery", group: "Events & gallery", icon: "fa-calendar-days", keys: ["events", "gallery_items"] },
-  { id: "content-alumni", label: "Alumni", group: "Alumni", icon: "fa-user-graduate", keys: ["alumni_events", "alumni_profiles", "alumni_photos"] },
-  { id: "content-careers", label: "Careers", group: "Careers", icon: "fa-briefcase", keys: ["vacancies"] },
+  { id: "content-website", label: "Pages & campuses", group: "Website", icon: "fa-globe", keys: ["pages", "campuses", "campus_sections"] },
+  { id: "content-people", label: "Teachers", group: "Website", icon: "fa-chalkboard-user", keys: ["teachers"] },
+  { id: "content-events", label: "Events & photos", group: "Website", icon: "fa-calendar-days", keys: ["events", "gallery_items"] },
+  { id: "content-alumni", label: "Alumni", group: "Website", icon: "fa-user-graduate", keys: ["alumni_events", "alumni_profiles", "alumni_photos"] },
+  { id: "content-careers", label: "Careers", group: "Website", icon: "fa-briefcase", keys: ["vacancies"] },
 ];
 
 /** CMS table → admin page id. Tables outside the sidebar still belong to the closest section. */
@@ -119,15 +119,18 @@ const ADMIN_PAGES: DashboardPage[] = [
   { id: "enquiries", label: "Enquiries", group: "Inbox", icon: "fa-envelope", href: "/admin/inbox/enquiries", paths: ["/admin/inbox/enquiries", "/admin/inbox/messages"] },
   { id: "stories", label: "Stories", group: "Website", icon: "fa-newspaper", href: "/admin/stories", paths: ["/admin/stories"] },
   { id: "newsletter", label: "Newsletter", group: "Website", icon: "fa-paper-plane", href: "/admin/inbox/newsletter", paths: ["/admin/inbox/newsletter"] },
-  { id: "images", label: "Images", group: "Website", icon: "fa-images", href: "/admin/images", paths: ["/admin/images"] },
-  { id: "settings", label: "Site settings", group: "Website", icon: "fa-sliders", href: "/admin/settings", paths: ["/admin/settings"] },
+  { id: "images", label: "Media", group: "Website", icon: "fa-images", href: "/admin/images", paths: ["/admin/images"] },
+  { id: "settings", label: "Homepage", group: "Website", icon: "fa-house", href: "/admin/settings", paths: ["/admin/settings"] },
   ...CONTENT_SECTIONS.map((section) => ({
     id: section.id,
     label: section.label,
     group: section.group,
     icon: section.icon,
-    href: `/admin/content/${section.keys[0]}`,
-    paths: section.keys.map((key) => `/admin/content/${key}`),
+    href: section.id === "content-alumni" ? "/admin/content/alumni" : `/admin/content/${section.keys[0]}`,
+    paths: [
+      ...(section.id === "content-alumni" ? ["/admin/content/alumni"] : []),
+      ...section.keys.map((key) => `/admin/content/${key}`),
+    ],
   })),
 ];
 

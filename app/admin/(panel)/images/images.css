@@ -254,18 +254,28 @@
   overflow: hidden;
   background: #ece6da;
 }
-.img-card-open { display: block; height: 100%; color: inherit; }
+.img-card-open {
+  position: relative; display: block; width: 100%; height: 100%; padding: 0; border: 0;
+  background: transparent; color: inherit; cursor: pointer; font: inherit;
+}
+.img-card-open:disabled { cursor: progress; }
 .img-card-open-label {
   position: absolute;
-  top: .55rem;
-  right: .55rem;
-  padding: .18rem .5rem;
-  border-radius: 6px;
-  background: rgba(255, 255, 255, .94);
-  color: #19232b;
-  font-size: .72rem;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: .35rem;
+  justify-items: center;
+  background: rgba(25, 35, 43, .55);
+  color: #fff;
+  font-size: .86rem;
   font-weight: 700;
+  opacity: 0;
+  transition: opacity .16s ease;
 }
+.img-card-open:hover .img-card-open-label,
+.img-card-open:focus-visible .img-card-open-label { opacity: 1; }
+.img-card-open-label i { font-size: 1rem; }
 .img-card-media img {
   display: block;
   width: 100%;

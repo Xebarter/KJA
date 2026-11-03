@@ -27,19 +27,20 @@ function stripHtml(value: string) {
 const HOME_FILES: Array<{ label: string; path: string }> = [
   { label: "Header logo", path: "images/kja-logo.png" },
   { label: "Footer logo", path: "images/kja-logo-transparent.png" },
-  { label: "Browser icon", path: "images/icon.png" },
+  { label: "Browser / crest icon", path: "images/icon.png" },
   { label: "About photo 1", path: "images/speakers.jpg" },
   { label: "About photo 2", path: "images/kids-4.jpg" },
   { label: "About photo 3", path: "images/slider-66.jpg" },
   { label: "Video background", path: "images/01.jpg" },
-  { label: "Why choose us photo", path: "images/academics-2.png" },
-  { label: "Footer shape", path: "images/03.png" },
+  { label: "Why choose us photo", path: "images/about-004.jpg" },
+  { label: "About idea icon", path: "images/exchange-idea.svg" },
+  { label: "About book icon", path: "images/open-book.svg" },
+  { label: "About globe icon", path: "images/global-education.svg" },
   { label: "Home gallery 1", path: "images/hero07.jpg" },
-  { label: "Home gallery 2", path: "images/about-004.jpg" },
-  { label: "Home gallery 3", path: "images/12.png" },
-  { label: "Home gallery 4", path: "images/hero08.jpg" },
-  { label: "Home gallery 5", path: "images/hero10.jpg" },
-  { label: "Home gallery 6", path: "images/16.jpg" },
+  { label: "Home gallery 2", path: "images/12.png" },
+  { label: "Home gallery 3", path: "images/hero08.jpg" },
+  { label: "Home gallery 4", path: "images/hero10.jpg" },
+  { label: "Home gallery 5", path: "images/16.jpg" },
 ];
 
 function recordSlots(

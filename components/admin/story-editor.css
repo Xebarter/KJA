@@ -150,6 +150,15 @@
 .sed-cover.has-image { background: #efeae2; }
 .sed-cover.is-over { outline: 2px solid #c9a227; outline-offset: -2px; }
 .sed-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sed-cover > button.sed-cover-hit { position: relative; padding: 0; }
+.sed-cover > button.sed-cover-hit img { pointer-events: none; }
+.sed-cover-replace {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: .35rem; justify-items: center;
+  background: rgba(25, 35, 43, .55); color: #fff; font-size: .9rem; font-weight: 700; opacity: 0; transition: opacity .16s ease;
+}
+.sed-cover-replace i { font-size: 1.1rem; color: #fff; }
+.sed-cover > button.sed-cover-hit:hover .sed-cover-replace,
+.sed-cover > button.sed-cover-hit:focus-visible .sed-cover-replace { opacity: 1; }
 .sed-cover > button {
   display: flex;
   flex-direction: column;

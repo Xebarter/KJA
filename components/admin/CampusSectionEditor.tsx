@@ -16,9 +16,18 @@ function initialForm(record: SectionRow): FormState {
   return { title: record.title, kind: record.kind, campus_slug: record.campus_slug, image_url: record.image_url, sort_order: record.sort_order };
 }
 
-export function CampusSectionEditor({ record, campuses }: { record: SectionRow; campuses: CampusOption[] }) {
+export function CampusSectionEditor({
+  record,
+  campuses,
+  returnTo = "/admin/content/campuses",
+}: {
+  record: SectionRow;
+  campuses: CampusOption[];
+  returnTo?: string;
+}) {
   const router = useRouter();
   const isNew = !record.id;
+  const backHref = returnTo || "/admin/content/campuses";
   const [form, setForm] = useState(() => initialForm(record));
   const [baseline, setBaseline] = useState(() => JSON.stringify(initialForm(record)));
   const [body, setBody] = useState(record.body);
@@ -26,7 +35,6 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const coverInput = useRef<HTMLInputElement>(null);
   const complex = useMemo(() => hasComplexMarkup(record.body), [record.body]);
@@ -59,18 +67,18 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
       setBaseline(JSON.stringify(form));
       setBodyDirty(false);
       if (isNew) {
-        router.push("/admin/content/campus_sections");
+        router.push(backHref);
         router.refresh();
         return;
       }
-      setFeedback({ ok: "Section saved." });
+      setFeedback({ ok: "Section saved. It will show on the campus page." });
       router.refresh();
     } catch (error) {
       setFeedback({ error: error instanceof Error ? error.message : "Could not save the section." });
     } finally {
       setSaving(false);
     }
-  }, [saving, form, record.id, bodyDirty, isNew, body, router]);
+  }, [saving, form, record.id, bodyDirty, isNew, body, router, backHref]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -130,7 +138,7 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
 
   return (
     <div className="app-page story-editor-page pg-editor cps-editor">
-      <Link className="app-back" href="/admin/content/campus_sections"><i className="fa-solid fa-arrow-left" /> Campus sections</Link>
+      <Link className="app-back" href={backHref}><i className="fa-solid fa-arrow-left" /> Back to campus</Link>
 
       <header className="admin-hero pg-editor-hero">
         <div className="admin-hero-main">
@@ -264,7 +272,10 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
               }}
             >
               {form.image_url ? (
-                <img src={form.image_url} alt="" />
+                <button type="button" className="story-cover-hit" onClick={() => coverInput.current?.click()} aria-label="Replace photo">
+                  <img src={form.image_url} alt="" />
+                  <span className="story-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+                </button>
               ) : (
                 <button type="button" onClick={() => coverInput.current?.click()}>
                   <i className="fa-solid fa-cloud-arrow-up" />
@@ -278,10 +289,8 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
               <button type="button" className="app-link-btn" onClick={() => coverInput.current?.click()} disabled={uploading}>
                 {form.image_url ? "Replace" : "Upload"}
               </button>
-              <button type="button" className="app-link-btn" onClick={() => setShowUrl((value) => !value)}>Use a link</button>
               {form.image_url ? <button type="button" className="app-link-btn is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? <input className="story-input" value={form.image_url} placeholder="https://…" aria-label="Photo address" onChange={(event) => set("image_url", event.target.value.trim())} /> : null}
             <input
               ref={coverInput}
               type="file"
@@ -298,7 +307,7 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
           <section className="admin-card story-panel">
             <p className="pg-usage-detail">
               <i className="fa-solid fa-circle-info" aria-hidden="true" />
-              <span><strong>Not shown on the website yet.</strong> Campus pages use their designed layouts. This entry is kept for reference, and its photo is listed in Images.</span>
+              <span><strong>Shown on the campus page</strong> when this entry is assigned to a campus. Shared entries appear on every campus that has no campus-specific list for this kind.</span>
             </p>
           </section>
 
@@ -315,7 +324,7 @@ export function CampusSectionEditor({ record, campuses }: { record: SectionRow; 
                     await deleteRecord("campus_sections", record.id!);
                     setBaseline(JSON.stringify(form));
                     setBodyDirty(false);
-                    router.push("/admin/content/campus_sections");
+                    router.push(backHref);
                     router.refresh();
                   } catch (error) {
                     setFeedback({ error: error instanceof Error ? error.message : "Could not delete the section." });

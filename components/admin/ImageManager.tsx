@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type DragEvent } from "react";
-import { replaceImage, updateImageTarget } from "@/app/actions";
+import { replaceImage } from "@/app/actions";
 import { imageGroups, type ImageSlot, type ImageTarget } from "@/lib/admin-images";
 import { megabytes, shrinkImage, UPLOAD_LIMIT } from "@/lib/image-upload";
 import { noteProcess } from "@/lib/process-signal";
@@ -57,7 +57,6 @@ function SlotCard({ slot, initialUrl, onSaved }: { slot: ImageSlot; initialUrl: 
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(false);
-  const [editing, setEditing] = useState(false);
   const [dragging, setDragging] = useState(false);
   const [size, setSize] = useState("");
   const [broken, setBroken] = useState(false);
@@ -147,7 +146,7 @@ function SlotCard({ slot, initialUrl, onSaved }: { slot: ImageSlot; initialUrl: 
         onDrop={onDrop}
       >
         {showImage ? (
-          <a className="img-card-open" href={url} target="_blank" rel="noreferrer" aria-label={`Open ${slot.label}`}>
+          <button type="button" className="img-card-open" onClick={() => fileRef.current?.click()} disabled={busy} aria-label={`Replace ${slot.label}`}>
             <img
               ref={imgRef}
               src={url}
@@ -156,8 +155,8 @@ function SlotCard({ slot, initialUrl, onSaved }: { slot: ImageSlot; initialUrl: 
               onLoad={(event) => setSize(`${event.currentTarget.naturalWidth} × ${event.currentTarget.naturalHeight}`)}
               onError={() => setBroken(true)}
             />
-            <span className="img-card-open-label">Open</span>
-          </a>
+            <span className="img-card-open-label"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+          </button>
         ) : (
           <button type="button" className="img-card-placeholder" onClick={() => fileRef.current?.click()} disabled={busy}>
             <i className={`fa-solid ${broken ? "fa-link-slash" : "fa-cloud-arrow-up"}`} aria-hidden="true" />
@@ -180,60 +179,15 @@ function SlotCard({ slot, initialUrl, onSaved }: { slot: ImageSlot; initialUrl: 
           {size ? <span className="img-card-size">{size}</span> : null}
         </p>
 
-        {editing ? (
-          <form
-            className="img-card-url"
-            onSubmit={(event) => {
-              event.preventDefault();
-              const next = String(new FormData(event.currentTarget).get("url") || "").trim();
-              if (!next) {
-                setError("Paste an image address, starting with https:// or /.");
-                return;
-              }
-              if (!/^(https?:\/\/|\/)/i.test(next)) {
-                setError("Use a full address (https://…) or a site path (/images/…).");
-                return;
-              }
-              if (next === url) {
-                setEditing(false);
-                return;
-              }
-              noteProcess("Saving the image");
-              run(async () => {
-                await updateImageTarget(slot.target, next);
-                return next;
-              });
-            }}
-            onKeyDown={(event) => {
-              if (event.key === "Escape") {
-                event.preventDefault();
-                setEditing(false);
-                setError("");
-              }
-            }}
-          >
-            <input name="url" placeholder="https://… or /images/…" defaultValue={url} autoFocus aria-label="Image link" disabled={busy} />
-            <div className="img-card-url-actions">
-              <button type="submit" className="img-act is-primary" disabled={busy}>Save</button>
-              <button type="button" className="img-act" onClick={() => { setEditing(false); setError(""); }} disabled={busy}>Cancel</button>
-            </div>
-          </form>
-        ) : (
-          <div className="img-card-actions">
-            <button type="button" className="img-act is-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
-              <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden="true" /> {url ? "Replace" : "Upload"}
-            </button>
-            {!siteFile ? (
-              <button type="button" className="img-act" onClick={() => setEditing(true)} disabled={busy}>
-                <i className="fa-solid fa-link" aria-hidden="true" /> Link
-              </button>
-            ) : null}
-            {slot.href ? (
-              <a className="img-act" href={slot.href} target="_blank" rel="noreferrer">View page</a>
-            ) : null}
-          </div>
-        )}
-        {siteFile && !editing ? (
+        <div className="img-card-actions">
+          <button type="button" className="img-act is-primary" onClick={() => fileRef.current?.click()} disabled={busy}>
+            <i className="fa-solid fa-arrow-up-from-bracket" aria-hidden="true" /> {url ? "Replace" : "Upload"}
+          </button>
+          {slot.href ? (
+            <a className="img-act" href={slot.href} target="_blank" rel="noreferrer">View page</a>
+          ) : null}
+        </div>
+        {siteFile ? (
           <p className="img-card-note">Upload a {fileExtension(slot.target.kind === "public-file" ? slot.target.path : "file").toUpperCase()} under 1 MB. The address on the website stays the same.</p>
         ) : null}
         {error ? (
@@ -323,7 +277,7 @@ export function ImageManager({ slots }: { slots: ImageSlot[] }) {
     <>
       <header className="img-head">
         <div>
-          <h1>Images</h1>
+          <h1>Media</h1>
           <p>Every photo, logo and icon on the website. Choose a collection, then upload or drop a file to replace it.</p>
         </div>
         <a className="img-btn" href="/" target="_blank" rel="noreferrer">
@@ -335,7 +289,7 @@ export function ImageManager({ slots }: { slots: ImageSlot[] }) {
         <div>
           <span className="img-stat-icon" aria-hidden="true"><i className="fa-solid fa-images" /></span>
           <span>
-            <span>Images</span>
+            <span>Media slots</span>
             <strong>{slots.length.toLocaleString("en-GB")}</strong>
             <small>Across the website</small>
           </span>

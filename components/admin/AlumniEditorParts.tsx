@@ -174,7 +174,6 @@ export function ImagePanel({
   const input = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [dragging, setDragging] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
 
   const upload = async (file: File) => {
     setUploading(true);
@@ -205,7 +204,10 @@ export function ImagePanel({
         }}
       >
         {value ? (
-          <img src={value} alt="" />
+          <button type="button" className="story-cover-hit" onClick={() => input.current?.click()} aria-label={`Replace ${title.toLowerCase()}`}>
+            <img src={value} alt="" />
+            <span className="story-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+          </button>
         ) : (
           <button type="button" onClick={() => input.current?.click()}>
             <i className="fa-solid fa-cloud-arrow-up" />
@@ -219,10 +221,8 @@ export function ImagePanel({
         <button type="button" className="app-link-btn" onClick={() => input.current?.click()} disabled={uploading}>
           {value ? "Replace" : "Upload"}
         </button>
-        <button type="button" className="app-link-btn" onClick={() => setShowUrl((open) => !open)}>Use a link</button>
         {value ? <button type="button" className="app-link-btn is-danger" onClick={() => onChange("")}>Remove</button> : null}
       </div>
-      {showUrl ? <input className="story-input" value={value} placeholder="https://…" aria-label={`${title} address`} onChange={(event) => onChange(event.target.value.trim())} /> : null}
       <input
         ref={input}
         type="file"

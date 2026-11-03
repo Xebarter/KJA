@@ -76,7 +76,7 @@ export function AlumniEventEditor({ record }: { record: AlumniEventRow }) {
       setSlugTouched(true);
       setSavedPublished(form.published);
       if (isNew) {
-        router.push("/admin/content/alumni_events");
+        router.push("/admin/content/alumni");
         router.refresh();
         return;
       }
@@ -97,7 +97,7 @@ export function AlumniEventEditor({ record }: { record: AlumniEventRow }) {
 
   return (
     <div className="app-page story-editor-page pg-editor alx-editor">
-      <Link className="app-back" href="/admin/content/alumni_events"><i className="fa-solid fa-arrow-left" /> All alumni events</Link>
+      <Link className="app-back" href="/admin/content/alumni"><i className="fa-solid fa-arrow-left" /> Alumni</Link>
 
       <EditorHero
         kicker={`Alumni events · ${isNew ? "New event" : "Edit event"}`}
@@ -250,7 +250,7 @@ export function AlumniEventEditor({ record }: { record: AlumniEventRow }) {
                   await deleteRecord("alumni_events", record.id!);
                   setBaseline(JSON.stringify(form));
                   setBodyDirty(false);
-                  router.push("/admin/content/alumni_events");
+                  router.push("/admin/content/alumni");
                   router.refresh();
                 } catch (error) {
                   setFeedback({ error: error instanceof Error ? error.message : "Could not delete the event." });

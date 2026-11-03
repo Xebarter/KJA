@@ -10,18 +10,16 @@ import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
 import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
-import { contentGroups, resourceLabel } from "@/lib/admin";
+import { websiteNav } from "@/lib/admin";
 import { initials } from "@/lib/applications";
-import { CONTENT_KEY_PAGE, pageIdForPath } from "@/lib/dashboard-access";
+import { pageIdForPath } from "@/lib/dashboard-access";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
-const GROUP_ICONS: Record<string, string> = {
-  Website: "fa-globe",
-  People: "fa-chalkboard-user",
-  "Events & gallery": "fa-calendar-days",
-  Alumni: "fa-user-graduate",
-  Careers: "fa-briefcase",
-};
+function navActive(pathname: string, href: string, also?: readonly string[]) {
+  if (href === "/admin") return pathname === "/admin";
+  if (pathname === href || pathname.startsWith(`${href}/`)) return true;
+  return Boolean(also?.some((path) => pathname === path || pathname.startsWith(`${path}/`)));
+}
 
 const ADMIN_PLACES: SidebarHit[] = [
   { id: "/admin", href: "/admin", title: "Dashboard", meta: "Admin", icon: "fa-gauge-high" },
@@ -33,19 +31,13 @@ const ADMIN_PLACES: SidebarHit[] = [
   { id: "/admissions_office", href: "/admissions_office", title: "Admissions office", meta: "Offices", icon: "fa-building-user" },
   { id: "/accounts", href: "/accounts", title: "Accounts office", meta: "Offices", icon: "fa-calculator" },
   { id: "/academics_office", href: "/academics_office", title: "Academics office", meta: "Offices", icon: "fa-graduation-cap" },
-  { id: "/admin/stories", href: "/admin/stories", title: "Stories", meta: "CMS", icon: "fa-newspaper" },
-  { id: "/admin/inbox/newsletter", href: "/admin/inbox/newsletter", title: "Newsletter", meta: "CMS", icon: "fa-paper-plane" },
-  { id: "/admin/images", href: "/admin/images", title: "Images", meta: "CMS", icon: "fa-images" },
-  { id: "/admin/settings", href: "/admin/settings", title: "Site settings", meta: "CMS", icon: "fa-sliders" },
-  ...contentGroups.flatMap((group) =>
-    group.keys.map((key) => ({
-      id: `/admin/content/${key}`,
-      href: `/admin/content/${key}`,
-      title: resourceLabel(key),
-      meta: group.title,
-      icon: GROUP_ICONS[group.title] ?? "fa-folder",
-    })),
-  ),
+  ...websiteNav.map((item) => ({
+    id: item.href,
+    href: item.href,
+    title: item.label,
+    meta: "Website",
+    icon: item.icon,
+  })),
 ];
 
 function isActive(pathname: string, href: string) {
@@ -60,10 +52,10 @@ function Seal() {
   );
 }
 
-function NavLink({ href, icon, badge, children }: { href: string; icon: string; badge?: number; children: React.ReactNode }) {
-  const active = isActive(usePathname(), href);
+function NavLink({ href, icon, badge, children, active }: { href: string; icon: string; badge?: number; children: React.ReactNode; active?: boolean }) {
+  const on = active ?? isActive(usePathname(), href);
   return (
-    <Link href={href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+    <Link href={href} prefetch={false} className={on ? "active" : ""} aria-current={on ? "page" : undefined}>
       <i className={`fa-solid ${icon}`} aria-hidden="true" />
       <span>{children}</span>
       {badge ? <em className="admin-nav-badge" aria-label={`${badge} new`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -134,12 +126,13 @@ export function AdminShell({
     const id = pageIdForPath("admin", href);
     return Boolean(id && pages.includes(id));
   }
-  const groups = contentGroups
-    .map((group) => ({
-      ...group,
-      keys: group.keys.filter((key) => pages === null || (CONTENT_KEY_PAGE[key] ? pages.includes(CONTENT_KEY_PAGE[key]) : false)),
-    }))
-    .filter((group) => group.keys.length > 0);
+  function allowedPage(pageId: string) {
+    return pages === null || pages.includes(pageId);
+  }
+
+  const cmsItems = websiteNav.filter((item) => allowedPage(item.pageId));
+  const websiteOpen = cmsItems.some((item) => navActive(pathname, item.href, "also" in item ? item.also : undefined));
+
   const sections = [
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/applications", label: "Applications" },
@@ -148,13 +141,12 @@ export function AdminShell({
     { href: "/admin/communications", label: "Communications" },
     { href: "/admin/inbox/enquiries", label: "Enquiries" },
     ...officeNav.map((item) => ({ href: item.href, label: item.label })),
-    { href: "/admin/stories", label: "Stories" },
-    { href: "/admin/inbox/newsletter", label: "Newsletter" },
-    { href: "/admin/images", label: "Images" },
-    { href: "/admin/settings", label: "Site settings" },
-    ...groups.flatMap((group) => group.keys.map((key) => ({ href: `/admin/content/${key}`, label: resourceLabel(key) }))),
+    ...cmsItems.map((item) => ({ href: item.href, label: item.label })),
   ].filter((section) => officeHrefs.has(section.href) || allowed(section.href));
-  const current = sections.find((section) => isActive(pathname, section.href))?.label ?? "Dashboard";
+  const current =
+    cmsItems.find((item) => navActive(pathname, item.href, "also" in item ? item.also : undefined))?.label ??
+    sections.find((section) => isActive(pathname, section.href))?.label ??
+    "Dashboard";
   const places = ADMIN_PLACES.filter((place) => (defaultOffices.some((item) => item.href === place.href) ? officeHrefs.has(place.href) : allowed(place.href)));
 
   return (
@@ -222,38 +214,33 @@ export function AdminShell({
             </a>
           ))}
 
-          <hr className="admin-nav-rule" />
-          {allowed("/admin/stories") ? <NavLink href="/admin/stories" icon="fa-newspaper">Stories</NavLink> : null}
-          {allowed("/admin/inbox/newsletter") ? <NavLink href="/admin/inbox/newsletter" icon="fa-paper-plane">Newsletter</NavLink> : null}
-          {allowed("/admin/images") ? <NavLink href="/admin/images" icon="fa-images">Images</NavLink> : null}
-          {allowed("/admin/settings") ? <NavLink href="/admin/settings" icon="fa-sliders">Site settings</NavLink> : null}
-          {groups.map((group) => {
-            const inGroup = group.keys.some((key) => isActive(pathname, `/admin/content/${key}`));
-            const groupBadge = group.keys.some((key) => key === "vacancies") ? newJobApplications : 0;
-            return (
-              <details key={group.title} className={`admin-nav-group${inGroup ? " has-active" : ""}`} open={inGroup || undefined}>
+          {cmsItems.length ? (
+            <>
+              <hr className="admin-nav-rule" />
+              <details className={`admin-nav-group${websiteOpen ? " has-active" : ""}`} open={websiteOpen || undefined}>
                 <summary>
-                  <i className={`fa-solid ${GROUP_ICONS[group.title] ?? "fa-folder"}`} aria-hidden="true" />
-                  <span>{group.title}</span>
-                  {groupBadge ? <em className="admin-nav-badge" aria-label={`${groupBadge} new`}>{groupBadge > 99 ? "99+" : groupBadge}</em> : null}
+                  <i className="fa-solid fa-globe" aria-hidden="true" />
+                  <span>Website</span>
+                  {newJobApplications && cmsItems.some((item) => item.id === "careers") ? (
+                    <em className="admin-nav-badge" aria-label={`${newJobApplications} new`}>{newJobApplications > 99 ? "99+" : newJobApplications}</em>
+                  ) : null}
                   <i className="fa-solid fa-chevron-down admin-nav-caret" aria-hidden="true" />
                 </summary>
                 <div className="admin-subnav">
-                  {group.keys.map((key) => {
-                    const href = `/admin/content/${key}`;
-                    const active = isActive(pathname, href);
-                    const badge = key === "vacancies" ? newJobApplications : 0;
+                  {cmsItems.map((item) => {
+                    const active = navActive(pathname, item.href, "also" in item ? item.also : undefined);
+                    const badge = item.id === "careers" ? newJobApplications : 0;
                     return (
-                      <Link key={key} href={href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
-                        {resourceLabel(key)}
+                      <Link key={item.id} href={item.href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                        {item.label}
                         {badge ? <em className="admin-nav-badge" aria-label={`${badge} new applications`}>{badge > 99 ? "99+" : badge}</em> : null}
                       </Link>
                     );
                   })}
                 </div>
               </details>
-            );
-          })}
+            </>
+          ) : null}
         </nav>
 
         <div className="admin-side-foot">

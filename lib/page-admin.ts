@@ -69,3 +69,10 @@ export function pageWords(html: string) {
   const text = plainText(html);
   return text ? text.split(" ").length : 0;
 }
+
+/** Detected &lt;h2&gt; titles — the outline designed layout pages use on the public site. */
+export function pageSectionHeadings(html: string) {
+  return Array.from((html || "").matchAll(/<h2\b[^>]*>([\s\S]*?)<\/h2>/gi))
+    .map((match) => plainText(match[1]).replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+}

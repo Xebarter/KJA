@@ -164,6 +164,12 @@ function ordered<T extends { slug: string }>(items: T[]) {
   return [...items].sort((a, b) => rank(a.slug) - rank(b.slug));
 }
 
+function cmsSectionsFor(content: SiteContent, campusSlug: string, kind: string) {
+  return content.campus_sections
+    .filter((row) => row.kind === kind && (!row.campus_slug || row.campus_slug === campusSlug))
+    .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.title.localeCompare(b.title));
+}
+
 export function composeCampus(campus: Article, content: SiteContent) {
   const page = getCampusPage(campus.slug);
   const data = loadCampusData();
@@ -194,34 +200,58 @@ export function composeCampus(campus: Article, content: SiteContent) {
   const clubSection = page ? (sectionsOf(page, "clubs")[0] as Extract<CampusSectionBlock, { kind: "clubs" }> | undefined) : undefined;
   const clubGroup = group(/clubs/i);
   const clubIntro = clubSection ? paragraphs(clubSection.intro_html).join(" ") : clubGroup ? clubGroup.html.map(text).filter(Boolean).join(" ") : "";
-  const clubCards = clubSection
-    ? clubSection.items.map((item) => ({ ...item, slug: item.href.split("/").filter(Boolean).pop() ?? "" }))
-    : Object.entries(posts)
-        .filter(([, post]) => new RegExp(`\\b${post.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(clubIntro))
-        .map(([slug, post]) => ({ title: post.title, href: `/campus-co-curricular/${slug}`, image_url: post.image_url ?? "", slug }));
-  const clubs: CampusClub[] = clubCards.map((item) => {
-    const body = text(posts[item.slug]?.body_html);
-    const purpose = /^to\b/i.test(body);
-    const sentence = body.replace(/^to\s+/i, "").replace(/\.?$/, ".");
-    return {
-      title: title(item.title),
-      href: item.href,
-      image: item.image_url,
-      activities: purpose || !body ? [] : body.replace(/\.$/, "").split(/\s*,\s*/).filter(Boolean),
-      text: purpose ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : "",
-    };
-  });
+  const cmsActivities = cmsSectionsFor(content, campus.slug, "activity");
+  const clubs: CampusClub[] = cmsActivities.length
+    ? cmsActivities.map((row) => {
+        const body = text(row.body);
+        const purpose = /^to\b/i.test(body);
+        const sentence = body.replace(/^to\s+/i, "").replace(/\.?$/, ".");
+        return {
+          title: title(row.title),
+          href: "",
+          image: row.image_url || "",
+          activities: purpose || !body ? [] : body.replace(/\.$/, "").split(/\s*,\s*/).filter(Boolean),
+          text: purpose ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : body,
+        };
+      })
+    : (() => {
+        const clubCards = clubSection
+          ? clubSection.items.map((item) => ({ ...item, slug: item.href.split("/").filter(Boolean).pop() ?? "" }))
+          : Object.entries(posts)
+              .filter(([, post]) => new RegExp(`\\b${post.title.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(clubIntro))
+              .map(([slug, post]) => ({ title: post.title, href: `/campus-co-curricular/${slug}`, image_url: post.image_url ?? "", slug }));
+        return clubCards.map((item) => {
+          const body = text(posts[item.slug]?.body_html);
+          const purpose = /^to\b/i.test(body);
+          const sentence = body.replace(/^to\s+/i, "").replace(/\.?$/, ".");
+          return {
+            title: title(item.title),
+            href: item.href,
+            image: item.image_url,
+            activities: purpose || !body ? [] : body.replace(/\.$/, "").split(/\s*,\s*/).filter(Boolean),
+            text: purpose ? sentence.charAt(0).toUpperCase() + sentence.slice(1) : "",
+          };
+        });
+      })();
 
-  const facilitySection = page ? (sectionsOf(page, "facilities")[0] as Extract<CampusSectionBlock, { kind: "facilities" }> | undefined) : undefined;
-  const facilities: CampusFacility[] = facilitySection
-    ? facilitySection.items.map((item) => ({ title: title(item.title), image: item.image_url, icon: campusIcon(title(item.title)) }))
-    : (group(/facilities/i)?.html.map(text).filter(Boolean) ?? []).map((value) => ({ title: title(value), image: "", icon: campusIcon(title(value)) }));
+  const cmsFacilities = cmsSectionsFor(content, campus.slug, "facility");
+  const facilities: CampusFacility[] = cmsFacilities.length
+    ? cmsFacilities.map((row) => ({ title: title(row.title), image: row.image_url || "", icon: campusIcon(title(row.title)) }))
+    : (() => {
+        const facilitySection = page ? (sectionsOf(page, "facilities")[0] as Extract<CampusSectionBlock, { kind: "facilities" }> | undefined) : undefined;
+        return facilitySection
+          ? facilitySection.items.map((item) => ({ title: title(item.title), image: item.image_url, icon: campusIcon(title(item.title)) }))
+          : (group(/facilities/i)?.html.map(text).filter(Boolean) ?? []).map((value) => ({ title: title(value), image: "", icon: campusIcon(title(value)) }));
+      })();
 
   const welcomeSet = new Set(welcomeText);
   const cultureText = paragraphs(culture?.body_html).filter((value) => !welcomeSet.has(value));
-  const moments: CampusMoment[] = momentBlock
-    ? momentBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: campusIcon(item.title) }))
-    : (cultureGroup?.items ?? []).filter((item) => item !== ratioItem).map((item) => ({ title: title(item.title), html: itemHtml(item), icon: campusIcon(item.title) }));
+  const cmsLife = cmsSectionsFor(content, campus.slug, "life");
+  const moments: CampusMoment[] = cmsLife.length
+    ? cmsLife.map((row) => ({ title: title(row.title), html: tidyHtml(row.body || ""), icon: campusIcon(row.title) }))
+    : momentBlock
+      ? momentBlock.items.map((item) => ({ title: title(item.title), html: tidyHtml(item.body_html), icon: campusIcon(item.title) }))
+      : (cultureGroup?.items ?? []).filter((item) => item !== ratioItem).map((item) => ({ title: title(item.title), html: itemHtml(item), icon: campusIcon(item.title) }));
   const ratioText = ratioItem ? itemText(ratioItem).join(" ") : culture?.ratio_value && !/^\s*\d+\s*teacher/i.test(culture.ratio_value) ? culture.ratio_value : "";
 
   const feeGroup = group(/fees/i);

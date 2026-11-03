@@ -35,7 +35,6 @@ export function TeacherEditor({ record, roles, featuredSpot }: { record: Teacher
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const photoInput = useRef<HTMLInputElement>(null);
   const complex = useMemo(() => hasComplexMarkup(record.body), [record.body]);
@@ -326,7 +325,10 @@ export function TeacherEditor({ record, roles, featuredSpot }: { record: Teacher
               }}
             >
               {form.image_url ? (
-                <img src={form.image_url} alt="" />
+                <button type="button" className="story-cover-hit" onClick={() => photoInput.current?.click()} aria-label="Replace portrait">
+                  <img src={form.image_url} alt="" />
+                  <span className="story-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+                </button>
               ) : (
                 <button type="button" onClick={() => photoInput.current?.click()}>
                   <i className="fa-solid fa-cloud-arrow-up" />
@@ -340,10 +342,8 @@ export function TeacherEditor({ record, roles, featuredSpot }: { record: Teacher
               <button type="button" className="app-link-btn" onClick={() => photoInput.current?.click()} disabled={uploading}>
                 {form.image_url ? "Replace" : "Upload"}
               </button>
-              <button type="button" className="app-link-btn" onClick={() => setShowUrl((value) => !value)}>Use a link</button>
               {form.image_url ? <button type="button" className="app-link-btn is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? <input className="story-input" value={form.image_url} placeholder="https://…" aria-label="Portrait address" onChange={(event) => set("image_url", event.target.value.trim())} /> : null}
             <input
               ref={photoInput}
               type="file"

@@ -3,7 +3,7 @@ import { SettingsForm } from "@/components/admin/SettingsForm";
 import { getAdminContent } from "@/lib/content";
 import "./settings.css";
 
-export const metadata = { title: "Site settings" };
+export const metadata = { title: "Homepage" };
 
 export default async function SettingsPage() {
   const { settings } = await getAdminContent();
@@ -19,14 +19,14 @@ export default async function SettingsPage() {
         <div className="dash-hero-art set-hero-art" aria-hidden="true" />
         <div className="dash-hero-copy">
           <p className="dash-kicker">Website</p>
-          <h1>Site settings</h1>
-          <p>Contact details, the school&apos;s story, homepage highlights and the admissions popup. Changes go live as soon as you save.</p>
+          <h1>Homepage & contact</h1>
+          <p>Edit the homepage highlights, school story, contact details and admissions popup. Changes go live as soon as you save.</p>
           <div className="dash-hero-actions">
             <a className="dash-btn dash-btn-glass" href="/" target="_blank" rel="noreferrer">
               <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> View website
             </a>
             <Link className="dash-btn dash-btn-glass" href="/admin/images">
-              <i className="fa-solid fa-images" aria-hidden="true" /> Manage images
+              <i className="fa-solid fa-images" aria-hidden="true" /> Choose photos
             </Link>
           </div>
         </div>

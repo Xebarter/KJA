@@ -2,18 +2,28 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { saveSettings } from "@/app/actions";
+import { saveSettings, uploadMedia } from "@/app/actions";
+import { megabytes, shrinkImage, UPLOAD_LIMIT } from "@/lib/image-upload";
 import type { Settings } from "@/lib/types";
+
+async function uploadImageFile(file: File) {
+  if (!file.type.startsWith("image/")) throw new Error("Choose an image file.");
+  const ready = await shrinkImage(file);
+  if (ready.size > UPLOAD_LIMIT) throw new Error(`This image is ${megabytes(ready.size)} and could not be made smaller than 1 MB.`);
+  const data = new FormData();
+  data.set("file", ready);
+  return uploadMedia(data);
+}
 
 type SectionId = "contact" | "about" | "homepage" | "popup" | "social";
 
 const SECTIONS: { id: SectionId; label: string; icon: string; text: string; where: string[] }[] = [
   {
-    id: "contact",
-    label: "Contact details",
-    icon: "fa-address-book",
-    text: "How families reach the school.",
-    where: ["Header", "Footer", "Contact & apply pages", "Parent portal"],
+    id: "homepage",
+    label: "Homepage",
+    icon: "fa-house",
+    text: "Slider captions, learning pillars, key numbers and the campuses introduction.",
+    where: ["Homepage"],
   },
   {
     id: "about",
@@ -23,18 +33,11 @@ const SECTIONS: { id: SectionId; label: string; icon: string; text: string; wher
     where: ["Homepage", "Footer"],
   },
   {
-    id: "homepage",
-    label: "Homepage",
-    icon: "fa-house",
-    text: "Slider captions, learning pillars, key numbers and the campuses introduction.",
-    where: ["Homepage"],
-  },
-  {
-    id: "popup",
-    label: "Admissions popup",
-    icon: "fa-bullhorn",
-    text: "The welcome dialog shown once per visit on the homepage, which then tucks into an Apply button.",
-    where: ["Homepage", "Apply button on every page"],
+    id: "contact",
+    label: "Contact details",
+    icon: "fa-address-book",
+    text: "How families reach the school.",
+    where: ["Header", "Footer", "Contact & apply pages", "Parent portal"],
   },
   {
     id: "social",
@@ -42,6 +45,13 @@ const SECTIONS: { id: SectionId; label: string; icon: string; text: string; wher
     icon: "fa-share-nodes",
     text: "Profiles linked from the header and footer.",
     where: ["Header", "Footer"],
+  },
+  {
+    id: "popup",
+    label: "Admissions popup",
+    icon: "fa-bullhorn",
+    text: "The welcome dialog shown once per visit on the homepage, which then tucks into an Apply button.",
+    where: ["Homepage", "Apply button on every page"],
   },
 ];
 
@@ -87,13 +97,40 @@ function Field({ name, label, hint, value, onChange, rows, icon, placeholder, wi
 type Column = { key: string; label: string; placeholder?: string; number?: boolean; wide?: boolean };
 type Row = Record<string, unknown>;
 
+function ListImage({
+  src,
+  icon,
+  busy,
+  onPick,
+}: {
+  src: unknown;
+  icon?: boolean;
+  busy?: boolean;
+  onPick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      className={`set-row-preview is-pick${src ? " has-image" : ""}${icon ? " is-icon" : ""}${busy ? " is-busy" : ""}`}
+      onClick={onPick}
+      disabled={busy}
+      aria-label={src ? "Replace image" : "Choose image"}
+      title={src ? "Click to replace" : "Click to choose an image"}
+    >
+      {src ? <img className={icon ? "is-icon" : ""} src={String(src)} alt="" /> : <i className="fa-solid fa-camera" aria-hidden="true" />}
+      <span className="set-row-preview-hint"><i className={`fa-solid ${busy ? "fa-spinner fa-spin" : "fa-camera"}`} aria-hidden="true" /></span>
+    </button>
+  );
+}
+
 function ListEditor({
   name,
   items,
   columns,
   blank,
   addLabel,
-  preview,
+  imageKey,
+  iconImage,
   onEdit,
 }: {
   name: keyof Settings;
@@ -101,10 +138,15 @@ function ListEditor({
   columns: Column[];
   blank: Row;
   addLabel: string;
-  preview?: (row: Row) => ReactNode;
+  imageKey?: string;
+  iconImage?: boolean;
   onEdit: () => void;
 }) {
   const [rows, setRows] = useState<Row[]>(items);
+  const [busyIndex, setBusyIndex] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const fileRef = useRef<HTMLInputElement>(null);
+  const pendingIndex = useRef<number | null>(null);
   const update = (next: Row[]) => {
     setRows(next);
     onEdit();
@@ -115,16 +157,52 @@ function ListEditor({
     next.splice(to, 0, row);
     update(next);
   };
+  const pickImage = (index: number) => {
+    pendingIndex.current = index;
+    fileRef.current?.click();
+  };
+  const onFile = async (file?: File) => {
+    const index = pendingIndex.current;
+    pendingIndex.current = null;
+    if (!file || index === null || !imageKey) return;
+    setBusyIndex(index);
+    setError("");
+    try {
+      const url = await uploadImageFile(file);
+      setRows((current) => {
+        const next = current.map((item, at) => (at === index ? { ...item, [imageKey]: url } : item));
+        onEdit();
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not upload the image.");
+    } finally {
+      setBusyIndex(null);
+    }
+  };
 
   return (
     <div className="set-list">
       <input type="hidden" name={name} value={JSON.stringify(rows)} />
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        hidden
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          event.target.value = "";
+          void onFile(file);
+        }}
+      />
       {rows.length ? (
         <ol>
           {rows.map((row, index) => (
             <li key={index} className="set-row">
               <span className="set-row-num" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
-              {preview ? <span className="set-row-preview">{preview(row)}</span> : null}
+              {imageKey ? (
+                <ListImage src={row[imageKey]} icon={iconImage} busy={busyIndex === index} onPick={() => pickImage(index)} />
+              ) : null}
               <div className="set-row-fields">
                 {columns.map((column) => (
                   <label key={column.key} className={column.wide ? "is-wide" : ""}>
@@ -158,6 +236,7 @@ function ListEditor({
       ) : (
         <p className="set-list-empty">Nothing here yet.</p>
       )}
+      {error ? <p className="set-list-error" role="alert"><i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {error}</p> : null}
       <button type="button" className="set-add" onClick={() => update([...rows, { ...blank }])}>
         <i className="fa-solid fa-plus" aria-hidden="true" /> {addLabel}
       </button>
@@ -165,7 +244,7 @@ function ListEditor({
   );
 }
 
-function Group({ title, text, children }: { title: string; text?: string; children: ReactNode }) {
+function Group({ title, text, children }: { title: string; text?: ReactNode; children: ReactNode }) {
   return (
     <div className="set-group">
       <div className="set-group-head">
@@ -179,11 +258,6 @@ function Group({ title, text, children }: { title: string; text?: string; childr
 
 function youtubeId(url: string) {
   return url.match(/(?:youtu\.be\/|v=|embed\/|shorts\/)([\w-]{11})/)?.[1] ?? "";
-}
-
-function Thumb({ src, icon }: { src: unknown; icon?: boolean }) {
-  if (!src) return <i className="fa-regular fa-image" aria-hidden="true" />;
-  return <img className={icon ? "is-icon" : ""} src={String(src)} alt="" />;
 }
 
 function SettingsFields({ settings, onEdit }: { settings: Settings; onEdit: (section: SectionId) => void }) {
@@ -219,95 +293,88 @@ function SettingsFields({ settings, onEdit }: { settings: Settings; onEdit: (sec
     );
   };
 
-  return (
+  const contactCard = card(
+    "contact",
+    <div className="set-fields">
+      <Field name="phone" label="Phone number" value={settings.phone || ""} icon="fa-phone" placeholder="+256 …" hint="Used for every “Call” button, so include the country code." />
+      <Field name="email" label="Email address" value={settings.email || ""} icon="fa-envelope" type="email" placeholder="info@kja.ug" />
+      <Field name="address" label="Address" value={settings.address || ""} icon="fa-location-dot" wide />
+      <Field
+        name="map_url"
+        label="Google Maps link"
+        value={settings.map_url || ""}
+        icon="fa-map-location-dot"
+        wide
+        placeholder="https://www.google.com/maps/…"
+        hint="Opened when visitors click the address. Copy it from Google Maps → Share."
+      />
+    </div>,
+  );
+
+  const aboutCard = card(
+    "about",
+    <div className="set-fields">
+      <Field name="about_title" label="Headline" value={settings.about_title || ""} wide hint="The word “Since” is highlighted when the headline includes it." />
+      <Field name="about_body" label="Our story" value={settings.about_body || ""} rows={6} wide hint="The opening, up to “since 1993.”, is shown larger as an introduction." />
+      <Field name="vision" label="Vision" value={settings.vision || ""} rows={4} />
+      <Field name="mission" label="Mission" value={settings.mission || ""} rows={4} />
+      <Field name="footer_text" label="Footer blurb" value={settings.footer_text || ""} rows={3} wide hint="A sentence or two shown under the logo in the footer." />
+    </div>,
+  );
+
+  const homepageCard = card(
+    "homepage",
     <>
-      {card(
-        "contact",
-        <div className="set-fields">
-          <Field name="phone" label="Phone number" value={settings.phone || ""} icon="fa-phone" placeholder="+256 …" hint="Used for every “Call” button, so include the country code." />
-          <Field name="email" label="Email address" value={settings.email || ""} icon="fa-envelope" type="email" placeholder="info@kja.ug" />
-          <Field name="address" label="Address" value={settings.address || ""} icon="fa-location-dot" wide />
-          <Field
-            name="map_url"
-            label="Google Maps link"
-            value={settings.map_url || ""}
-            icon="fa-map-location-dot"
-            wide
-            placeholder="https://www.google.com/maps/…"
-            hint="Opened when visitors click the address. Copy it from Google Maps → Share."
-          />
-        </div>,
-      )}
-
-      {card(
-        "about",
-        <div className="set-fields">
-          <Field name="about_title" label="Headline" value={settings.about_title || ""} wide hint="The word “Since” is highlighted when the headline includes it." />
-          <Field name="about_body" label="Our story" value={settings.about_body || ""} rows={6} wide hint="The opening, up to “since 1993.”, is shown larger as an introduction." />
-          <Field name="vision" label="Vision" value={settings.vision || ""} rows={4} />
-          <Field name="mission" label="Mission" value={settings.mission || ""} rows={4} />
-          <Field name="footer_text" label="Footer blurb" value={settings.footer_text || ""} rows={3} wide hint="A sentence or two shown under the logo in the footer." />
-        </div>,
-      )}
-
-      {card(
-        "homepage",
-        <>
-          <Group title="Slider" text="Captions for the large photos at the top of the homepage. Change the photos on the Images page.">
+      <Group title="Slider" text="Captions for the large photos at the top of the homepage. Click a photo to replace it.">
             <ListEditor
               name="hero_slides"
               items={settings.hero_slides || []}
               blank={{ title: "", image_url: "" }}
               addLabel="Add slide"
-              preview={(row) => <Thumb src={row.image_url} />}
-              columns={[
-                { key: "title", label: "Caption" },
-                { key: "image_url", label: "Photo link", placeholder: "/images/…" },
-              ]}
+              imageKey="image_url"
+              columns={[{ key: "title", label: "Caption" }]}
               onEdit={() => onEdit("homepage")}
             />
           </Group>
-          <Group title="Learning pillars" text="The four cards below the slider, each linking to a Learning page.">
+          <Group title="Learning pillars" text="The four cards below the slider. Click an icon to replace it.">
             <ListEditor
               name="features"
               items={settings.features || []}
               blank={{ title: "", icon: "", href: "/" }}
               addLabel="Add pillar"
-              preview={(row) => <Thumb src={row.icon} icon />}
+              imageKey="icon"
+              iconImage
               columns={[
                 { key: "title", label: "Title" },
                 { key: "href", label: "Links to", placeholder: "/academics" },
-                { key: "icon", label: "Icon link", placeholder: "/images/…", wide: true },
               ]}
               onEdit={() => onEdit("homepage")}
             />
           </Group>
-          <Group title="Key numbers" text="Start a label with “+” to show the number as “200+”.">
+          <Group title="Key numbers" text="Start a label with “+” to show the number as “200+”. Click an icon to replace it.">
             <ListEditor
               name="counters"
               items={settings.counters || []}
               blank={{ value: 0, label: "", icon: "" }}
               addLabel="Add number"
-              preview={(row) => <Thumb src={row.icon} icon />}
+              imageKey="icon"
+              iconImage
               columns={[
                 { key: "value", label: "Number", number: true },
                 { key: "label", label: "Label" },
-                { key: "icon", label: "Icon link", placeholder: "/images/…", wide: true },
               ]}
               onEdit={() => onEdit("homepage")}
             />
           </Group>
-          <Group title="Why choose us" text="Short reasons shown beside the school video.">
+          <Group title="Why choose us" text="Short reasons shown beside the school video. Click an icon to replace it.">
             <ListEditor
               name="choose_items"
               items={settings.choose_items || []}
               blank={{ title: "", icon: "" }}
               addLabel="Add reason"
-              preview={(row) => <Thumb src={row.icon} icon />}
-              columns={[
-                { key: "title", label: "Title" },
-                { key: "icon", label: "Icon link", placeholder: "/images/…" },
-              ]}
+              imageKey="icon"
+              iconImage
+              columns={[{ key: "title", label: "Title" }]}
               onEdit={() => onEdit("homepage")}
             />
           </Group>
@@ -345,68 +412,76 @@ function SettingsFields({ settings, onEdit }: { settings: Settings; onEdit: (sec
             </div>
           </Group>
         </>,
-      )}
+  );
 
-      {card(
-        "popup",
-        <div className="set-popup">
-          <div className="set-fields">
-            <label className="set-switch is-wide">
-              <input
-                type="checkbox"
-                name="popup_enabled"
-                checked={popup.enabled}
-                onChange={(event) => setPopup((current) => ({ ...current, enabled: event.target.checked }))}
-              />
-              <span aria-hidden="true" />
-              <span>
-                <strong>{popup.enabled ? "Popup is switched on" : "Popup is switched off"}</strong>
-                <small>{popup.enabled ? "Visitors see it when they open the homepage." : "Turn it on when admissions open."}</small>
-              </span>
-            </label>
-            <Field name="popup_title" label="Title" value={popup.title} onChange={setPopupField("title")} wide />
-            <Field name="popup_body" label="Message" value={popup.body} onChange={setPopupField("body")} rows={3} wide />
-            <Field name="popup_cta_label" label="Button text" value={popup.label} onChange={setPopupField("label")} placeholder="Apply now" />
-            <Field name="popup_cta_href" label="Button link" value={popup.href} onChange={setPopupField("href")} placeholder="/apply" icon="fa-link" />
-          </div>
-          <div className="set-preview">
-            <p className="set-preview-label">
-              <i className="fa-solid fa-eye" aria-hidden="true" /> Live preview
-            </p>
-            <div className={`set-popup-card${popup.enabled ? "" : " is-off"}`}>
-              <div className="set-popup-band" />
-              <span className="set-popup-seal"><span><img src="/images/kja-logo.png" alt="" /></span></span>
-              <p className="set-popup-eyebrow">Admissions open</p>
-              <h4>{popup.title || "Add a title"}</h4>
-              <p className="set-popup-body">{popup.body}</p>
-              <span className="set-popup-cta">
-                {popup.label || "Apply now"} <i className="fa-solid fa-arrow-right" aria-hidden="true" />
-              </span>
-              {popup.enabled ? null : <span className="set-popup-off"><i className="fa-solid fa-eye-slash" aria-hidden="true" /> Hidden from visitors</span>}
-            </div>
-          </div>
-        </div>,
-      )}
+  const popupCard = card(
+    "popup",
+    <div className="set-popup">
+      <div className="set-fields">
+        <label className="set-switch is-wide">
+          <input
+            type="checkbox"
+            name="popup_enabled"
+            checked={popup.enabled}
+            onChange={(event) => setPopup((current) => ({ ...current, enabled: event.target.checked }))}
+          />
+          <span aria-hidden="true" />
+          <span>
+            <strong>{popup.enabled ? "Popup is switched on" : "Popup is switched off"}</strong>
+            <small>{popup.enabled ? "Visitors see it when they open the homepage." : "Turn it on when admissions open."}</small>
+          </span>
+        </label>
+        <Field name="popup_title" label="Title" value={popup.title} onChange={setPopupField("title")} wide />
+        <Field name="popup_body" label="Message" value={popup.body} onChange={setPopupField("body")} rows={3} wide />
+        <Field name="popup_cta_label" label="Button text" value={popup.label} onChange={setPopupField("label")} placeholder="Apply now" />
+        <Field name="popup_cta_href" label="Button link" value={popup.href} onChange={setPopupField("href")} placeholder="/apply" icon="fa-link" />
+      </div>
+      <div className="set-preview">
+        <p className="set-preview-label">
+          <i className="fa-solid fa-eye" aria-hidden="true" /> Live preview
+        </p>
+        <div className={`set-popup-card${popup.enabled ? "" : " is-off"}`}>
+          <div className="set-popup-band" />
+          <span className="set-popup-seal"><span><img src="/images/kja-logo.png" alt="" /></span></span>
+          <p className="set-popup-eyebrow">Admissions open</p>
+          <h4>{popup.title || "Add a title"}</h4>
+          <p className="set-popup-body">{popup.body}</p>
+          <span className="set-popup-cta">
+            {popup.label || "Apply now"} <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+          </span>
+          {popup.enabled ? null : <span className="set-popup-off"><i className="fa-solid fa-eye-slash" aria-hidden="true" /> Hidden from visitors</span>}
+        </div>
+      </div>
+    </div>,
+  );
 
-      {card(
-        "social",
-        <ListEditor
-          name="socials"
-          items={settings.socials || []}
-          blank={{ label: "", href: "", icon: "" }}
-          addLabel="Add profile"
-          preview={(row) => <i className={`fa-brands fa-${String(row.icon || "globe")}`} aria-hidden="true" />}
-          columns={[
-            { key: "label", label: "Name", placeholder: "Facebook" },
-            { key: "icon", label: "Icon", placeholder: "facebook-f" },
-            { key: "href", label: "Profile link", placeholder: "https://…", wide: true },
-          ]}
-          onEdit={() => onEdit("social")}
-        />,
-        <a className="set-card-link" href="https://fontawesome.com/search?o=r&f=brands" target="_blank" rel="noreferrer">
-          Find icon names <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
-        </a>,
-      )}
+  const socialCard = card(
+    "social",
+    <ListEditor
+      name="socials"
+      items={settings.socials || []}
+      blank={{ label: "", href: "", icon: "" }}
+      addLabel="Add profile"
+      preview={(row) => <i className={`fa-brands fa-${String(row.icon || "globe")}`} aria-hidden="true" />}
+      columns={[
+        { key: "label", label: "Name", placeholder: "Facebook" },
+        { key: "icon", label: "Icon", placeholder: "facebook-f" },
+        { key: "href", label: "Profile link", placeholder: "https://…", wide: true },
+      ]}
+      onEdit={() => onEdit("social")}
+    />,
+    <a className="set-card-link" href="https://fontawesome.com/search?o=r&f=brands" target="_blank" rel="noreferrer">
+      Find icon names <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+    </a>,
+  );
+
+  return (
+    <>
+      {homepageCard}
+      {aboutCard}
+      {contactCard}
+      {socialCard}
+      {popupCard}
     </>
   );
 }
@@ -419,7 +494,7 @@ export function SettingsForm({ settings }: { settings: Settings }) {
   const [version, setVersion] = useState(0);
   const [dirty, setDirty] = useState<SectionId[]>([]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
-  const [active, setActive] = useState<SectionId>("contact");
+  const [active, setActive] = useState<SectionId>("homepage");
 
   const markDirty = useCallback((id: SectionId) => {
     setDirty((current) => (current.includes(id) ? current : [...current, id]));
@@ -504,8 +579,8 @@ export function SettingsForm({ settings }: { settings: Settings }) {
         <Link className="set-side-card" href="/admin/images">
           <i className="fa-solid fa-images" aria-hidden="true" />
           <span>
-            <strong>Looking for photos?</strong>
-            <small>Slider photos, logos and icons are on the Images page.</small>
+            <strong>More photos</strong>
+            <small>Campus files and other site images live under Media.</small>
           </span>
           <i className="fa-solid fa-arrow-right" aria-hidden="true" />
         </Link>

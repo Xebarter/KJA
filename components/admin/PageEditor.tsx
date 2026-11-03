@@ -7,7 +7,7 @@ import { deleteRecord, saveRecord, uploadMedia } from "@/app/actions";
 import { PageUsageBadge } from "@/components/admin/PagesManager";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
 import { decodeEntities } from "@/lib/html";
-import { PAGE_LIMITS, pageUsage, pageWords, USAGE_INFO, type PageRow } from "@/lib/page-admin";
+import { PAGE_LIMITS, pageSectionHeadings, pageUsage, pageWords, USAGE_INFO, type PageRow } from "@/lib/page-admin";
 import { excerptFromBody, hasComplexMarkup, slugify } from "@/lib/story-admin";
 
 type FormState = { title: string; slug: string; excerpt: string; image_url: string; seo_description: string; author: string; published: boolean };
@@ -42,7 +42,6 @@ export function PageEditor({ record }: { record: PageRow }) {
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const coverInput = useRef<HTMLInputElement>(null);
   const complex = useMemo(() => hasComplexMarkup(record.body), [record.body]);
@@ -52,6 +51,7 @@ export function PageEditor({ record }: { record: PageRow }) {
   const dirty = bodyDirty || JSON.stringify(form) !== baseline;
   const usage = pageUsage(isNew ? form.slug : record.slug);
   const usageInfo = USAGE_INFO[usage];
+  const outline = useMemo(() => pageSectionHeadings(body), [body]);
   const path = `/${form.slug || slugify(form.title) || "page-address"}`;
   const words = useMemo(() => pageWords(body), [body]);
   const sections = (body.match(/<h2[\s>]/gi) || []).length;
@@ -92,15 +92,15 @@ export function PageEditor({ record }: { record: PageRow }) {
     data.set("published", form.published ? "on" : "off");
     if (bodyDirty || isNew) data.set("body", body);
     try {
-      await saveRecord("pages", data);
+      const savedId = await saveRecord("pages", data);
       const saved = { ...form, slug };
       setForm(saved);
       setBaseline(JSON.stringify(saved));
       setBodyDirty(false);
       setSlugTouched(true);
       setSavedPublished(form.published);
-      if (isNew) {
-        router.push("/admin/content/pages");
+      if (isNew && savedId) {
+        router.replace(`/admin/content/pages/${savedId}`);
         router.refresh();
         return;
       }
@@ -371,7 +371,10 @@ export function PageEditor({ record }: { record: PageRow }) {
               }}
             >
               {form.image_url ? (
-                <img src={form.image_url} alt="" />
+                <button type="button" className="story-cover-hit" onClick={() => coverInput.current?.click()} aria-label="Replace banner image">
+                  <img src={form.image_url} alt="" />
+                  <span className="story-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+                </button>
               ) : (
                 <button type="button" onClick={() => coverInput.current?.click()}>
                   <i className="fa-solid fa-cloud-arrow-up" />
@@ -385,10 +388,8 @@ export function PageEditor({ record }: { record: PageRow }) {
               <button type="button" className="app-link-btn" onClick={() => coverInput.current?.click()} disabled={uploading}>
                 {form.image_url ? "Replace" : "Upload"}
               </button>
-              <button type="button" className="app-link-btn" onClick={() => setShowUrl((value) => !value)}>Use a link</button>
               {form.image_url ? <button type="button" className="app-link-btn is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? <input className="story-input" value={form.image_url} placeholder="https://…" aria-label="Banner image address" onChange={(event) => set("image_url", event.target.value.trim())} /> : null}
             <input
               ref={coverInput}
               type="file"
@@ -401,6 +402,22 @@ export function PageEditor({ record }: { record: PageRow }) {
               }}
             />
           </section>
+
+          {usage === "layout" ? (
+            <section className="admin-card story-panel">
+              <h2 className="app-card-title"><i className="fa-solid fa-list-ol" /> Section outline</h2>
+              <p className="story-hint">The public page builds from these headings. Keep them so every section still finds its copy.</p>
+              {outline.length ? (
+                <ol className="pg-outline">
+                  {outline.map((heading) => (
+                    <li key={heading}>{heading}</li>
+                  ))}
+                </ol>
+              ) : (
+                <p className="story-hint">No section headings yet. Add Heading 2 blocks in the content.</p>
+              )}
+            </section>
+          ) : null}
 
           <section className="admin-card story-panel">
             <h2 className="app-card-title"><i className="fa-solid fa-sliders" /> Details</h2>

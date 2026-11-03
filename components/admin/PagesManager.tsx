@@ -31,7 +31,7 @@ export function PageUsageBadge({ usage }: { usage: PageUsage }) {
 export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: boolean }) {
   const router = useRouter();
   const [rows, setRows] = useState(pages);
-  const [usage, setUsage] = useState<PageUsage | "all">("all");
+  const [usage, setUsage] = useState<PageUsage | "editable" | "all">("editable");
   const [status, setStatus] = useState<StatusFilter>("all");
   const [q, setQ] = useState("");
   const [sort, setSort] = useState<Sort>("title");
@@ -59,7 +59,7 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
   const visible = useMemo(() => {
     const needle = q.trim().toLowerCase();
     const list = enriched.filter((row) => {
-      if (usage !== "all" && row.usage !== usage) return false;
+      if (usage === "editable" ? row.usage === "fixed" : usage !== "all" && row.usage !== usage) return false;
       if (status === "live" && !row.published) return false;
       if (status === "hidden" && row.published) return false;
       return !needle || [row.title, row.slug, row.excerpt].some((value) => value.toLowerCase().includes(needle));
@@ -70,7 +70,8 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
     return list;
   }, [enriched, usage, status, q, sort]);
 
-  const filtered = usage !== "all" || status !== "all" || q.trim() !== "" || sort !== "title";
+  const filtered = usage !== "editable" || status !== "all" || q.trim() !== "" || sort !== "title";
+  const editableCount = counts.byUsage.content + counts.byUsage.layout;
 
   const togglePublished = (row: PageRow, next: boolean) => {
     if (!row.id) return;
@@ -97,8 +98,8 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
   const kpis = [
     { key: "live", label: "Live", icon: "fa-signal", count: counts.live, note: `${enriched.length ? Math.round((counts.live / enriched.length) * 100) : 0}% of all pages`, active: status === "live", onClick: () => setStatus((value) => (value === "live" ? "all" : "live")) },
     { key: "hidden", label: "Hidden", icon: "fa-eye-slash", count: counts.hidden, note: counts.hidden ? "Only admins can see these" : "Nothing hidden", active: status === "hidden", onClick: () => setStatus((value) => (value === "hidden" ? "all" : "hidden")) },
-    { key: "content", label: "Editable", icon: USAGE_INFO.content.icon, count: counts.byUsage.content, note: "Shown exactly as written", active: usage === "content", onClick: () => setUsage((value) => (value === "content" ? "all" : "content")) },
-    { key: "fixed", label: "Built-in", icon: USAGE_INFO.fixed.icon, count: counts.byUsage.fixed, note: "Designed in code", active: usage === "fixed", onClick: () => setUsage((value) => (value === "fixed" ? "all" : "fixed")) },
+    { key: "content", label: "Editable", icon: USAGE_INFO.content.icon, count: editableCount, note: "Ready for you to edit", active: usage === "editable" || usage === "content", onClick: () => setUsage("editable") },
+    { key: "fixed", label: "Built-in", icon: USAGE_INFO.fixed.icon, count: counts.byUsage.fixed, note: "Search only — won't change the live page", active: usage === "fixed", onClick: () => setUsage((value) => (value === "fixed" ? "editable" : "fixed")) },
   ];
 
   return (
@@ -167,16 +168,30 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
 
       <section className="apl-card">
         <nav className="apl-tabs pg-tabs" aria-label="Filter by page type">
-          {(["all", "content", "layout", "fixed"] as const).map((key) => (
-            <button key={key} type="button" className={usage === key ? "active" : ""} aria-pressed={usage === key} onClick={() => setUsage(key)}>
-              {key === "all" ? null : <span className={`pg-seg pg-seg--${key} admin-dot`} aria-hidden="true" />}
-              {key === "all" ? "All pages" : USAGE_INFO[key].label}
-              <em>{key === "all" ? enriched.length : counts.byUsage[key]}</em>
+          {([
+            { key: "editable" as const, label: "Ready to edit", count: editableCount },
+            { key: "content" as const, label: USAGE_INFO.content.label, count: counts.byUsage.content },
+            { key: "layout" as const, label: USAGE_INFO.layout.label, count: counts.byUsage.layout },
+            { key: "fixed" as const, label: "Search & redirects only", count: counts.byUsage.fixed },
+            { key: "all" as const, label: "All pages", count: enriched.length },
+          ]).map((item) => (
+            <button key={item.key} type="button" className={usage === item.key ? "active" : ""} aria-pressed={usage === item.key} onClick={() => setUsage(item.key)}>
+              {item.key === "content" || item.key === "layout" || item.key === "fixed" ? <span className={`pg-seg pg-seg--${item.key} admin-dot`} aria-hidden="true" /> : null}
+              {item.label}
+              <em>{item.count}</em>
             </button>
           ))}
         </nav>
 
-        {usage !== "all" ? (
+        {usage === "editable" ? (
+          <p className="pg-usage-note pg-usage-note--content">
+            <i className="fa-solid fa-pen-ruler" aria-hidden="true" /> Edit these pages freely. Designed-layout pages keep fixed section headings so every part of the public page still finds its copy.
+          </p>
+        ) : usage === "fixed" ? (
+          <p className="pg-usage-note pg-usage-note--fixed">
+            <i className={`fa-solid ${USAGE_INFO.fixed.icon}`} aria-hidden="true" /> {USAGE_INFO.fixed.hint}
+          </p>
+        ) : usage !== "all" ? (
           <p className={`pg-usage-note pg-usage-note--${usage}`}>
             <i className={`fa-solid ${USAGE_INFO[usage].icon}`} aria-hidden="true" /> {USAGE_INFO[usage].hint}
           </p>
@@ -199,7 +214,7 @@ export function PagesManager({ pages, editable }: { pages: PageRow[]; editable: 
             <option value="longest">Longest first</option>
           </select>
           {filtered ? (
-            <button type="button" className="app-clear app-link-btn" onClick={() => { setUsage("all"); setStatus("all"); setQ(""); setSort("title"); }}>
+            <button type="button" className="app-clear app-link-btn" onClick={() => { setUsage("editable"); setStatus("all"); setQ(""); setSort("title"); }}>
               Clear
             </button>
           ) : null}

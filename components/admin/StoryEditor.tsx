@@ -137,7 +137,6 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
   const [result, setResult] = useState<StoryActionResult | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const coverInput = useRef<HTMLInputElement>(null);
   const extended = mode === "live";
@@ -363,7 +362,10 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
               }}
             >
               {form.image_url ? (
-                <img src={form.image_url} alt="" />
+                <button type="button" className="sed-cover-hit" onClick={() => coverInput.current?.click()} aria-label="Replace cover image">
+                  <img src={form.image_url} alt="" />
+                  <span className="sed-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+                </button>
               ) : (
                 <button type="button" onClick={() => coverInput.current?.click()}>
                   <i className="fa-regular fa-image" aria-hidden="true" />
@@ -377,12 +379,8 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
               <button type="button" onClick={() => coverInput.current?.click()} disabled={uploadingCover}>
                 {form.image_url ? "Replace image" : "Upload image"}
               </button>
-              <button type="button" onClick={() => setShowUrl((value) => !value)}>{showUrl ? "Hide link" : "Use a link"}</button>
               {form.image_url ? <button type="button" className="is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? (
-              <input className="sed-input sed-cover-url" value={form.image_url} placeholder="https://…" aria-label="Cover image address" onChange={(event) => set("image_url", event.target.value.trim())} />
-            ) : null}
             <input
               ref={coverInput}
               type="file"

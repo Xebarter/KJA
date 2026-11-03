@@ -57,12 +57,16 @@ export async function saveRecord(table: string, formData: FormData) {
   }
   if (formData.getAll("published").length) payload.published = formData.getAll("published").includes("on");
 
-  const query = id
-    ? supabase.from(table).update(payload).eq("id", id)
-    : supabase.from(table).insert(payload);
-  const { error } = await query;
+  if (id) {
+    const { error } = await supabase.from(table).update(payload).eq("id", id);
+    if (error) throw new Error(error.message);
+    refreshSite();
+    return id;
+  }
+  const { data, error } = await supabase.from(table).insert(payload).select("id").single();
   if (error) throw new Error(error.message);
   refreshSite();
+  return data?.id ? String(data.id) : "";
 }
 
 export async function deleteRecord(table: string, id: string) {

@@ -7,6 +7,54 @@
 .cpa-banner { margin-bottom: 1.25rem; }
 .cpa-feedback:empty, .cps-feedback:empty { display: none; }
 .cpa-feedback { margin-bottom: 1rem; }
+.cpa-library-note {
+  display: flex; align-items: center; gap: .65rem; margin: 1.25rem 0 0; padding: .85rem 1rem;
+  border-radius: 14px; background: #f6f3ee; color: #5b6670; font-size: .9rem;
+}
+.cpa-library-note i { color: var(--admin-gold, #c58b2a); }
+
+/* Campus hub tabs */
+.cpa-hub-tabs {
+  display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.25rem; padding: .35rem;
+  border-radius: 999px; background: rgba(25, 35, 43, .05);
+}
+.cpa-hub-tabs button {
+  display: inline-flex; align-items: center; gap: .45rem; border: 0; border-radius: 999px;
+  padding: .55rem 1rem; background: transparent; color: #5b6670; font: inherit; font-weight: 600;
+  cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.cpa-hub-tabs button:hover { background: rgba(255, 255, 255, .7); color: var(--admin-navy); }
+.cpa-hub-tabs button.is-active { background: #fff; color: var(--admin-navy); box-shadow: 0 1px 3px rgba(25, 35, 43, .12); }
+.cpa-hub-tabs button i { font-size: .85rem; opacity: .8; }
+.cpa-hub .cpa-editor .app-back { display: none; }
+.cpa-hub-panel-head {
+  display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1.1rem;
+}
+.cpa-hub-panel-head h2 { margin: 0 0 .35rem; font-family: Yantramanav, Roboto, sans-serif; font-size: 1.45rem; color: var(--admin-navy); }
+.cpa-hub-panel-head p { margin: 0; max-width: 42rem; color: #5b6670; line-height: 1.55; }
+.cpa-hub-sections { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.cpa-hub-section {
+  display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto;
+  gap: .75rem 1rem; padding: 1rem; border-radius: 18px; background: #fff;
+  border: 1px solid rgba(25, 35, 43, .07); box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
+}
+.cpa-hub-section.is-busy { opacity: .6; }
+.cpa-hub-section-media {
+  grid-row: 1 / span 2; border-radius: 12px; overflow: hidden; background: #1d2a33; aspect-ratio: 1;
+}
+.cpa-hub-section-media img { width: 100%; height: 100%; object-fit: cover; }
+.cpa-hub-section-fallback { display: grid; place-items: center; width: 100%; height: 100%; color: rgba(255,255,255,.35); font-size: 1.6rem; }
+.cpa-hub-section-body h3 { margin: 0 0 .25rem; font-size: 1.05rem; color: var(--admin-navy); }
+.cpa-hub-section-body p { margin: 0; color: #5b6670; font-size: .88rem; line-height: 1.5;
+  display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
+}
+.cpa-hub-shared { font-size: .75rem !important; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: #8a8072 !important; margin-bottom: .2rem !important; -webkit-line-clamp: 1 !important; }
+.cpa-hub-section-foot { grid-column: 2; display: flex; flex-wrap: wrap; gap: .4rem; }
+.cpa-hub-section-foot .is-danger { color: #b42318; }
+@media (max-width: 760px) {
+  .cpa-hub-sections { grid-template-columns: minmax(0, 1fr); }
+  .cpa-hub-tabs { border-radius: 18px; }
+}
 
 /* Campus cards */
 .cpa-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.4rem; }

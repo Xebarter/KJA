@@ -139,3 +139,28 @@
 @media (prefers-reduced-motion: reduce) {
   .cms-desk .app-table tbody tr { transition: none; }
 }
+
+/* Shared CMS hub tabs (Events & photos, Alumni) */
+.cms-hub-tabs {
+  display: flex; flex-wrap: wrap; gap: .4rem; margin: 0 0 1.25rem; padding: .35rem;
+  border-radius: 999px; background: rgba(25, 35, 43, .05);
+}
+.cms-hub-tabs button {
+  display: inline-flex; align-items: center; gap: .45rem; border: 0; border-radius: 999px;
+  padding: .55rem 1rem; background: transparent; color: #5b6670; font: inherit; font-weight: 600;
+  cursor: pointer; transition: background .15s ease, color .15s ease;
+}
+.cms-hub-tabs button:hover { background: rgba(255, 255, 255, .7); color: var(--admin-navy); }
+.cms-hub-tabs button.is-active { background: #fff; color: var(--admin-navy); box-shadow: 0 1px 3px rgba(25, 35, 43, .12); }
+.cms-hub-tabs button i { font-size: .85rem; opacity: .8; }
+.cms-hub-stories {
+  margin-left: auto; display: inline-flex; align-items: center; gap: .45rem;
+  padding: .55rem 1rem; border-radius: 999px; color: var(--admin-navy); font-weight: 600; text-decoration: none;
+}
+.cms-hub-stories:hover { background: rgba(255, 255, 255, .7); }
+.aev-when { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0 1.25rem; }
+.aev-when-place { grid-column: 1 / -1; }
+@media (max-width: 640px) {
+  .cms-hub-tabs { border-radius: 18px; }
+  .aev-when { grid-template-columns: minmax(0, 1fr); }
+}

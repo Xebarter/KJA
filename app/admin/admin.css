@@ -1123,6 +1123,15 @@ select.story-input {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .3rem; width: 100%; height: 100%;
   border: 0; background: transparent; color: var(--admin-muted); font: inherit; cursor: pointer; padding: 1rem; text-align: center;
 }
+.story-cover > button.story-cover-hit { position: relative; padding: 0; }
+.story-cover > button.story-cover-hit img { pointer-events: none; }
+.story-cover-replace {
+  position: absolute; inset: 0; display: grid; place-content: center; gap: .35rem; justify-items: center;
+  background: rgba(25, 35, 43, .55); color: #fff; font-size: .9rem; font-weight: 700; opacity: 0; transition: opacity .16s ease;
+}
+.story-cover-replace i { font-size: 1.1rem; color: #fff; }
+.story-cover > button.story-cover-hit:hover .story-cover-replace,
+.story-cover > button.story-cover-hit:focus-visible .story-cover-replace { opacity: 1; }
 .story-cover > button i { font-size: 1.6rem; color: var(--admin-gold); }
 .story-cover > button strong { color: var(--admin-navy); }
 .story-cover > button small { font-size: .78rem; }
@@ -3532,6 +3541,8 @@ button.admin-kpi:focus-visible { outline: 2px solid var(--admin-gold); outline-o
 }
 .pg-usage-note.is-banner strong { display: block; margin-bottom: .15rem; font-size: .95rem; color: var(--admin-navy); }
 .pg-usage-note.is-banner p { margin: 0; }
+.pg-outline { margin: .5rem 0 0; padding-left: 1.2rem; color: var(--admin-navy); }
+.pg-outline li { margin: .35rem 0; font-size: .9rem; line-height: 1.4; }
 
 .pg-table th:first-child, .pg-table td:first-child { padding-left: 1.15rem; }
 .pg-col-main { min-width: 280px; }

@@ -83,11 +83,11 @@ export function Dashboard({ now, configured, applications, messages, unreadMessa
     { label: "Pages", value: counts.pages, href: "/admin/content/pages", icon: "fa-file-lines" },
     { label: "Campuses", value: counts.campuses, href: "/admin/content/campuses", icon: "fa-school" },
     { label: "Teachers", value: counts.teachers, href: "/admin/content/teachers", icon: "fa-chalkboard-user" },
-    { label: "Events", value: counts.events, href: "/admin/content/events", icon: "fa-calendar-days" },
-    { label: "Gallery", value: counts.gallery, href: "/admin/content/gallery_items", icon: "fa-camera-retro" },
-    { label: "Images", value: counts.images, href: "/admin/images", icon: "fa-images" },
-    { label: "Alumni", value: counts.alumni, href: "/admin/content/alumni_profiles", icon: "fa-user-graduate" },
-    { label: "Vacancies", value: counts.vacancies, href: "/admin/content/vacancies", icon: "fa-briefcase" },
+    { label: "Events & photos", value: counts.events + counts.gallery, href: "/admin/content/events", icon: "fa-calendar-days" },
+    { label: "Stories", value: live, href: "/admin/stories", icon: "fa-newspaper" },
+    { label: "Media", value: counts.images, href: "/admin/images", icon: "fa-images" },
+    { label: "Alumni", value: counts.alumni, href: "/admin/content/alumni", icon: "fa-user-graduate" },
+    { label: "Careers", value: counts.vacancies, href: "/admin/content/vacancies", icon: "fa-briefcase" },
   ];
 
   const deskLinks: DashShortcut[] = [

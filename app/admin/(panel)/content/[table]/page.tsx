@@ -1,15 +1,11 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
-import { AlumniEventsManager } from "@/components/admin/AlumniEventsManager";
-import { AlumniPhotosManager } from "@/components/admin/AlumniPhotosManager";
-import { AlumniProfilesManager } from "@/components/admin/AlumniProfilesManager";
+import { AlumniHub } from "@/components/admin/AlumniHub";
 import { CampusesManager } from "@/components/admin/CampusesManager";
-import { CampusSectionsManager } from "@/components/admin/CampusSectionsManager";
 import { CollectionTable } from "@/components/admin/CollectionTable";
-import { EventsManager } from "@/components/admin/EventsManager";
-import { GalleryManager } from "@/components/admin/GalleryManager";
+import { EventsPhotosHub } from "@/components/admin/EventsPhotosHub";
 import type { Article, GalleryItem } from "@/lib/types";
-import { campusOptions, toCampusRow, toSectionRow } from "@/lib/campus-admin";
+import { toCampusRow } from "@/lib/campus-admin";
 import { campusInsight } from "@/lib/campus-profile";
 import { toAlumniEventRow, toAlumniPhotoRow, toAlumniProfileRow } from "@/lib/alumni-admin";
 import "../../../alumni.css";
@@ -40,22 +36,48 @@ export default async function CollectionPage({
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { table } = await params;
+  const query = await searchParams;
+  const pick = (key: string) => String((Array.isArray(query[key]) ? query[key]?.[0] : query[key]) ?? "");
   const story = sourceForTable(table);
   if (story) redirect(`/admin/stories?type=${story}`);
+  if (table === "gallery_items") redirect("/admin/content/events?tab=gallery");
+  if (table === "campus_sections") redirect("/admin/content/campuses");
+  if (table === "alumni_events") redirect("/admin/content/alumni");
+  if (table === "alumni_profiles") redirect("/admin/content/alumni?tab=profiles");
+  if (table === "alumni_photos") redirect("/admin/content/alumni?tab=photos");
+
+  const content = await getAdminContent();
+  if (table === "alumni") {
+    return (
+      <AlumniHub
+        events={content.alumni_events.map((row) => toAlumniEventRow(row as unknown as Record<string, unknown>))}
+        profiles={content.alumni_profiles.map((row) => toAlumniProfileRow(row as unknown as Record<string, unknown>))}
+        photos={content.alumni_photos.map((row) => toAlumniPhotoRow(row as unknown as Record<string, unknown>))}
+        editable={supabaseConfigured()}
+        initialTab={pick("tab")}
+      />
+    );
+  }
+
   const resource = resources[table];
   const key = tableKey[table];
   if (!resource || !key) notFound();
-  const content = await getAdminContent();
   const rows = content[key] as Record<string, unknown>[];
   if (table === "pages") return <PagesManager pages={rows.map(toPageRow)} editable={supabaseConfigured()} />;
-  if (table === "events") return <EventsManager events={rows as Article[]} editable={supabaseConfigured()} today={kampalaClock().today} />;
-  if (table === "gallery_items") return <GalleryManager items={rows as GalleryItem[]} editable={supabaseConfigured()} />;
+  if (table === "events") {
+    return (
+      <EventsPhotosHub
+        events={rows as Article[]}
+        gallery={content.gallery as GalleryItem[]}
+        editable={supabaseConfigured()}
+        today={kampalaClock().today}
+        initialTab={pick("tab")}
+      />
+    );
+  }
   if (table === "campuses") {
     const campuses = content.campuses.map((campus) => ({ ...toCampusRow(campus as unknown as Record<string, unknown>), insight: campusInsight(campus, content) }));
     return <CampusesManager campuses={campuses} sectionCount={content.campus_sections.length} editable={supabaseConfigured()} />;
-  }
-  if (table === "campus_sections") {
-    return <CampusSectionsManager sections={rows.map(toSectionRow)} campuses={campusOptions(content.campuses)} editable={supabaseConfigured()} />;
   }
   if (table === "teachers") return <TeachersManager teachers={rows.map(toTeacherRow)} editable={supabaseConfigured()} />;
   if (table === "vacancies") {
@@ -63,9 +85,6 @@ export default async function CollectionPage({
     const [{ mode, rows: vacancies }, jobs, auth] = await Promise.all([loadAdminVacancies(), loadJobApplications(), requireAdmin()]);
     const openRoles = vacancies.filter((row) => ["open", "closing"].includes(vacancyStatus(row, today))).length;
     const fresh = jobs.rows.filter((row) => row.status === "new").length;
-    const query = await searchParams;
-    const pick = (key: string) => String((Array.isArray(query[key]) ? query[key]?.[0] : query[key]) ?? "");
-
     if (pick("view") === "applications") {
       const now = Date.now();
       const supabase = "error" in auth ? null : auth.supabase;
@@ -105,9 +124,6 @@ export default async function CollectionPage({
       />
     );
   }
-  if (table === "alumni_events") return <AlumniEventsManager events={rows.map(toAlumniEventRow)} editable={supabaseConfigured()} />;
-  if (table === "alumni_profiles") return <AlumniProfilesManager profiles={rows.map(toAlumniProfileRow)} editable={supabaseConfigured()} />;
-  if (table === "alumni_photos") return <AlumniPhotosManager photos={rows.map(toAlumniPhotoRow)} editable={supabaseConfigured()} />;
   return (
     <div className="cms-desk">
       <div className="admin-page-title">

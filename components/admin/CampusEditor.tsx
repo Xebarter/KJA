@@ -41,7 +41,6 @@ export function CampusEditor({ record, insight }: { record: CampusRow; insight: 
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [showUrl, setShowUrl] = useState(false);
   const [dragging, setDragging] = useState(false);
   const coverInput = useRef<HTMLInputElement>(null);
   const complex = useMemo(() => hasComplexMarkup(record.body), [record.body]);
@@ -399,7 +398,10 @@ export function CampusEditor({ record, insight }: { record: CampusRow; insight: 
               }}
             >
               {form.image_url ? (
-                <img src={form.image_url} alt="" />
+                <button type="button" className="story-cover-hit" onClick={() => coverInput.current?.click()} aria-label="Replace campus photo">
+                  <img src={form.image_url} alt="" />
+                  <span className="story-cover-replace"><i className="fa-solid fa-camera" aria-hidden="true" /> Replace</span>
+                </button>
               ) : (
                 <button type="button" onClick={() => coverInput.current?.click()}>
                   <i className="fa-solid fa-cloud-arrow-up" />
@@ -413,10 +415,8 @@ export function CampusEditor({ record, insight }: { record: CampusRow; insight: 
               <button type="button" className="app-link-btn" onClick={() => coverInput.current?.click()} disabled={uploading}>
                 {form.image_url ? "Replace" : "Upload"}
               </button>
-              <button type="button" className="app-link-btn" onClick={() => setShowUrl((value) => !value)}>Use a link</button>
               {form.image_url ? <button type="button" className="app-link-btn is-danger" onClick={() => set("image_url", "")}>Remove</button> : null}
             </div>
-            {showUrl ? <input className="story-input" value={form.image_url} placeholder="https://…" aria-label="Campus photo address" onChange={(event) => set("image_url", event.target.value.trim())} /> : null}
             <input
               ref={coverInput}
               type="file"

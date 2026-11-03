@@ -56,16 +56,11 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
         title="Campuses"
         description="Every KJA campus has its own page and appears in the campus cards across the website. Keep each one's name, photo, summary and search snippet sharp."
         actions={
-          <>
-            {editable ? (
-              <Link className="admin-hero-btn is-primary" href="/admin/content/campuses/new"><i className="fa-solid fa-plus" aria-hidden="true" /> New campus</Link>
-            ) : (
-              <span className="admin-hero-btn is-disabled" aria-disabled="true" title="Connect Supabase first"><i className="fa-solid fa-plus" aria-hidden="true" /> New campus</span>
-            )}
-            <Link className="admin-hero-btn" href="/admin/content/campus_sections">
-              <i className="fa-solid fa-shapes" aria-hidden="true" /> Campus sections
-            </Link>
-          </>
+          editable ? (
+            <Link className="admin-hero-btn is-primary" href="/admin/content/campuses/new"><i className="fa-solid fa-plus" aria-hidden="true" /> New campus</Link>
+          ) : (
+            <span className="admin-hero-btn is-disabled" aria-disabled="true" title="Connect Supabase first"><i className="fa-solid fa-plus" aria-hidden="true" /> New campus</span>
+          )
         }
       >
         <div className="apl-pipeline">
@@ -95,12 +90,12 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
       ) : null}
 
       <div className="pg-usage-note pg-usage-note--layout is-banner cpa-banner">
-        <i className="fa-solid fa-swatchbook" aria-hidden="true" />
+        <i className="fa-solid fa-school" aria-hidden="true" />
         <div>
-          <strong>What you edit here</strong>
+          <strong>Open a campus to edit everything in one place</strong>
           <p>
-            The name, photo, summary and search description. Each campus page builds its detailed sections (welcome, clubs, facilities,
-            campus life, fees and admissions) from that campus&apos;s designed layout, and you can see what each page shows below.
+            Name, photo and summary on Overview — then Facilities, Campus life and Clubs on their own tabs.
+            Those sections show on the live campus page as soon as you save them.
           </p>
         </div>
       </div>
@@ -194,14 +189,11 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
         </div>
       )}
 
-      <Link className="cpa-library" href="/admin/content/campus_sections">
-        <span className="cpa-library-icon"><i className="fa-solid fa-shapes" aria-hidden="true" /></span>
-        <span>
-          <strong>Campus sections library</strong>
-          <small>{sectionCount} facilities, campus-life entries and clubs imported from the previous website, with their photos.</small>
-        </span>
-        <i className="fa-solid fa-arrow-right" aria-hidden="true" />
-      </Link>
+      {sectionCount ? (
+        <p className="cpa-library-note">
+          <i className="fa-solid fa-shapes" aria-hidden="true" /> {sectionCount} facilities, campus-life entries and clubs are ready to assign inside each campus.
+        </p>
+      ) : null}
     </div>
   );
 }
