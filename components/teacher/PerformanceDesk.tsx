@@ -65,7 +65,7 @@ type FocusKey = "all" | "watch" | "gaps";
 const nf = (value: number) => value.toLocaleString("en-GB");
 
 function percentText(value: number | null) {
-  if (value === null) return "—";
+  if (value === null) return "-";
   return `${value.toLocaleString("en-GB", { maximumFractionDigits: 1 })}%`;
 }
 
@@ -232,7 +232,7 @@ export function PerformanceDesk({
                 <strong>{paper.name}</strong>
                 <span className="perf-paper-foot">
                   <span>{paper.heldOn}</span>
-                  <span>{paper.average === null ? "—" : percentText(paper.average)}</span>
+                  <span>{paper.average === null ? "-" : percentText(paper.average)}</span>
                 </span>
                 {paper.blank ? (
                   <span className="perf-paper-gap">
@@ -350,7 +350,7 @@ export function PerformanceDesk({
                             aria-pressed={on}
                           >
                             <span className={`perf-place${pupil.place && pupil.place <= 3 ? ` is-top is-t${pupil.place}` : ""}`}>
-                              {pupil.place ? nf(pupil.place) : "—"}
+                              {pupil.place ? nf(pupil.place) : "-"}
                             </span>
                             <StudentFace id={pupil.id} name={pupil.name} photoPath={pupil.photoPath} className="perf-face" />
                             <span className="perf-who-copy">
@@ -369,17 +369,17 @@ export function PerformanceDesk({
                         </th>
                         {pupil.marks.map((mark, markIndex) => (
                           <td key={papers[markIndex]?.id || markIndex} className={`perf-mark is-${mark.tone}`}>
-                            <span>{mark.text || "—"}</span>
+                            <span>{mark.text || "-"}</span>
                           </td>
                         ))}
                         <td className={`perf-mark is-avg${pupil.percent !== null && pupil.percent < 50 ? " is-low" : pupil.percent !== null && pupil.percent >= 70 ? " is-high" : ""}`}>
                           <span>{percentText(pupil.percent)}</span>
                         </td>
                         <td className="perf-mark is-grade">
-                          <span>{pupil.grade || "—"}</span>
+                          <span>{pupil.grade || "-"}</span>
                         </td>
                         <td className="perf-mark is-pos">
-                          <span>{pupil.place ? nf(pupil.place) : "—"}</span>
+                          <span>{pupil.place ? nf(pupil.place) : "-"}</span>
                         </td>
                       </tr>
                     );
@@ -435,11 +435,11 @@ export function PerformanceDesk({
                   </div>
                   <div>
                     <dt>Grade</dt>
-                    <dd>{selected.grade || "—"}</dd>
+                    <dd>{selected.grade || "-"}</dd>
                   </div>
                   <div>
                     <dt>Place</dt>
-                    <dd>{selected.place ? nf(selected.place) : "—"}</dd>
+                    <dd>{selected.place ? nf(selected.place) : "-"}</dd>
                   </div>
                   <div>
                     <dt>Gaps</dt>
@@ -455,7 +455,7 @@ export function PerformanceDesk({
                           <strong>{paper.name}</strong>
                           <span>{paper.kindLabel}</span>
                         </div>
-                        <em className={`perf-mark is-${mark?.tone || "blank"}`}>{mark?.text || "—"}</em>
+                        <em className={`perf-mark is-${mark?.tone || "blank"}`}>{mark?.text || "-"}</em>
                         <Link href={paper.href}>Open</Link>
                       </li>
                     );

@@ -433,7 +433,7 @@ export async function loadCurrentTerm(supabase: SupabaseClient): Promise<{ term:
       if (error) throw new Error(error.message);
       return data ? mapTerm(data as Record<string, unknown>) : null;
     });
-    // A null result must not stick for the full TTL — desktop cache can be briefly empty
+    // A null result must not stick for the full TTL - desktop cache can be briefly empty
     // right after login; a short miss window lets the next refresh see the real term.
     if (!term) forget("academics-term");
     return { term, error: null };

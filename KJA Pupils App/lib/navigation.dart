@@ -18,7 +18,7 @@ enum AppDestination {
   notices,
   card;
 
-  /// Full sidebar order — mirrors /student `studentNav`, plus Chart and Resources for the app.
+  /// Full sidebar order - mirrors /student `studentNav`, plus Chart and Resources for the app.
   static const sidebarItems = <AppDestination>[
     home,
     homework,
@@ -99,7 +99,7 @@ extension AppDestinationX on AppDestination {
     }
   }
 
-  /// Sidebar labels — same clear words as the pages themselves.
+  /// Sidebar labels - same clear words as the pages themselves.
   String get menuLabel => label;
 
   IconData get icon {

@@ -88,7 +88,7 @@ export default async function LoansPage({
           <div className="lib-panel-head">
             <div className="lib-panel-title">
               <h2>{view === "overdue" ? "Overdue" : "Open loans"}</h2>
-              <p>{view === "overdue" ? "Past due — return these first." : "Currently out of the library."}</p>
+              <p>{view === "overdue" ? "Past due - return these first." : "Currently out of the library."}</p>
             </div>
             <div className="lib-seg" role="tablist" aria-label="Loan view">
               <a className={view === "open" ? "is-on" : ""} href="/library/loans">
@@ -134,14 +134,14 @@ export default async function LoansPage({
                     return (
                       <tr key={row.id as string}>
                         <td>
-                          <strong>{item?.library_titles?.title || "—"}</strong>
+                          <strong>{item?.library_titles?.title || "-"}</strong>
                           <small>{item?.accession || item?.barcode || ""}</small>
                         </td>
                         <td>
                           <PersonCell
                             kind={isPupil ? "pupil" : "teacher"}
                             id={isPupil ? pupil?.id : teacher?.id}
-                            name={pupil?.full_name || teacher?.full_name || "—"}
+                            name={pupil?.full_name || teacher?.full_name || "-"}
                             detail={isPupil ? pupil?.student_number || "Pupil" : "Teacher"}
                             photoPath={isPupil ? pupil?.photo_path : teacher?.photo_path}
                           />

@@ -14,7 +14,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 let shared: Browser | null = null;
 let launching: Promise<Browser> | null = null;
 
-/** Cards per Chromium pass — smaller packs layout much faster than a full stream. */
+/** Cards per Chromium pass - smaller packs layout much faster than a full stream. */
 const CHUNK_SIZE = 6;
 /** Concurrent Chromium contexts (each owns one chunk). */
 const CHUNK_CONCURRENCY = 3;
@@ -127,7 +127,7 @@ async function pdfFromHtml(browser: Browser, html: string, offline: boolean): Pr
     if (offline) await attachOfflineRouter(page);
     else await attachPublicAssetRouter(page);
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    // Fonts/images are data URIs in the fast path — a short settle beats fonts.ready on large packs.
+    // Fonts/images are data URIs in the fast path - a short settle beats fonts.ready on large packs.
     if (!offline) {
       await page.evaluate(async () => {
         if (document.fonts?.ready) await document.fonts.ready;

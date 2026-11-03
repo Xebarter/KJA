@@ -324,7 +324,7 @@ export default async function TeacherPerformancePage({
               </span>
               <div>
                 <span>Average</span>
-                <strong>{average === null ? "—" : `${average}%`}</strong>
+                <strong>{average === null ? "-" : `${average}%`}</strong>
                 <small>Weighted class mean</small>
               </div>
             </div>
@@ -334,7 +334,7 @@ export default async function TeacherPerformancePage({
               </span>
               <div>
                 <span>Median</span>
-                <strong>{median === null ? "—" : `${median}%`}</strong>
+                <strong>{median === null ? "-" : `${median}%`}</strong>
                 <small>Middle pupil</small>
               </div>
             </div>

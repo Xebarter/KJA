@@ -400,7 +400,7 @@ function ClassRow({ row }: { row: OverviewClass }) {
           </small>
         </span>
         <Progress value={row.paid} max={row.billed || row.paid} label={`${row.code} collected`} />
-        <em className={share >= 100 ? "is-done" : ""}>{row.billed ? `${share}%` : "—"}</em>
+        <em className={share >= 100 ? "is-done" : ""}>{row.billed ? `${share}%` : "-"}</em>
       </Link>
     </li>
   );

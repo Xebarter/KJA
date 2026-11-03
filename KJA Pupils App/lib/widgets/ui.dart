@@ -74,7 +74,7 @@ class ToneIcon extends StatelessWidget {
   }
 }
 
-/// Soft rounded icon button for the app header — calm, child-friendly tap targets.
+/// Soft rounded icon button for the app header - calm, child-friendly tap targets.
 class HeaderIconButton extends StatelessWidget {
   const HeaderIconButton({
     super.key,
@@ -326,7 +326,7 @@ class CountChip extends StatelessWidget {
   }
 }
 
-/// Persistent Homework · Home · Chat bar — bright chips like the portal nav.
+/// Persistent Homework · Home · Chat bar - bright chips like the portal nav.
 class PupilDock extends StatelessWidget {
   const PupilDock({super.key, required this.current, required this.onSelect});
 

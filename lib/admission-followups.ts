@@ -82,7 +82,7 @@ function unpaidGroups(rows: Attempt[], now: number, tracked: boolean): UnpaidApp
   return items;
 }
 
-/** Cheap count for nav badges — narrow columns only, no application join. */
+/** Cheap count for nav badges - narrow columns only, no application join. */
 export async function countUnpaidApplications(
   supabase: SupabaseClient,
   now = Date.now(),

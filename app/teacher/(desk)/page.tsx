@@ -353,7 +353,7 @@ export default async function TeacherHomePage() {
         rate: registerRate ?? 0,
         done: registerRate === 100,
         label: "Registers",
-        value: waiting.length ? String(waiting.length) : registers.length ? "Done" : "—",
+        value: waiting.length ? String(waiting.length) : registers.length ? "Done" : "-",
         note: registers.length
           ? waiting.length
             ? `${waiting.length} ${waiting.length === 1 ? "class" : "classes"} still to mark`
@@ -365,7 +365,7 @@ export default async function TeacherHomePage() {
         rate: openPapers.length === 0 ? 100 : 0,
         done: openPapers.length === 0,
         label: "Markbooks",
-        value: openPapers.length ? String(openPapers.length) : subjects.length ? "Clear" : "—",
+        value: openPapers.length ? String(openPapers.length) : subjects.length ? "Clear" : "-",
         note: openPapers.length
           ? "Open papers ready for scores"
           : subjects.length
@@ -520,7 +520,7 @@ export default async function TeacherHomePage() {
               <em>
                 {hasClass
                   ? registerRate === null
-                    ? "—"
+                    ? "-"
                     : `${heroPrimary.rate}%`
                   : heroPrimary.done
                     ? "OK"

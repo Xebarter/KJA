@@ -16,7 +16,7 @@ type AuthDialogContextValue = {
   openAuth: (next?: string) => void;
   /** true when a session is known, false when signed out, null while checking */
   signedIn: boolean | null;
-  /** Sign-in dialog is on screen — other site modals should stay out of the way. */
+  /** Sign-in dialog is on screen - other site modals should stay out of the way. */
   authOpen: boolean;
 };
 

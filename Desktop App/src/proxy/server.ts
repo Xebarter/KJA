@@ -629,7 +629,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         // Drop previously poisoned empty payloads (e.g. anon boot replay).
         if (cached && online && isEmptyJsonBody(cached.body)) {
           store.invalidateUrl(userId, upstreamUrl);
-          cached = null;
+          cached = undefined;
         }
         const fresh = cached && Date.now() - cached.fetched_at < CACHE_FRESH_MS;
 

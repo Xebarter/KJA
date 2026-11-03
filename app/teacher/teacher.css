@@ -1,4 +1,4 @@
-/* Teacher desk — same navy / gold / cream language as academics office */
+/* Teacher desk - same navy / gold / cream language as academics office */
 
 .tch-shell {
   --tch-font: Nunito, "Segoe UI", system-ui, sans-serif;
@@ -85,7 +85,7 @@ body:has(.tch-shell) {
   min-width: 0;
 }
 
-/* —— Page chrome —— */
+/* -- Page chrome -- */
 .tch-page {
   display: grid;
   gap: 1.35rem;
@@ -97,7 +97,7 @@ body:has(.tch-shell) {
   margin: 0;
 }
 
-/* Shared hero (Assessments and other desk pages) — matches admin-hero */
+/* Shared hero (Assessments and other desk pages) - matches admin-hero */
 .tch-hero {
   position: relative;
   isolation: isolate;
@@ -179,7 +179,7 @@ a.tch-chip-link:hover {
   background: rgba(253, 163, 27, 0.36);
 }
 
-/* —— Home (aligned with academics office) —— */
+/* -- Home (aligned with academics office) -- */
 .tch-home.ov-page {
   max-width: 1180px;
   gap: 0;
@@ -846,7 +846,7 @@ a.tch-tile:hover {
   font-size: 0.9rem;
 }
 
-/* —— Assessments board (teacher) —— */
+/* -- Assessments board (teacher) -- */
 .tch-asm {
   display: grid;
   gap: 1.15rem;
@@ -1180,7 +1180,7 @@ a.tch-tile:hover {
   text-align: center;
 }
 
-/* Quiet workbook card — no gold bar / office chrome */
+/* Quiet workbook card - no gold bar / office chrome */
 .tch-asm .asm-card {
   border: 1px solid rgba(25, 35, 43, 0.08);
   border-radius: 16px;

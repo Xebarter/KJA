@@ -43,8 +43,8 @@ export function Statement({ entries, showLinks = true, emptyText = "Nothing bill
                 <td data-label="Details">
                   {showLinks ? <Link href={link} className="acc-statement-detail">{detail}</Link> : <span className="acc-statement-detail">{detail}</span>}
                 </td>
-                <td data-label="Charges" className="is-num">{entry.charge ? amount(entry.charge) : <span className="acc-statement-blank">—</span>}</td>
-                <td data-label="Paid" className="is-num acc-paid-cell">{entry.credit ? amount(entry.credit) : <span className="acc-statement-blank">—</span>}</td>
+                <td data-label="Charges" className="is-num">{entry.charge ? amount(entry.charge) : <span className="acc-statement-blank">-</span>}</td>
+                <td data-label="Paid" className="is-num acc-paid-cell">{entry.credit ? amount(entry.credit) : <span className="acc-statement-blank">-</span>}</td>
                 <td data-label="Balance" className={`is-num${entry.balance > 0 ? " acc-owing" : entry.balance < 0 ? " is-credit" : ""}`}>{amount(entry.balance)}</td>
               </tr>
             );

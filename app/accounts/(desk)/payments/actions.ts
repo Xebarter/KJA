@@ -66,7 +66,7 @@ export async function searchPupils(raw: string): Promise<{ error?: string; rows:
   const filter = studentSearchFilter(needle);
   if (!filter) return { rows: [] };
 
-  // Search the light directory view first — not the heavy student_balances aggregate.
+  // Search the light directory view first - not the heavy student_balances aggregate.
   const { data, error } = await auth.supabase
     .from("student_directory")
     .select(DIRECTORY_COLUMNS)
@@ -164,7 +164,7 @@ export async function searchPaymentFamilies(raw: string): Promise<{ error?: stri
   const phoneLike = digits.length >= 6 ? `%${digits.slice(-9)}%` : null;
   const filter = studentSearchFilter(needle);
 
-  // Light discovery only — avoid student_balances / family_balances views.
+  // Light discovery only - avoid student_balances / family_balances views.
   const [families, guardians, directory] = await Promise.all([
     supabase.from("families").select("id").or(`family_code.ilike.${like},mailing_name.ilike.${like}`).limit(16),
     supabase.from("guardians").select("family_id").or([`full_name.ilike.${like}`, `email.ilike.${like}`, ...(phoneLike ? [`phone.ilike.${phoneLike}`] : [])].join(",")).limit(16),
@@ -313,7 +313,7 @@ export async function loadFamilyPayment(familyId: string, preferredTermId = ""):
   };
 }
 
-/** Preview how a lump sum would be shared — same rules as saving. */
+/** Preview how a lump sum would be shared - same rules as saving. */
 export async function previewFamilyAllocation(familyId: string, amount: number, preferredTermId = ""): Promise<{ error?: string; slices?: FamilyPaySlice[]; owing?: number }> {
   const loaded = await loadFamilyPayment(familyId, preferredTermId);
   if (loaded.error || !loaded.context) return { error: loaded.error ?? "Family not found." };

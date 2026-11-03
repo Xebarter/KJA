@@ -13,7 +13,7 @@ export function CommunicationsView({ messages, phone, email }: { messages: Messa
           <p className="ch-kicker">Inbox</p>
           <h1>Communications</h1>
           <p>
-            Messages from the school office and your replies live here in one place — fees, reports, clubs, or anything else you need to ask.
+            Messages from the school office and your replies live here in one place - fees, reports, clubs, or anything else you need to ask.
           </p>
         </div>
         {threads.length ? (

@@ -198,7 +198,7 @@ export function BudgetingView({ month, today, focus, q, book, outstanding, visib
                   <Link href={href({ month: entry.key })} scroll={false} className={`bgt-month${entry.key === month ? " is-on" : ""}${hot ? " is-over" : ""}`} aria-current={entry.key === month ? "true" : undefined}>
                     <span>{entry.short}</span>
                     <span className="bgt-meter" aria-hidden="true"><span style={{ width: `${width}%` }} /></span>
-                    <small>{entry.spent ? ugxShort(entry.spent) : "—"}</small>
+                    <small>{entry.spent ? ugxShort(entry.spent) : "-"}</small>
                   </Link>
                 </li>
               );
@@ -237,7 +237,7 @@ export function BudgetingView({ month, today, focus, q, book, outstanding, visib
             </li>
             <li className={book.plan && left < 0 ? "is-bad" : book.plan ? "is-good" : ""}>
               <span>Left</span>
-              <strong title={book.plan ? ugx(left) : undefined}>{book.plan ? ugxShort(left) : "—"}</strong>
+              <strong title={book.plan ? ugx(left) : undefined}>{book.plan ? ugxShort(left) : "-"}</strong>
               <small>{book.plan ? (left < 0 ? "Past the plan" : "Before waiting") : "No plan yet"}</small>
             </li>
             <li>
@@ -333,10 +333,10 @@ export function BudgetingView({ month, today, focus, q, book, outstanding, visib
                       </span>
                     </td>
                     <td data-label="Monthly plan">
-                      {row.id ? <BudgetField id={row.id} amount={row.monthly} /> : <span className="app-muted">—</span>}
+                      {row.id ? <BudgetField id={row.id} amount={row.monthly} /> : <span className="app-muted">-</span>}
                     </td>
                     <td data-label="Spent" className="is-num"><strong className={row.tone === "over" ? "is-over" : undefined}>{amount(row.spent)}</strong></td>
-                    <td data-label="Waiting" className="is-num">{row.waiting ? <strong className="is-wait">{amount(row.waiting)}</strong> : <span className="app-muted">—</span>}</td>
+                    <td data-label="Waiting" className="is-num">{row.waiting ? <strong className="is-wait">{amount(row.waiting)}</strong> : <span className="app-muted">-</span>}</td>
                     <td data-label="This month" className="bgt-used">
                       {row.monthly ? <Progress value={row.spent} max={row.monthly} label={`${row.name} used`} /> : null}
                       <small>{row.monthly ? `${usedPercent(row.spent, row.monthly)}% · ${leftNote(row)}` : leftNote(row)}</small>

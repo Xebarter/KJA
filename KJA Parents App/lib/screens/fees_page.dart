@@ -263,7 +263,7 @@ class _FeesPageState extends State<FeesPage> {
                 const Text('Pay with Mobile Money', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, letterSpacing: -0.15)),
                 const SizedBox(height: 6),
                 const Text(
-                  'We send a PIN prompt to your phone. Approve it here in the app — no browser needed.',
+                  'We send a PIN prompt to your phone. Approve it here in the app - no browser needed.',
                   style: TextStyle(color: KjaColors.soft, height: 1.4, fontWeight: FontWeight.w600, fontSize: 13.5),
                 ),
                 const SizedBox(height: 12),

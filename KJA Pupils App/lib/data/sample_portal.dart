@@ -289,7 +289,7 @@ PortalSnapshot samplePortal() {
       ClassResource(
         id: 'res-1',
         kind: 'note',
-        title: 'Fractions — remember the steps',
+        title: 'Fractions - remember the steps',
         body:
             '1. Make the bottoms the same.\n2. Add or subtract the tops.\n3. Simplify your answer.\n\nPractice pages 40–42 before tomorrow.',
         subjectName: 'Mathematics',
@@ -299,7 +299,7 @@ PortalSnapshot samplePortal() {
       ClassResource(
         id: 'res-2',
         kind: 'link',
-        title: 'BBC Bitesize — plant parts',
+        title: 'BBC Bitesize - plant parts',
         body: 'Watch the short video, then draw and label a flower.',
         linkUrl: 'https://www.bbc.co.uk/bitesize',
         subjectName: 'Science',
@@ -320,7 +320,7 @@ PortalSnapshot samplePortal() {
       ClassResource(
         id: 'res-4',
         kind: 'image',
-        title: 'Map of Uganda — study this',
+        title: 'Map of Uganda - study this',
         body: 'Find Kampala, Lake Victoria and your home district.',
         subjectName: 'Social studies',
         teacherName: 'Mrs Namubiru',

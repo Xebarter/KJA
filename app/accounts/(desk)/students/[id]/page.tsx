@@ -247,7 +247,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
                 </>
               ) : (
                 <>
-                  <dd>—</dd>
+                  <dd>-</dd>
                   <p>Nothing received yet</p>
                 </>
               )}

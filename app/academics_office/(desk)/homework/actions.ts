@@ -88,7 +88,7 @@ async function storeExamPdf(
         .eq("id", id);
     }
   } catch (error) {
-    // Homework still saves — pupils can read HTML until PDF rebuild succeeds.
+    // Homework still saves - pupils can read HTML until PDF rebuild succeeds.
     console.error("[homework pdf]", error);
   }
 }
@@ -377,7 +377,7 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
     if (filePath) await supabase.storage.from("class-resources").remove([filePath]);
     return {
       error: /class_resources|schema cache|does not exist/i.test(error.message)
-        ? `${error.message} — run supabase/0040_class_resources.sql`
+        ? `${error.message} - run supabase/0040_class_resources.sql`
         : error.message,
     };
   }
@@ -430,7 +430,7 @@ export async function publishClassResource(id: string): Promise<ActionResult> {
   return { ok: "Published to the class. Parents are notified." };
 }
 
-/** Inline images for the rich-text editor — stored privately, served via /api/class-resource. */
+/** Inline images for the rich-text editor - stored privately, served via /api/class-resource. */
 export async function uploadResourceMedia(formData: FormData): Promise<UploadResult> {
   const opened = await openAcademics("homework");
   if ("notice" in opened) return { error: "Not available." };

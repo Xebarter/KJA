@@ -16,7 +16,7 @@ function portraitFromBytes(bytes: Uint8Array | undefined) {
   return <img className="acd-sheet-face" src={src} alt="" />;
 }
 
-/** Bare stack of ReportSheets — same print CSS as /reports/[id]. Used for Download PDF. */
+/** Bare stack of ReportSheets - same print CSS as /reports/[id]. Used for Download PDF. */
 export default async function ReportPrintPackPage({
   searchParams,
 }: {

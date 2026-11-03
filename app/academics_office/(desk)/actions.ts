@@ -165,7 +165,7 @@ export async function saveStaff(formData: FormData): Promise<Result> {
     if (error) {
       return {
         error: /initials|schema cache|does not exist/i.test(error.message)
-          ? `${error.message} — run supabase/0043_teacher_initials.sql`
+          ? `${error.message} - run supabase/0043_teacher_initials.sql`
           : error.message,
       };
     }
@@ -205,7 +205,7 @@ export async function saveStaff(formData: FormData): Promise<Result> {
     return {
       error: error
         ? /initials|schema cache|does not exist/i.test(error.message)
-          ? `${error.message} — run supabase/0043_teacher_initials.sql`
+          ? `${error.message} - run supabase/0043_teacher_initials.sql`
           : error.message
         : "The teacher could not be added.",
     };
@@ -404,7 +404,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
   if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream)) return { error: "That stream has no pupils." };
 
-  // Class/subject posts only help if they can open /teacher — ensure Auth + profiles.role=staff + link.
+  // Class/subject posts only help if they can open /teacher - ensure Auth + profiles.role=staff + link.
   const portal = await ensureTeacherPortalAccess({
     staffId,
     email: staff.email as string | null,
@@ -1315,7 +1315,7 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   const reportTitle = text(formData, "report_title", 80);
   try {
     const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets, reportTitle });
-    // Only fill blank remarks, and skip provenance/audit writes on prepare — that trail is the slow path.
+    // Only fill blank remarks, and skip provenance/audit writes on prepare - that trail is the slow path.
     // Re-prepare after marks change stays fast; use "Regenerate comments" when a full rewrite is needed.
     const comments = await fillDraftComments(opened.auth, { termId, classCode, stream }, { onlyBlank: true, skipTrail: true });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, {

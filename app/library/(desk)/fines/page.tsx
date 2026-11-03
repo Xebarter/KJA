@@ -39,7 +39,7 @@ export default async function FinesPage() {
         kicker={libraryLabel(libraryId)}
         icon="fa-coins"
         title="Fines"
-        description="Overdue charges from returns — mark paid or waive."
+        description="Overdue charges from returns - mark paid or waive."
       />
       {missing ? <p className="admin-empty">{missing}</p> : null}
 
@@ -93,12 +93,12 @@ export default async function FinesPage() {
                         <PersonCell
                           kind={isPupil ? "pupil" : "teacher"}
                           id={isPupil ? pupil?.id : teacher?.id}
-                          name={pupil?.full_name || teacher?.full_name || "—"}
+                          name={pupil?.full_name || teacher?.full_name || "-"}
                           detail={isPupil ? "Pupil" : "Teacher"}
                           photoPath={isPupil ? pupil?.photo_path : teacher?.photo_path}
                         />
                       </td>
-                      <td>{loan?.library_items?.library_titles?.title || "—"}</td>
+                      <td>{loan?.library_items?.library_titles?.title || "-"}</td>
                       <td>
                         <span className="lib-money is-owing">{money(Number(row.amount))}</span>
                       </td>
@@ -167,7 +167,7 @@ export default async function FinesPage() {
                         <PersonCell
                           kind={isPupil ? "pupil" : "teacher"}
                           id={isPupil ? pupil?.id : teacher?.id}
-                          name={pupil?.full_name || teacher?.full_name || "—"}
+                          name={pupil?.full_name || teacher?.full_name || "-"}
                           photoPath={isPupil ? pupil?.photo_path : teacher?.photo_path}
                         />
                       </td>

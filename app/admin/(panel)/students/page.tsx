@@ -38,7 +38,7 @@ export default async function AdminStudentsPage() {
     );
   }
 
-  // photo_path is only a string path — images load lazily in the browser via StudentFace.
+  // photo_path is only a string path - images load lazily in the browser via StudentFace.
   let rows: StudentRow[] = [];
   let loadError: string | null = null;
   {
@@ -102,7 +102,7 @@ export default async function AdminStudentsPage() {
       status: row.status || "active",
       hasLogin: Boolean(profileId),
       loginEmail: profileId ? emailByProfile.get(profileId) || null : null,
-      // null = known no photo (skip request); undefined omitted means try by id — we pass null/path only
+      // null = known no photo (skip request); undefined omitted means try by id - we pass null/path only
       photo_path: row.photo_path === undefined ? undefined : row.photo_path || null,
     };
   });

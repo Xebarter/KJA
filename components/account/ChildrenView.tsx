@@ -138,7 +138,7 @@ export function ChildrenView({
                 {child.portal_enabled ? (
                   <p className="st-portal-note">
                     <i className="fa-solid fa-laptop" aria-hidden="true" />
-                    <span>Student portal is on — homework, attendance, clubs, class directory and classmate messaging. Message content is reviewed by school staff, not shown here.</span>
+                    <span>Student portal is on - homework, attendance, clubs, class directory and classmate messaging. Message content is reviewed by school staff, not shown here.</span>
                   </p>
                 ) : null}
 

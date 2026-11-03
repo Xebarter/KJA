@@ -101,13 +101,13 @@ export default async function ReservationsPage() {
                     return (
                       <tr key={row.id as string}>
                         <td>
-                          <strong>{title?.title || "—"}</strong>
+                          <strong>{title?.title || "-"}</strong>
                         </td>
                         <td>
                           <PersonCell
                             kind={isPupil ? "pupil" : "teacher"}
                             id={isPupil ? pupil?.id : teacher?.id}
-                            name={pupil?.full_name || teacher?.full_name || "—"}
+                            name={pupil?.full_name || teacher?.full_name || "-"}
                             detail={isPupil ? pupil?.student_number || "Pupil" : "Teacher"}
                             photoPath={isPupil ? pupil?.photo_path : teacher?.photo_path}
                           />

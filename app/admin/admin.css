@@ -1200,7 +1200,7 @@ select.story-input {
 }
 .rte-mode.is-active { background: var(--admin-navy); border-color: var(--admin-navy); color: #fff; }
 
-/* Homework document — MS Word-like chrome */
+/* Homework document - MS Word-like chrome */
 .rte.is-doc {
   --word-blue: #185abd;
   --word-blue-deep: #0f4c9c;

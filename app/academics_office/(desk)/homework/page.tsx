@@ -41,7 +41,7 @@ export default async function HomeworkPage() {
     return (
       <AcademicsGate
         title="Homework & resources"
-        state={{ notice: "schema", message: `${assignmentsQuery.error.message} — run supabase/0029_student_portal.sql` }}
+        state={{ notice: "schema", message: `${assignmentsQuery.error.message} - run supabase/0029_student_portal.sql` }}
       />
     );
   }
@@ -128,14 +128,14 @@ export default async function HomeworkPage() {
   return (
     <div className="app-page ahw-page">
       <PageHeader
-        kicker="Daily"
+        kicker="Classroom"
         icon="fa-book"
         title="Homework & resources"
         description={
           term
             ? resourcesMissing
-              ? `Assign work for ${term.label}. Run supabase/0040_class_resources.sql to unlock class resources.`
-              : `Assign homework and share notes, files or links for ${term.label}, all on the Pupils App.`
+              ? `Set homework for ${term.label}. Run supabase/0040_class_resources.sql to unlock class resources.`
+              : `Set homework and share class resources for ${term.label}. Pupils open everything in the app.`
             : "Set a current term first."
         }
       />

@@ -310,7 +310,7 @@ export function StudentNotificationsView({
                   {query.trim()
                     ? `No notifications match “${query.trim()}”.`
                     : view === "unread"
-                      ? "You're all caught up — no unread notices."
+                      ? "You're all caught up - no unread notices."
                       : "No notifications yet. School updates will appear here."}
                 </p>
               </div>

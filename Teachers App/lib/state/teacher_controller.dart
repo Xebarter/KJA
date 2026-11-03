@@ -1329,7 +1329,7 @@ class TeacherController extends ChangeNotifier {
     }
   }
 
-  /// Offline, outbox, or unsubmitted mark drafts — not one-off action errors.
+  /// Offline, outbox, or unsubmitted mark drafts - not one-off action errors.
   Future<void> _updateStatusBanner() async {
     final outbox = await _store.listOutbox();
     final drafts = await _store.loadAllMarkDrafts();
@@ -1349,7 +1349,7 @@ class TeacherController extends ChangeNotifier {
       return;
     }
     if (outbox.isNotEmpty) {
-      // Online with work still queued — flush is about to run; do not claim offline.
+      // Online with work still queued - flush is about to run; do not claim offline.
       if (_isStatusBanner(banner)) banner = null;
       return;
     }

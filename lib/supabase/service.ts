@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 
 /**
  * Bypasses row level security. Import only from server code.
- * On Desktop, Next points NEXT_PUBLIC_SUPABASE_URL at the loopback proxy — Auth Admin
+ * On Desktop, Next points NEXT_PUBLIC_SUPABASE_URL at the loopback proxy - Auth Admin
  * and service writes must hit the real project via KJA_UPSTREAM_SUPABASE_URL.
  */
 export function serviceClient() {

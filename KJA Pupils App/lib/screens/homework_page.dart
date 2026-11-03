@@ -82,7 +82,7 @@ class _HomeworkPageState extends State<HomeworkPage> {
     }).toList();
 
     final cheer = overdue > 0
-        ? 'Start with the overdue ones — you can do it!'
+        ? 'Start with the overdue ones - you can do it!'
         : dueToday > 0
             ? 'A few things are due today. Steady work.'
             : open.isEmpty
@@ -442,7 +442,7 @@ class _HomeworkCard extends StatelessWidget {
                                 SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
-                                    'Exam paper PDF — open to view in the app',
+                                    'Exam paper PDF - open to view in the app',
                                     style: TextStyle(
                                       color: Color(0xFF991B1B),
                                       fontWeight: FontWeight.w700,

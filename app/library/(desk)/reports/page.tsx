@@ -393,9 +393,9 @@ export default async function LibraryReportsPage({
                           <td>
                             <strong>{row.title}</strong>
                           </td>
-                          <td>{row.authors || "—"}</td>
+                          <td>{row.authors || "-"}</td>
                           <td>
-                            <small>{row.accession || row.barcode || "—"}</small>
+                            <small>{row.accession || row.barcode || "-"}</small>
                           </td>
                         </tr>
                       ))}

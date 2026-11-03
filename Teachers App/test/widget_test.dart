@@ -298,7 +298,7 @@ SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.examplekeyexamplekeyexamp
     await tester.pumpAndSettle();
     await tester.tap(find.text('Sheet'));
     await tester.pumpAndSettle();
-    expect(find.text('—'), findsNWidgets(2));
+    expect(find.text('-'), findsNWidgets(2));
     expect(find.text('Every pupil needs a mark or Missed.'), findsOneWidget);
     final button = tester.widget<FilledButton>(
       find.widgetWithText(FilledButton, 'Submit marks'),

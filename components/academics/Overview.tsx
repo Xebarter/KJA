@@ -222,11 +222,11 @@ export function OfficeHome({
                 <circle cx="18" cy="18" r="15.5" pathLength={100} />
                 <circle className="is-value" cx="18" cy="18" r="15.5" pathLength={100} strokeDasharray={`${rate} 100`} />
               </svg>
-              <em>{registerRate === null ? "—" : `${rate}%`}</em>
+              <em>{registerRate === null ? "-" : `${rate}%`}</em>
             </span>
             <div>
               <span>Registers</span>
-              <strong>{openCount ? nf(openCount) : registersTotal ? "Done" : "—"}</strong>
+              <strong>{openCount ? nf(openCount) : registersTotal ? "Done" : "-"}</strong>
               <p>
                 {registersTotal
                   ? openCount
@@ -433,8 +433,8 @@ function renderOverviewHome(light: OverviewLight, picture: AcademicPicture | nul
       openWork={todo.filter((item) => item.count > 0 && item.label !== "Registers still open")}
       snapshot={[
         { label: "Pupils", value: nf(pupils.length), note: `${nf(groups.length)} classes`, href: `${ACADEMICS_BASE}/classes` },
-        { label: "In school", value: attendanceRate === null ? "—" : `${attendanceRate}%`, note: "This term", href: attendanceHref },
-        { label: "Mean score", value: picture?.mean === null || picture?.mean === undefined ? "—" : String(picture.mean), note: "Report lines", href: office ? `${ACADEMICS_BASE}/insights` : `${ACADEMICS_BASE}/reports` },
+        { label: "In school", value: attendanceRate === null ? "-" : `${attendanceRate}%`, note: "This term", href: attendanceHref },
+        { label: "Mean score", value: picture?.mean === null || picture?.mean === undefined ? "-" : String(picture.mean), note: "Report lines", href: office ? `${ACADEMICS_BASE}/insights` : `${ACADEMICS_BASE}/reports` },
         { label: "Reports", value: nf(published.length), note: drafts.length ? `${nf(drafts.length)} to publish` : "Published", href: `${ACADEMICS_BASE}/reports` },
       ]}
       openClasses={unmarked.map((group) => ({

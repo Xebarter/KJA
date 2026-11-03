@@ -27,7 +27,7 @@ export async function loadLibraryScope(
   const raw = Array.isArray(data?.libraries) ? data.libraries.map(String) : [];
   const ids = LIBRARY_IDS.filter((id) => raw.includes(id));
   if (ids.length) return ids;
-  // Grant without scope row — allow both until Team assigns (matches SQL helper).
+  // Grant without scope row - allow both until Team assigns (matches SQL helper).
   return [...LIBRARY_IDS];
 }
 

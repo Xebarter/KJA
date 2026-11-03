@@ -32,7 +32,7 @@ function Highlight({ text, words }: { text: string; words: string[] }) {
   );
 }
 
-/** Live title search — replaces catalogue / reservation title dropdowns. */
+/** Live title search - replaces catalogue / reservation title dropdowns. */
 export function TitleFields({
   name = "title_id",
   label = "Title",

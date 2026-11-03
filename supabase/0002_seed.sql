@@ -3,7 +3,7 @@
 truncate table public.campus_sections, public.alumni_photos, public.alumni_profiles, public.alumni_stories, public.alumni_events, public.alumni_news, public.testimonials, public.gallery_items, public.posts, public.news, public.events, public.teachers, public.campuses, public.pages, public.vacancies restart identity cascade;
 
 insert into public.site_settings (id, phone, email, address, map_url, footer_text, video_url, about_title, about_body, vision, mission, campuses_intro, counters, hero_slides, features, choose_items, socials, popup_enabled, popup_title, popup_body, popup_cta_label, popup_cta_href)
-values (1, '+256 392 700 370', 'info@kja.ug', 'Plot 6A Channel, Yusuf Lule Road, Kampala', 'https://www.google.com/maps/dir//Plot+6A,+Yusuf+Lule+Road,+Kampala/@0.3318059,32.500416,12z', 'Kampala Junior Academy is a holistic powerhouse dedicated to pushing the boundaries of education to impact and influence future leaders.', 'https://www.youtube.com/watch?v=A6feRMjPcSI', 'Kampala Junior Academy, Growing with You Since 1993.', 'Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993. The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear — to give young learners a strong start in life through quality, caring, holistic and child friendly education.', 'To be an inclusive school that has high aspirations for every child, to create a well facilitated institution that is capable of shaping children into future responsible leaders.', 'To give learners the best possible head start on their academic careers by encouraging their natural inquisitiveness, creativity and motivation to learn.', 'We started humbly, with only a Nursery Section at Clement Hill Road, focusing on the youngest children in our care. Our daycare and preschool programs helped parents feel supported, knowing their little ones were in safe hands. By 1997, we had grown to open our Primary section, and in 2003, we proudly saw our first P7 pupils sit for their Primary Leaving Exams (PLE). Today, Kampala Junior Academy has five campuses across Kampala.', '[{"value":5,"label":"Campuses","icon":"/images/course.svg"},{"value":200,"label":"+ Professional Teachers","icon":"/images/teacher-2.svg"},{"value":30,"label":"+ Years Of Quality Service","icon":"/images/award.svg"}]'::jsonb, '[{"image_url":"/images/slider-1.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-2.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-3.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-5.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-7.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-8.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-9.jpg","title":"Kampala Junior Academy, Choose the right School for your child"}]'::jsonb, '[{"title":"Academics","icon":"/images/ctg-3.png","href":"/academics"},{"title":"Performing Arts","icon":"/images/arts.png","href":"/arts"},{"title":"Sports","icon":"/images/soccer-3.png","href":"/sport"},{"title":"Leadership","icon":"/images/leadership.png","href":"/leadership"}]'::jsonb, '[{"title":"Expert Teachers","icon":"/images/teacher-2.svg"},{"title":"Subject Materials","icon":"/images/course-material.svg"},{"title":"Online Information","icon":"/images/online-course.svg"},{"title":"Affordable Fees","icon":"/images/money.svg"}]'::jsonb, '[{"label":"Facebook","href":"https://www.facebook.com/kampalajunioracademyschool","icon":"facebook-f"},{"label":"LinkedIn","href":"https://ug.linkedin.com/company/kampala-junior-academy-kja","icon":"linkedin-in"},{"label":"Instagram","href":"https://www.instagram.com/kampala_junior_academy/","icon":"instagram"},{"label":"YouTube","href":"https://www.youtube.com/@Kampalajunioracademy","icon":"youtube"},{"label":"WhatsApp","href":"https://chat.whatsapp.com/Cstr7jsoMBvCOWwp53raw2","icon":"whatsapp"},{"label":"X","href":"https://www.twitter.com/kjalearners","icon":"x-twitter"},{"label":"TikTok","href":"https://www.tiktok.com/@kjaofficialpage","icon":"tiktok"}]'::jsonb, true, 'Admissions for 2027 intake are open', 'Enroll your child now!', 'Apply now', '/apply')
+values (1, '+256 392 700 370', 'info@kja.ug', 'Plot 6A Channel, Yusuf Lule Road, Kampala', 'https://www.google.com/maps/dir//Plot+6A,+Yusuf+Lule+Road,+Kampala/@0.3318059,32.500416,12z', 'Kampala Junior Academy is a holistic powerhouse dedicated to pushing the boundaries of education to impact and influence future leaders.', 'https://www.youtube.com/watch?v=A6feRMjPcSI', 'Kampala Junior Academy, Growing with You Since 1993.', 'Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993. The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear - to give young learners a strong start in life through quality, caring, holistic and child friendly education.', 'To be an inclusive school that has high aspirations for every child, to create a well facilitated institution that is capable of shaping children into future responsible leaders.', 'To give learners the best possible head start on their academic careers by encouraging their natural inquisitiveness, creativity and motivation to learn.', 'We started humbly, with only a Nursery Section at Clement Hill Road, focusing on the youngest children in our care. Our daycare and preschool programs helped parents feel supported, knowing their little ones were in safe hands. By 1997, we had grown to open our Primary section, and in 2003, we proudly saw our first P7 pupils sit for their Primary Leaving Exams (PLE). Today, Kampala Junior Academy has five campuses across Kampala.', '[{"value":5,"label":"Campuses","icon":"/images/course.svg"},{"value":200,"label":"+ Professional Teachers","icon":"/images/teacher-2.svg"},{"value":30,"label":"+ Years Of Quality Service","icon":"/images/award.svg"}]'::jsonb, '[{"image_url":"/images/slider-1.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-2.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-3.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-5.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-7.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-8.jpg","title":"Kampala Junior Academy, Choose the right School for your child"},{"image_url":"/images/slider-9.jpg","title":"Kampala Junior Academy, Choose the right School for your child"}]'::jsonb, '[{"title":"Academics","icon":"/images/ctg-3.png","href":"/academics"},{"title":"Performing Arts","icon":"/images/arts.png","href":"/arts"},{"title":"Sports","icon":"/images/soccer-3.png","href":"/sport"},{"title":"Leadership","icon":"/images/leadership.png","href":"/leadership"}]'::jsonb, '[{"title":"Expert Teachers","icon":"/images/teacher-2.svg"},{"title":"Subject Materials","icon":"/images/course-material.svg"},{"title":"Online Information","icon":"/images/online-course.svg"},{"title":"Affordable Fees","icon":"/images/money.svg"}]'::jsonb, '[{"label":"Facebook","href":"https://www.facebook.com/kampalajunioracademyschool","icon":"facebook-f"},{"label":"LinkedIn","href":"https://ug.linkedin.com/company/kampala-junior-academy-kja","icon":"linkedin-in"},{"label":"Instagram","href":"https://www.instagram.com/kampala_junior_academy/","icon":"instagram"},{"label":"YouTube","href":"https://www.youtube.com/@Kampalajunioracademy","icon":"youtube"},{"label":"WhatsApp","href":"https://chat.whatsapp.com/Cstr7jsoMBvCOWwp53raw2","icon":"whatsapp"},{"label":"X","href":"https://www.twitter.com/kjalearners","icon":"x-twitter"},{"label":"TikTok","href":"https://www.tiktok.com/@kjaofficialpage","icon":"tiktok"}]'::jsonb, true, 'Admissions for 2027 intake are open', 'Enroll your child now!', 'Apply now', '/apply')
 on conflict (id) do update set phone = excluded.phone, email = excluded.email, address = excluded.address, map_url = excluded.map_url, footer_text = excluded.footer_text, video_url = excluded.video_url, about_title = excluded.about_title, about_body = excluded.about_body, vision = excluded.vision, mission = excluded.mission, campuses_intro = excluded.campuses_intro, counters = excluded.counters, hero_slides = excluded.hero_slides, features = excluded.features, choose_items = excluded.choose_items, socials = excluded.socials, popup_enabled = excluded.popup_enabled, popup_title = excluded.popup_title, popup_body = excluded.popup_body, popup_cta_label = excluded.popup_cta_label, popup_cta_href = excluded.popup_cta_href;
 
 insert into public.pages (slug, title, excerpt, body, image_url, author, published_at, seo_description) values
@@ -158,7 +158,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Whether you''re looking for a vibrant and caring daycare, nursery school or a strong foundation in a primary school, Kampala Junior Academy offers the perfect setting for your child’s early years. Our campuses are designed to promote curiosity, confidence, and creativity — all essential components of a well-rounded education.</p>
+<p class="wp-block-paragraph">Whether you''re looking for a vibrant and caring daycare, nursery school or a strong foundation in a primary school, Kampala Junior Academy offers the perfect setting for your child’s early years. Our campuses are designed to promote curiosity, confidence, and creativity - all essential components of a well-rounded education.</p>
 
 
 
@@ -166,7 +166,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">By visiting, you’ll experience firsthand the warmth and excellence that define our learning spaces. Our classrooms and outdoor areas are intentionally designed to support developmentally appropriate activities that encourage exploration, problem-solving, and joyful learning — the core of early learning.</p>
+<p class="wp-block-paragraph">By visiting, you’ll experience firsthand the warmth and excellence that define our learning spaces. Our classrooms and outdoor areas are intentionally designed to support developmentally appropriate activities that encourage exploration, problem-solving, and joyful learning - the core of early learning.</p>
 
 
 
@@ -182,7 +182,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">At Kampala Junior Academy, our teachers are more than instructors — they are mentors who guide each child with compassion, knowledge, and personalized attention. They work in close partnership with families to nurture the academic, emotional, and social growth of every learner.</p>
+<p class="wp-block-paragraph">At Kampala Junior Academy, our teachers are more than instructors - they are mentors who guide each child with compassion, knowledge, and personalized attention. They work in close partnership with families to nurture the academic, emotional, and social growth of every learner.</p>
 
 
 
@@ -190,7 +190,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">To help us make your visit personal and meaningful, we encourage you to visit our campuses. This ensures we can take the time to answer your questions, give you a tailored tour, and help you understand how our programs — from daycare through nursery school to primary school can support your child’s development.</p>
+<p class="wp-block-paragraph">To help us make your visit personal and meaningful, we encourage you to visit our campuses. This ensures we can take the time to answer your questions, give you a tailored tour, and help you understand how our programs - from daycare through nursery school to primary school can support your child’s development.</p>
 
 
 
@@ -206,7 +206,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Let’s walk this exciting journey together — nurturing young minds and shaping the Future Leaders of tomorrow.</p>
+<p class="wp-block-paragraph">Let’s walk this exciting journey together - nurturing young minds and shaping the Future Leaders of tomorrow.</p>
 
 
 
@@ -1184,7 +1184,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 <p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748605345079-DSC_0031.jpg', 'Mukisa-KJA', '2025-08-03T18:01:19', 'Badminton. Available at: KJA Kitante &amp; Najjanankumbi. Meeting day &amp; time:To be announced. The Badminton Club at our&nbsp;primary school&nbsp;campuses is a fun and active way for students to improve physical [&hellip;]'),
-  ('leadership', 'Young Hearts, Big Impact: Growing Leaders Through Service at KJA', 'At Kampala Junior Academy, leadership and service are not just ideals — they are lived values rooted in our daily practice. From the earliest stages of early childhood education through [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, leadership and service are not just ideals — they are lived values rooted in our daily practice. From the earliest stages of early childhood education through to primary school, we instill in our learners a deep understanding that true leadership is grounded in service to others. Through structured leadership opportunities and a nurturing environment, we empower students to become responsible, visionary individuals ready to lead with compassion and integrity.</p>
+  ('leadership', 'Young Hearts, Big Impact: Growing Leaders Through Service at KJA', 'At Kampala Junior Academy, leadership and service are not just ideals - they are lived values rooted in our daily practice. From the earliest stages of early childhood education through [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, leadership and service are not just ideals - they are lived values rooted in our daily practice. From the earliest stages of early childhood education through to primary school, we instill in our learners a deep understanding that true leadership is grounded in service to others. Through structured leadership opportunities and a nurturing environment, we empower students to become responsible, visionary individuals ready to lead with compassion and integrity.</p>
 
 
 
@@ -1216,7 +1216,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Our vibrant co-curricular environment includes a variety of student-led clubs, from science and literature to sports and the performing arts. Club leaders are students who demonstrate initiative, creativity, and a passion for engaging others. These opportunities help learners develop confidence, teamwork, and communication skills — all essential for leadership and lifelong learning, especially during the critical stages of early learning and development.</p>
+<p class="wp-block-paragraph">Our vibrant co-curricular environment includes a variety of student-led clubs, from science and literature to sports and the performing arts. Club leaders are students who demonstrate initiative, creativity, and a passion for engaging others. These opportunities help learners develop confidence, teamwork, and communication skills - all essential for leadership and lifelong learning, especially during the critical stages of early learning and development.</p>
 
 
 
@@ -1264,7 +1264,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">The Student Council provides a platform for students to participate in school governance and express their ideas. Elected representatives act as liaisons between students and staff, advocating for positive change and supporting initiatives that improve the school community. This experience in democratic engagement equips students with the tools to become thoughtful, active citizens — a vital part of their growth during primary school years.</p>
+<p class="wp-block-paragraph">The Student Council provides a platform for students to participate in school governance and express their ideas. Elected representatives act as liaisons between students and staff, advocating for positive change and supporting initiatives that improve the school community. This experience in democratic engagement equips students with the tools to become thoughtful, active citizens - a vital part of their growth during primary school years.</p>
 
 
 
@@ -1304,8 +1304,8 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748603093064-IMG_0417.jpg', 'Mukisa-KJA', '2025-08-03T17:45:17', 'At Kampala Junior Academy, leadership and service are not just ideals — they are lived values rooted in our daily practice. From the earliest stages of early childhood education through [&hellip;]'),
-  ('sport', 'Strong Bodies, Bright Minds: Sports at Kampala Junior Academy', 'In the ever-evolving world of education, Kampala Junior Academy shines as a beacon of holistic growth, deeply rooted in a commitment to early childhood education and beyond. We understand that [&hellip;]', '<p class="wp-block-paragraph">In the ever-evolving world of education, Kampala Junior Academy shines as a beacon of holistic growth, deeply rooted in a commitment to early childhood education and beyond. We understand that a truly well-rounded child doesn’t only learn in the classroom — they also grow through sports and extracurricular activities that build character, teamwork, and resilience.</p>
+<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748603093064-IMG_0417.jpg', 'Mukisa-KJA', '2025-08-03T17:45:17', 'At Kampala Junior Academy, leadership and service are not just ideals - they are lived values rooted in our daily practice. From the earliest stages of early childhood education through [&hellip;]'),
+  ('sport', 'Strong Bodies, Bright Minds: Sports at Kampala Junior Academy', 'In the ever-evolving world of education, Kampala Junior Academy shines as a beacon of holistic growth, deeply rooted in a commitment to early childhood education and beyond. We understand that [&hellip;]', '<p class="wp-block-paragraph">In the ever-evolving world of education, Kampala Junior Academy shines as a beacon of holistic growth, deeply rooted in a commitment to early childhood education and beyond. We understand that a truly well-rounded child doesn’t only learn in the classroom - they also grow through sports and extracurricular activities that build character, teamwork, and resilience.</p>
 
 
 
@@ -1313,7 +1313,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">From our nursery school to our primary school students, we emphasize that sports are more than just games; they’re powerful tools for developing confidence, discipline, and leadership. Our wide range of programs and clubs ensures every learner finds a space to thrive — academically, physically, and socially.</p>
+<p class="wp-block-paragraph">From our nursery school to our primary school students, we emphasize that sports are more than just games; they’re powerful tools for developing confidence, discipline, and leadership. Our wide range of programs and clubs ensures every learner finds a space to thrive - academically, physically, and socially.</p>
 
 
 
@@ -1367,7 +1367,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Through our partnership with Talent Xtra Sports Club, fully registered under FUFA Youth Football, our football program helps learners in nursery school, preschool, and primary school build both technical football skills and important life values. Through friendly games and tournaments, children develop collaboration, leadership, and sportsmanship — while having fun doing it.</p>
+<p class="wp-block-paragraph">Through our partnership with Talent Xtra Sports Club, fully registered under FUFA Youth Football, our football program helps learners in nursery school, preschool, and primary school build both technical football skills and important life values. Through friendly games and tournaments, children develop collaboration, leadership, and sportsmanship - while having fun doing it.</p>
 
 
 
@@ -1424,7 +1424,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 <p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748608283163-1719398819848-72722615_110114777070624_990082256280223744_n-copy.jpg', 'Mukisa-KJA', '2025-08-03T17:34:11', 'In the ever-evolving world of education, Kampala Junior Academy shines as a beacon of holistic growth, deeply rooted in a commitment to early childhood education and beyond. We understand that [&hellip;]'),
-  ('arts', 'Voices, Rhythm, and Grace: Shaping Confident Learners Through Performing Arts', 'At Kampala Junior Academy, we believe education is more than just books — it’s about nurturing the whole child from early childhood education through primary school. We understand how important [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, we believe education is more than just books — it’s about nurturing the whole child from early childhood education through primary school. We understand how important creativity and cultural awareness are in shaping young minds, and that’s why our preschool and primary programs shine as places where the arts and culture come alive.</p>
+  ('arts', 'Voices, Rhythm, and Grace: Shaping Confident Learners Through Performing Arts', 'At Kampala Junior Academy, we believe education is more than just books - it’s about nurturing the whole child from early childhood education through primary school. We understand how important [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, we believe education is more than just books - it’s about nurturing the whole child from early childhood education through primary school. We understand how important creativity and cultural awareness are in shaping young minds, and that’s why our preschool and primary programs shine as places where the arts and culture come alive.</p>
 
 
 
@@ -1440,7 +1440,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">We know that the arts are a powerful way for children in early childhood education and beyond to express themselves, discover who they are, and grow emotionally. Our performing arts program gives every student—from nursery school through primary school—the chance to explore their creative side — whether it’s through music, drama, dance, or visual arts. We celebrate all kinds of artistic expression and encourage every child to find their own special voice.</p>
+<p class="wp-block-paragraph">We know that the arts are a powerful way for children in early childhood education and beyond to express themselves, discover who they are, and grow emotionally. Our performing arts program gives every student-from nursery school through primary school-the chance to explore their creative side - whether it’s through music, drama, dance, or visual arts. We celebrate all kinds of artistic expression and encourage every child to find their own special voice.</p>
 
 
 
@@ -1456,7 +1456,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">In our music studios, students learn to play different instruments and appreciate the beauty of harmonies. From traditional songs to modern beats, our music lessons cover many styles so every child—from daycare, preschool, to primary school—can connect with sound and rhythm. With passionate teachers and group performances, students build not only musical talent but also teamwork and friendship.</p>
+<p class="wp-block-paragraph">In our music studios, students learn to play different instruments and appreciate the beauty of harmonies. From traditional songs to modern beats, our music lessons cover many styles so every child-from daycare, preschool, to primary school-can connect with sound and rhythm. With passionate teachers and group performances, students build not only musical talent but also teamwork and friendship.</p>
 
 
 
@@ -1488,7 +1488,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Dance is a language everyone understands. Our dance program takes students on a journey through different styles—from traditional African dances to ballet and contemporary moves. Dance keeps children active while helping them appreciate the beauty of different cultures and traditions across all levels, including nursery school and primary levels.</p>
+<p class="wp-block-paragraph">Dance is a language everyone understands. Our dance program takes students on a journey through different styles-from traditional African dances to ballet and contemporary moves. Dance keeps children active while helping them appreciate the beauty of different cultures and traditions across all levels, including nursery school and primary levels.</p>
 
 
 
@@ -1542,7 +1542,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Dance is a language everyone understands. Our dance program takes students on a journey through different styles—from traditional African dances to ballet and contemporary moves. Dance keeps children active while helping them appreciate the beauty of different cultures and traditions across all levels, including nursery school and primary levels.</p>
+<p class="wp-block-paragraph">Dance is a language everyone understands. Our dance program takes students on a journey through different styles-from traditional African dances to ballet and contemporary moves. Dance keeps children active while helping them appreciate the beauty of different cultures and traditions across all levels, including nursery school and primary levels.</p>
 
 
 
@@ -1574,7 +1574,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">At Kampala Junior Academy, cultural understanding is part of everyday learning across all levels—from daycare and nursery school to primary school. Our curriculum includes cultural studies that open students’ eyes to the rich diversity of the world around them. Through cultural events, festivals, and exchange programs, students learn to respect and celebrate differences, building unity and harmony.</p>
+<p class="wp-block-paragraph">At Kampala Junior Academy, cultural understanding is part of everyday learning across all levels-from daycare and nursery school to primary school. Our curriculum includes cultural studies that open students’ eyes to the rich diversity of the world around them. Through cultural events, festivals, and exchange programs, students learn to respect and celebrate differences, building unity and harmony.</p>
 
 
 
@@ -1582,7 +1582,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">In short, Kampala Junior Academy is more than just a school — it’s a place where children grow fully, academically and creatively, through every stage of early childhood education to primary school. By focusing on the performing arts and culture, we prepare our students not only to succeed in school but also to shine as confident, creative, and culturally aware individuals ready to thrive in a connected world.</p>
+<p class="wp-block-paragraph">In short, Kampala Junior Academy is more than just a school - it’s a place where children grow fully, academically and creatively, through every stage of early childhood education to primary school. By focusing on the performing arts and culture, we prepare our students not only to succeed in school but also to shine as confident, creative, and culturally aware individuals ready to thrive in a connected world.</p>
 
 
 
@@ -1590,7 +1590,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Our commitment to a well-rounded education means every child leaves us—from daycare, nursery school all the way to primary school—with the knowledge, skills, and character to face the future with courage and joy.</p>
+<p class="wp-block-paragraph">Our commitment to a well-rounded education means every child leaves us-from daycare, nursery school all the way to primary school-with the knowledge, skills, and character to face the future with courage and joy.</p>
 
 
 
@@ -1606,12 +1606,12 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1713944989435_MG_1235.jpg', 'Mukisa-KJA', '2025-08-03T17:17:02', 'At Kampala Junior Academy, we believe education is more than just books — it’s about nurturing the whole child from early childhood education through primary school. We understand how important [&hellip;]'),
-  ('academics', 'Learning for Life: Building Strong Foundations', 'Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels—from daycare, nursery school to primary school. Our commitment to offering a complete, holistic [&hellip;]', '<div style="height:41px" aria-hidden="true" class="wp-block-spacer"></div>
+<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1713944989435_MG_1235.jpg', 'Mukisa-KJA', '2025-08-03T17:17:02', 'At Kampala Junior Academy, we believe education is more than just books - it’s about nurturing the whole child from early childhood education through primary school. We understand how important [&hellip;]'),
+  ('academics', 'Learning for Life: Building Strong Foundations', 'Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels-from daycare, nursery school to primary school. Our commitment to offering a complete, holistic [&hellip;]', '<div style="height:41px" aria-hidden="true" class="wp-block-spacer"></div>
 
 
 
-<p class="wp-block-paragraph">Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels—from daycare, nursery school to primary school. Our commitment to offering a complete, holistic education aligns with the Ministry of Education and Sports'' teaching and examination guidelines, as well as the National Curriculum Development Center-approved curriculum. We provide a nurturing environment where learners in early childhood education and beyond not only achieve academic success but also develop a strong passion for learning through a broad range of subjects.</p>
+<p class="wp-block-paragraph">Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels-from daycare, nursery school to primary school. Our commitment to offering a complete, holistic education aligns with the Ministry of Education and Sports'' teaching and examination guidelines, as well as the National Curriculum Development Center-approved curriculum. We provide a nurturing environment where learners in early childhood education and beyond not only achieve academic success but also develop a strong passion for learning through a broad range of subjects.</p>
 
 
 
@@ -1627,7 +1627,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Our science curriculum sparks curiosity and inquiry at every stage, encouraging students—from nursery through primary school—to explore the wonders of the natural world. Classrooms become laboratories of discovery where hands-on experiments, research projects, and interactive lessons empower students to apply knowledge to real-world scenarios, promoting critical thinking and scientific literacy.</p>
+<p class="wp-block-paragraph">Our science curriculum sparks curiosity and inquiry at every stage, encouraging students-from nursery through primary school-to explore the wonders of the natural world. Classrooms become laboratories of discovery where hands-on experiments, research projects, and interactive lessons empower students to apply knowledge to real-world scenarios, promoting critical thinking and scientific literacy.</p>
 
 
 
@@ -1713,7 +1713,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">English literacy is a cornerstone of effective communication and critical thinking across all KJA levels. From nursery school to primary school, students engage with a rich variety of texts—from classic literature to modern works—enhancing their reading, writing, and oral skills in an encouraging environment.</p>
+<p class="wp-block-paragraph">English literacy is a cornerstone of effective communication and critical thinking across all KJA levels. From nursery school to primary school, students engage with a rich variety of texts-from classic literature to modern works-enhancing their reading, writing, and oral skills in an encouraging environment.</p>
 
 
 
@@ -1785,12 +1785,12 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748603416495-IMG_5651.jpg', 'Mukisa-KJA', '2025-08-03T16:57:47', 'Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels—from daycare, nursery school to primary school. Our commitment to offering a complete, holistic [&hellip;]'),
+<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748603416495-IMG_5651.jpg', 'Mukisa-KJA', '2025-08-03T16:57:47', 'Kampala Junior Academy shines as a beacon of academic excellence, providing abundant learning opportunities across all levels-from daycare, nursery school to primary school. Our commitment to offering a complete, holistic [&hellip;]'),
   ('fees', 'Fees and payment', 'Welcome to Kampala Junior Academy, where education meets excellence and every child is supported to thrive. We’re proud to offer a learning environment that nurtures both academic excellence and holistic [&hellip;]', '<div style="height:29px" aria-hidden="true" class="wp-block-spacer"></div>
 
 
 
-<p class="wp-block-paragraph">Welcome to Kampala Junior Academy, where education meets excellence and every child is supported to thrive. We’re proud to offer a learning environment that nurtures both academic excellence and holistic development — from daycare and preschool through to primary school.</p>
+<p class="wp-block-paragraph">Welcome to Kampala Junior Academy, where education meets excellence and every child is supported to thrive. We’re proud to offer a learning environment that nurtures both academic excellence and holistic development - from daycare and preschool through to primary school.</p>
 
 
 
@@ -2036,7 +2036,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Thank you for choosing Kampala Junior Academy — where future leaders are made.</p>
+<p class="wp-block-paragraph">Thank you for choosing Kampala Junior Academy - where future leaders are made.</p>
 
 
 
@@ -2044,7 +2044,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"><a href="http://84.247.190.131/apply/" data-type="page" data-id="235" target="_blank" rel="noreferrer noopener">Your child’s learning journey starts <strong>here</strong>—with care and purpose.</a></p>
+<p class="wp-block-paragraph"><a href="http://84.247.190.131/apply/" data-type="page" data-id="235" target="_blank" rel="noreferrer noopener">Your child’s learning journey starts <strong>here</strong>-with care and purpose.</a></p>
 
 
 
@@ -2057,7 +2057,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 <p class="wp-block-paragraph">We can’t wait to welcome you to the KJA family!</p>', 'https://kja.ug/wp-content/uploads/2025/08/1718715455503-_MG_6448.jpg', 'Mukisa-KJA', '2025-08-03T12:54:34', 'Welcome to Kampala Junior Academy, where education meets excellence and every child is supported to thrive. We’re proud to offer a learning environment that nurtures both academic excellence and holistic [&hellip;]'),
-  ('admissions', 'Welcoming Every Child with Open Arms', 'At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy — inviting learners from [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy — inviting learners from all backgrounds to join our school community at any point in the academic year.</p>
+  ('admissions', 'Welcoming Every Child with Open Arms', 'At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy - inviting learners from [&hellip;]', '<p class="wp-block-paragraph">At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy - inviting learners from all backgrounds to join our school community at any point in the academic year.</p>
 
 
 
@@ -2081,7 +2081,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">While we accept applications all year round, our main nursery school enrollment and primary school admissions window runs from October to January. Families are especially encouraged to apply during this time for a smoother placement process — especially for children joining Nursery or Primary.</p>
+<p class="wp-block-paragraph">While we accept applications all year round, our main nursery school enrollment and primary school admissions window runs from October to January. Families are especially encouraged to apply during this time for a smoother placement process - especially for children joining Nursery or Primary.</p>
 
 
 
@@ -2235,7 +2235,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">At Kampala Junior Academy, our open admissions policy is more than just flexibility — it’s a commitment to diversity, accessibility, and giving each child a strong educational foundation from nursery school to primary school.</p>
+<p class="wp-block-paragraph">At Kampala Junior Academy, our open admissions policy is more than just flexibility - it’s a commitment to diversity, accessibility, and giving each child a strong educational foundation from nursery school to primary school.</p>
 
 
 
@@ -2243,7 +2243,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">We recognize that every child is unique, and we are here to walk with you every step of the way — from the first day of preschool to the final Primary Seven exam.</p>
+<p class="wp-block-paragraph">We recognize that every child is unique, and we are here to walk with you every step of the way - from the first day of preschool to the final Primary Seven exam.</p>
 
 
 
@@ -2267,7 +2267,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/171025183268018319503-7AFB-4DB8-8434-AA473AE45521.png', 'Mukisa-KJA', '2025-08-03T11:30:33', 'At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy — inviting learners from [&hellip;]'),
+<p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/171025183268018319503-7AFB-4DB8-8434-AA473AE45521.png', 'Mukisa-KJA', '2025-08-03T11:30:33', 'At Kampala Junior Academy, we believe that every child deserves the opportunity to learn, grow, and thrive. That’s why we proudly follow an open admissions policy - inviting learners from [&hellip;]'),
   ('about-us', 'About us', 'Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993. The school was founded by Mrs Mary [&hellip;]', '<p class="wp-block-paragraph">Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993.</p>
 
 
@@ -2276,7 +2276,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear — to give young learners a strong start in life through quality, caring, holistic and child friendly education.</p>
+<p class="wp-block-paragraph">The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear - to give young learners a strong start in life through quality, caring, holistic and child friendly education.</p>
 
 
 
@@ -2376,7 +2376,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Each one provides a safe, nurturing space for learners at every stage — from daycare and nursery school, all the way to primary school. We believe in giving children the tools they need to succeed academically, socially, and personally. In 2021, we moved into the digital world by launching our online learning platform—so children can keep learning from home wherever they are.</p>
+<p class="wp-block-paragraph">Each one provides a safe, nurturing space for learners at every stage - from daycare and nursery school, all the way to primary school. We believe in giving children the tools they need to succeed academically, socially, and personally. In 2021, we moved into the digital world by launching our online learning platform-so children can keep learning from home wherever they are.</p>
 
 
 
@@ -2409,11 +2409,11 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 <p class="wp-block-paragraph"></p>', 'https://kja.ug/wp-content/uploads/2025/08/1748603633817-1718272909284-897C155B-DD72-4603-ACAE-CFDDB7546469-1.png', 'Mukisa-KJA', '2025-08-03T11:07:39', 'Explore the Best Nursery and Primary School in Uganda, where quality education and caring experiences begin for young learners.'),
-  ('from-the-director', 'From The Director', 'It is my great pleasure to welcome you to Kampala Junior Academy (KJA) — a school that has proudly provided daycare, nursery school, and primary school education to families in [&hellip;]', '<div style="height:31px" aria-hidden="true" class="wp-block-spacer"></div>
+  ('from-the-director', 'From The Director', 'It is my great pleasure to welcome you to Kampala Junior Academy (KJA) - a school that has proudly provided daycare, nursery school, and primary school education to families in [&hellip;]', '<div style="height:31px" aria-hidden="true" class="wp-block-spacer"></div>
 
 
 
-<p class="wp-block-paragraph">It is my great pleasure to welcome you to Kampala Junior Academy (KJA) — a school that has proudly provided daycare, nursery school, and primary school education to families in Uganda since 1993.</p>
+<p class="wp-block-paragraph">It is my great pleasure to welcome you to Kampala Junior Academy (KJA) - a school that has proudly provided daycare, nursery school, and primary school education to families in Uganda since 1993.</p>
 
 
 
@@ -2429,7 +2429,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">We offer a child-centered and holistic approach to education that focuses on the whole child. Our programs are carefully designed to spark curiosity, build confidence, and inspire leadership — from our daycare and preschool learners, all the way to our primary school students.</p>
+<p class="wp-block-paragraph">We offer a child-centered and holistic approach to education that focuses on the whole child. Our programs are carefully designed to spark curiosity, build confidence, and inspire leadership - from our daycare and preschool learners, all the way to our primary school students.</p>
 
 
 
@@ -2437,7 +2437,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">Our Nursery and Primary School curricula provide a strong foundation in academics while also helping children grow emotionally and socially. Learners are supported to master key subjects like English, Mathematics, Science, and Social Studies — essential skills for success in school and beyond.</p>
+<p class="wp-block-paragraph">Our Nursery and Primary School curricula provide a strong foundation in academics while also helping children grow emotionally and socially. Learners are supported to master key subjects like English, Mathematics, Science, and Social Studies - essential skills for success in school and beyond.</p>
 
 
 
@@ -2445,7 +2445,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">As children move through our school, they are introduced to a wide range of academic and co-curricular activities. These include sports, etiquette, foreign languages, art, and more — all designed to build well-rounded learners with confidence and creativity. Whether a child is in preschool or preparing for Primary Seven, we give them the tools to excel in the 21st century.</p>
+<p class="wp-block-paragraph">As children move through our school, they are introduced to a wide range of academic and co-curricular activities. These include sports, etiquette, foreign languages, art, and more - all designed to build well-rounded learners with confidence and creativity. Whether a child is in preschool or preparing for Primary Seven, we give them the tools to excel in the 21st century.</p>
 
 
 
@@ -2453,7 +2453,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph">At KJA, we believe leadership begins early. That’s why our curriculum weaves leadership development into everyday learning — helping our students become confident decision-makers, team players, and future changemakers.</p>
+<p class="wp-block-paragraph">At KJA, we believe leadership begins early. That’s why our curriculum weaves leadership development into everyday learning - helping our students become confident decision-makers, team players, and future changemakers.</p>
 
 
 
@@ -2477,7 +2477,7 @@ insert into public.pages (slug, title, excerpt, body, image_url, author, publish
 
 
 
-<p class="wp-block-paragraph"><strong>Warm regards,<br>Andrew Mulumba<br><em>Director, Kampala Junior Academy Schools</em></strong></p>', 'https://kja.ug/wp-content/uploads/2025/08/1727089882239-DSC_0231-4.jpg', 'Mukisa-KJA', '2025-08-03T10:40:56', 'It is my great pleasure to welcome you to Kampala Junior Academy (KJA) — a school that has proudly provided daycare, nursery school, and primary school education to families in [&hellip;]'),
+<p class="wp-block-paragraph"><strong>Warm regards,<br>Andrew Mulumba<br><em>Director, Kampala Junior Academy Schools</em></strong></p>', 'https://kja.ug/wp-content/uploads/2025/08/1727089882239-DSC_0231-4.jpg', 'Mukisa-KJA', '2025-08-03T10:40:56', 'It is my great pleasure to welcome you to Kampala Junior Academy (KJA) - a school that has proudly provided daycare, nursery school, and primary school education to families in [&hellip;]'),
   ('privacy-policy', 'Privacy Policy', 'Who we are Suggested text: Our website address is: http://84.247.190.131. Comments Suggested text: When visitors leave comments on the site we collect the data shown in the comments form, and [&hellip;]', '<h2 class="wp-block-heading">Who we are</h2>
 
 
@@ -3251,7 +3251,7 @@ insert into public.campuses (slug, title, excerpt, body, image_url, seo_descript
 
 
 
-<p class="wp-block-paragraph">At Kampala Junior Academy – Najjanankumbi, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus — everything at KJA is designed with your child’s growth in mind. If you''re looking for a school that combines quality nursery, daycare, and primary education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here—with care and purpose.</p>
+<p class="wp-block-paragraph">At Kampala Junior Academy – Najjanankumbi, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus - everything at KJA is designed with your child’s growth in mind. If you''re looking for a school that combines quality nursery, daycare, and primary education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here-with care and purpose.</p>
 
 
 
@@ -3272,7 +3272,7 @@ insert into public.campuses (slug, title, excerpt, body, image_url, seo_descript
 
 
 
-<p class="wp-block-paragraph">At Kampala Junior Academy – Kitante, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus — everything at KJA is designed with your child’s growth in mind. If you''re looking for a school that combines quality <strong>NURSERY</strong>, and <strong>PRIMARY</strong> School Education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here—with care and purpose.</p>
+<p class="wp-block-paragraph">At Kampala Junior Academy – Kitante, we believe in providing more than just an education. We offer a nurturing environment where children feel safe, inspired, and supported to be their very best. From strong academics and vibrant co-curriculars to a caring community and a secure, scenic campus - everything at KJA is designed with your child’s growth in mind. If you''re looking for a school that combines quality <strong>NURSERY</strong>, and <strong>PRIMARY</strong> School Education with values, creativity, and community, we warmly invite you to become part of the KJA family. Your child’s learning journey starts here-with care and purpose.</p>
 
 
 

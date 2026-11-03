@@ -162,7 +162,7 @@ function wrap(text: string, font: PDFFont, size: number, width: number, maxLines
 }
 
 function formatScore(score: number | null, nursery: boolean) {
-  if (score === null || Number.isNaN(score)) return "—";
+  if (score === null || Number.isNaN(score)) return "-";
   if (nursery) return score >= 75 ? "Exceeding" : score >= 50 ? "Secure" : score >= 25 ? "Developing" : "Beginning";
   const value = num(score) ?? score;
   return `${value}%`;
@@ -298,7 +298,7 @@ export async function loadReportCardPhotos(cards: Pick<StreamReportCard, "id" | 
   const storage = serviceClient();
   if (!storage) return photos;
   const pending = cards.filter((card) => card.photo_path);
-  // Wider fan-out — photo downloads dominate pack prep for large streams.
+  // Wider fan-out - photo downloads dominate pack prep for large streams.
   for (let index = 0; index < pending.length; index += 32) {
     const slice = pending.slice(index, index + 32);
     await Promise.all(slice.map(async (card) => {
@@ -576,8 +576,8 @@ export async function buildReportCardsPdf(
     page!.drawText(fit([place, card.student_number].filter(Boolean).join("   ·   "), regular, 8, pupilWidth), { x: M, y: y - 34, size: 8, font: regular, color: MUTED });
     const stats: [string, string][] = [
       [input.nursery ? "Overall" : "Average", formatScore(card.overall_score, input.nursery)],
-      ["AGG", card.overall_aggregate != null ? String(card.overall_aggregate) : "—"],
-      ["Grade", card.overall_grade || "—"],
+      ["AGG", card.overall_aggregate != null ? String(card.overall_aggregate) : "-"],
+      ["Grade", card.overall_grade || "-"],
       ["Attendance", "✓"],
     ];
     const statX = M + pupilWidth + 10;
@@ -636,7 +636,7 @@ export async function buildReportCardsPdf(
           }
           if (column.key === "score") return formatScore(line.score, false);
           if (column.key === "total") return formatScore(line.score, input.nursery);
-          if (column.key === "progress" || column.key === "grade") return line.grade || "—";
+          if (column.key === "progress" || column.key === "grade") return line.grade || "-";
           if (column.key === "initials") return line.teacher_initials || "";
           return line.teacher_comment || "";
         });
@@ -741,7 +741,7 @@ export async function buildReportCardsPdf(
     page!.drawText("NEXT TERM STARTS ON", { x: feesSplit + 8, y: feesTop - 14, size: 6.5, font: bold, color: GOLD_INK });
     const feeLines = card.fees ?? [];
     if (!feeLines.length) {
-      page!.drawText("—", { x: M + 8, y: feesTop - 28, size: 9, font: bold, color: INK });
+      page!.drawText("-", { x: M + 8, y: feesTop - 28, size: 9, font: bold, color: INK });
     } else {
       feeLines.forEach((line, index) => {
         const rowY = feesTop - 28 - index * 12;
@@ -757,7 +757,7 @@ export async function buildReportCardsPdf(
         page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: INK });
       }
     }
-    const starts = formatReportDate(card.next_starts_on) || "—";
+    const starts = formatReportDate(card.next_starts_on) || "-";
     const startsSize = regular.widthOfTextAtSize(starts, 8) > feesW * 0.38 - 16 ? 7 : 8;
     page!.drawText(fit(starts, bold, startsSize, feesW * 0.38 - 16), { x: feesSplit + 8, y: feesTop - 30, size: startsSize, font: bold, color: INK });
     y = Math.min(feesTop - feesH, qrY - 10);

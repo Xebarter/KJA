@@ -182,7 +182,7 @@ export default async function LibraryOverviewPage() {
         kicker={`Library · ${libraryLabel(libraryId)}`}
         icon="fa-book-open"
         title={libraryLabel(libraryId)}
-        description="Books, loans, stock, and attention — everything on this desk at a glance."
+        description="Books, loans, stock, and attention - everything on this desk at a glance."
         actions={
           <>
             <Link className="admin-hero-btn is-primary" href={`${LIBRARY_BASE}/loans`}>
@@ -207,7 +207,7 @@ export default async function LibraryOverviewPage() {
                 </span>
                 <span className="lib-todo-text">
                   <strong>Overdue loans</strong>
-                  <small>Past due — chase returns</small>
+                  <small>Past due - chase returns</small>
                 </span>
                 <em>{overdueCount}</em>
                 <i className="fa-solid fa-chevron-right lib-todo-go" aria-hidden="true" />
@@ -427,14 +427,14 @@ export default async function LibraryOverviewPage() {
                     return (
                       <tr key={row.id as string}>
                         <td>
-                          <strong>{item?.library_titles?.title || "—"}</strong>
+                          <strong>{item?.library_titles?.title || "-"}</strong>
                           <small>{item?.library_titles?.authors || item?.accession || item?.barcode || ""}</small>
                         </td>
                         <td>
                           <PersonCell
                             kind={isPupil ? "pupil" : "teacher"}
                             id={isPupil ? pupil?.id : teacher?.id}
-                            name={pupil?.full_name || teacher?.full_name || "—"}
+                            name={pupil?.full_name || teacher?.full_name || "-"}
                             detail={detail}
                             photoPath={isPupil ? pupil?.photo_path : teacher?.photo_path}
                           />
@@ -482,11 +482,11 @@ export default async function LibraryOverviewPage() {
                     return (
                       <tr key={row.id as string}>
                         <td>
-                          <strong>{title?.title || "—"}</strong>
+                          <strong>{title?.title || "-"}</strong>
                         </td>
-                        <td>{title?.authors || "—"}</td>
+                        <td>{title?.authors || "-"}</td>
                         <td>
-                          <small>{row.accession || row.barcode || "—"}</small>
+                          <small>{row.accession || row.barcode || "-"}</small>
                         </td>
                       </tr>
                     );

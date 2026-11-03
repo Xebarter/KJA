@@ -22,7 +22,7 @@ function sittingKey(paper: Pick<PaperRow, "name" | "kind" | "held_on">) {
 
 /**
  * Add missing markbooks for Other (cocurricular) subjects onto every existing sitting.
- * Assessments set before Other subjects were added never included them — this fills the gap
+ * Assessments set before Other subjects were added never included them - this fills the gap
  * so they appear on the Marks workbook card.
  */
 export async function ensureOtherMarkbooks(
@@ -87,7 +87,7 @@ export async function ensureOtherMarkbooks(
     const slice = fresh.slice(index, index + 80);
     const { error } = await supabase.from("assessments").insert(slice);
     if (error) {
-      // Older schemas may not have status yet — retry without it.
+      // Older schemas may not have status yet - retry without it.
       if (/status|42703/i.test(error.message)) {
         const plain = slice.map(({ status: _status, ...row }) => row);
         const again = await supabase.from("assessments").insert(plain);

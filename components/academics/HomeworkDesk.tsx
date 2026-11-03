@@ -570,46 +570,45 @@ export function HomeworkDesk({
       </div>
 
       <section className="ahw-card" aria-label={mode === "homework" ? "Homework" : "Class resources"}>
-        <header className="ahw-card-head">
-          <div className="ahw-modes" role="tablist" aria-label="Desk mode">
-            <button type="button" role="tab" aria-selected={mode === "homework"} className={mode === "homework" ? "is-on" : ""} onClick={() => switchMode("homework")}>
-              <i className="fa-solid fa-book" aria-hidden="true" />
-              <span>Homework</span>
-              <em>{rows.length.toLocaleString("en-GB")}</em>
-            </button>
-            <button type="button" role="tab" aria-selected={mode === "resources"} className={mode === "resources" ? "is-on" : ""} onClick={() => switchMode("resources")}>
-              <i className="fa-solid fa-folder-open" aria-hidden="true" />
-              <span>Resources</span>
-              <em>{resources.length.toLocaleString("en-GB")}</em>
+        <div className="ahw-toolbar">
+          <div className="ahw-toolbar-top">
+            <div className="ahw-modes" role="tablist" aria-label="Desk mode">
+              <button type="button" role="tab" aria-selected={mode === "homework"} className={mode === "homework" ? "is-on" : ""} onClick={() => switchMode("homework")}>
+                <i className="fa-solid fa-book" aria-hidden="true" />
+                <span>Homework</span>
+                <em>{rows.length.toLocaleString("en-GB")}</em>
+              </button>
+              <button type="button" role="tab" aria-selected={mode === "resources"} className={mode === "resources" ? "is-on" : ""} onClick={() => switchMode("resources")}>
+                <i className="fa-solid fa-folder-open" aria-hidden="true" />
+                <span>Resources</span>
+                <em>{resources.length.toLocaleString("en-GB")}</em>
+              </button>
+            </div>
+            <button
+              type="button"
+              className={`ahw-set${composing ? " is-on" : ""}`}
+              aria-expanded={composing}
+              onClick={() => (composing ? setComposing(false) : openComposer())}
+            >
+              <i className={`fa-solid ${composing ? "fa-xmark" : "fa-plus"}`} aria-hidden="true" />
+              {composing ? "Close" : mode === "homework" ? "Set homework" : "Post resource"}
             </button>
           </div>
-          <button
-            type="button"
-            className={`ahw-set${composing ? " is-on" : ""}`}
-            aria-expanded={composing}
-            onClick={() => (composing ? setComposing(false) : openComposer())}
-          >
-            <i className={`fa-solid ${composing ? "fa-xmark" : "fa-plus"}`} aria-hidden="true" />
-            {composing ? "Close" : mode === "homework" ? "Set homework" : "Post resource"}
-          </button>
-        </header>
-
-        <div className="ahw-tools">
-          <label className="ahw-search">
-            <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder={mode === "homework" ? "Search title, class, or subject" : "Search notes, files, links…"}
-              aria-label={mode === "homework" ? "Search homework" : "Search resources"}
-            />
-            {query ? (
-              <button type="button" className="ahw-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
-                <i className="fa-solid fa-xmark" aria-hidden="true" />
-              </button>
-            ) : null}
-          </label>
-          <div className="ahw-tools-row">
+          <div className="ahw-toolbar-bottom">
+            <label className="ahw-search">
+              <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder={mode === "homework" ? "Search title, class, or subject" : "Search notes, files, links…"}
+                aria-label={mode === "homework" ? "Search homework" : "Search resources"}
+              />
+              {query ? (
+                <button type="button" className="ahw-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
+                  <i className="fa-solid fa-xmark" aria-hidden="true" />
+                </button>
+              ) : null}
+            </label>
             <div className="ahw-filters" role="group" aria-label="Show">
               {filters.map((item) => (
                 <button key={item.id} type="button" className={filter === item.id ? "is-on" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>
@@ -638,76 +637,63 @@ export function HomeworkDesk({
         {notice ? <p className={`ahw-note is-${notice.tone}`} role="status">{notice.text}</p> : null}
 
         {composing && mode === "homework" ? (
-          <form className="ahw-composer" onSubmit={saveHomework} ref={composerRef}>
-            <div className="ahw-composer-head">
+          <form className="ahw-composer is-homework" onSubmit={saveHomework} ref={composerRef}>
+            <header className="ahw-hw-head">
               <div>
-                <p className="ahw-kicker">{isTeacher ? "New task" : "New homework"}</p>
                 <h2>{isTeacher ? "Set homework" : "Set work for the class"}</h2>
-                <p>
-                  {isTeacher
-                    ? "Pick the classes, write the task, then publish when pupils should see it."
-                    : "Choose who receives it, then write the task. Publish when pupils should see it on the app."}
-                </p>
+                <p>Classes, due date, title - then write the homework PDF.</p>
               </div>
-            </div>
+              <button type="button" className="ahw-hw-dismiss" onClick={() => setComposing(false)} aria-label="Close composer">
+                <i className="fa-solid fa-xmark" aria-hidden="true" />
+              </button>
+            </header>
 
-            <div className="ahw-panel">
-              <div className="ahw-panel-head">
-                <span className="ahw-step">1</span>
-                <div>
+            <section className="ahw-hw-setup" aria-label="Homework setup">
+              <div className="ahw-hw-classes">
+                <div className="ahw-hw-section-label">
                   <strong>Classes</strong>
-                  <p>{isTeacher ? "Tap every class that should get this homework." : "Same homework is created for every class you select."}</p>
+                  <div className="ahw-class-tools">
+                    <button type="button" onClick={() => setHomeworkClasses(classes.map((entry) => entry.value))}>All</button>
+                    <button type="button" onClick={() => setHomeworkClasses([])}>Clear</button>
+                  </div>
                 </div>
-                <div className="ahw-class-tools">
-                  <button type="button" onClick={() => setHomeworkClasses(classes.map((entry) => entry.value))}>All</button>
-                  <button type="button" onClick={() => setHomeworkClasses([])}>Clear</button>
-                </div>
-              </div>
-              <div className="ahw-class-picks" role="group" aria-label="Classes for this homework">
-                {(["nursery", "primary"] as const).map((section) => {
-                  const options = classes.filter((entry) => entry.section === section);
-                  if (!options.length) return null;
-                  const showSection = !isTeacher || classes.some((entry) => entry.section !== section);
-                  return (
-                    <div key={section} className="ahw-class-group">
-                      {showSection ? <strong>{section === "nursery" ? "Nursery" : "Primary"}</strong> : null}
-                      <div className="ahw-class-chips">
-                        {options.map((entry) => {
-                          const on = classKeys.includes(entry.value);
-                          return (
-                            <button
-                              key={entry.value}
-                              type="button"
-                              className={on ? "is-on" : ""}
-                              aria-pressed={on}
-                              onClick={() => toggleHomeworkClass(entry.value)}
-                            >
-                              <span>{entry.label}</span>
-                              <small>{entry.count}</small>
-                            </button>
-                          );
-                        })}
+                <div className="ahw-class-picks" role="group" aria-label="Classes for this homework">
+                  {(["nursery", "primary"] as const).map((section) => {
+                    const options = classes.filter((entry) => entry.section === section);
+                    if (!options.length) return null;
+                    const showSection = !isTeacher || classes.some((entry) => entry.section !== section);
+                    return (
+                      <div key={section} className="ahw-class-group">
+                        {showSection ? <strong>{section === "nursery" ? "Nursery" : "Primary"}</strong> : null}
+                        <div className="ahw-class-chips">
+                          {options.map((entry) => {
+                            const on = classKeys.includes(entry.value);
+                            return (
+                              <button
+                                key={entry.value}
+                                type="button"
+                                className={on ? "is-on" : ""}
+                                aria-pressed={on}
+                                onClick={() => toggleHomeworkClass(entry.value)}
+                              >
+                                <span>{entry.label}</span>
+                                <small>{entry.count}</small>
+                              </button>
+                            );
+                          })}
+                        </div>
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {classKeys.length ? (
-                <p className="ahw-selected">{countLabel(classKeys.length, "class", "classes")} selected</p>
-              ) : (
-                <p className="ahw-selected is-warn">Select at least one class</p>
-              )}
-            </div>
-
-            <div className="ahw-panel">
-              <div className="ahw-panel-head">
-                <span className="ahw-step">2</span>
-                <div>
-                  <strong>The task</strong>
-                  <p>Subject, due date, title, then write the homework pupils will open as a PDF.</p>
+                    );
+                  })}
                 </div>
+                {classKeys.length ? (
+                  <p className="ahw-selected">{countLabel(classKeys.length, "class", "classes")} selected</p>
+                ) : (
+                  <p className="ahw-selected is-warn">Select at least one class</p>
+                )}
               </div>
-              <div className="ahw-fields">
+
+              <div className="ahw-hw-meta">
                 <label className="ofc-field">
                   <span>Subject</span>
                   <select name="subject_id" required value={subjectId} disabled={!classKeys.length} onChange={(event) => setSubjectId(event.target.value)}>
@@ -732,28 +718,39 @@ export function HomeworkDesk({
                     })}
                   </div>
                 </div>
-                <label className="ofc-field ahw-span">
+                <label className="ofc-field ahw-hw-title">
                   <span>Title</span>
-                  <input ref={titleRef} name="title" required maxLength={160} value={title} onChange={(event) => setTitle(event.target.value)} placeholder="English · comprehension homework" />
-                </label>
-                <div className="ofc-field ahw-span ahw-editor ahw-hw-doc">
-                  <span>
-                    Homework
-                    <em>Type and format like Word — pupils open this as a PDF</em>
-                  </span>
-                  <RichTextEditor
-                    key={`hw-${editorKey}`}
-                    variant="homework"
-                    initialHtml=""
-                    onChange={setBodyHtml}
-                    onUpload={uploadInline}
-                    placeholder="Start typing the homework…"
+                  <input
+                    ref={titleRef}
+                    name="title"
+                    required
+                    maxLength={160}
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    placeholder="English · comprehension homework"
                   />
-                </div>
+                </label>
               </div>
-            </div>
+            </section>
 
-            <div className="ahw-actions">
+            <section className="ahw-hw-doc-shell" aria-label="Homework document">
+              <div className="ahw-hw-doc-label">
+                <strong>Homework</strong>
+                <em>Pupils open this as a PDF</em>
+              </div>
+              <div className="ahw-editor ahw-hw-doc">
+                <RichTextEditor
+                  key={`hw-${editorKey}`}
+                  variant="homework"
+                  initialHtml=""
+                  onChange={setBodyHtml}
+                  onUpload={uploadInline}
+                  placeholder="Start typing the homework…"
+                />
+              </div>
+            </section>
+
+            <div className="ahw-hw-bar">
               <div className="ahw-publish" role="group" aria-label="When pupils can see this">
                 <button type="button" className={publish ? "" : "is-on"} aria-pressed={!publish} onClick={() => setPublish(false)}>
                   <i className="fa-solid fa-pen" aria-hidden="true" /> Draft
@@ -968,7 +965,11 @@ export function HomeworkDesk({
                           </time>
                           <div className="ahw-copy">
                             <strong>{row.title}</strong>
-                            <p>{row.class_label} · {row.subject_name} · {duePhrase(row.due_on, today)}</p>
+                            <p>
+                              <span className="ahw-meta-chip">{row.class_label}</span>
+                              <span className="ahw-meta-chip">{row.subject_name}</span>
+                              <span>{duePhrase(row.due_on, today)}</span>
+                            </p>
                           </div>
                           {live ? (
                             <div className="ahw-progress">

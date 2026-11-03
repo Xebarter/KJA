@@ -202,23 +202,24 @@ export async function getStudentPortal() {
             stream: string;
             subject_id: string;
           };
-          const base = () =>
+          const base = (cols: string) =>
             supabase
               .from("homework_assignments")
+              .select(cols)
               .not("published_at", "is", null)
               .eq("term_id", termId)
               .eq("class_code", student.class_code || "")
               .eq("stream", student.stream || "")
               .order("due_on");
-          const withPdf = await base().select(
+          const withPdf = await base(
             "id, title, instructions, exam_pdf_path, due_on, published_at, class_code, stream, subject_id",
           );
-          if (!withPdf.error) return (withPdf.data || []) as HwRow[];
+          if (!withPdf.error) return (withPdf.data || []) as unknown as HwRow[];
           // Pre-migration databases without exam_pdf_path.
-          const legacy = await base().select(
+          const legacy = await base(
             "id, title, instructions, due_on, published_at, class_code, stream, subject_id",
           );
-          return (legacy.data || []) as HwRow[];
+          return (legacy.data || []) as unknown as HwRow[];
         })()
       : Promise.resolve([]),
     rows<{ assignment_id: string; done_at: string }>(

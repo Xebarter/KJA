@@ -18,7 +18,7 @@ function clubIcon(title: string) {
 }
 
 function cheer(count: number, unpaid: number) {
-  if (!count) return "Ask your parents to choose clubs in the parent portal — then they will show up here.";
+  if (!count) return "Ask your parents to choose clubs in the parent portal - then they will show up here.";
   if (unpaid) {
     return `You are in ${count} club${count === 1 ? "" : "s"}. ${unpaid} still need${unpaid === 1 ? "s" : ""} payment from parents.`;
   }
@@ -110,7 +110,7 @@ export default async function StudentClubsPage() {
           </span>
           <h2>No clubs yet</h2>
           <p>
-            You are not in any clubs yet. Ask your parents to choose clubs in the parent portal —
+            You are not in any clubs yet. Ask your parents to choose clubs in the parent portal -
             sports, music, art, and more!
           </p>
         </div>

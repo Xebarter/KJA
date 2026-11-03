@@ -39,7 +39,7 @@ function statusLabel(row: LibraryCopyHit) {
   return row.meta.includes("No copies") ? "No copies here" : "All rented out";
 }
 
-/** Live book search for issuing loans — one result per title. */
+/** Live book search for issuing loans - one result per title. */
 export function CopyFields({ name = "item_id", label = "Book" }: { name?: string; label?: string }) {
   const [picked, setPicked] = useState<LibraryCopyHit | null>(null);
   const [query, setQuery] = useState("");

@@ -30,7 +30,7 @@ function wantsParentPortal(next?: string | null) {
   return !wanted || wanted === "/" || wanted === "/account" || wanted.startsWith("/account/");
 }
 
-/** After sign-in from the public parent dialog. Guardianship decides /account — not admin/staff role. */
+/** After sign-in from the public parent dialog. Guardianship decides /account - not admin/staff role. */
 export async function loginDestination(
   supabase: SupabaseClient,
   userId: string,
@@ -52,7 +52,7 @@ export async function loginDestination(
   const guardian = await isParentGuardian(supabase, userId, role);
   if (guardian && wantsParentPortal(next)) return parentPath(next);
   if (guardian && !wantsParentPortal(next)) {
-    // Guardian asked for a staff URL — honour it when they have desk access.
+    // Guardian asked for a staff URL - honour it when they have desk access.
     const grants = await loadGrants(supabase, userId, role);
     if (grants.length) return destinationForGrants(grants, next);
     if (role === "staff") {

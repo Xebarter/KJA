@@ -9,7 +9,7 @@ const fontsCssPath = join(root, "public/css/fonts.css");
 
 mkdirSync(outDir, { recursive: true });
 
-/** Nunito v32 — same woff2 covers 400–800 for each subset. */
+/** Nunito v32 - same woff2 covers 400–800 for each subset. */
 const files = [
   {
     name: "nunito-latin.woff2",

@@ -69,7 +69,7 @@ export async function resolveStaffLoginDestination(
   const grants = await loadGrants(service, userId, role);
   if (grants.length) return destinationForGrants(grants, next);
 
-  // Office logins only — never send an unknown staff-gate sign-in to the parent portal.
+  // Office logins only - never send an unknown staff-gate sign-in to the parent portal.
   return "/admin/login";
 }
 

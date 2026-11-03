@@ -1,4 +1,4 @@
-/** Shared word/sentence validators — server is source of truth. */
+/** Shared word/sentence validators - server is source of truth. */
 
 export function normalizeForCount(text: string): string {
   return text.trim().replace(/\s+/g, " ");

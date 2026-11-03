@@ -309,7 +309,7 @@ export async function prepareMarksWorkbookResponse(
     });
     const labels = [...new Set(bookPapers.map((paper) => paper.label))];
     const filename = marksWorkbookFilename(papers[0].name, labels);
-    // Fresh Buffer copy — avoids detached ArrayBuffer 500s when piping ExcelJS output.
+    // Fresh Buffer copy - avoids detached ArrayBuffer 500s when piping ExcelJS output.
     const bodyBytes = Buffer.from(bytes);
     return new Response(bodyBytes, {
       headers: {

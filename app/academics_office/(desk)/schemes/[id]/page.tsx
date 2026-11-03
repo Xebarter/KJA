@@ -75,7 +75,7 @@ export default async function SchemePage({ params }: { params: Promise<{ id: str
                     <tr key={lesson.id}>
                       <td>{lesson.week_number}</td>
                       <td>{lesson.topic}<div><small>{lesson.objectives}</small></div></td>
-                      <td>{lesson.due_on || "—"}{overdue ? <div><span className="acd-pill is-absent">Overdue</span></div> : null}</td>
+                      <td>{lesson.due_on || "-"}{overdue ? <div><span className="acd-pill is-absent">Overdue</span></div> : null}</td>
                       <td>
                         <DeskForm action={markLessonTaught} className="ofc-form is-compact">
                           <input type="hidden" name="scheme_id" value={id} />

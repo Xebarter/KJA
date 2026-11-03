@@ -324,7 +324,8 @@ export async function buildAccountsPdf(doc: AccountsDoc, school: School, crestBy
 
   // Notes and stamp
   if (doc.notes || doc.stamp) {
-    const noteH = 74;
+    const noteLines = doc.notes?.lines.slice(0, 3) || [];
+    const noteH = doc.notes ? Math.max(74, 28 + noteLines.length * 16 + 18) : 74;
     if (top - noteH < FOOT + 40) {
       footer();
       page = pdf.addPage([W, H]);
@@ -336,12 +337,12 @@ export async function buildAccountsPdf(doc: AccountsDoc, school: School, crestBy
       const noteW = CW - (doc.stamp ? 128 : 0);
       box(M, top, noteW, noteH, { fill: TINT, border: LINE });
       text(doc.notes.title, M + 18, top - 23, 10.5, bold, INK);
-      doc.notes.lines.slice(0, 3).forEach((line, index) => text(fit(line, regular, 8.5, noteW - 36), M + 18, top - 41 - index * 14, 8.5, regular, MUTED));
+      noteLines.forEach((line, index) => text(fit(line, regular, 8.5, noteW - 36), M + 18, top - 43 - index * 16, 8.5, regular, MUTED));
     }
     if (doc.stamp) {
       const tone = TONES[doc.stamp.tone].fg;
       const sealX = W - M - 50;
-      const sealY = top - 37;
+      const sealY = top - Math.min(37, noteH / 2);
       page.drawCircle({ x: sealX, y: sealY, size: 44, borderColor: tone, borderWidth: 2.2, borderOpacity: 0.9 });
       page.drawCircle({ x: sealX, y: sealY, size: 38, borderColor: tone, borderWidth: 0.8, borderOpacity: 0.9 });
       spaced(doc.stamp.top, sealX - spacedWidth(doc.stamp.top, 5.5, bold, 0.8) / 2, sealY + 15, 5.5, bold, tone, 0.8);

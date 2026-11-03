@@ -581,7 +581,7 @@ export function JobApplicationsBoard({
                               {row.campus ? <small>{row.campus}</small> : null}
                             </td>
                             <td data-label="Background">
-                              <span className="app-cell-main">{row.qualification || "—"}</span>
+                              <span className="app-cell-main">{row.qualification || "-"}</span>
                               {row.experience ? <small>{row.experience}</small> : null}
                             </td>
                             <td data-label="Stage">

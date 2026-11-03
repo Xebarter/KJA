@@ -116,7 +116,7 @@ export default async function TeacherHomeworkPage() {
           </p>
           <h1>Homework & resources</h1>
           <p className="tch-hw-lede">
-            Set work for the subjects you teach. Published items appear on the Pupils App.
+            Set homework and share resources for the subjects you teach. Pupils open them in the app.
           </p>
         </div>
         <div className="tch-hw-hero-meta" aria-label="Quick summary">

@@ -198,7 +198,7 @@ export async function ApplicationDetail({ params, base }: { params: Promise<{ id
             {payment ? (
               <>
                 <dl className="apl-paycard-facts">
-                  <div><dt>Receipt no.</dt><dd>{payment.receipt_no ?? "—"}</dd></div>
+                  <div><dt>Receipt no.</dt><dd>{payment.receipt_no ?? "-"}</dd></div>
                   <div><dt>Paid on</dt><dd>{formatDateTime(payment.paid_at)}</dd></div>
                   <div><dt>Method</dt><dd>{payment.network ?? "Mobile money"}</dd></div>
                   <div><dt>Paid from</dt><dd>{payment.phone.replace(/^256/, "0")}</dd></div>

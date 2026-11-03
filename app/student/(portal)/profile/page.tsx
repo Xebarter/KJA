@@ -29,7 +29,7 @@ export default async function StudentProfilePage() {
   const name = student ? displayName(student) : "Student";
   const tone = houseTone(student?.house);
   const mustReset = portal.mustResetPassword;
-  const className = student ? classLabel(student.class_code, student.stream) : "—";
+  const className = student ? classLabel(student.class_code, student.stream) : "-";
 
   return (
     <div className={`sp-page sp-page--${tone}`}>
@@ -52,11 +52,11 @@ export default async function StudentProfilePage() {
           {student ? <PrintCardButton /> : null}
           <div className="sp-hero-stats" aria-label="Profile summary">
             <div className="sp-hero-stat">
-              <strong>{student?.class_code || "—"}</strong>
+              <strong>{student?.class_code || "-"}</strong>
               <span>Class</span>
             </div>
             <div className="sp-hero-stat">
-              <strong>{student?.house ? student.house.slice(0, 8) : "—"}</strong>
+              <strong>{student?.house ? student.house.slice(0, 8) : "-"}</strong>
               <span>House</span>
             </div>
           </div>
@@ -120,11 +120,11 @@ export default async function StudentProfilePage() {
               </div>
               <div className={`sp-fact sp-fact--${tone}`}>
                 <dt>House</dt>
-                <dd>{student.house || "—"}</dd>
+                <dd>{student.house || "-"}</dd>
               </div>
               <div className="sp-fact sp-fact--mint">
                 <dt>Campus</dt>
-                <dd>{student.campus || "—"}</dd>
+                <dd>{student.campus || "-"}</dd>
               </div>
             </dl>
 
@@ -151,7 +151,7 @@ export default async function StudentProfilePage() {
 
             <div className="sp-email">
               <span className="sp-email-label">Login email</span>
-              <strong>{portal.profile?.email || "—"}</strong>
+              <strong>{portal.profile?.email || "-"}</strong>
             </div>
 
             <ActionForm action={savePassword} className="sp-form" success="Password updated. Nice work!">

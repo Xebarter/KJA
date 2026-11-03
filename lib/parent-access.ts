@@ -14,7 +14,7 @@ function studentIds(value: unknown) {
 }
 
 /**
- * Parent portal access is about guardianship — not about desk roles.
+ * Parent portal access is about guardianship - not about desk roles.
  * Admins (and other staff) who are also linked parents/guardians are allowed.
  * Pupils never are.
  */

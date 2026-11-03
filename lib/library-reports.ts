@@ -303,7 +303,7 @@ export async function loadLibraryReport(
       return {
         id: String(row.id),
         title: String(item?.library_titles?.title || "Untitled"),
-        borrower: String(pupil?.full_name || teacher?.full_name || "—"),
+        borrower: String(pupil?.full_name || teacher?.full_name || "-"),
         kind: String(row.borrower_kind),
         due_at: String(row.due_at),
         days: daysLate(String(row.due_at), today),

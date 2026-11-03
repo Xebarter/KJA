@@ -27,7 +27,7 @@ class PortalRepository {
     if (user == null) throw PortalException('Sign in to continue.');
 
     Map<String, dynamic>? profileRow;
-    // Profile + claim RPCs in parallel — sequential round-trips were the slow boot path.
+    // Profile + claim RPCs in parallel - sequential round-trips were the slow boot path.
     await Future.wait<void>([
       () async {
         try {

@@ -145,7 +145,7 @@ export function AssessmentsBoard({ papers }: { papers: PaperCard[] }) {
                           <span className="tch-board-row-track">
                             <span style={{ width: `${rate}%` }} />
                           </span>
-                          <em>{paper.roll ? `${nf(paper.entered)}/${nf(paper.roll)}` : "—"}</em>
+                          <em>{paper.roll ? `${nf(paper.entered)}/${nf(paper.roll)}` : "-"}</em>
                         </span>
                         <span className={`tch-board-status is-${paper.status}`}>{statusLabel(paper.status)}</span>
                         <i className="fa-solid fa-chevron-right tch-board-go" aria-hidden="true" />

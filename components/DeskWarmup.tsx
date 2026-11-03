@@ -9,7 +9,7 @@ import { isDesktopClient } from "@/lib/desktop";
  * client router cache. Desktop-only (kja-desktop cookie).
  *
  * One href at a time (batch prefetch stampeded local Next + middleware).
- * `eager` starts sooner with a tighter gap — use on Teacher desk where hops
+ * `eager` starts sooner with a tighter gap - use on Teacher desk where hops
  * must feel instant after the first paint.
  */
 export function DeskWarmup({ hrefs, eager = false }: { hrefs: string[]; eager?: boolean }) {
@@ -59,7 +59,7 @@ export function DeskWarmup({ hrefs, eager = false }: { hrefs: string[]; eager?: 
       void run();
     };
 
-    // Eager desks (Teacher): don't wait on idle — start after a short settle so
+    // Eager desks (Teacher): don't wait on idle - start after a short settle so
     // the first sidebar click usually hits a warm client router cache.
     if (eager) {
       idleId = window.setTimeout(start, fallbackDelayMs);

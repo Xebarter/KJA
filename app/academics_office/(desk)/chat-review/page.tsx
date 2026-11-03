@@ -85,7 +85,7 @@ export default async function ChatReviewPage({
   }
 
   if (loadError && /student_messages|student_conversations|0029/i.test(loadError)) {
-    return <AcademicsGate title="Chat review" state={{ notice: "schema", message: `${loadError} — run supabase/0029_student_portal.sql` }} />;
+    return <AcademicsGate title="Chat review" state={{ notice: "schema", message: `${loadError} - run supabase/0029_student_portal.sql` }} />;
   }
 
   const rows = messages.map((msg) => ({

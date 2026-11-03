@@ -88,7 +88,7 @@ function cellKey(pupilId: string, subjectId: string) {
 }
 
 function percentText(value: number | null) {
-  if (value === null) return "—";
+  if (value === null) return "-";
   return `${value.toLocaleString("en-GB", { maximumFractionDigits: 1 })}%`;
 }
 
@@ -214,7 +214,7 @@ export function MarksheetDesk({
           percent: null,
           blank: false,
           tone: "blank" as MarksheetTone,
-          text: "—",
+          text: "-",
         };
       }
       const entry = entries[cellKey(pupil.id, subject.id)] || { score: "", bandId: "", missed: false };
@@ -456,7 +456,7 @@ export function MarksheetDesk({
           <div><dt>On roll</dt><dd>{nf(pupils.length)}</dd></div>
           <div><dt>Marks in</dt><dd>{nf(entered)}<small> / {nf(places)}</small></dd></div>
           <div><dt>To approve</dt><dd>{nf(readyCount)}</dd></div>
-          <div><dt>Average</dt><dd>{classAverage === null ? "—" : percentText(classAverage)}</dd></div>
+          <div><dt>Average</dt><dd>{classAverage === null ? "-" : percentText(classAverage)}</dd></div>
         </dl>
         <button type="button" className="msh-close" onClick={close}>
           <i className="fa-solid fa-xmark" aria-hidden="true" /> Close
@@ -564,7 +564,7 @@ export function MarksheetDesk({
                       {subject.href ? <Link href={subject.href}>{subject.name}</Link> : <span>{subject.name}</span>}
                       <span className="msh-col-meta">
                         <em className={`msh-state is-${subject.status}`}>{stateLabel(subject.status, stats?.blank || 0)}</em>
-                        <small>{stats?.average === null || stats?.average === undefined ? "—" : percentText(stats.average)}</small>
+                        <small>{stats?.average === null || stats?.average === undefined ? "-" : percentText(stats.average)}</small>
                       </span>
                       {canApprove || canUnlock ? (
                         <span className="msh-col-actions">
@@ -596,13 +596,13 @@ export function MarksheetDesk({
                     const paper = row.pupil.papers[markIndex];
                     const entry = entries[cellKey(row.id, subject.id)] || { score: "", bandId: "", missed: false };
                     if (!paper?.id) {
-                      return <td key={subject.id} className="msh-mark">—</td>;
+                      return <td key={subject.id} className="msh-mark">-</td>;
                     }
                     const lockedLook = paper.status === "approved" ? " is-locked" : paper.locked ? " is-held" : "";
                     if (!paper.editable) {
                       return (
                         <td key={subject.id} className={`msh-mark is-${mark.tone}${lockedLook}`}>
-                          {mark.text || "—"}
+                          {mark.text || "-"}
                         </td>
                       );
                     }
@@ -643,7 +643,7 @@ export function MarksheetDesk({
                             }}
                             onKeyDown={(event) => onFieldKeyDown(event, row.id, subject.id)}
                           >
-                            <option value="">—</option>
+                            <option value="">-</option>
                             <option value="absent">Absent</option>
                             {bands.map((band) => <option key={band.id} value={band.id}>{band.label}</option>)}
                           </select>
@@ -656,7 +656,7 @@ export function MarksheetDesk({
                             autoComplete="off"
                             enterKeyHint="next"
                             value={entry.score}
-                            placeholder="—"
+                            placeholder="-"
                             aria-label={`Mark for ${row.name} in ${subject.name}, out of ${paper.maxScore}`}
                             title={`Out of ${paper.maxScore}. Press M to mark absent.`}
                             onChange={(event) => {
@@ -673,7 +673,7 @@ export function MarksheetDesk({
                     );
                   })}
                   <td className={`msh-mark is-avg${row.average !== null && row.average < 50 ? " is-low" : ""}`}>{percentText(row.average)}</td>
-                  <td className={`msh-mark is-pos${(positions.get(row.id) || 0) > 0 && (positions.get(row.id) || 0) <= 3 ? " is-top" : ""}`}>{positions.get(row.id) ? nf(positions.get(row.id) || 0) : "—"}</td>
+                  <td className={`msh-mark is-pos${(positions.get(row.id) || 0) > 0 && (positions.get(row.id) || 0) <= 3 ? " is-top" : ""}`}>{positions.get(row.id) ? nf(positions.get(row.id) || 0) : "-"}</td>
                 </tr>
               ))}
               {visibleCount ? null : (

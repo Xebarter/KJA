@@ -29,14 +29,14 @@ export default async function TeamPage() {
   // Backfill desk logins for teachers on Academics → Staff (service role → upstream Supabase).
   const teacherSync = await syncAssignedTeacherDeskLogins();
 
-  // Read teachers with the service role — admin session RLS on teaching_staff is academics-only
+  // Read teachers with the service role - admin session RLS on teaching_staff is academics-only
   // and was silently returning an empty list on /admin/team.
   const db = serviceClient() ?? supabase;
   const [profileQuery, accessQuery, openQuery, teacherQuery, scopeQuery] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, email, role")
-      .in("role", ["admin", "admissions", "accounts", "academics", "library", "officer"])
+      .in("role", ["admin", "admissions", "accounts", "academics", "library", "store", "officer"])
       .order("full_name"),
     supabase.from("dashboard_access").select("profile_id, dashboard, pages"),
     supabase.from("applications").select("assigned_to").in("status", OPEN_STATUSES),

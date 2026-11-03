@@ -113,7 +113,7 @@ export function NewsletterDesk({
           <span className="nl-stat-icon" aria-hidden="true"><i className="fa-solid fa-at" /></span>
           <span>
             <span>Top provider</span>
-            <strong>{domains[0]?.domain ?? "—"}</strong>
+            <strong>{domains[0]?.domain ?? "-"}</strong>
             <small>{domains[0] && all.length ? `${Math.round((domains[0].count / all.length) * 100)}% of the list` : "No sign-ups yet"}</small>
           </span>
         </div>

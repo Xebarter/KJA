@@ -169,7 +169,7 @@ export function PointsAward({
         <button type="button" onClick={clearPicks} disabled={!pickCount}>
           Clear
         </button>
-        <span className="pts-pick-count">{pickCount || "—"}</span>
+        <span className="pts-pick-count">{pickCount || "-"}</span>
       </div>
 
       {filtered.length ? (

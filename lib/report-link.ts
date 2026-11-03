@@ -16,13 +16,14 @@ function isLocalHost(hostOrOrigin: string) {
 
 /**
  * Origin printed onto report QR codes.
- * Always the configured public site (NEXT_PUBLIC_SITE_URL or https://kja.ug) —
+ * Always the configured public Next site (NEXT_PUBLIC_SITE_URL / SITE_URL) -
  * never localhost or an ephemeral request host, so a scanned card keeps working.
+ * Fallback is the current Vercel host while WordPress still owns kja.ug.
  */
 export function reportPublicOrigin() {
   const configured = siteUrl();
   if (configured && !isLocalHost(configured)) return configured;
-  return "https://kja.ug";
+  return "https://kja-phi.vercel.app";
 }
 
 /** Absolute URL for the online report. Prefer reportOnlineUrl(id). */
@@ -34,7 +35,7 @@ export function reportOnlineUrl(originOrId: string, maybeId?: string): string {
   return `${reportPublicOrigin()}${reportOnlinePath(id)}`;
 }
 
-/** @deprecated Use reportPublicOrigin() — kept so existing awaits keep compiling. */
+/** @deprecated Use reportPublicOrigin() - kept so existing awaits keep compiling. */
 export async function requestOrigin() {
   return reportPublicOrigin();
 }

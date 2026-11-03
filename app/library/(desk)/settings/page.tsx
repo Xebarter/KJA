@@ -19,7 +19,7 @@ export default async function LibrarySettingsPage() {
         kicker={libraryLabel(auth.activeLibrary)}
         icon="fa-sliders"
         title="Settings"
-        description="Loan rules for this library only — Lower and Upper keep their own."
+        description="Loan rules for this library only - Lower and Upper keep their own."
       />
       {missing ? <p className="admin-empty">{missing}</p> : null}
 

@@ -50,7 +50,7 @@ export function TeacherShell({
   const homeHref = locked ? `${TEACHER_BASE}/profile` : TEACHER_BASE;
   const role = locked ? "Finish profile" : classTeacher ? "Class teacher" : "Subject teacher";
   // Website: no mass Link prefetch (viewport stampede). Desktop: Link still
-  // stays false — hover/pointer + eager DeskWarmup fill the client router cache.
+  // stays false - hover/pointer + eager DeskWarmup fill the client router cache.
   const linkPrefetch = false;
 
   useEffect(() => setDesktop(isDesktopClient()), []);

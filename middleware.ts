@@ -24,13 +24,13 @@ export async function middleware(request: NextRequest) {
   const isAccountLogin = path === "/account/login";
   const isPassword = path === "/account/password" || path.startsWith("/account/password/");
   const isDesktop = request.cookies.get("kja-desktop")?.value === "1";
-  // Server Actions must receive an RSC body — a middleware HTML redirect surfaces as
+  // Server Actions must receive an RSC body - a middleware HTML redirect surfaces as
   // "An unexpected response was received from the server." (e.g. Desktop login).
   const isServerAction = request.method === "POST" && request.headers.has("next-action");
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  /** Parent / pupil dialog over the public site — never use this for staff desks or Desktop. */
+  /** Parent / pupil dialog over the public site - never use this for staff desks or Desktop. */
   function parentLogin(nextPath?: string) {
     const login = new URL("/", request.url);
     login.searchParams.set("login", "1");
@@ -98,7 +98,7 @@ export async function middleware(request: NextRequest) {
 
   function send(pathname: string) {
     const target = new URL(pathname, request.url);
-    // Never 307 to the same path — staff → /teacher while already on /teacher loops forever.
+    // Never 307 to the same path - staff → /teacher while already on /teacher loops forever.
     if (target.pathname === path && target.search === request.nextUrl.search) return response;
     return NextResponse.redirect(target);
   }
@@ -125,7 +125,7 @@ export async function middleware(request: NextRequest) {
       accessPromise = (async () => {
         if (!user) return { role: null, grants: [] as Grant[] };
         const { data, error } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
-        // Cookie only when the profiles query itself failed — never when the row is a parent.
+        // Cookie only when the profiles query itself failed - never when the row is a parent.
         const cached = request.cookies.get(STAFF_ROLE_COOKIE)?.value ?? null;
         const role = data?.role ?? (error ? cached : null);
         const grants = await loadGrants(supabase, user.id, role);
@@ -150,6 +150,7 @@ export async function middleware(request: NextRequest) {
       dest.startsWith("/accounts") ||
       dest.startsWith("/academics_office") ||
       dest.startsWith("/library") ||
+      dest.startsWith("/store") ||
       dest.startsWith("/teacher")
     );
   }
@@ -160,7 +161,7 @@ export async function middleware(request: NextRequest) {
   }
 
   if (dashboard) {
-    // Staff desks use /admin/login — never bounce unsigned staff onto the public-site auth dialog.
+    // Staff desks use /admin/login - never bounce unsigned staff onto the public-site auth dialog.
     if (!user) {
       if (isAdminLogin) return response;
       return passOr(staffLogin(path + request.nextUrl.search));
@@ -179,7 +180,7 @@ export async function middleware(request: NextRequest) {
           .maybeSingle();
         if (teacher?.id) dest = "/teacher";
       }
-      // Desktop is staff-only — keep parent/pupil accounts on the staff gate.
+      // Desktop is staff-only - keep parent/pupil accounts on the staff gate.
       if (isDesktop && !isStaffDesk(dest)) return response;
       if (!isStaffDesk(dest)) return response;
       // Signed-in GET on /admin/login → desk. Server Action (Desktop login) must not redirect.
@@ -249,7 +250,7 @@ export async function middleware(request: NextRequest) {
 
     if (access.role === "student") return passOr(send("/student"));
 
-    // Guardianship only — admin/staff desk roles are irrelevant here.
+    // Guardianship only - admin/staff desk roles are irrelevant here.
     if (await isParentGuardian(supabase, user.id, access.role)) return response;
 
     if (access.role === "staff") {
@@ -298,6 +299,8 @@ export const config = {
     "/academics_office/:path*",
     "/library",
     "/library/:path*",
+    "/store",
+    "/store/:path*",
     "/teacher",
     "/teacher/:path*",
     "/choose-dashboard",

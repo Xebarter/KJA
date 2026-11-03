@@ -164,7 +164,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const back = `${ACADEMICS_BASE}/reports?class=${card.class_code || ""}&stream=${card.stream || "-"}`;
   const present = sheet.days_present ?? 0;
   const openedDays = sheet.days_opened ?? 0;
-  const attendance = openedDays ? `${Math.round((present / openedDays) * 100)}%` : "—";
+  const attendance = openedDays ? `${Math.round((present / openedDays) * 100)}%` : "-";
   const remarked = sheet.lines.filter((line) => line.teacher_comment).length;
   const canEdit = Boolean(office && card.status !== "published");
 
@@ -205,7 +205,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
           <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-ranking-star" /></span>
           <span className="rpt-stat-copy">
             <span>Position</span>
-            <strong>{sheet.overall_position ? ordinal(sheet.overall_position) : "—"}</strong>
+            <strong>{sheet.overall_position ? ordinal(sheet.overall_position) : "-"}</strong>
             <small>{place}</small>
           </span>
         </div>

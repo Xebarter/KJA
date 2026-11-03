@@ -8,7 +8,7 @@ import type { TeacherAccess, TeacherClassPost, TeacherSubjectPost } from "@/lib/
 
 type SubjectEmbed = { name?: string } | { name?: string }[] | null;
 
-/** Soft-nav TTL — sidebar hops reuse staff/assignments without re-hitting service role every time. */
+/** Soft-nav TTL - sidebar hops reuse staff/assignments without re-hitting service role every time. */
 const SESSION_MS = 60_000;
 
 type TeacherSession = {
@@ -61,7 +61,7 @@ async function loadTeacherSession(userId: string, authEmail: string | null, meta
       const name = String(row.full_name || profileRow?.full_name || profile.full_name || "Teacher").trim() || "Teacher";
       const needsProfile = !profileRow || profileRow.role !== "staff" || profileRow.full_name !== name || (profileRow.email || null) !== email;
       const needsLink = row.profile_id !== userId;
-      // Only write when something is actually wrong — upserts on every nav made Desktop soft-nav crawl.
+      // Only write when something is actually wrong - upserts on every nav made Desktop soft-nav crawl.
       if (needsProfile) {
         await service.from("profiles").upsert({
           id: userId,
@@ -148,7 +148,7 @@ async function loadTeacherSession(userId: string, authEmail: string | null, meta
 }
 
 /**
- * Teacher desk access — independent of the academics office gate.
+ * Teacher desk access - independent of the academics office gate.
  * Uses the service role to resolve/repair teaching_staff.profile_id + profiles.role=staff
  * so Desktop proxy/RLS cannot leave a valid teacher locked out.
  *
@@ -158,7 +158,7 @@ export const requireTeacher = cache(async function requireTeacher(): Promise<Tea
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." };
 
-  // Desktop: getSession is local (JWT/cookie) — same pattern as requireOffice. Website
+  // Desktop: getSession is local (JWT/cookie) - same pattern as requireOffice. Website
   // still uses getUser. Soft-nav must not wait on an auth network round-trip.
   const authUser = isDesktopProcess()
     ? (await supabase.auth.getSession()).data.session?.user ?? null

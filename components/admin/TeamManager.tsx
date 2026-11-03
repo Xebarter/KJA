@@ -26,7 +26,7 @@ export type TeamPerson = {
   libraries: LibraryId[];
 };
 
-/** Teachers from Academics → Staff — managed there; listed here for desk visibility. */
+/** Teachers from Academics → Staff - managed there; listed here for desk visibility. */
 export type TeamTeacher = {
   id: string;
   profileId: string | null;
@@ -57,6 +57,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "accounts", label: "Accounts" },
   { id: "academics", label: "Academics" },
   { id: "library", label: "Library" },
+  { id: "store", label: "Store" },
 ];
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -68,6 +69,7 @@ function emptySelection(): Selection {
     accounts: { all: false, pages: [] },
     academics: { all: false, pages: [] },
     library: { all: false, pages: [] },
+    store: { all: false, pages: [] },
   };
 }
 
@@ -188,7 +190,15 @@ export function TeamManager({
 
   const adminCount = people.filter((person) => person.fullAdmin).length;
   const counts = useMemo(() => {
-    const tally: Record<Filter, number> = { all: people.length, admin: 0, admissions: 0, accounts: 0, academics: 0, library: 0 };
+    const tally: Record<Filter, number> = {
+      all: people.length,
+      admin: 0,
+      admissions: 0,
+      accounts: 0,
+      academics: 0,
+      library: 0,
+      store: 0,
+    };
     for (const person of people) {
       for (const grant of person.grants) tally[grant.dashboard] += 1;
     }
@@ -426,7 +436,7 @@ export function TeamManager({
                       </div>
                     ) : (
                       <div className="tm-load is-quiet" aria-hidden="true">
-                        <p><span>Apps</span><strong>—</strong></p>
+                        <p><span>Apps</span><strong>-</strong></p>
                       </div>
                     )}
                     <div className="tm-card-actions">

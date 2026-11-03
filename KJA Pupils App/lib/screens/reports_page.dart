@@ -573,7 +573,7 @@ class _SubjectCard extends StatelessWidget {
               children: [
                 for (final part in line.parts)
                   _MiniStat(
-                    label: '${part.label}: ${part.score == null ? '—' : _trim(part.score!)}',
+                    label: '${part.label}: ${part.score == null ? '-' : _trim(part.score!)}',
                     color: color,
                   ),
               ],

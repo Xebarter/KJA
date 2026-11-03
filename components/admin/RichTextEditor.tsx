@@ -270,12 +270,12 @@ export function RichTextEditor({
         block: current.isActive("heading", { level: 1 })
           ? "h1"
           : current.isActive("heading", { level: 2 })
-            ? "h2"
-            : current.isActive("heading", { level: 3 })
-              ? "h3"
-              : current.isActive("heading", { level: 4 })
-                ? "h4"
-                : "p",
+          ? "h2"
+          : current.isActive("heading", { level: 3 })
+            ? "h3"
+            : current.isActive("heading", { level: 4 })
+              ? "h4"
+              : "p",
         bold: current.isActive("bold"),
         italic: current.isActive("italic"),
         underline: current.isActive("underline"),
@@ -665,40 +665,40 @@ export function RichTextEditor({
           )
         ) : (
           <>
-            <select
-              aria-label="Text style"
-              value={state?.block ?? "p"}
-              disabled={off}
-              onChange={(event) => {
-                const value = event.target.value;
-                const chain = editor!.chain().focus();
-                if (value === "p") chain.setParagraph().run();
-                else chain.setHeading({ level: Number(value.slice(1)) as 2 | 3 | 4 }).run();
-              }}
-            >
-              <option value="p">Paragraph</option>
-              <option value="h2">Section heading</option>
-              <option value="h3">Sub-heading</option>
-              <option value="h4">Small heading</option>
-            </select>
-            <span className="rte-sep" />
-            <ToolButton icon="fa-solid fa-bold" label="Bold (Ctrl+B)" active={state?.bold} disabled={off} onClick={() => editor!.chain().focus().toggleBold().run()} />
-            <ToolButton icon="fa-solid fa-italic" label="Italic (Ctrl+I)" active={state?.italic} disabled={off} onClick={() => editor!.chain().focus().toggleItalic().run()} />
-            <ToolButton icon="fa-solid fa-underline" label="Underline (Ctrl+U)" active={state?.underline} disabled={off} onClick={() => editor!.chain().focus().toggleUnderline().run()} />
-            <ToolButton icon="fa-solid fa-strikethrough" label="Strikethrough" active={state?.strike} disabled={off} onClick={() => editor!.chain().focus().toggleStrike().run()} />
-            <ToolButton icon="fa-solid fa-link" label="Link" active={state?.link} disabled={off} onClick={setLink} />
-            <span className="rte-sep" />
-            <ToolButton icon="fa-solid fa-list-ul" label="Bulleted list" active={state?.bullet} disabled={off} onClick={() => editor!.chain().focus().toggleBulletList().run()} />
-            <ToolButton icon="fa-solid fa-list-ol" label="Numbered list" active={state?.ordered} disabled={off} onClick={() => editor!.chain().focus().toggleOrderedList().run()} />
-            <ToolButton icon="fa-solid fa-quote-left" label="Quote" active={state?.quote} disabled={off} onClick={() => editor!.chain().focus().toggleBlockquote().run()} />
-            <ToolButton icon="fa-solid fa-minus" label="Divider" disabled={off} onClick={() => editor!.chain().focus().setHorizontalRule().run()} />
-            <ToolButton icon="fa-regular fa-image" label="Insert image" disabled={off || uploading} onClick={() => fileInput.current?.click()} />
-            <span className="rte-sep" />
-            <ToolButton icon="fa-solid fa-rotate-left" label="Undo (Ctrl+Z)" disabled={off || !state?.canUndo} onClick={() => editor!.chain().focus().undo().run()} />
-            <ToolButton icon="fa-solid fa-rotate-right" label="Redo (Ctrl+Shift+Z)" disabled={off || !state?.canRedo} onClick={() => editor!.chain().focus().redo().run()} />
-            <button type="button" className={`rte-mode${visual ? "" : " is-active"}`} onClick={toggleMode} aria-pressed={!visual}>
-              <i className="fa-solid fa-code" aria-hidden="true" /> {visual ? "HTML" : "Visual"}
-            </button>
+        <select
+          aria-label="Text style"
+          value={state?.block ?? "p"}
+          disabled={off}
+          onChange={(event) => {
+            const value = event.target.value;
+            const chain = editor!.chain().focus();
+            if (value === "p") chain.setParagraph().run();
+            else chain.setHeading({ level: Number(value.slice(1)) as 2 | 3 | 4 }).run();
+          }}
+        >
+          <option value="p">Paragraph</option>
+          <option value="h2">Section heading</option>
+          <option value="h3">Sub-heading</option>
+          <option value="h4">Small heading</option>
+        </select>
+        <span className="rte-sep" />
+        <ToolButton icon="fa-solid fa-bold" label="Bold (Ctrl+B)" active={state?.bold} disabled={off} onClick={() => editor!.chain().focus().toggleBold().run()} />
+        <ToolButton icon="fa-solid fa-italic" label="Italic (Ctrl+I)" active={state?.italic} disabled={off} onClick={() => editor!.chain().focus().toggleItalic().run()} />
+        <ToolButton icon="fa-solid fa-underline" label="Underline (Ctrl+U)" active={state?.underline} disabled={off} onClick={() => editor!.chain().focus().toggleUnderline().run()} />
+        <ToolButton icon="fa-solid fa-strikethrough" label="Strikethrough" active={state?.strike} disabled={off} onClick={() => editor!.chain().focus().toggleStrike().run()} />
+        <ToolButton icon="fa-solid fa-link" label="Link" active={state?.link} disabled={off} onClick={setLink} />
+        <span className="rte-sep" />
+        <ToolButton icon="fa-solid fa-list-ul" label="Bulleted list" active={state?.bullet} disabled={off} onClick={() => editor!.chain().focus().toggleBulletList().run()} />
+        <ToolButton icon="fa-solid fa-list-ol" label="Numbered list" active={state?.ordered} disabled={off} onClick={() => editor!.chain().focus().toggleOrderedList().run()} />
+        <ToolButton icon="fa-solid fa-quote-left" label="Quote" active={state?.quote} disabled={off} onClick={() => editor!.chain().focus().toggleBlockquote().run()} />
+        <ToolButton icon="fa-solid fa-minus" label="Divider" disabled={off} onClick={() => editor!.chain().focus().setHorizontalRule().run()} />
+        <ToolButton icon="fa-regular fa-image" label="Insert image" disabled={off || uploading} onClick={() => fileInput.current?.click()} />
+        <span className="rte-sep" />
+        <ToolButton icon="fa-solid fa-rotate-left" label="Undo (Ctrl+Z)" disabled={off || !state?.canUndo} onClick={() => editor!.chain().focus().undo().run()} />
+        <ToolButton icon="fa-solid fa-rotate-right" label="Redo (Ctrl+Shift+Z)" disabled={off || !state?.canRedo} onClick={() => editor!.chain().focus().redo().run()} />
+        <button type="button" className={`rte-mode${visual ? "" : " is-active"}`} onClick={toggleMode} aria-pressed={!visual}>
+          <i className="fa-solid fa-code" aria-hidden="true" /> {visual ? "HTML" : "Visual"}
+        </button>
           </>
         )}
         <input
@@ -767,7 +767,7 @@ export function RichTextEditor({
               <span className="rte-ruler-track" />
             </div>
             <div className="rte-page" style={pageStyle}>
-              {editor ? <EditorContent editor={editor} /> : <div className="rte-loading">Loading editor…</div>}
+        {editor ? <EditorContent editor={editor} /> : <div className="rte-loading">Loading editor…</div>}
             </div>
           </>
         ) : editor ? (

@@ -7,7 +7,7 @@ import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet"
 import { reportOnlineUrl } from "@/lib/report-link";
 import type { StreamReportCard } from "@/lib/report-cards-pdf";
 
-/** Next.js stubs legacy renderToStaticMarkup — use the stream API instead. */
+/** Next.js stubs legacy renderToStaticMarkup - use the stream API instead. */
 async function renderMarkup(element: ReactElement) {
   const stream = await renderToReadableStream(element);
   await stream.allReady;
@@ -101,7 +101,7 @@ async function crestDataUri() {
   return crestReady;
 }
 
-/** Self-contained HTML for Playwright — same ReportSheet look, no office shell. */
+/** Self-contained HTML for Playwright - same ReportSheet look, no office shell. */
 export async function buildReportPrintHtml(input: {
   origin: string;
   nursery: boolean;
@@ -137,7 +137,7 @@ export async function buildReportPrintHtml(input: {
     </div>,
   );
 
-  // Crest paths in the sheet markup stay as /images/icon.png — rewrite to data URI.
+  // Crest paths in the sheet markup stay as /images/icon.png - rewrite to data URI.
   const withCrest = body.replaceAll('src="/images/icon.png"', `src="${crest}"`);
 
   return `<!DOCTYPE html>

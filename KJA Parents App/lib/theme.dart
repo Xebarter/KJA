@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Kampala Junior Academy parents — navy crest, warm gold, mist paper.
+/// Kampala Junior Academy parents - navy crest, warm gold, mist paper.
 class KjaColors {
   static const ink = Color(0xFF122033);
   static const soft = Color(0xFF5A6878);

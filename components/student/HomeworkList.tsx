@@ -82,12 +82,12 @@ export function HomeworkList({ items, filter }: { items: StudentHomework[]; filt
 
   const cheer =
     overdue.length > 0
-      ? `You have ${plural(overdue.length, "overdue task")}. Finish those first — you can do it!`
+      ? `You have ${plural(overdue.length, "overdue task")}. Finish those first - you can do it!`
       : dueToday.length > 0
         ? `${plural(dueToday.length, "task")} due today. Steady work wins the day.`
         : open.length > 0
           ? `${plural(open.length, "task")} still to do. One step at a time.`
-          : "All caught up — brilliant work!";
+          : "All caught up - brilliant work!";
 
   return (
     <div className="hw-page">
@@ -269,7 +269,7 @@ export function HomeworkList({ items, filter }: { items: StudentHomework[]; filt
             {filter === "done"
               ? "When you mark tasks done, they will show up here."
               : filter === "open"
-                ? "Nice work — enjoy your free time, or peek at My class."
+                ? "Nice work - enjoy your free time, or peek at My class."
                 : "Your teachers have not set homework for your class yet."}
           </p>
           {filter === "open" ? (

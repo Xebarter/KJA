@@ -10,8 +10,8 @@ import "../accounts/(desk)/invoices/invoices.css";
 const rows = [
   { no: "INV-2401", name: "Amina Nakato", initials: "AN", cls: "P4", num: "KJA-1042", total: "1,850,000", due: "14 Oct 2026", late: "1 day overdue", tone: "is-late", paid: 950000, billed: 1850000, owing: "900,000 still due", status: "issued", kind: "Term", extra: false, when: "12 Aug 2026" },
   { no: "INV-2402", name: "Daniel Okello", initials: "DO", cls: "P2", num: "KJA-0988", total: "1,450,000", due: "14 Oct 2026", late: "", tone: "", paid: 1450000, billed: 1450000, owing: "", status: "issued", kind: "Term", extra: false, when: "12 Aug 2026" },
-  { no: "INV-2408", name: "Grace Namukasa", initials: "GN", cls: "C3", num: "KJA-1210", total: "180,000", due: "—", late: "", tone: "is-draft", paid: 0, billed: 0, owing: "", status: "draft", kind: "Extra", extra: true, when: "10 Oct 2026" },
-  { no: "INV-2390", name: "Joel Ssemakula", initials: "JS", cls: "P6", num: "KJA-0771", total: "1,650,000", due: "—", late: "", tone: "is-void", paid: 0, billed: 0, owing: "", status: "void", kind: "Term", extra: false, when: "12 Aug 2026" },
+  { no: "INV-2408", name: "Grace Namukasa", initials: "GN", cls: "C3", num: "KJA-1210", total: "180,000", due: "-", late: "", tone: "is-draft", paid: 0, billed: 0, owing: "", status: "draft", kind: "Extra", extra: true, when: "10 Oct 2026" },
+  { no: "INV-2390", name: "Joel Ssemakula", initials: "JS", cls: "P6", num: "KJA-0771", total: "1,650,000", due: "-", late: "", tone: "is-void", paid: 0, billed: 0, owing: "", status: "void", kind: "Term", extra: false, when: "12 Aug 2026" },
 ];
 
 export default function InvoicesPreview() {

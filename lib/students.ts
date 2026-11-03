@@ -509,7 +509,7 @@ export async function fetchAll<T>(build: (from: number, to: number) => PromiseLi
   if (first.length < size || first.length >= limit) return first.slice(0, limit);
 
   // Remaining pages load in parallel batches so soft nav is not a long sequential waterfall.
-  // Keep the batch modest — Desktop login already hydrates the proxy in parallel.
+  // Keep the batch modest - Desktop login already hydrates the proxy in parallel.
   const rows = [...first];
   const batch = 2;
   for (let from = size; from < limit; from += size * batch) {

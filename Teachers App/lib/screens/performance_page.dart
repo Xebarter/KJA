@@ -103,7 +103,7 @@ class _PerformancePageState extends State<PerformancePage> {
             Expanded(
               child: StatTile(
                 label: 'Class average',
-                value: average == null ? '—' : '${average.round()}%',
+                value: average == null ? '-' : '${average.round()}%',
                 icon: Icons.bar_chart_rounded,
                 tone: Tone.sky,
               ),
@@ -145,7 +145,7 @@ class _PerformancePageState extends State<PerformancePage> {
                     title: row.pupil.fullName,
                     subtitle: row.watch ? 'Needs a closer look' : 'Tap for paper breakdown',
                     trailing: StatusChip(
-                      label: row.percent == null ? '—' : '${row.percent!.round()}%',
+                      label: row.percent == null ? '-' : '${row.percent!.round()}%',
                       tone: row.watch ? Tone.rose : Tone.sky,
                     ),
                   ),

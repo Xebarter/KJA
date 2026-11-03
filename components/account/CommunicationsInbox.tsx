@@ -249,7 +249,7 @@ export function CommunicationsInbox({ messages }: { messages: MessageRow[] }) {
             <i className={`fa-regular ${threads.length ? "fa-envelope-open" : "fa-comments"}`} aria-hidden="true" />
             <p>
               {!threads.length
-                ? "No communications yet. When the school writes to you — or you write to them — the conversation appears here."
+                ? "No communications yet. When the school writes to you - or you write to them - the conversation appears here."
                 : filter === "unread" && !needle
                   ? "You're all caught up."
                   : "No communications match your search."}

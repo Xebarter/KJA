@@ -128,7 +128,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   workbook.creator = SCHOOL;
   workbook.lastModifiedBy = SCHOOL;
   workbook.company = SCHOOL;
-  workbook.title = `${input.name} — ${input.classLabel}`;
+  workbook.title = `${input.name} - ${input.classLabel}`;
   workbook.subject = input.term;
   workbook.description = `Class marksheet for ${SCHOOL}.`;
   workbook.keywords = "KJA, marksheet, assessment";
@@ -254,7 +254,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
     paint(no, { font: font(10, MUTED, true), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
 
     const studentNo = sheet.getCell(rowNumber, 2);
-    studentNo.value = pupil.number || "—";
+    studentNo.value = pupil.number || "-";
     paint(studentNo, {
       font: font(10, pupil.number ? INK : "FFC4BBAE", false),
       fill,
@@ -273,7 +273,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
 
     const average = sheet.getCell(rowNumber, averageCol);
     if (pupil.average === null) {
-      average.value = "—";
+      average.value = "-";
       paint(average, { font: font(11, "FFC4BBAE", false), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     } else {
       average.value = pupil.average;
@@ -289,7 +289,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
     const position = sheet.getCell(rowNumber, positionCol);
     const placed = pupil.position !== null && pupil.position <= 3;
     if (pupil.position === null) {
-      position.value = "—";
+      position.value = "-";
       paint(position, { font: font(11, "FFC4BBAE", false), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     } else {
       position.value = pupil.position;
@@ -329,7 +329,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   input.subjects.forEach((subject, index) => {
     const cell = sheet.getCell(foot, firstSubject + index);
     if (subject.average === null) {
-      cell.value = "—";
+      cell.value = "-";
       cell.font = font(11, "FFC4BBAE", false);
     } else {
       cell.value = subject.average;
@@ -339,7 +339,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   });
   const classAverage = sheet.getCell(foot, averageCol);
   if (input.classAverage === null) {
-    classAverage.value = "—";
+    classAverage.value = "-";
     classAverage.font = font(11, "FFC4BBAE", false);
   } else {
     classAverage.value = input.classAverage;

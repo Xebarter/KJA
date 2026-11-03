@@ -1,4 +1,4 @@
-﻿import type { PendingPayment } from "@/components/admin/Applications";
+import type { PendingPayment } from "@/components/admin/Applications";
 import type { ApplicationItem } from "@/components/admin/applications/types";
 import { WorkspaceView, type QuickView } from "@/components/admin/applications/WorkspaceView";
 import { PageHeader } from "@/components/admin/PageHeader";
@@ -91,7 +91,7 @@ export async function ApplicationsWorkspace({
       .limit(BOARD_LIMIT + 1)
     : applicationsQuery(supabase, filters, user.id, COLUMNS, { count: "exact" }).range(from, from + PAGE_SIZE - 1);
 
-  // Summary tiles only need these fields — not the full application row.
+  // Summary tiles only need these fields - not the full application row.
   const [listResult, summaryResult, team, content, unpaid] = await Promise.all([
     itemsQuery,
     supabase.from("applications").select("id, child_name, phone, email, status, created_at, visit_at, assigned_to, payment_status, admission_fee"),

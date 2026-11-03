@@ -4,7 +4,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 /**
- * Ultra-light probe for Desktop cold start — no auth, no Supabase.
+ * Ultra-light probe for Desktop cold start - no auth, no Supabase.
  * `mode` lets Electron refuse to reuse a packaged keep-warm host during `npm run dev`
  * (and vice versa), so source fixes are not masked by an old installed Next.
  */

@@ -511,7 +511,7 @@ class PortalRepository {
         }
       }));
     } catch (_) {
-      // Older databases without exam_pdf_path — fall back to the classic columns.
+      // Older databases without exam_pdf_path - fall back to the classic columns.
       try {
         final assignments = await _rows(
           _db
@@ -613,12 +613,12 @@ class PortalRepository {
     ]);
   }
 
-  /// Every open parent consent for this pupil — paid or not.
+  /// Every open parent consent for this pupil - paid or not.
   /// RLS on club_consents already hides withdrawn rows for the linked pupil.
   Future<List<ClubMembership>> _clubs(String studentId, String? termId) async {
     List<Map<String, dynamic>> consents = [];
     try {
-      // Embed club details in one round-trip. Do not filter withdrawn_at here —
+      // Embed club details in one round-trip. Do not filter withdrawn_at here -
       // the student policy only exposes open consents.
       consents = await _rows(
         _db
@@ -732,7 +732,7 @@ class PortalRepository {
   Future<(Teacher?, List<Teacher>)> _teachers(Pupil pupil, String? termId, Map<String, String> subjectNames) async {
     if ((pupil.classCode ?? '').isEmpty) return (null, <Teacher>[]);
     try {
-      // Preferred: security-definer RPC (0045) — matches stream the same way the office assigns.
+      // Preferred: security-definer RPC (0045) - matches stream the same way the office assigns.
       final rpc = await _db.rpc('my_class_teachers');
       if (rpc is List && rpc.isNotEmpty) {
         Teacher? classTeacher;

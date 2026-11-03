@@ -1133,7 +1133,7 @@ article.acd-sheet .acd-sheet-draft.is-approved {
     background: #fff;
     padding-top: 0;
   }
-  /* Body inset only — masthead stays full-bleed. */
+  /* Body inset only - masthead stays full-bleed. */
   article.acd-sheet .acd-sheet-identity {
     flex-direction: row;
     align-items: center;

@@ -209,7 +209,7 @@ export function MarkbookDesk({
         </div>
         <div>
           <span className="mkb-stat-icon" aria-hidden="true"><i className="fa-solid fa-chart-simple" /></span>
-          <span className="mkb-stat-copy"><span>Average</span><strong>{average === null ? "—" : nf(average)}</strong><small>{nursery ? "From the band midpoints" : `Out of ${nf(maxScore)}`}</small></span>
+          <span className="mkb-stat-copy"><span>Average</span><strong>{average === null ? "-" : nf(average)}</strong><small>{nursery ? "From the band midpoints" : `Out of ${nf(maxScore)}`}</small></span>
         </div>
         <div className={missed ? "is-warn" : ""}>
           <span className="mkb-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-slash" /></span>
@@ -297,7 +297,7 @@ export function MarkbookDesk({
                           autoComplete="off"
                           enterKeyHint="next"
                           value={entry.missed ? "" : entry.score}
-                          placeholder="—"
+                          placeholder="-"
                           aria-label={`Mark for ${pupil.name}, out of ${maxScore}`}
                           readOnly={locked}
                           disabled={entry.missed}

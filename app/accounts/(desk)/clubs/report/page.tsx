@@ -54,7 +54,7 @@ function FigureTable({ rows, name, ranked = false }: { rows: ClubFigure[]; name:
               <td data-label="Consents" className="is-num">{row.consents}</td>
               <td data-label="Expected" className="is-num">{money(row.expected)}</td>
               <td data-label="Collected" className="is-num"><strong>{money(row.collected)}</strong></td>
-              <td data-label="Still due" className={`is-num${row.due > 0 ? " is-due" : ""}`}>{row.due ? money(row.due) : "—"}</td>
+              <td data-label="Still due" className={`is-num${row.due > 0 ? " is-due" : ""}`}>{row.due ? money(row.due) : "-"}</td>
               <td data-label="Rate"><span className="cbr-rate"><Meter value={row.rate} /><span>{row.rate}%</span></span></td>
             </tr>
           ))}

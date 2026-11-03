@@ -165,9 +165,9 @@ class _MarkbookPageState extends State<MarkbookPage> {
 
   String _pupilLabel(Pupil pupil, bool nursery, Map<String, GradeBand> bands) {
     if (_missed[pupil.id] == true) return 'Missed';
-    if (nursery) return bands[_bands[pupil.id]]?.label ?? '—';
+    if (nursery) return bands[_bands[pupil.id]]?.label ?? '-';
     final text = _scores[pupil.id]?.text.trim() ?? '';
-    return text.isEmpty ? '—' : text;
+    return text.isEmpty ? '-' : text;
   }
 
   String? _validateCurrent(Paper current, bool nursery) {
@@ -547,7 +547,7 @@ class _MarkbookPageState extends State<MarkbookPage> {
                 itemBuilder: (context, index) {
                   final pupil = pupils[index];
                   final label = _pupilLabel(pupil, nursery, bands);
-                  final blank = label == '—';
+                  final blank = label == '-';
                   return SoftCard(
                     onTap: current.open
                         ? () => setState(() {

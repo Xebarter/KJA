@@ -1,4 +1,4 @@
-/* Staff desk chooser — shared by web + Electron. */
+/* Staff desk chooser - shared by web + Electron. */
 
 .cd {
   --navy: #19232b;
@@ -119,7 +119,7 @@
   animation-delay: calc(0.05s + var(--i, 0) * 0.04s);
 }
 
-/* Solid action buttons — no layout shift on press (keeps first click reliable). */
+/* Solid action buttons - no layout shift on press (keeps first click reliable). */
 .cd-btn {
   --accent: #19232b;
   --soft: #eef1f4;

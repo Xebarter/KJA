@@ -140,7 +140,7 @@ export async function requestPinPrompt(id: string) {
   const form = new FormData();
   form.set("s2s", "true");
   form.set("pm", EXECUTE_METHOD);
-  // Do not set Content-Type manually — fetch must attach the multipart boundary.
+  // Do not set Content-Type manually - fetch must attach the multipart boundary.
   const body = await call(`/p/${encodeURIComponent(id)}/`, { method: "POST", body: form, auth: false });
   const status = String(body?.status ?? "").toLowerCase();
   if (status === "error" || status === "failed") {

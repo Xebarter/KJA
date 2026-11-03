@@ -184,7 +184,7 @@ function pickUnusedSubjectTemplate(
       const options = filterTemplates(config.templates, { type: "subject_teacher", group: `score_${candidate}` }).filter(
         (row) => !requireUnused || !usedTexts.has(row.template_text),
       );
-      // Closest unused neighbour first — do not mix every distance into one pool.
+      // Closest unused neighbour first - do not mix every distance into one pool.
       if (!options.length) continue;
       const picked = pickTemplate(options, seedFor(input, `subject:${subjectId}:score_${candidate}`, config.version));
       if (picked) return { template: picked, via: `score_${candidate}` };
@@ -515,7 +515,7 @@ export function generateCommentsForReport(input: ReportInput, config: CommentCon
     generateHeadteacher(input, config, profile),
   ];
 
-  // If no activities, cocurricular incomplete is expected — keep unit but do not invent praise.
+  // If no activities, cocurricular incomplete is expected - keep unit but do not invent praise.
   return {
     profile,
     units,

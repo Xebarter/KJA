@@ -1,4 +1,4 @@
-/* Library desk — KJA navy/gold/cream + Nunito (teacher), KPI polish (accounts). */
+/* Library desk - KJA navy/gold/cream + Nunito (teacher), KPI polish (accounts). */
 
 .kja-library {
   --lib-ok: var(--ofc-ok, #17803d);
@@ -109,7 +109,7 @@ body:has(.lib-shell) {
   animation-delay: 0.1s;
 }
 
-/* —— Lower / Upper switch —— */
+/* -- Lower / Upper switch -- */
 .lib-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -171,7 +171,7 @@ body:has(.lib-shell) {
   opacity: 0.7;
 }
 
-/* —— Hero “needs you” —— */
+/* -- Hero “needs you” -- */
 .lib-todo {
   padding: 1rem 0.7rem 0.6rem;
   border: 1px solid rgba(255, 255, 255, 0.12);
@@ -307,7 +307,7 @@ body:has(.lib-shell) {
   color: rgba(255, 255, 255, 0.55);
 }
 
-/* —— KPI strip —— */
+/* -- KPI strip -- */
 .lib-stats {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -430,7 +430,7 @@ a.lib-stat:hover::before,
   color: var(--tone);
 }
 
-/* —— Soft strip (collection summary) —— */
+/* -- Soft strip (collection summary) -- */
 .lib-strip {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -478,7 +478,7 @@ a.lib-stat:hover::before,
   font-weight: 700;
 }
 
-/* —— Desk layout: form rail + register —— */
+/* -- Desk layout: form rail + register -- */
 .lib-desk {
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
@@ -575,7 +575,7 @@ a.lib-stat:hover::before,
   line-height: 1.45;
 }
 
-/* —— Segmented tabs —— */
+/* -- Segmented tabs -- */
 .lib-seg {
   display: inline-grid;
   grid-auto-flow: column;
@@ -636,7 +636,7 @@ a.lib-stat:hover::before,
   color: #9a5b00;
 }
 
-/* —— Forms —— */
+/* -- Forms -- */
 .lib-tools {
   display: flex;
   flex-wrap: wrap;
@@ -734,7 +734,7 @@ a.lib-stat:hover::before,
   box-shadow: 0 1px 3px rgba(25, 35, 43, 0.08);
 }
 
-/* —— Live borrower search —— */
+/* -- Live borrower search -- */
 .lib-picker {
   position: relative;
 }
@@ -1000,7 +1000,7 @@ a.lib-stat:hover::before,
   margin-left: auto;
 }
 
-/* —— Buttons —— */
+/* -- Buttons -- */
 .lib-btn {
   display: inline-flex;
   align-items: center;
@@ -1100,7 +1100,7 @@ a.lib-stat:hover::before,
   color: #fff;
 }
 
-/* —— Tables —— */
+/* -- Tables -- */
 .lib-table-wrap {
   overflow-x: auto;
 }
@@ -1257,7 +1257,7 @@ a.lib-stat:hover::before,
   justify-self: start;
 }
 
-/* —— Books desk —— */
+/* -- Books desk -- */
 .lib-books-desk {
   animation: lib-in 0.42s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
@@ -1433,7 +1433,7 @@ a.lib-stat:hover::before,
   margin: 0 !important;
 }
 
-/* —— Overview snapshot —— */
+/* -- Overview snapshot -- */
 .lib-shell:has(.lib-overview) .admin-main {
   background: #f3efe7;
 }
@@ -1801,7 +1801,7 @@ a.lib-stat:hover::before,
   background: #faf8f4;
 }
 
-/* —— Stock check (flat, premium) —— */
+/* -- Stock check (flat, premium) -- */
 .lib-shell:has(.lib-page.is-stock) .admin-main {
   background: #f3efe7;
 }
@@ -2298,7 +2298,7 @@ a.lib-stat:hover::before,
   font-size: 1.2rem;
 }
 
-/* —— Insight cards (reports) —— */
+/* -- Insight cards (reports) -- */
 .lib-insight {
   display: grid;
   gap: 0.35rem;
@@ -2332,7 +2332,7 @@ a.lib-stat:hover::before,
   font-weight: 650;
 }
 
-/* —— Loading —— */
+/* -- Loading -- */
 .lib-skel {
   border-radius: var(--lib-radius);
   background: linear-gradient(90deg, #f3eee5 25%, #faf6ee 40%, #f3eee5 55%);
@@ -2357,7 +2357,7 @@ a.lib-stat:hover::before,
   min-height: 108px;
 }
 
-/* —— Reports —— */
+/* -- Reports -- */
 .lib-reports {
   max-width: 1220px;
 }

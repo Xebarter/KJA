@@ -79,7 +79,7 @@ async function InsightsBody({
       <section className="ins-strip" aria-label="This term">
         <div>
           <span>Mean score</span>
-          <strong>{picture.mean ?? "—"}</strong>
+          <strong>{picture.mean ?? "-"}</strong>
           <small>Across report lines</small>
         </div>
         <div className={picture.openMarkbooks.length ? "is-warn" : "is-ok"}>
@@ -281,7 +281,7 @@ function Bars({ title, rows }: { title: string; rows: { label: string; value: nu
       {rows.length ? rows.map((row) => (
         <div className="ins-bar" key={row.label}>
           <span>{row.label}</span>
-          <strong>{row.value ?? "—"}</strong>
+          <strong>{row.value ?? "-"}</strong>
           <span className="ins-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.value ?? 0))}%` }} /></span>
         </div>
       )) : <p className="ins-quiet">No averages yet.</p>}

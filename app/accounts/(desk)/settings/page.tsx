@@ -98,7 +98,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       label: "Current term",
       icon: "fa-calendar-days",
       tone: current ? "ok" : "warn",
-      value: current ? `T${current.term}` : "—",
+      value: current ? `T${current.term}` : "-",
       note: current ? current.label : "Choose a term to bill",
     },
     {
@@ -114,7 +114,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       label: "Classes set",
       icon: "fa-table-cells",
       tone: term && classesLeft <= 0 ? "ok" : "warn",
-      value: term ? String(ratedClasses.size) : "—",
+      value: term ? String(ratedClasses.size) : "-",
       note: !term ? "Add a term first" : classesLeft > 0 ? `${classesLeft} still to set` : "Every class has fees",
       share: term ? Math.round((ratedClasses.size / SCHOOL_CLASSES.length) * 100) : undefined,
     },

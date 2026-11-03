@@ -27,7 +27,7 @@ export async function notifyClassParents(
     p_kind: input.kind || "school",
   });
   if (error && /notify_class_parents|schema cache|does not exist/i.test(error.message)) {
-    // Migration 0051 not applied yet — pupils still get notified by the caller.
+    // Migration 0051 not applied yet - pupils still get notified by the caller.
     return;
   }
   if (error) throw new Error(error.message);

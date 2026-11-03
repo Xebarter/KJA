@@ -626,7 +626,7 @@ class _AttendancePageState extends State<AttendancePage> {
             : attendance.percent >= 85
                 ? 'Great job coming to school.'
                 : attendance.percent >= 70
-                    ? 'Nice try — come as often as you can.'
+                    ? 'Nice try - come as often as you can.'
                     : 'Coming more often helps you learn and feel ready.';
 
     final counts = {
@@ -743,7 +743,7 @@ class _AttendanceHero extends StatelessWidget {
             ),
             alignment: Alignment.center,
             child: Text(
-              percent == null ? '—' : '$percent%',
+              percent == null ? '-' : '$percent%',
               style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w900, fontSize: 20),
             ),
           ),
@@ -1770,7 +1770,7 @@ class _ClubsPageState extends State<ClubsPage> {
     final paid = clubs.where((club) => club.paid).length;
     final unpaid = clubs.length - paid;
     final lead = clubs.isEmpty
-        ? 'Ask your parents to choose clubs — then they will show up here.'
+        ? 'Ask your parents to choose clubs - then they will show up here.'
         : unpaid > 0
             ? 'You are in ${plural(clubs.length, 'club')}. Ask parents about payment for $unpaid.'
             : 'You are in ${plural(clubs.length, 'club')} and everything looks paid. Have fun!';

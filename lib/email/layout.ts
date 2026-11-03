@@ -275,7 +275,7 @@ function renderText(email: AlertEmail) {
   if (email.reference) lines.push("", `Reference: ${email.reference}`);
   lines.push(
     "",
-    "—",
+    "-",
     "Kampala Junior Academy",
     ...(email.footer ?? ["You're receiving this because you're an admin on the school website dashboard.", `Sent automatically on ${email.sentAt} (Kampala time).`]),
   );

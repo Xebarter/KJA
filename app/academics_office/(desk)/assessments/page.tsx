@@ -92,7 +92,7 @@ export default async function AssessmentsPage() {
   }
 
   let counts = enteredById;
-  // Prefer the aggregate above. If it fails, count by term — never `.in(all paper ids)`,
+  // Prefer the aggregate above. If it fails, count by term - never `.in(all paper ids)`,
   // which blows the request URL once a sitting has many markbooks.
   if (!counts && term && rows.length) {
     try {

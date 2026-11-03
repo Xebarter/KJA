@@ -38,7 +38,7 @@ export function CollectionTable({
             const image = String(row.image_url || "");
             return (
               <tr key={id || `${label}-${index}`}>
-                <td>{image ? <img className="admin-thumb" src={image} alt="" /> : "—"}</td>
+                <td>{image ? <img className="admin-thumb" src={image} alt="" /> : "-"}</td>
                 <td>{label}</td>
                 <td>{row.published === false ? "Hidden" : "Live"}</td>
                 <td>

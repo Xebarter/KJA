@@ -152,8 +152,8 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
                     <Who mark={`T${entry.term}`} title={entry.label} />
                   </td>
                   <td className="set-num" data-label="Dates">{entry.starts_on ? `${day(entry.starts_on, false)} – ${day(entry.ends_on)}` : <span className="set-muted">Not set</span>}</td>
-                  <td className="set-num" data-label="Fees due">{entry.due_on ? day(entry.due_on, false) : <span className="set-muted">—</span>}</td>
-                  <td className="set-num" data-label="Invoices">{usage[entry.id] ? usage[entry.id].toLocaleString("en-GB") : <span className="set-muted">—</span>}</td>
+                  <td className="set-num" data-label="Fees due">{entry.due_on ? day(entry.due_on, false) : <span className="set-muted">-</span>}</td>
+                  <td className="set-num" data-label="Invoices">{usage[entry.id] ? usage[entry.id].toLocaleString("en-GB") : <span className="set-muted">-</span>}</td>
                   <td data-label="Status">
                     {entry.is_current ? (
                       <span className="set-pill"><i className="fa-solid fa-circle-check" aria-hidden="true" /> Current</span>
@@ -365,7 +365,7 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
                       />
                     </td>
                     <td data-label="Who"><span className="set-kind">{info?.label ?? entry.kind}{entry.active ? "" : " · Off"}</span></td>
-                    <td className="set-num" data-label="Pupils">{pupils ? pupils.toLocaleString("en-GB") : <span className="set-muted">—</span>}</td>
+                    <td className="set-num" data-label="Pupils">{pupils ? pupils.toLocaleString("en-GB") : <span className="set-muted">-</span>}</td>
                     <td className="is-actions">
                       <div className="set-actions">
                         <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => open(entry)} />
@@ -487,7 +487,7 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
                     <td className="set-num" data-label="Monthly budget">{entry.monthly_budget ? ugx(entry.monthly_budget) : <span className="set-muted">No budget</span>}</td>
                     <td className="set-num" data-label="This month">
                       <div>
-                        <span className={over ? "set-over" : ""}>{used ? ugx(used) : <span className="set-muted">—</span>}</span>
+                        <span className={over ? "set-over" : ""}>{used ? ugx(used) : <span className="set-muted">-</span>}</span>
                         {entry.monthly_budget ? (
                           <span className="acc-progress set-meter" aria-hidden="true"><span style={{ width: `${share}%` }} /></span>
                         ) : null}

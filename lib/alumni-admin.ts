@@ -137,7 +137,7 @@ export function parseInterview(body: string): string[] | null {
     .split(SPACER)
     .map(htmlToParagraphs)
     .filter(Boolean)
-    .map((block) => (block === "—" ? "" : block));
+    .map((block) => (block === "-" ? "" : block));
   return blocks.length === ALUMNI_QUESTIONS.length ? blocks : null;
 }
 
@@ -155,7 +155,7 @@ export function interviewHtml(answers: string[]) {
         .map((part) => `<p>${escapeHtml(part).replace(/\n/g, "<br>")}</p>`)
         .join("\n"),
     )
-    .map((block) => block || "<p>—</p>")
+    .map((block) => block || "<p>-</p>")
     .join(`\n${SPACER_HTML}\n`);
 }
 

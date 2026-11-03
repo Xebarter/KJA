@@ -103,7 +103,7 @@ function shortDay(iso: string) {
 
 function markText(mark: PaperMark) {
   if (mark.missed) return "Missed";
-  if (mark.score == null) return "—";
+  if (mark.score == null) return "-";
   const whole = Number.isInteger(mark.score) ? String(mark.score) : mark.score.toFixed(1);
   return mark.max && mark.max !== 100 ? `${whole}/${mark.max}` : whole;
 }
@@ -150,7 +150,7 @@ export function PupilDesk({
       <section className="pup-strip" aria-label="This term">
         <div className={tone}>
           <span>Attendance</span>
-          <strong>{marked ? `${rate}%` : "—"}</strong>
+          <strong>{marked ? `${rate}%` : "-"}</strong>
           <small>{marked ? `${nf(attended)} of ${nf(marked)} days in` : "No register marks yet"}</small>
         </div>
         <div className={attendance.absent ? "is-warn" : ""}>
@@ -274,7 +274,7 @@ function MarksBook({ marks }: { marks: PaperMark[] }) {
             <li key={group.subject}>
               <header>
                 <strong>{group.subject}</strong>
-                <em>{group.average == null ? "—" : `${group.average}%`}</em>
+                <em>{group.average == null ? "-" : `${group.average}%`}</em>
               </header>
               {group.average != null ? <span className="pup-bar" aria-hidden="true"><i style={{ width: `${group.average}%` }} /></span> : null}
               <ul>
@@ -300,10 +300,10 @@ function ReportCard({ report }: { report: ReportView | null }) {
       {report ? (
         <>
           <dl className="pup-facts">
-            <div><dt>Score</dt><dd>{report.score != null ? nf(report.score) : "—"}</dd></div>
-            <div><dt>Position</dt><dd>{report.position ? nf(report.position) : "—"}</dd></div>
-            <div><dt>Conduct</dt><dd>{report.conduct || "—"}</dd></div>
-            <div><dt>Days</dt><dd>{report.daysPresent != null && report.daysOpened != null ? `${nf(report.daysPresent)}/${nf(report.daysOpened)}` : "—"}</dd></div>
+            <div><dt>Score</dt><dd>{report.score != null ? nf(report.score) : "-"}</dd></div>
+            <div><dt>Position</dt><dd>{report.position ? nf(report.position) : "-"}</dd></div>
+            <div><dt>Conduct</dt><dd>{report.conduct || "-"}</dd></div>
+            <div><dt>Days</dt><dd>{report.daysPresent != null && report.daysOpened != null ? `${nf(report.daysPresent)}/${nf(report.daysOpened)}` : "-"}</dd></div>
           </dl>
           {report.comment ? <p className="pup-comment"><span>Class teacher{report.teacher ? `, ${report.teacher}` : ""}</span>{report.comment}</p> : null}
           {report.head ? <p className="pup-comment"><span>Head teacher</span>{report.head}</p> : null}
@@ -312,7 +312,7 @@ function ReportCard({ report }: { report: ReportView | null }) {
               {report.lines.map((line) => (
                 <li key={line.subject}>
                   <span>{line.subject}{line.comment ? <small>{line.comment}</small> : null}</span>
-                  <strong><b>{line.grade || (line.score != null ? nf(line.score) : "—")}</b>{line.position ? <small>{ordinal(line.position)}</small> : null}</strong>
+                  <strong><b>{line.grade || (line.score != null ? nf(line.score) : "-")}</b>{line.position ? <small>{ordinal(line.position)}</small> : null}</strong>
                 </li>
               ))}
             </ul>

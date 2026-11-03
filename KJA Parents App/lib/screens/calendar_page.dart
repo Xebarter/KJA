@@ -32,7 +32,7 @@ class CalendarPage extends StatelessWidget {
         else
           ...portal.events.map((event) {
             final starts = parseDate(event.startsOn);
-            final day = starts == null ? '—' : '${starts.day}';
+            final day = starts == null ? '-' : '${starts.day}';
             final month = starts == null
                 ? ''
                 : [

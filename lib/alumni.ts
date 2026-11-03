@@ -19,7 +19,7 @@ export type Alumnus = { name: string; classOf: string | null };
 /** Alumni entries are titled like "Masembe Ibrahim- Class of 2007" or "Ashley Businge, Class of: 2015". */
 export function parseAlumnus(title: string): Alumnus {
   const clean = decodeEntities(title).trim();
-  const match = clean.match(/^(.*?)[\s,;:–—-]*class\s+of\s*:?\s*(\d{4})\.?\s*$/i);
+  const match = clean.match(/^(.*?)[\s,;:\u2013\u2014-]*class\s+of\s*:?\s*(\d{4})\.?\s*$/i);
   if (match && match[1].trim()) return { name: match[1].trim(), classOf: match[2] };
   return { name: clean.replace(/[.\s]+$/, ""), classOf: null };
 }

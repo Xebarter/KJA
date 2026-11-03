@@ -137,7 +137,7 @@ const settings = {
   video_url: "https://www.youtube.com/watch?v=A6feRMjPcSI",
   about_title: "Kampala Junior Academy, Growing with You Since 1993.",
   about_body:
-    "Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993. The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear — to give young learners a strong start in life through quality, caring, holistic and child friendly education.",
+    "Kampala Junior Academy (KJA) is one of the leading private schools in Uganda, offering nursery school, daycare, and primary school education since 1993. The school was founded by Mrs Mary Mulumba, a dedicated teacher with over 60 years in the field of early childhood education. From the beginning, her dream was clear - to give young learners a strong start in life through quality, caring, holistic and child friendly education.",
   vision:
     "To be an inclusive school that has high aspirations for every child, to create a well facilitated institution that is capable of shaping children into future responsible leaders.",
   mission:

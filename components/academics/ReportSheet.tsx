@@ -186,11 +186,11 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             </div>
             <div>
               <dt>AGG</dt>
-              <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</dd>
+              <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "-"}</dd>
             </div>
             <div className={figureTone(card.overall_grade, card.overall_score)}>
               <dt>Grade</dt>
-              <dd>{card.overall_grade || "—"}</dd>
+              <dd>{card.overall_grade || "-"}</dd>
             </div>
             <div className="is-attendance">
               <dt>Attendance</dt>
@@ -236,9 +236,9 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                         return <td key={set.key} className={`is-num is-set${toneClass}`}>{formatScore(part?.score ?? null, nursery)}</td>;
                       })}
                       <td className={`is-num is-score${toneClass}`}>
-                        <span className={`acd-sheet-figure${toneClass}`}>{nursery ? (line.grade || "—") : formatScore(line.score, false)}</span>
+                        <span className={`acd-sheet-figure${toneClass}`}>{nursery ? (line.grade || "-") : formatScore(line.score, false)}</span>
                       </td>
-                      {!nursery ? <td className="is-num is-grade">{line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">—</span>}</td> : null}
+                      {!nursery ? <td className="is-num is-grade">{line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">-</span>}</td> : null}
                       <td className="is-note" title={line.teacher_comment || undefined}>{line.teacher_comment || ""}</td>
                       <td className="is-sign">{line.teacher_initials || ""}</td>
                     </tr>
@@ -324,7 +324,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               </div>
               <div>
                 <h3>Next term starts on</h3>
-                <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "—"}</p>
+                <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "-"}</p>
               </div>
             </section>
           </section>
@@ -336,7 +336,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
 }
 
 function FeeLines({ lines }: { lines: ReportFeeLine[] }) {
-  if (!lines.length) return <p className="acd-sheet-next">—</p>;
+  if (!lines.length) return <p className="acd-sheet-next">-</p>;
   const total = lines.reduce((sum, line) => sum + line.amount, 0);
   return (
     <dl className="acd-sheet-fee-list">
@@ -368,7 +368,7 @@ function monogram(name: string) {
 }
 
 export function formatScore(score: number | null, nursery: boolean) {
-  if (score === null || Number.isNaN(score)) return "—";
+  if (score === null || Number.isNaN(score)) return "-";
   if (nursery) return score >= 75 ? "Exceeding" : score >= 50 ? "Secure" : score >= 25 ? "Developing" : "Beginning";
   return `${num(score) ?? score}%`;
 }

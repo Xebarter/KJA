@@ -18,7 +18,7 @@ export const metadata: Metadata = {
 
 export default async function TeacherLayout({ children }: { children: React.ReactNode }) {
   const teacher = await requireTeacher();
-  // Do not redirect to /admin/login here — middleware already sends unsigned users there,
+  // Do not redirect to /admin/login here - middleware already sends unsigned users there,
   // and bouncing signed-in staff back creates ERR_TOO_MANY_REDIRECTS with the login gate.
   if ("error" in teacher) {
     return (

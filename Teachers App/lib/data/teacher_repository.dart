@@ -132,7 +132,7 @@ class TeacherRepository {
     }
 
     final allowedPosts = {for (final post in subjects) post.key};
-    // Only the classes this teacher leads or teaches — not the whole school roll.
+    // Only the classes this teacher leads or teaches - not the whole school roll.
     final rollKeys = <String>{
       for (final post in classes) '${post.classCode}|${post.stream}',
       for (final post in subjects) '${post.classCode}|${post.stream}',
@@ -193,7 +193,7 @@ class TeacherRepository {
         );
       }
     }
-    // Photo signing is deferred — it is many storage round-trips and is not
+    // Photo signing is deferred - it is many storage round-trips and is not
     // needed to paint the desk (cached bytes / path are enough for later).
     final pupilNames = {for (final pupil in pupils) pupil.id: pupil.fullName};
 

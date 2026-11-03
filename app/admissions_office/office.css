@@ -1253,7 +1253,7 @@
 .ofc-empty-line { display: flex; align-items: center; gap: .45rem; margin: 0; color: var(--admin-muted); font-size: .9rem; }
 .ofc-empty-line i { color: var(--ofc-ok); }
 
-/* —— Student portal + notes (student profile sidebar) —— */
+/* -- Student portal + notes (student profile sidebar) -- */
 .ofc-portal,
 .ofc-note-form {
   display: grid;

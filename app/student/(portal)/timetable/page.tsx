@@ -114,7 +114,7 @@ export default async function StudentTimetablePage({
   const isWeekend = today < 1 || today > 5;
 
   const cheer = isWeekend
-    ? "It's the weekend — peek ahead at next week's lessons."
+    ? "It's the weekend - peek ahead at next week's lessons."
     : todayLessons.length
       ? `Today you have ${plural(todayLessons.length, "lesson")}. You've got this!`
       : "No lessons listed for today. Enjoy the quiet.";
@@ -154,7 +154,7 @@ export default async function StudentTimetablePage({
             <span>Lessons</span>
           </div>
           <div className="tt-hero-stat tt-hero-stat--today">
-            <strong>{isWeekend ? "—" : todayLessons.length}</strong>
+            <strong>{isWeekend ? "-" : todayLessons.length}</strong>
             <span>{isWeekend ? "Weekend" : "Today"}</span>
           </div>
           <div className="tt-hero-stat">

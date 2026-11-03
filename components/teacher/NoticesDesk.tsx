@@ -178,7 +178,7 @@ export function NoticesDesk({
           </span>
           <div>
             <span>Latest</span>
-            <strong>{counts.latest ? formatWhen(counts.latest).split(" · ")[0] : "—"}</strong>
+            <strong>{counts.latest ? formatWhen(counts.latest).split(" · ")[0] : "-"}</strong>
             <small>{counts.latest ? formatWhen(counts.latest).split(" · ")[1] || "This term" : "None yet"}</small>
           </div>
         </div>

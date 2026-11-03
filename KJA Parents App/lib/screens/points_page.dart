@@ -237,7 +237,7 @@ class _MoodBanner extends StatelessWidget {
             : '$childName’s points';
 
     final lead = party
-        ? 'Nice one — balance ${_signed(total)} this term.'
+        ? 'Nice one - balance ${_signed(total)} this term.'
         : sombre
             ? total < 0
                 ? 'A deduction was recorded. Balance ${_signed(total)} this term.'

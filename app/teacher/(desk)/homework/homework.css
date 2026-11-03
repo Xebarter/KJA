@@ -1,7 +1,7 @@
-/* Teacher homework desk — cleaner, tighter on the teacher chrome */
+/* Teacher homework desk - cleaner, tighter on the teacher chrome */
 
 .tch-hw-page {
-  gap: 1.15rem;
+  gap: .85rem;
 }
 
 .tch-hw-lede {
@@ -20,45 +20,30 @@
 }
 
 .tch-hw-page .ahw {
-  gap: 0.95rem;
+  gap: 0.7rem;
 }
 
 .tch-hw-page .ahw-strip {
-  border-radius: 16px;
+  border-radius: 12px;
   box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
-}
-
-.tch-hw-page .ahw-stat {
-  padding: 0.95rem 1.05rem 0.9rem;
-}
-
-.tch-hw-page .ahw-stat-copy strong {
-  font-size: 1.4rem;
 }
 
 .tch-hw-page .ahw-card {
-  border-radius: 16px;
+  border-radius: 14px;
   box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
 }
 
-.tch-hw-page .ahw-card-head {
-  padding: 0.85rem 1rem;
+.tch-hw-page .ahw-toolbar {
+  padding: 0.7rem 0.85rem 0.75rem;
   background:
     linear-gradient(#fda31b, #fda31b) top / 100% 3px no-repeat,
-    linear-gradient(180deg, #fffdf8 0%, #fff 100%);
-}
-
-.tch-hw-page .ahw-set {
-  background: #19232b;
-}
-
-.tch-hw-page .ahw-set:hover {
-  background: #2b3844;
+    linear-gradient(180deg, #fff8ea 0%, #fff 100%);
 }
 
 .tch-hw-page .ahw-set.is-on {
   background: #fff1d6;
   color: #9a5b00;
+  border-color: #e8c27a;
 }
 
 .tch-hw-page .ahw-set.is-on:hover {
@@ -84,7 +69,8 @@
   color: #9a5b00;
 }
 
-.tch-hw-page .ahw-actions {
+.tch-hw-page .ahw-actions,
+.tch-hw-page .ahw-hw-bar {
   position: sticky;
   bottom: 0;
   z-index: 2;
@@ -220,7 +206,7 @@
     font-size: 0.9rem;
   }
 
-  .tch-hw-page .ahw-card-head {
+  .tch-hw-page .ahw-toolbar {
     gap: 0.65rem;
   }
 
@@ -229,12 +215,14 @@
     justify-content: center;
   }
 
-  .tch-hw-page .ahw-actions {
+  .tch-hw-page .ahw-actions,
+  .tch-hw-page .ahw-hw-bar {
     flex-direction: column;
     align-items: stretch;
   }
 
-  .tch-hw-page .ahw-actions .ahw-save {
+  .tch-hw-page .ahw-actions .ahw-save,
+  .tch-hw-page .ahw-hw-bar .ahw-save {
     width: 100%;
   }
 }

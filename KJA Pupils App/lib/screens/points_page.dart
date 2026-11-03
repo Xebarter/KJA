@@ -108,7 +108,7 @@ class _PointsPageState extends State<PointsPage> with SingleTickerProviderStateM
             if (awards.isEmpty)
               const EmptyNote(
                 icon: Icons.stars_outlined,
-                message: 'No points this term yet. Keep going — your teachers will add them here.',
+                message: 'No points this term yet. Keep going - your teachers will add them here.',
               )
             else
               for (final award in awards)
@@ -169,7 +169,7 @@ class _MoodHero extends StatelessWidget {
             : 'Your points';
 
     final lead = party
-        ? 'Nice one — you have ${_signed(total)} this term.'
+        ? 'Nice one - you have ${_signed(total)} this term.'
         : sombre
             ? total < 0
                 ? 'A deduction was recorded. Balance ${_signed(total)} this term.'

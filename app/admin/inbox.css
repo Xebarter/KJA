@@ -594,7 +594,7 @@
   .nl-desk .nl-table .nl-col-actions { grid-column: 2 / -1; grid-row: auto; justify-self: start; margin-top: .35rem; }
 }
 
-/* Newsletter desk — matches the light admin desks. */
+/* Newsletter desk - matches the light admin desks. */
 .nl-desk { max-width: 1080px; }
 .nl-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 1rem 1.5rem; margin-bottom: 1.15rem; }
 .nl-head h1 { margin: 0; font-family: var(--font-yantramanav), "Yantramanav", sans-serif; font-size: clamp(1.7rem, 3vw, 2.15rem); font-weight: 700; letter-spacing: -.02em; color: #19232b; }

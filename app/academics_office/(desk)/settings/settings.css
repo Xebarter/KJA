@@ -1,4 +1,4 @@
-/* Grade bands for the next draft — kept simple: one job at a time. */
+/* Grade bands for the next draft - kept simple: one job at a time. */
 
 .grd-page { display: grid; gap: 1.15rem; }
 .grd-desk { display: grid; gap: 1rem; }

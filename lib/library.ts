@@ -41,7 +41,7 @@ export type LibraryTitleHit = {
   meta: string;
 };
 
-/** Live-search hit for issuing a loan — one row per book. */
+/** Live-search hit for issuing a loan - one row per book. */
 export type LibraryCopyHit = {
   id: string;
   title: string;

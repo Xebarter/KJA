@@ -56,7 +56,7 @@ create policy library_staff_scope_select on public.library_staff_scope
   for select to authenticated
   using (profile_id = auth.uid() or public.is_full_admin());
 
--- No insert/update/delete for authenticated — service role only (Team save).
+-- No insert/update/delete for authenticated - service role only (Team save).
 
 create table if not exists public.libraries (
   id text primary key check (id in ('lower', 'upper')),

@@ -3,7 +3,7 @@ import { SITE_URL } from "@/lib/newsroom";
 /**
  * Public origin for payment callbacks and parent-app API hosts.
  * Prefer an explicit payments callback base, then the site URL, then the
- * current Vercel deployment — never the old WordPress host alone.
+ * current Vercel deployment - never the old WordPress host alone.
  */
 export function paymentsPublicBaseUrl() {
   const explicit = process.env.PAYMENTS_CALLBACK_BASE_URL?.trim();

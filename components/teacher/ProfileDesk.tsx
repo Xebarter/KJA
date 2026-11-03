@@ -199,7 +199,7 @@ export function ProfileDesk({
               <dl>
                 <div>
                   <dt>Email</dt>
-                  <dd>{email || "—"}</dd>
+                  <dd>{email || "-"}</dd>
                 </div>
                 {initialsMark ? (
                   <div>

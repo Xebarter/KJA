@@ -301,7 +301,7 @@ function Reader({ message, nowMs, closeHref, previousHref, nextHref }: {
             {body.fields.map((field) => (
               <div key={field.label} className={field.label === "Notes" ? "is-wide" : undefined}>
                 <dt>{field.label}</dt>
-                <dd>{field.value || "—"}</dd>
+                <dd>{field.value || "-"}</dd>
               </div>
             ))}
           </dl>

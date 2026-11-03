@@ -145,7 +145,7 @@ export async function GET(request: Request) {
     const marks = columns.map((column) => {
       const paper = column.papers.find((item) => item.stream === pupilStream);
       if (!paper) {
-        return { value: "—" as const, tone: markTone(null, false, true), percent: null, score: null, missed: false, max: 0, weight: 0, expected: false };
+        return { value: "-" as const, tone: markTone(null, false, true), percent: null, score: null, missed: false, max: 0, weight: 0, expected: false };
       }
       const mark = saved.get(`${paper.id}|${pupil.id}`);
       const missed = Boolean(mark?.missed);
@@ -153,7 +153,7 @@ export async function GET(request: Request) {
       const blank = !missed && score === null;
       const percent = markPercent(score, paper.maxScore, missed);
       const band = nursery && score !== null ? bandFor(bands, score) : null;
-      const value = missed ? "Abs" : score === null ? "—" : nursery ? (band?.label || "—") : score;
+      const value = missed ? "Abs" : score === null ? "-" : nursery ? (band?.label || "-") : score;
       return {
         value,
         tone: markTone(percent, missed, blank),

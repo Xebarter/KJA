@@ -97,7 +97,7 @@ export default async function ClassPage({ params, searchParams }: {
                 return (
                   <li key={entry || "-"}>
                     <Link href={`${ACADEMICS_BASE}/classes/${code}?stream=${streamQuery(entry)}`}>
-                      <span className="acr-pick-code">{entry || "—"}</span>
+                      <span className="acr-pick-code">{entry || "-"}</span>
                       <span>
                         <strong>{entry ? `Stream ${entry}` : "No stream"}</strong>
                         <small>{group.length} {group.length === 1 ? "pupil" : "pupils"}</small>

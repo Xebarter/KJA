@@ -679,7 +679,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     paint(number, { font: font(10, MUTED), fill: zebra, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
 
     const admission = sheet.getCell(row, 3);
-    admission.value = pupil.number || "—";
+    admission.value = pupil.number || "-";
     admission.numFmt = "@";
     paint(admission, { font: font(10, MUTED), fill: zebra, alignment: { vertical: "middle" }, border: grid() });
 
@@ -871,7 +871,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     : [
       ["Entered", (letter) => `COUNT(${letter}${FIRST_ROW}:${letter}${lastRow})+COUNTIF(${letter}${FIRST_ROW}:${letter}${lastRow},"ABS")`],
       ["Missed", (letter) => `COUNTIF(${letter}${FIRST_ROW}:${letter}${lastRow},"ABS")`],
-      ["Average", (letter) => `IF(COUNT(${letter}${FIRST_ROW}:${letter}${lastRow})=0,"—",ROUND(AVERAGE(${letter}${FIRST_ROW}:${letter}${lastRow}),1))`],
+      ["Average", (letter) => `IF(COUNT(${letter}${FIRST_ROW}:${letter}${lastRow})=0,"-",ROUND(AVERAGE(${letter}${FIRST_ROW}:${letter}${lastRow}),1))`],
     ];
   summaryRows.forEach(([label, formula], index) => {
     const row = summary + 1 + index;

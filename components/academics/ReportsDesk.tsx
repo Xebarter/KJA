@@ -303,7 +303,7 @@ export function ReportsDesk({
                           {card ? <Link href={`${ACADEMICS_BASE}/reports/${card.id}`}>{pupil.full_name}</Link> : <strong>{pupil.full_name}</strong>}
                           <small>{[String(index + 1).padStart(2, "0"), pupil.student_number, sexLabel(pupil.sex)].filter(Boolean).join(" · ")}</small>
                         </span>
-                        <strong className={score ? "rpt-score" : "rpt-score is-empty"}>{score ?? "—"}</strong>
+                        <strong className={score ? "rpt-score" : "rpt-score is-empty"}>{score ?? "-"}</strong>
                         <em className={`rpt-pill${card ? ` is-${card.status}` : ""}`}>{statusLabel(card?.status ?? null)}</em>
                       </li>
                     );

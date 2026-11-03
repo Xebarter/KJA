@@ -41,7 +41,7 @@ function Face({ hit, className }: { hit: LibraryBorrowerHit; className?: string 
   return <TeacherFace id={hit.id} name={hit.name} photoPath={hit.photo_path} className={className} />;
 }
 
-/** Live pupil / teacher search with faces — replaces the old select dropdowns. */
+/** Live pupil / teacher search with faces - replaces the old select dropdowns. */
 export function BorrowerFields() {
   const [kind, setKind] = useState<"pupil" | "teacher">("pupil");
   const [picked, setPicked] = useState<LibraryBorrowerHit | null>(null);

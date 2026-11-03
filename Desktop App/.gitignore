@@ -5,6 +5,7 @@ release/
 *.log
 .env
 .env.local
+resources/desktop.env
 .DS_Store
 Thumbs.db
 *.db

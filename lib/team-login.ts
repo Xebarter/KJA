@@ -73,7 +73,9 @@ function describe(grants: Grant[]) {
             ? "Accounts"
             : grant.dashboard === "library"
               ? "Library"
-              : "Academics";
+              : grant.dashboard === "store"
+                ? "Store"
+                : "Academics";
     return grant.pages.length === 0 ? name : `${name} (${grant.pages.length} page${grant.pages.length === 1 ? "" : "s"})`;
   });
   return labels.join(", ");

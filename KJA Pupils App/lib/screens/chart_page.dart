@@ -38,7 +38,7 @@ class ChartPage extends StatelessWidget {
             Expanded(
               child: _SnapshotTile(
                 label: 'In school',
-                value: attendance.total == 0 ? '—' : '${attendance.percent}%',
+                value: attendance.total == 0 ? '-' : '${attendance.percent}%',
                 hint: attendance.total == 0 ? 'No days yet' : plural(attendance.total, 'day'),
                 color: KjaColors.mint,
                 icon: Icons.fact_check_rounded,
@@ -48,7 +48,7 @@ class ChartPage extends StatelessWidget {
             Expanded(
               child: _SnapshotTile(
                 label: 'Homework',
-                value: homework.isEmpty ? '—' : '$done/${homework.length}',
+                value: homework.isEmpty ? '-' : '$done/${homework.length}',
                 hint: homework.isEmpty ? 'None yet' : (open == 0 ? 'All done!' : '$open left'),
                 color: KjaColors.sky,
                 icon: Icons.auto_stories_rounded,
@@ -58,7 +58,7 @@ class ChartPage extends StatelessWidget {
             Expanded(
               child: _SnapshotTile(
                 label: 'Report',
-                value: latest?.percent == null ? '—' : '${latest!.percent!.round()}%',
+                value: latest?.percent == null ? '-' : '${latest!.percent!.round()}%',
                 hint: latest == null ? 'None yet' : latest.term,
                 color: KjaColors.sun,
                 icon: Icons.emoji_events_rounded,
@@ -141,7 +141,7 @@ class _ChartHero extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lead = reportPercent == null
-        ? 'See how school is going — attendance, homework, and marks in one place.'
+        ? 'See how school is going - attendance, homework, and marks in one place.'
         : 'Your latest report is about $reportPercent%. Look at the colourful charts below!';
 
     return Container(

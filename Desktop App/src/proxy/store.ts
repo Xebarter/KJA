@@ -42,8 +42,7 @@ async function loadSql(): Promise<SqlJsStatic> {
   if (SQL) return SQL;
   // sql.js resolves to dist/sql-wasm.js; wasm sits beside it.
   const wasmPath = join(dirname(nodeRequire().resolve("sql.js")), "sql-wasm.wasm");
-  const wasmBinary = readFileSync(wasmPath);
-  SQL = await initSqlJs({ wasmBinary });
+  SQL = await initSqlJs({ locateFile: () => wasmPath });
   return SQL;
 }
 

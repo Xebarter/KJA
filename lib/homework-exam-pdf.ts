@@ -288,7 +288,7 @@ export async function buildHomeworkExamPdf(input: HomeworkExamPdfInput): Promise
       javaScriptEnabled: false,
     });
     const page = await context.newPage();
-    // Images are already data URIs — block stray network.
+    // Images are already data URIs - block stray network.
     await page.route("**/*", async (route) => {
       if (route.request().resourceType() === "document") return route.continue();
       return route.abort();

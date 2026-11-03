@@ -44,7 +44,7 @@ class SchoolMark extends StatelessWidget {
 /// Standard list padding for portal destinations.
 const kPortalPadding = EdgeInsets.fromLTRB(16, 12, 16, 32);
 
-/// Scroll host used by every destination — consistent inset and bounce.
+/// Scroll host used by every destination - consistent inset and bounce.
 class PortalScroll extends StatelessWidget {
   const PortalScroll({super.key, required this.children, this.padding = kPortalPadding, this.controller});
 

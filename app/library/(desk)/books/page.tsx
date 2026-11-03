@@ -196,8 +196,8 @@ export default async function BooksPage({
                           <td>
                             <strong>{row.title}</strong>
                           </td>
-                          <td>{row.authors || "—"}</td>
-                          <td>{row.category || "—"}</td>
+                          <td>{row.authors || "-"}</td>
+                          <td>{row.category || "-"}</td>
                           <td className="is-num">
                             <span className={`lib-tag ${available ? "is-ok" : "is-slate"}`}>{available.toLocaleString("en-GB")}</span>
                           </td>
@@ -217,7 +217,7 @@ export default async function BooksPage({
             ) : (
               <p className="lib-empty">
                 <i className="fa-solid fa-book" aria-hidden="true" />
-                {q ? "No books match that search." : "No books yet — add one on the left."}
+                {q ? "No books match that search." : "No books yet - add one on the left."}
               </p>
             )}
           </section>

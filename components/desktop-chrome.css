@@ -1,4 +1,4 @@
-/* Electron title strip — full width, drag region for custom title bar */
+/* Electron title strip - full width, drag region for custom title bar */
 
 html.kja-is-desktop {
   --kja-desktop-titlebar-height: 48px;
@@ -17,7 +17,7 @@ html.kja-is-desktop .admin-shell {
 }
 
 html.kja-is-desktop .admin-side {
-  /* Fill the column under the title bar — height:auto left a cream gap below short navs. */
+  /* Fill the column under the title bar - height:auto left a cream gap below short navs. */
   top: var(--kja-desktop-titlebar-height, 48px);
   height: calc(100vh - var(--kja-desktop-titlebar-height, 48px));
   height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
@@ -25,6 +25,25 @@ html.kja-is-desktop .admin-side {
   min-height: calc(100dvh - var(--kja-desktop-titlebar-height, 48px));
   align-self: stretch;
   position: sticky;
+}
+
+/* Admin desk: Nunito in Electron only (teacher / store / library parity). */
+html.kja-is-desktop body:has(.kja-admin) {
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif !important;
+}
+
+html.kja-is-desktop .kja-admin {
+  --admin-font: Nunito, "Segoe UI", system-ui, sans-serif;
+  font-family: var(--admin-font);
+}
+
+html.kja-is-desktop .kja-admin *:not(i):not([class*="fa-"]):not(code):not(pre):not(.ofc-num) {
+  font-family: var(--admin-font, Nunito, "Segoe UI", system-ui, sans-serif) !important;
+}
+
+html.kja-is-desktop .kja-admin .admin-brand strong,
+html.kja-is-desktop .kja-admin .admin-topbar-brand strong {
+  letter-spacing: 0.06em;
 }
 
 .kja-desktop-chrome {

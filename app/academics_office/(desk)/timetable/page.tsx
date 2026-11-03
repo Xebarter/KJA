@@ -258,7 +258,7 @@ function Week({
         </div>
         <div>
           <span className="tt-stat-icon" aria-hidden="true"><i className="fa-solid fa-clock" /></span>
-          <span className="tt-stat-copy"><span>Today</span><strong>{today ? WEEKDAYS.find((day) => day.value === today)?.label.slice(0, 3) : "—"}</strong><small>{today ? "Highlighted on the grid" : "Outside the teaching week"}</small></span>
+          <span className="tt-stat-copy"><span>Today</span><strong>{today ? WEEKDAYS.find((day) => day.value === today)?.label.slice(0, 3) : "-"}</strong><small>{today ? "Highlighted on the grid" : "Outside the teaching week"}</small></span>
         </div>
       </section>
 

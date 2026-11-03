@@ -199,7 +199,7 @@ export function FeesView({
               </div>
               <div>
                 <dt>Next due</dt>
-                <dd>{nextRow?.due_on ? shortDate(nextRow.due_on, false) : "—"}</dd>
+                <dd>{nextRow?.due_on ? shortDate(nextRow.due_on, false) : "-"}</dd>
                 <small>
                   {nextRow?.due_on
                     ? `${nextDays < 0 ? `${-nextDays}d overdue` : nextDays === 0 ? "Due today" : `In ${nextDays}d`}${nextChild && !selected ? ` · ${firstName(nextChild.full_name)}` : ""}`
@@ -260,7 +260,7 @@ export function FeesView({
                         <div>
                           <dt>Next due</dt>
                           <dd className={nextDaysForChild < 0 ? "is-late" : ""}>
-                            {next?.due_on ? shortDate(next.due_on) : childSum.balance ? "Not set" : "—"}
+                            {next?.due_on ? shortDate(next.due_on) : childSum.balance ? "Not set" : "-"}
                           </dd>
                         </div>
                       </dl>
@@ -290,8 +290,8 @@ export function FeesView({
                               </span>
                               <span className="fe-num" role="cell" data-label="Amount">{ugx(m.due)}</span>
                               <span className="fe-num" role="cell" data-label="Paid">{ugx(m.paid)}</span>
-                              <span className="fe-num fe-num-balance" role="cell" data-label="Balance">{m.balance ? ugx(m.balance) : "—"}</span>
-                              <span className="fe-due" role="cell" data-label="Due date">{row.due_on ? shortDate(row.due_on) : "—"}</span>
+                              <span className="fe-num fe-num-balance" role="cell" data-label="Balance">{m.balance ? ugx(m.balance) : "-"}</span>
+                              <span className="fe-due" role="cell" data-label="Due date">{row.due_on ? shortDate(row.due_on) : "-"}</span>
                               <span className="fe-status" role="cell">
                                 <span className={`fe-pill fe-pill--${s.tone}`}>
                                   <i className={`fa-solid ${s.icon}`} aria-hidden="true" /> {s.label}

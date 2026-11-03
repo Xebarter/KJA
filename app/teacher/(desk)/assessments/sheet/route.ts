@@ -15,7 +15,7 @@ type PaperRow = {
 };
 
 /**
- * Teacher desk workbook download — uses teacher auth (not the academics office gate)
+ * Teacher desk workbook download - uses teacher auth (not the academics office gate)
  * and only papers assigned to this teacher.
  */
 export async function POST(request: Request) {

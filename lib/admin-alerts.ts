@@ -30,7 +30,13 @@ type Alert = {
 };
 
 export function siteUrl() {
-  return (process.env.NEXT_PUBLIC_SITE_URL || SITE_URL).replace(/\/+$/, "");
+  // Prefer the Next.js public host. WordPress may still own kja.ug while the app runs on Vercel.
+  const fromEnv =
+    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
+    process.env.SITE_URL?.trim() ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim() ||
+    SITE_URL;
+  return fromEnv.replace(/\/+$/, "");
 }
 
 const firstName = (name: string | null | undefined) => name?.trim().split(/\s+/)[0] || "";

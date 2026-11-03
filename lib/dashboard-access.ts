@@ -4,9 +4,10 @@ import { ACADEMICS_BASE, academicsNav } from "@/lib/academics-nav";
 import { ACCOUNTS_BASE, accountsNav } from "@/lib/accounts-nav";
 import { LIBRARY_BASE, libraryNav } from "@/lib/library-nav";
 import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
+import { STORE_BASE, storeNav } from "@/lib/store-nav";
 import { safeNext } from "@/lib/safe-next";
 
-export const DASHBOARDS = ["admin", "admissions", "accounts", "academics", "library"] as const;
+export const DASHBOARDS = ["admin", "admissions", "accounts", "academics", "library", "store"] as const;
 export type DashboardId = (typeof DASHBOARDS)[number];
 
 export type Grant = { dashboard: DashboardId; pages: string[] };
@@ -51,6 +52,12 @@ export const DASHBOARD_META: Record<DashboardId, { label: string; description: s
     description: "Books, loans, reservations, and fines for Lower and Upper Primary.",
     href: LIBRARY_BASE,
     icon: "fa-book-open",
+  },
+  store: {
+    label: "Store",
+    description: "Catalogue, stock, issues, suppliers, and requisitions.",
+    href: STORE_BASE,
+    icon: "fa-store",
   },
 };
 
@@ -130,6 +137,7 @@ export const DASHBOARD_PAGES: Record<DashboardId, DashboardPage[]> = {
   accounts: navPages(ACCOUNTS_BASE, accountsNav, { students: [`${ACCOUNTS_BASE}/families`] }),
   academics: navPages(ACADEMICS_BASE, academicsNav, { classes: [`${ACADEMICS_BASE}/students`] }),
   library: navPages(LIBRARY_BASE, libraryNav),
+  store: navPages(STORE_BASE, storeNav),
 };
 
 export function isDashboardId(value: string): value is DashboardId {
@@ -149,7 +157,7 @@ export function visibleContentKeys(pages: string[] | null) {
 
 export function legacyGrants(role: string | null | undefined): Grant[] {
   if (role === "admin") return DASHBOARDS.map((dashboard) => ({ dashboard, pages: [] }));
-  if (role === "admissions" || role === "accounts" || role === "academics" || role === "library") {
+  if (role === "admissions" || role === "accounts" || role === "academics" || role === "library" || role === "store") {
     return [{ dashboard: role, pages: [] }];
   }
   return [];
@@ -159,7 +167,7 @@ export function isFullAdmin(grants: Grant[]) {
   return DASHBOARDS.every((dashboard) => grants.some((grant) => grant.dashboard === dashboard && grant.pages.length === 0));
 }
 
-export function roleForGrants(grants: Grant[]): "admin" | "admissions" | "accounts" | "academics" | "library" | "officer" {
+export function roleForGrants(grants: Grant[]): "admin" | "admissions" | "accounts" | "academics" | "library" | "store" | "officer" {
   if (isFullAdmin(grants)) return "admin";
   const ids = [...new Set(grants.map((grant) => grant.dashboard))];
   if (ids.length === 1 && ids[0] !== "admin") return ids[0];
@@ -185,6 +193,7 @@ export function dashboardForPath(pathname: string): DashboardId | null {
   if (path === ACCOUNTS_BASE || path.startsWith(`${ACCOUNTS_BASE}/`)) return "accounts";
   if (path === ACADEMICS_BASE || path.startsWith(`${ACADEMICS_BASE}/`)) return "academics";
   if (path === LIBRARY_BASE || path.startsWith(`${LIBRARY_BASE}/`)) return "library";
+  if (path === STORE_BASE || path.startsWith(`${STORE_BASE}/`)) return "store";
   return null;
 }
 
@@ -223,7 +232,7 @@ export function landingPath(grants: Grant[], dashboard: DashboardId) {
 
 export function homeForGrants(grants: Grant[]) {
   // One desk → go straight there. Several → choose after sign-in.
-  // Never fall through to the parent portal — that route is parents only.
+  // Never fall through to the parent portal - that route is parents only.
   const open = DASHBOARDS.filter((dashboard) => hasDashboard(grants, dashboard));
   if (open.length === 0) return "/choose-dashboard";
   if (open.length === 1) return landingPath(grants, open[0]) ?? "/choose-dashboard";
@@ -298,6 +307,7 @@ const PAGE_IDS: Record<DashboardId, Set<string>> = {
   accounts: new Set(DASHBOARD_PAGES.accounts.map((page) => page.id)),
   academics: new Set(DASHBOARD_PAGES.academics.map((page) => page.id)),
   library: new Set(DASHBOARD_PAGES.library.map((page) => page.id)),
+  store: new Set(DASHBOARD_PAGES.store.map((page) => page.id)),
 };
 
 /** Form fields: `full=1`, or `grant=accounts:*` / `grant=accounts:invoices`. */

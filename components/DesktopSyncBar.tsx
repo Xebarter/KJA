@@ -36,7 +36,7 @@ function percentOf(status: SyncStatus): number {
 
 /**
  * Offline / outbox / hydrate strip for the Electron desks.
- * Styles live in desktop-sync.css (local assets — no CDN).
+ * Styles live in desktop-sync.css (local assets - no CDN).
  */
 export function DesktopSyncBar() {
   const router = useRouter();
@@ -65,7 +65,7 @@ export function DesktopSyncBar() {
       const current = desktopBridge();
       void current?.getSyncStatus().then((next) => {
         if (!next.online || next.hydrating) return;
-        // Only desks that actually depend on these tables — not every table change.
+        // Only desks that actually depend on these tables - not every table change.
         if (
           payload.table === "applications" ||
           payload.table === "application_activity" ||

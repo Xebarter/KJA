@@ -46,7 +46,7 @@ async function loadAcademicsAccess(supabase: SupabaseClient, userId: string): Pr
 export async function requireAcademics(...pages: string[]) {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  // Prefer getUser over getClaims — Desktop's loopback proxy serves /auth/v1/user reliably;
+  // Prefer getUser over getClaims - Desktop's loopback proxy serves /auth/v1/user reliably;
   // local JWT claim verification often fails against that proxy and falsely "expires" the session.
   const { data: userData } = await supabase.auth.getUser();
   const authUser = userData.user;

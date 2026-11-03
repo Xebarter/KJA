@@ -93,7 +93,7 @@ export default async function StudentHomePage() {
     },
     {
       label: "Attendance",
-      value: portal.attendance.total ? `${portal.attendance.percent}%` : "—",
+      value: portal.attendance.total ? `${portal.attendance.percent}%` : "-",
       note: portal.attendance.total ? `${portal.attendance.present + portal.attendance.late} days in` : "No register yet",
       href: "/student/attendance",
       icon: "fa-clipboard-check",
@@ -109,7 +109,7 @@ export default async function StudentHomePage() {
     },
     {
       label: "Class teacher",
-      value: portal.classTeacher ? portal.classTeacher.full_name.split(/\s+/)[0] : "—",
+      value: portal.classTeacher ? portal.classTeacher.full_name.split(/\s+/)[0] : "-",
       note: portal.classTeacher?.title || "Not set yet",
       href: "/student/class",
       icon: "fa-chalkboard-user",
@@ -279,7 +279,7 @@ export default async function StudentHomePage() {
             ) : (
               <div className="st-home-empty">
                 <span aria-hidden="true"><i className="fa-solid fa-trophy" /></span>
-                <p>No homework waiting. Great work — enjoy your free time!</p>
+                <p>No homework waiting. Great work - enjoy your free time!</p>
               </div>
             )}
           </section>

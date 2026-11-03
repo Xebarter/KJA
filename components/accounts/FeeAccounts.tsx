@@ -318,7 +318,7 @@ export function FeeAccountsView({
                         </td>
                         <td className="fac-col-class" data-label="Class">
                           <span className="fac-class-cell">
-                            <span className="fac-class">{row.class_code ?? "—"}{row.stream ? ` ${row.stream}` : ""}</span>
+                            <span className="fac-class">{row.class_code ?? "-"}{row.stream ? ` ${row.stream}` : ""}</span>
                             {row.campus ? <small>{row.campus}</small> : null}
                           </span>
                         </td>

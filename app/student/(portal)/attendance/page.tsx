@@ -22,7 +22,7 @@ function shortDay(ymd: string) {
 
 function cheer(percent: number, total: number) {
   if (!total) return "Your days will appear here after teachers take the register.";
-  if (percent >= 95) return "Fantastic attendance — keep shining every school day!";
+  if (percent >= 95) return "Fantastic attendance - keep shining every school day!";
   if (percent >= 85) return "Great job coming to school. Every day helps you learn.";
   if (percent >= 70) return "You're doing alright. Try to be here as often as you can.";
   return "Coming to school more often will help you catch up and feel confident.";

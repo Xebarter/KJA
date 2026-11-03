@@ -65,7 +65,7 @@ export default async function StudentReportsPage() {
             <span>{reports.length === 1 ? "Report" : "Reports"}</span>
           </div>
           <div className="sr-hero-stat sr-hero-stat--latest">
-            <strong>{latest ? "Ready" : "—"}</strong>
+            <strong>{latest ? "Ready" : "-"}</strong>
             <span>{latest ? "Latest" : "Waiting"}</span>
           </div>
         </div>
