@@ -87,7 +87,6 @@ function SlotCard({ slot, initialUrl, onSaved }: { slot: ImageSlot; initialUrl: 
       setUrl(next);
       setBroken(false);
       setSize("");
-      setEditing(false);
       setSaved(true);
       onSaved(slot.key, next);
     } catch (err) {
