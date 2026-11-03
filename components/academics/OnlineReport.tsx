@@ -2,7 +2,6 @@ import type { ReactNode } from "react";
 import {
   formatScore,
   gradeTone,
-  ordinal,
   type SheetActivity,
   type SheetCard,
 } from "@/components/academics/ReportSheet";
@@ -100,20 +99,10 @@ export function OnlineReport({
           <strong>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</strong>
         </div>
         <div className="kor-stat">
-          <span>{card.overall_position != null ? "Position" : "Attendance"}</span>
-          <strong>
-            {card.overall_position != null
-              ? ordinal(card.overall_position)
-              : attendanceLabel(card.days_present, card.days_opened)}
-          </strong>
+          <span>Attendance</span>
+          <strong>{attendanceLabel(card.days_present, card.days_opened)}</strong>
         </div>
       </section>
-
-      {(card.days_present != null || card.days_opened != null) && card.overall_position != null ? (
-        <p className="kor-attendance-line">
-          Attendance <strong>{attendanceLabel(card.days_present, card.days_opened)}</strong>
-        </p>
-      ) : null}
 
       <section className="kor-block" aria-labelledby="kor-subjects-title">
         <div className="kor-block-head">
