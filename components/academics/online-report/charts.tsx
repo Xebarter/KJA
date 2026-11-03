@@ -6,7 +6,7 @@ function toneFill(tone?: string) {
   if (tone === "high") return "var(--kor-high)";
   if (tone === "mid") return "var(--kor-mid)";
   if (tone === "low") return "var(--kor-low)";
-  return "var(--kor-navy)";
+  return "var(--kor-sky)";
 }
 
 function scoreTone(value: number | null): BarItem["tone"] {

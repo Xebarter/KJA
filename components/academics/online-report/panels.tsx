@@ -15,10 +15,13 @@ function Empty({ copy }: { copy: string }) {
   return <p className="kor-empty">{copy}</p>;
 }
 
-function PanelHead({ title, note }: { title: string; note: string }) {
+function PanelHead({ title, note, icon }: { title: string; note: string; icon?: string }) {
   return (
     <div className="kor-block-head">
-      <h2>{title}</h2>
+      <h2>
+        {icon ? <i className={`fa-solid ${icon}`} aria-hidden="true" /> : null}
+        {title}
+      </h2>
       <p>{note}</p>
     </div>
   );
@@ -37,7 +40,7 @@ export function ProgressPanel({
 
   return (
     <section className="kor-panel">
-      <PanelHead title="Exam progress" note="This term" />
+      <PanelHead title="Exam progress" note="This term" icon="fa-chart-column" />
       {setBars.length > 1 ? (
         <>
           <p className="kor-empty" style={{ marginBottom: "0.75rem" }}>
@@ -53,7 +56,7 @@ export function ProgressPanel({
 
       {multiPart.length ? (
         <div className="kor-panel-block">
-          <PanelHead title="By subject" note="Set comparison" />
+          <PanelHead title="By subject" note="Set comparison" icon="fa-list-check" />
           <ul className="kor-subject-charts">
             {multiPart.map((subject) => (
               <li key={subject.subjectId}>
@@ -73,7 +76,7 @@ export function ProgressPanel({
 export function TermsPanel({ terms }: { terms: OnlineTermRow[] }) {
   return (
     <section className="kor-panel">
-      <PanelHead title="Across terms" note="Overall average" />
+      <PanelHead title="Across terms" note="Overall average" icon="fa-timeline" />
       {terms.length ? (
         <>
           <KorLineChart
@@ -110,7 +113,7 @@ export function PointsPanel({ points }: { points: OnlinePointsBundle }) {
   if (points.missing) {
     return (
       <section className="kor-panel">
-        <PanelHead title="Term points" note="Behaviour & effort" />
+        <PanelHead title="Term points" note="Behaviour & effort" icon="fa-star" />
         <Empty copy="Points will appear here after the school turns them on." />
       </section>
     );
@@ -118,7 +121,7 @@ export function PointsPanel({ points }: { points: OnlinePointsBundle }) {
 
   return (
     <section className="kor-panel">
-      <PanelHead title="Term points" note={`${points.count} awards`} />
+      <PanelHead title="Term points" note={`${points.count} awards`} icon="fa-star" />
       <div className={`kor-points-hero ${points.total < 0 ? "is-down" : "is-up"}`}>
         <span>Balance</span>
         <strong>{points.total > 0 ? `+${points.total}` : String(points.total)}</strong>
@@ -129,7 +132,7 @@ export function PointsPanel({ points }: { points: OnlinePointsBundle }) {
 
       {points.reasons.length ? (
         <div className="kor-panel-block">
-          <PanelHead title="Breakdown" note="By reason" />
+          <PanelHead title="Breakdown" note="By reason" icon="fa-chart-pie" />
           <KorBarChart
             items={points.reasons.slice(0, 8).map((reason) => ({
               label: reason.label,
@@ -173,7 +176,7 @@ export function PointsPanel({ points }: { points: OnlinePointsBundle }) {
 export function OtherSubjectsPanel({ subjects }: { subjects: OnlineOtherSubject[] }) {
   return (
     <section className="kor-panel">
-      <PanelHead title="Other subjects" note="Percentage" />
+      <PanelHead title="Other subjects" note="Percentage" icon="fa-palette" />
       {subjects.length ? (
         <>
           <KorBarChart items={subjects.map((subject) => ({ label: subject.name, value: subject.percent }))} />
@@ -209,7 +212,7 @@ export function OtherSubjectsPanel({ subjects }: { subjects: OnlineOtherSubject[
 export function LibraryPanel({ books }: { books: OnlineLibraryBook[] }) {
   return (
     <section className="kor-panel">
-      <PanelHead title="Library" note="Books this term" />
+      <PanelHead title="Library" note="Books this term" icon="fa-book-open" />
       {books.length ? (
         <ul className="kor-book-list">
           {books.map((book) => (
@@ -233,7 +236,7 @@ export function LibraryPanel({ books }: { books: OnlineLibraryBook[] }) {
 export function AttendancePanel({ attendance }: { attendance: OnlineAttendanceBundle }) {
   return (
     <section className="kor-panel">
-      <PanelHead title="Attendance" note={attendance.total ? `${attendance.percent}% present` : "This term"} />
+      <PanelHead title="Attendance" note={attendance.total ? `${attendance.percent}% present` : "This term"} icon="fa-calendar-check" />
       <div className="kor-snapshot kor-snapshot-tight">
         <div className="kor-stat">
           <span>Present</span>
@@ -273,7 +276,7 @@ export function AttendancePanel({ attendance }: { attendance: OnlineAttendanceBu
 
       {attendance.byMonth.length ? (
         <div className="kor-panel-block">
-          <PanelHead title="By month" note="Marked days" />
+          <PanelHead title="By month" note="Marked days" icon="fa-calendar-days" />
           <KorBarChart
             items={attendance.byMonth.map((month) => ({
               label: month.label,
@@ -291,7 +294,7 @@ export function AttendancePanel({ attendance }: { attendance: OnlineAttendanceBu
 export function ClubsPanel({ clubs }: { clubs: OnlineClub[] }) {
   return (
     <section className="kor-panel">
-      <PanelHead title="Clubs" note="This term" />
+      <PanelHead title="Clubs" note="This term" icon="fa-people-group" />
       {clubs.length ? (
         <ul className="kor-club-list">
           {clubs.map((club) => (

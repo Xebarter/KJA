@@ -73,6 +73,7 @@ export function OnlineReport({
       <section className="kor-hero" aria-label="Pupil">
         <div className="kor-portrait">
           {portrait ?? <span className="kor-mono" aria-hidden="true">{monogram(card.pupil_name)}</span>}
+          <span className="kor-portrait-ring" aria-hidden="true" />
         </div>
         <div className="kor-hero-copy">
           <p className="kor-kicker">{sheetTitle}</p>
@@ -86,19 +87,23 @@ export function OnlineReport({
       </section>
 
       <section className="kor-snapshot" aria-label="Summary">
-        <div className={`kor-stat ${overallTone}`}>
+        <div className={`kor-stat kor-stat-avg ${overallTone}`}>
+          <i className="fa-solid fa-chart-simple" aria-hidden="true" />
           <span>{nursery ? "Overall" : "Average"}</span>
           <strong>{formatScore(card.overall_score, nursery)}</strong>
         </div>
-        <div className={`kor-stat ${overallTone}`}>
+        <div className={`kor-stat kor-stat-grade ${overallTone}`}>
+          <i className="fa-solid fa-medal" aria-hidden="true" />
           <span>Grade</span>
           <strong>{card.overall_grade || "—"}</strong>
         </div>
-        <div className="kor-stat">
+        <div className="kor-stat kor-stat-agg">
+          <i className="fa-solid fa-hashtag" aria-hidden="true" />
           <span>Aggregate</span>
           <strong>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</strong>
         </div>
-        <div className="kor-stat">
+        <div className="kor-stat kor-stat-att">
+          <i className="fa-solid fa-calendar-check" aria-hidden="true" />
           <span>Attendance</span>
           <strong>{attendanceLabel(card.days_present, card.days_opened)}</strong>
         </div>
@@ -106,7 +111,7 @@ export function OnlineReport({
 
       <section className="kor-block" aria-labelledby="kor-subjects-title">
         <div className="kor-block-head">
-          <h2 id="kor-subjects-title">Academic record</h2>
+          <h2 id="kor-subjects-title"><i className="fa-solid fa-book-open" aria-hidden="true" /> Academic record</h2>
           <p>{card.lines.length ? `${card.lines.length} subjects` : "No subjects yet"}</p>
         </div>
 
@@ -157,7 +162,7 @@ export function OnlineReport({
       {activities.length ? (
         <section className="kor-block" aria-labelledby="kor-coco-title">
           <div className="kor-block-head">
-            <h2 id="kor-coco-title">Co-curricular</h2>
+            <h2 id="kor-coco-title"><i className="fa-solid fa-futbol" aria-hidden="true" /> Co-curricular</h2>
             <p>Activities this term</p>
           </div>
           <ul className="kor-coco">
@@ -178,7 +183,7 @@ export function OnlineReport({
 
       <section className="kor-block" aria-labelledby="kor-teacher-title">
         <div className="kor-block-head">
-          <h2 id="kor-teacher-title">Class teacher</h2>
+          <h2 id="kor-teacher-title"><i className="fa-solid fa-chalkboard-user" aria-hidden="true" /> Class teacher</h2>
           {card.class_teacher_name ? <p>{card.class_teacher_name}</p> : <p>Comment</p>}
         </div>
         <blockquote className={card.class_teacher_comment ? "kor-quote" : "kor-quote is-empty"}>
@@ -193,7 +198,7 @@ export function OnlineReport({
 
       <section className="kor-block" aria-labelledby="kor-head-title">
         <div className="kor-block-head">
-          <h2 id="kor-head-title">Headteacher</h2>
+          <h2 id="kor-head-title"><i className="fa-solid fa-landmark" aria-hidden="true" /> Headteacher</h2>
           <p>Closing remark</p>
         </div>
         <blockquote className={card.head_comment ? "kor-quote is-head" : "kor-quote is-empty"}>
@@ -203,7 +208,7 @@ export function OnlineReport({
 
       <section className="kor-block kor-fees" aria-labelledby="kor-fees-title">
         <div className="kor-block-head">
-          <h2 id="kor-fees-title">Next term</h2>
+          <h2 id="kor-fees-title"><i className="fa-solid fa-calendar-day" aria-hidden="true" /> Next term</h2>
           <p>{formatReportDate(card.next_starts_on) || "Start date to be confirmed"}</p>
         </div>
         {fees.length ? (
