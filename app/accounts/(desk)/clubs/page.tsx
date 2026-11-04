@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { ClubCreate, ClubPayLink, ClubRegister, ClubStrip, type ClubConsentRow } from "@/components/accounts/ClubsDesk";
 import { notReady } from "@/components/accounts/ui";
 import { Empty } from "@/components/office/ui";
@@ -148,12 +148,12 @@ export default async function ClubsOfficePage({ searchParams }: { searchParams: 
 
   return (
     <div className="app-page ofc-page acc-page clb-page">
-      <PageHeader
+      <AccountsPageHeader
         kicker="Billing"
         icon="fa-puzzle-piece"
         title="Clubs"
         description={current ? <>Parents consent on the portal, then pay the fee for <strong>{current.label}</strong>. A paid amount stays on the receipt even if the fee changes later.</> : "Set the current term before parents can pay."}
-        actions={<Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/clubs/report`}><i className="fa-solid fa-chart-column" aria-hidden="true" /> Club report</Link>}
+        actions={<Link className="aov-btn" href={`${ACCOUNTS_BASE}/clubs/report`}><i className="fa-solid fa-chart-column" aria-hidden="true" /> Club report</Link>}
       />
 
       <section className="clb-board" aria-label={current ? `${current.label} club fees` : "Club fees"}>

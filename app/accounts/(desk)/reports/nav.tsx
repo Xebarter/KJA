@@ -152,7 +152,7 @@ export function ReportDesk({
       <div ref={chromeRef} className="acr-chrome no-print">
         <div className="acr-controls">
           <div className="acr-terms" role="group" aria-label="Report period">
-            <span>Period</span>
+            <span>Term</span>
             <div>
               {periods.map((period) => (
                 <PeriodLink key={period.value || "current"} href={`${period.href}${current}`} on={currentPeriod === period.value}>

@@ -7,9 +7,8 @@
   /* Same face as the admissions student register. */
   font-family: Cambria, Cochin, Georgia, Times, "Times New Roman", serif;
 }
-.fac-page.acc-page > .admin-hero { margin-top: 0; margin-bottom: 1.5rem; }
+.fac-page.acc-page > .aov-head { margin-top: 0; margin-bottom: 0; }
 .kja-accounts .fac-page .ofc-panel .dash-panel-head h2,
-.fac-page h1,
 .fac-page h2,
 .fac-page button,
 .fac-page input,

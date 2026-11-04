@@ -16,7 +16,7 @@ import {
   type PupilHit,
   type PupilTerm,
 } from "@/app/accounts/(desk)/payments/actions";
-import type { FamilyPaySlice } from "@/lib/accounts-family-pay";
+import { allocateFamilyPayment, slicesFromManual, type FamilyPaySlice } from "@/lib/accounts-family-pay";
 import { ACCOUNTS_BASE, PAYMENT_METHODS, kampalaToday, methodInfo, ugx, type PaymentMethod } from "@/lib/accounts-format";
 import type { ActionResult } from "@/lib/office-forms";
 import { searchWords } from "@/lib/students";
@@ -89,6 +89,8 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
   const [family, setFamily] = useState<PaymentFamilyHit | null>(null);
   const [familyContext, setFamilyContext] = useState<FamilyPaymentContext | null>(null);
   const [slices, setSlices] = useState<FamilyPaySlice[]>([]);
+  const [splitMode, setSplitMode] = useState<"auto" | "manual">("auto");
+  const [manualAmounts, setManualAmounts] = useState<Record<string, number>>({});
   const [term, setTerm] = useState(termId);
   const [balances, setBalances] = useState<PupilTerm[]>([]);
   const [value, setValue] = useState(0);
@@ -112,8 +114,8 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
     let live = true;
     const id = family?.id || initialFamilyId;
     if (mode !== "family" || !id) {
-      setFamilyContext(null);
-      setSlices([]);
+      setFamilyContext((current) => (current ? null : current));
+      setSlices((current) => (current.length ? [] : current));
       return;
     }
     setLoadingFamily(true);
@@ -146,12 +148,13 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
 
   useEffect(() => {
     let live = true;
-    if (mode !== "family" || !familyContext || value <= 0) {
-      setSlices([]);
+    if (mode !== "family" || !familyContext || value <= 0 || splitMode !== "auto") {
+      setSlices((current) => (current.length ? [] : current));
       return;
     }
+    const familyId = familyContext.family.id;
     const timer = window.setTimeout(() => {
-      previewFamilyAllocation(familyContext.family.id, value, term)
+      previewFamilyAllocation(familyId, value, term)
         .then((result) => {
           if (!live) return;
           setSlices(result.slices ?? []);
@@ -162,7 +165,42 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
       live = false;
       window.clearTimeout(timer);
     };
-  }, [mode, familyContext, value, term]);
+  }, [mode, familyContext?.family.id, value, term, splitMode]);
+
+  const preferredTermLabel = terms.find((entry) => entry.id === term)?.label ?? "Term";
+  const manualSlices = useMemo(() => {
+    if (mode !== "family" || splitMode !== "manual" || !familyContext || value <= 0) return [] as FamilyPaySlice[];
+    const next = slicesFromManual(
+      value,
+      familyContext.children.map((child) => ({
+        studentId: child.student_id,
+        studentName: child.full_name,
+        classCode: child.class_code,
+        termId: term,
+        termLabel: preferredTermLabel,
+        amount: manualAmounts[child.student_id] ?? 0,
+      })),
+    );
+    return Array.isArray(next) ? next : [];
+  }, [mode, splitMode, familyContext, value, term, preferredTermLabel, manualAmounts]);
+
+  const familySlices = splitMode === "manual" ? manualSlices : slices;
+
+  const seedManualFromAuto = (amountValue: number, context: FamilyPaymentContext, preferredTerm: string) => {
+    const creditChild = context.children.find((child) => child.status === "active") ?? context.children[0] ?? null;
+    const auto = allocateFamilyPayment(
+      amountValue,
+      context.buckets,
+      preferredTerm,
+      creditChild
+        ? { studentId: creditChild.student_id, studentName: creditChild.full_name, classCode: creditChild.class_code }
+        : null,
+    );
+    const byStudent: Record<string, number> = {};
+    for (const child of context.children) byStudent[child.student_id] = 0;
+    for (const slice of auto) byStudent[slice.studentId] = (byStudent[slice.studentId] ?? 0) + slice.amount;
+    setManualAmounts(byStudent);
+  };
 
   const owing = (id: string) => balances.find((row) => row.term_id === id)?.balance ?? 0;
   const termBalance = owing(term);
@@ -170,6 +208,8 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
   const older = balances.filter((row) => row.term_id !== term && row.balance > 0);
   const info = methodInfo(method);
   const familyOwing = familyContext?.owing ?? 0;
+  const manualTotal = Object.values(manualAmounts).reduce((sum, entry) => sum + (Number(entry) || 0), 0);
+  const manualGap = value - manualTotal;
   const receiptHref = saved?.id
     ? saved.mode === "family"
       ? `${ACCOUNTS_BASE}/payments/batch/${saved.id}/receipt`
@@ -189,7 +229,7 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
         <p>
           {ugx(value)}
           {saved.mode === "family"
-            ? ` from ${familyContext?.family.name || family?.name || "the family"}, shared across ${slices.length || "the"} ${slices.length === 1 ? "child" : "children"}`
+            ? ` from ${familyContext?.family.name || family?.name || "the family"}, shared across ${familySlices.length || "the"} ${familySlices.length === 1 ? "child" : "children"}`
             : ` from ${pupil?.full_name}`}
           {" "}by {info.label.toLowerCase()}.
         </p>
@@ -207,6 +247,8 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
               setResult(null);
               setValue(0);
               setSlices([]);
+              setSplitMode("auto");
+              setManualAmounts({});
               if (!lockPupil && mode === "pupil") setPupil(null);
               if (mode === "family" && !initialFamilyId) {
                 setFamily(null);
@@ -239,8 +281,30 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
             return;
           }
           data.set("family_id", familyContext.family.id);
-          if (slices.length) {
-            data.set("allocations", JSON.stringify(slices.map((slice) => ({
+          if (splitMode === "manual") {
+            const termLabel = terms.find((entry) => entry.id === term)?.label ?? "Term";
+            const manual = slicesFromManual(
+              value,
+              familyContext.children.map((child) => ({
+                studentId: child.student_id,
+                studentName: child.full_name,
+                classCode: child.class_code,
+                termId: term,
+                termLabel,
+                amount: manualAmounts[child.student_id] ?? 0,
+              })),
+            );
+            if ("error" in manual) {
+              setResult({ error: manual.error });
+              return;
+            }
+            data.set("allocations", JSON.stringify(manual.map((slice) => ({
+              studentId: slice.studentId,
+              termId: slice.termId,
+              amount: slice.amount,
+            }))));
+          } else if (familySlices.length) {
+            data.set("allocations", JSON.stringify(familySlices.map((slice) => ({
               studentId: slice.studentId,
               termId: slice.termId,
               amount: slice.amount,
@@ -264,7 +328,7 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
             role="tab"
             aria-selected={mode === "pupil"}
             className={mode === "pupil" ? "is-on" : ""}
-            onClick={() => { setMode("pupil"); setResult(null); }}
+            onClick={() => { setMode("pupil"); setSplitMode("auto"); setManualAmounts({}); setResult(null); }}
           >
             <span className="acc-pay-mode-icon" aria-hidden="true"><i className="fa-solid fa-user" /></span>
             <span className="acc-pay-mode-copy">
@@ -308,7 +372,16 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
               </span>
             </div>
           ) : (
-            <PaymentFamilyPicker value={family} onChange={(next) => { setFamily(next); setResult(null); }} autoFocus={!family} />
+            <PaymentFamilyPicker
+              value={family}
+              onChange={(next) => {
+                setFamily(next);
+                setManualAmounts({});
+                setSplitMode("auto");
+                setResult(null);
+              }}
+              autoFocus={!family}
+            />
           )}
           {loadingFamily ? (
             <ul className="acc-family-kids is-loading" aria-busy="true" aria-label="Loading children">
@@ -396,13 +469,17 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
             </label>
           ) : (
             <label className="ofc-field">
-              <span>Prefer term</span>
+              <span>{splitMode === "manual" ? "Apply to term" : "Prefer term"}</span>
               <select value={term} onChange={(event) => setTerm(event.target.value)}>
                 {terms.map((entry) => (
                   <option key={entry.id} value={entry.id}>{entry.label}</option>
                 ))}
               </select>
-              <small className="acc-field-hint">Older balances are cleared first. Leftover credit lands on this term.</small>
+              <small className="acc-field-hint">
+                {splitMode === "manual"
+                  ? "Each child’s share is posted to this term."
+                  : "Older balances are cleared first. Leftover credit lands on this term."}
+              </small>
             </label>
           )}
           <label className="ofc-field">
@@ -451,28 +528,144 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
           </div>
         </div>
 
-        {mode === "family" && slices.length ? (
+        {mode === "family" && familyContext ? (
           <div className="acc-alloc">
             <div className="acc-alloc-head">
-              <strong>How it will be shared</strong>
-              <small>Older balances first, then the largest current balances.</small>
+              <div className="acc-alloc-title">
+                <strong>How it will be shared</strong>
+                <small>
+                  {splitMode === "manual"
+                    ? `Type each child’s share for ${preferredTermLabel === "Term" ? "this term" : preferredTermLabel}. The shares must add up to the amount received.`
+                    : "Older balances first, then the largest current balances."}
+                </small>
+              </div>
+              <div className="acc-split-switch" role="tablist" aria-label="How to divide the payment">
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={splitMode === "auto"}
+                  className={splitMode === "auto" ? "is-on" : ""}
+                  onClick={() => { setSplitMode("auto"); setResult(null); }}
+                >
+                  Automatic
+                </button>
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={splitMode === "manual"}
+                  className={splitMode === "manual" ? "is-on" : ""}
+                  onClick={() => {
+                    if (familyContext && value > 0) seedManualFromAuto(value, familyContext, term);
+                    else if (familyContext) {
+                      const blank: Record<string, number> = {};
+                      for (const child of familyContext.children) blank[child.student_id] = 0;
+                      setManualAmounts(blank);
+                    }
+                    setSplitMode("manual");
+                    setResult(null);
+                  }}
+                >
+                  Divide manually
+                </button>
+              </div>
             </div>
-            <ul>
-              {slices.map((slice) => (
-                <li key={`${slice.studentId}-${slice.termId}-${slice.credit ? "c" : "o"}`} className={slice.credit ? "is-credit" : ""}>
-                  <StudentFace id={slice.studentId} name={slice.studentName} className="acc-family-face" />
-                  <span className="acc-family-kid-copy">
-                    <strong>{slice.studentName}</strong>
-                    <small>{slice.classCode ? `${slice.classCode} · ` : ""}{slice.termLabel}{slice.credit ? " · credit" : ""}</small>
-                  </span>
-                  <strong className="acc-family-kid-bal">{ugx(slice.amount)}</strong>
-                </li>
-              ))}
-            </ul>
+
+            {splitMode === "manual" ? (
+              <>
+                <ul className="acc-manual-split">
+                  {familyContext.children.map((child) => {
+                    const share = manualAmounts[child.student_id] ?? 0;
+                    return (
+                      <li key={child.student_id}>
+                        <StudentFace id={child.student_id} name={child.full_name} className="acc-family-face" />
+                        <span className="acc-family-kid-copy">
+                          <strong>{child.full_name}</strong>
+                          <small>
+                            {child.class_code ?? "No class"}
+                            {child.stream ? ` ${child.stream}` : ""}
+                            {" · "}
+                            {child.balance > 0 ? `Owes ${ugx(child.balance)}` : child.balance < 0 ? `${ugx(-child.balance)} credit` : "Clear"}
+                          </small>
+                        </span>
+                        <label className="acc-manual-amount">
+                          <span className="visually-hidden">Amount for {child.full_name}</span>
+                          <AmountInput
+                            name={`manual_${child.student_id}`}
+                            value={share}
+                            onValue={(next) => setManualAmounts((current) => ({ ...current, [child.student_id]: next }))}
+                          />
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="acc-manual-foot">
+                  <p className={manualGap === 0 && value > 0 ? "is-ok" : manualGap !== 0 && value > 0 ? "is-warn" : ""}>
+                    {value <= 0
+                      ? "Enter the amount received first."
+                      : manualGap === 0
+                        ? `Shares add up to ${ugx(value)}.`
+                        : manualGap > 0
+                          ? `${ugx(manualGap)} still to assign.`
+                          : `${ugx(-manualGap)} over the amount received.`}
+                  </p>
+                  <div className="acc-manual-tools">
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-ghost"
+                      disabled={value <= 0}
+                      onClick={() => seedManualFromAuto(value, familyContext, term)}
+                    >
+                      Fill from automatic
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-ghost"
+                      disabled={value <= 0 || !familyContext.children.length}
+                      onClick={() => {
+                        const ids = familyContext.children.map((child) => child.student_id);
+                        const base = Math.floor(value / ids.length);
+                        const remainder = value - base * ids.length;
+                        const next: Record<string, number> = {};
+                        ids.forEach((id, index) => { next[id] = base + (index === 0 ? remainder : 0); });
+                        setManualAmounts(next);
+                      }}
+                    >
+                      Split evenly
+                    </button>
+                    <button
+                      type="button"
+                      className="admin-btn admin-btn-ghost"
+                      onClick={() => {
+                        const blank: Record<string, number> = {};
+                        for (const child of familyContext.children) blank[child.student_id] = 0;
+                        setManualAmounts(blank);
+                      }}
+                    >
+                      Clear
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : familySlices.length ? (
+              <ul>
+                {familySlices.map((slice) => (
+                  <li key={`${slice.studentId}-${slice.termId}-${slice.credit ? "c" : "o"}`} className={slice.credit ? "is-credit" : ""}>
+                    <StudentFace id={slice.studentId} name={slice.studentName} className="acc-family-face" />
+                    <span className="acc-family-kid-copy">
+                      <strong>{slice.studentName}</strong>
+                      <small>{slice.classCode ? `${slice.classCode} · ` : ""}{slice.termLabel}{slice.credit ? " · credit" : ""}</small>
+                    </span>
+                    <strong className="acc-family-kid-bal">{ugx(slice.amount)}</strong>
+                  </li>
+                ))}
+              </ul>
+            ) : value > 0 && !loadingFamily ? (
+              <p className="acc-hint is-warn">Enter an amount to see how it will be shared across the children.</p>
+            ) : (
+              <p className="acc-hint">Automatic sharing uses each child’s outstanding balances.</p>
+            )}
           </div>
-        ) : null}
-        {mode === "family" && familyContext && value > 0 && !slices.length && !loadingFamily ? (
-          <p className="acc-hint is-warn">Enter an amount to see how it will be shared across the children.</p>
         ) : null}
       </fieldset>
 
@@ -518,7 +711,13 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
         <button
           className="admin-btn admin-btn-gold"
           type="submit"
-          disabled={pending || value <= 0 || (mode === "pupil" ? !pupil : !familyContext) || (mode === "family" && loadingFamily)}
+          disabled={
+            pending
+            || value <= 0
+            || (mode === "pupil" ? !pupil : !familyContext)
+            || (mode === "family" && loadingFamily)
+            || (mode === "family" && splitMode === "manual" && manualGap !== 0)
+          }
         >
           <i className={`fa-solid fa-receipt${pending ? " fa-fade" : ""}`} aria-hidden="true" />
           {pending

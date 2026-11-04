@@ -127,7 +127,7 @@ export default async function ExpensePage({ params }: { params: Promise<{ id: st
               </div>
             ) : (
               <p className="app-muted acc-empty-line">
-                No receipt attached.{expense.status === "pending" && (mine || isAdmin) ? <> <Link href={`${ACCOUNTS_BASE}/expenses/new?edit=${id}`}>Attach one</Link>.</> : expense.status === "approved" ? " You can attach it when marking it paid." : ""}
+                No receipt attached.{expense.status === "pending" && (mine || isAdmin) ? <> <Link href={`${ACCOUNTS_BASE}/expenses?add=1&edit=${id}`}>Attach one</Link>.</> : expense.status === "approved" ? " You can attach it when marking it paid." : ""}
               </p>
             )}
           </Panel>

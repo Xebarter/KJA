@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { CSSProperties, ReactNode } from "react";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { DebtorFinder } from "@/components/accounts/DebtorFinder";
 import { DebtorsTable, FamilyDebtorsTable, type DebtorRow, type FamilyDebtorRow } from "@/components/accounts/DebtorsTable";
 import { notReady } from "@/components/accounts/ui";
@@ -360,13 +360,13 @@ function Shell({
 }) {
   return (
     <div className="app-page ofc-page acc-page">
-      <PageHeader
+      <AccountsPageHeader
         kicker="Billing"
         icon="fa-hand-holding-dollar"
         title="Debtors"
         description="Balances still outstanding, across every term. Filter by how old the debt is, then email a reminder or export the list to call."
         actions={
-          <a className="admin-hero-btn" href={exportHref}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
+          <a className="aov-btn" href={exportHref}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
         }
       />
       {tiles}

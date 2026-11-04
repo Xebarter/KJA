@@ -1,13 +1,35 @@
-/* Accounts office. Builds on admin.css, applications.css and office.css. */
+/* Accounts office. Builds on admin.css, applications.css and office.css.
+   Enhances the existing cream / navy / gold desk — no new palette. */
 
 .kja-accounts {
   --acc-ok: var(--ofc-ok, #17803d);
   --acc-warn: var(--ofc-warn, #9a5b00);
   --acc-danger: var(--ofc-danger, #c81e2d);
   --acc-soft: var(--ofc-soft, #faf6ee);
+  --acc-gold-soft: #fff3d6;
+  --acc-navy-soft: #e8eef2;
 }
 
+/* Warm the shared cream shell with a little more gold light. */
+.kja-accounts .admin-shell {
+  background:
+    radial-gradient(90% 50% at 0% 0%, rgba(253, 163, 27, .1), transparent 55%),
+    radial-gradient(70% 45% at 100% 0%, rgba(228, 36, 53, .05), transparent 50%),
+    #efe8dc;
+}
+.kja-accounts .admin-hero {
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(253, 163, 27, .22), transparent 55%),
+    radial-gradient(60% 90% at 0% 100%, rgba(228, 36, 53, .16), transparent 50%),
+    linear-gradient(145deg, #1d2a34 0%, #19232b 55%, #141d24 100%);
+}
+.kja-accounts .admin-hero::after {
+  background: linear-gradient(90deg, var(--admin-navy), var(--admin-gold), #ffb53f);
+}
+.kja-accounts .admin-nav > a.active > i { color: var(--admin-gold); }
+
 .acc-page > * + * { margin-top: 1.25rem; }
+.acc-page > .aov-head,
 .acc-page > .admin-hero,
 .acc-page > .enr-layout,
 .acc-page > .admin-card,
@@ -15,6 +37,162 @@
 .acc-page > .acc-banner,
 .acc-page > .acc-child-cards,
 .acc-page > .acc-steps { animation: acc-in .45s cubic-bezier(.2, .7, .2, 1) both; }
+
+/* ---------------------------------------------------------------- shared navy masthead (Overview look) */
+
+.aov-head {
+  position: relative;
+  isolation: isolate;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1.15rem 2rem;
+  margin: 0;
+  padding: 1.25rem 1.35rem 1.35rem;
+  overflow: hidden;
+  border: 0;
+  border-radius: 20px;
+  color: #fff;
+  background:
+    radial-gradient(90% 120% at 100% 0%, rgba(253, 163, 27, .22), transparent 55%),
+    radial-gradient(60% 90% at 0% 100%, rgba(228, 36, 53, .16), transparent 50%),
+    linear-gradient(145deg, #1d2a34 0%, #19232b 55%, #141d24 100%);
+  box-shadow: 0 18px 40px -24px rgba(25, 35, 43, .55);
+  animation: acc-in .4s cubic-bezier(.2, .7, .2, 1) both;
+}
+.aov-head::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--admin-navy), var(--admin-gold), #ffb53f);
+}
+.aov-kicker {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  margin: 0 0 .35rem;
+  color: var(--admin-gold);
+  font-size: .72rem;
+  font-weight: 700;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+}
+.aov-kicker i { color: var(--admin-gold); font-size: .78rem; }
+.aov-head h1 {
+  margin: 0;
+  color: #fff;
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: clamp(1.65rem, 2.3vw, 2.05rem);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1.05;
+}
+.aov-lede {
+  max-width: 42rem;
+  margin: .5rem 0 0;
+  color: rgba(255, 255, 255, .72);
+  font-size: .92rem;
+  line-height: 1.45;
+}
+.aov-lede:has(.aov-term) {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .6rem;
+}
+.aov-lede strong { color: #fff; font-variant-numeric: tabular-nums; }
+.aov-term {
+  display: inline-flex;
+  align-items: center;
+  padding: .14rem .55rem;
+  border-radius: 999px;
+  background: rgba(253, 163, 27, .18);
+  color: var(--admin-gold);
+  font-size: .74rem;
+  font-weight: 700;
+}
+.aov-term.is-setup { background: rgba(228, 36, 53, .2); color: #ffb4bc; }
+.aov-dot { width: 4px; height: 4px; border-radius: 50%; background: rgba(255, 255, 255, .35); }
+
+.aov-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .45rem; }
+
+.aov-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+  min-height: 40px;
+  padding: 0 1.05rem;
+  border: 1px solid #e4dccf;
+  border-radius: 999px;
+  background: #fff;
+  color: var(--admin-navy);
+  font: inherit;
+  font-size: .86rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: border-color .16s ease, background-color .16s ease, box-shadow .16s ease, transform .16s ease, color .16s ease;
+}
+.aov-btn i { font-size: .76rem; }
+.aov-btn:hover {
+  border-color: rgba(25, 35, 43, .28);
+  color: var(--admin-navy);
+  transform: translateY(-1px);
+}
+.aov-btn.is-primary {
+  border-color: var(--admin-navy);
+  background: var(--admin-navy);
+  color: #fff;
+  box-shadow: 0 10px 18px -12px rgba(25, 35, 43, .75);
+}
+.aov-btn.is-primary:hover {
+  background: #24303a;
+  border-color: #24303a;
+  color: #fff;
+  box-shadow: 0 14px 22px -12px rgba(25, 35, 43, .8);
+}
+.aov-btn.is-primary i { color: var(--admin-gold); }
+
+.aov-head .aov-btn {
+  border-color: rgba(255, 255, 255, .26);
+  background: rgba(255, 255, 255, .08);
+  color: #fff;
+  box-shadow: none;
+}
+.aov-head .aov-btn i { color: var(--admin-gold); }
+.aov-head .aov-btn:hover {
+  border-color: rgba(255, 255, 255, .45);
+  background: rgba(255, 255, 255, .16);
+  color: #fff;
+  transform: translateY(-1px);
+}
+.aov-head .aov-btn.is-primary {
+  border-color: var(--admin-gold);
+  background: var(--admin-gold);
+  color: var(--admin-navy);
+  box-shadow: 0 10px 22px -12px rgba(253, 163, 27, .85);
+}
+.aov-head .aov-btn.is-primary i { color: var(--admin-navy); }
+.aov-head .aov-btn.is-primary:hover {
+  border-color: #ffb53f;
+  background: #ffb53f;
+  color: var(--admin-navy);
+  box-shadow: 0 14px 26px -12px rgba(253, 163, 27, .95);
+}
+
+@media (max-width: 720px) {
+  .aov-head { flex-direction: column; align-items: stretch; }
+  .aov-actions { display: grid; grid-template-columns: 1fr 1fr; }
+  .aov-actions > .aov-btn.is-primary,
+  .aov-btn.is-primary { grid-column: 1 / -1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aov-head { animation: none; }
+  .aov-btn { transition: none; }
+}
 .acc-crumbs { display: flex; flex-wrap: wrap; align-items: center; gap: .45rem .55rem; margin: 0; color: var(--admin-muted); font-size: .86rem; }
 .acc-crumbs a { display: inline-flex; align-items: center; gap: .4rem; color: var(--admin-navy); font-weight: 700; }
 .acc-crumbs a:hover { color: var(--admin-red); }
@@ -46,8 +224,8 @@
 
 .acc-hero-figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: .85rem; }
 .acc-stat {
-  --tone: #19232b;
-  --soft: #eceef0;
+  --tone: var(--admin-navy, #19232b);
+  --soft: var(--acc-navy-soft, #e8eef2);
   position: relative;
   display: flex;
   flex-direction: column;
@@ -57,11 +235,16 @@
   overflow: hidden;
   border: 1px solid rgba(25, 35, 43, .06);
   border-radius: 18px;
-  background: #fff;
+  background: linear-gradient(180deg, #fffefb, #fff);
   box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
   transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
   animation: acc-in .4s cubic-bezier(.2, .7, .2, 1) both;
 }
+/* Rotate existing brand tones across KPI tiles. */
+.acc-stat:nth-child(4n + 1) { --tone: var(--admin-navy, #19232b); --soft: var(--acc-navy-soft, #e8eef2); }
+.acc-stat:nth-child(4n + 2) { --tone: var(--admin-gold, #fda31b); --soft: var(--acc-gold-soft, #fff3d6); }
+.acc-stat:nth-child(4n + 3) { --tone: var(--acc-ok, #17803d); --soft: #e5f5ea; }
+.acc-stat:nth-child(4n + 4) { --tone: var(--admin-red, #e42435); --soft: #fdecee; }
 .acc-stat:nth-child(2) { animation-delay: .04s; }
 .acc-stat:nth-child(3) { animation-delay: .08s; }
 .acc-stat:nth-child(4) { animation-delay: .12s; }
@@ -124,7 +307,9 @@
   padding: 1.05rem 1.25rem .9rem;
   border-bottom: 1px solid #f1ece2;
   border-radius: 18px 18px 0 0;
-  background: linear-gradient(180deg, #fbf9f5, #fff);
+  background:
+    radial-gradient(80% 140% at 100% 0%, rgba(253, 163, 27, .12), transparent 58%),
+    linear-gradient(180deg, #fbf9f5, #fff);
 }
 .kja-accounts .acc-chart-card .acc-columns,
 .kja-accounts .acc-aging-card .acc-aging,
@@ -140,7 +325,9 @@
   padding: 1.05rem 1.25rem .9rem;
   border-bottom: 1px solid #f1ece2;
   border-radius: 18px 18px 0 0;
-  background: linear-gradient(180deg, #fbf9f5, #fff);
+  background:
+    radial-gradient(80% 140% at 100% 0%, rgba(253, 163, 27, .1), transparent 58%),
+    linear-gradient(180deg, #fbf9f5, #fff);
 }
 .kja-accounts .ofc-panel .dash-panel-head h2 { font-family: Yantramanav, Roboto, sans-serif; font-size: 1.12rem; font-weight: 800; }
 .kja-accounts .acc-card-head > a,
@@ -151,7 +338,7 @@
   gap: .4rem;
   padding: .35rem .75rem;
   border-radius: 999px;
-  background: #f3eee5;
+  background: var(--acc-gold-soft, #fff3d6);
   color: var(--admin-navy);
   font-size: .78rem;
   font-weight: 700;
@@ -160,7 +347,7 @@
 }
 .kja-accounts .acc-card-head > a:hover,
 .kja-accounts .acc-aging-card > header > a:hover,
-.kja-accounts .acc-budgets > header > a:hover { background: var(--admin-navy); color: #fff; }
+.kja-accounts .acc-budgets > header > a:hover { background: var(--admin-gold); color: var(--admin-navy); }
 .kja-accounts .ofc-panel > :not(.dash-panel-head) { margin-right: 1.25rem; margin-left: 1.25rem; }
 .kja-accounts .ofc-panel > dialog.acc-dialog { margin: auto; }
 .kja-accounts .app-table tbody tr { transition: background-color .15s ease; }
@@ -185,23 +372,23 @@
 .acc-age.is-danger { background: #fdecee; color: var(--acc-danger); }
 
 .acc-progress { display: block; height: 8px; overflow: hidden; border-radius: 999px; background: #efe8da; }
-.acc-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--admin-navy), var(--admin-gold)); transform-origin: left; animation: acc-grow .7s cubic-bezier(.2, .75, .2, 1) both; }
+.acc-progress > span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--admin-navy), var(--admin-gold), #ffb53f); transform-origin: left; animation: acc-grow .7s cubic-bezier(.2, .75, .2, 1) both; }
 
 .acc-aging-bar { display: flex; height: 14px; overflow: hidden; border-radius: 999px; background: #efe8da; }
 .acc-aging-bar span { min-width: 4px; }
-.acc-aging-bar .is-ok { background: #2fa25a; }
-.acc-aging-bar .is-warn { background: #f0b429; }
+.acc-aging-bar .is-ok { background: #22a85a; }
+.acc-aging-bar .is-warn { background: var(--admin-gold, #fda31b); }
 .acc-aging-bar .is-late { background: #e07a2f; }
-.acc-aging-bar .is-danger { background: var(--acc-danger); }
+.acc-aging-bar .is-danger { background: var(--admin-red, #e42435); }
 .acc-aging-bar .is-empty { background: #efe8da; }
 .acc-aging-legend { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; margin: .8rem 0 0; padding: 0; list-style: none; }
 .acc-aging-legend a, .acc-aging-legend div { display: grid; gap: .1rem; padding: .55rem .65rem; border-radius: 12px; color: inherit; }
 .acc-aging-legend a:hover { background: var(--acc-soft); }
 .acc-aging-legend i { width: 10px; height: 10px; border-radius: 50%; }
-.acc-aging-legend i.is-ok { background: #2fa25a; }
-.acc-aging-legend i.is-warn { background: #f0b429; }
+.acc-aging-legend i.is-ok { background: #22a85a; }
+.acc-aging-legend i.is-warn { background: var(--admin-gold, #fda31b); }
 .acc-aging-legend i.is-late { background: #e07a2f; }
-.acc-aging-legend i.is-danger { background: var(--acc-danger); }
+.acc-aging-legend i.is-danger { background: var(--admin-red, #e42435); }
 .acc-aging-legend strong { color: var(--admin-navy); }
 .acc-aging-legend small { color: var(--admin-muted); }
 
@@ -209,8 +396,8 @@
 .acc-columns li { display: grid; grid-template-rows: auto 1fr auto; justify-items: center; min-width: 0; height: 100%; }
 .acc-col-value { color: var(--admin-muted); font-size: .68rem; }
 .acc-col-bars { display: flex; align-items: flex-end; justify-content: center; gap: 3px; width: 100%; height: 100%; }
-.acc-col { width: min(18px, 46%); min-height: 2px; border-radius: 6px 6px 2px 2px; background: var(--admin-navy); transform-origin: bottom; animation: acc-rise .7s cubic-bezier(.2, .75, .2, 1) both; }
-.acc-col.is-second { background: var(--admin-gold); width: min(10px, 28%); }
+.acc-col { width: min(18px, 46%); min-height: 2px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, #2c3a46, var(--admin-navy)); transform-origin: bottom; animation: acc-rise .7s cubic-bezier(.2, .75, .2, 1) both; }
+.acc-col.is-second { background: linear-gradient(180deg, #ffc14d, var(--admin-gold)); width: min(10px, 28%); }
 .acc-col-label { color: var(--admin-muted); font-size: .68rem; text-align: center; }
 .acc-columns .is-highlight .acc-col.is-main { background: var(--admin-red); }
 .acc-swatch { display: inline-block; width: 10px; height: 10px; margin-right: .25rem; border-radius: 3px; vertical-align: -1px; }
@@ -530,6 +717,14 @@
 .acc-debt-summary .ofc-reg-tile:nth-child(4) { animation-delay: .12s; }
 .acc-debt-summary .ofc-reg-tile:nth-child(5) { animation-delay: .16s; }
 .acc-debt-summary .ofc-reg-tile strong { font-size: 1.35rem; letter-spacing: -.02em; }
+.kja-accounts .ofc-reg-tile { --tone: var(--admin-navy); --tone-soft: var(--acc-navy-soft, #e8eef2); }
+.kja-accounts .ofc-reg-tile:nth-child(5n + 2) { --tone: var(--admin-gold); --tone-soft: var(--acc-gold-soft, #fff3d6); }
+.kja-accounts .ofc-reg-tile:nth-child(5n + 3) { --tone: var(--acc-ok); --tone-soft: #e5f5ea; }
+.kja-accounts .ofc-reg-tile:nth-child(5n + 4) { --tone: var(--acc-warn); --tone-soft: #fff1d6; }
+.kja-accounts .ofc-reg-tile:nth-child(5n + 5) { --tone: var(--admin-red); --tone-soft: #fdecee; }
+.kja-accounts .ofc-reg-tile.is-ok { --tone: var(--acc-ok); --tone-soft: #e5f5ea; }
+.kja-accounts .ofc-reg-tile.is-warn { --tone: var(--acc-warn); --tone-soft: #fff3d9; }
+.kja-accounts .ofc-reg-tile.is-gold { --tone: #a86a00; --tone-soft: #fff1d6; }
 .kja-accounts .ofc-reg-tile.is-late { --tone: #b45309; --tone-soft: #ffe8d6; }
 .kja-accounts .ofc-reg-tile.is-danger { --tone: var(--acc-danger); --tone-soft: #fdecee; }
 .acc-debt-meter {
@@ -784,7 +979,340 @@
   .acc-exp-blurb { max-width: 14rem; }
 }
 
+/* ---------------------------------------------------------------- expenses page polish */
+
+.exp-page {
+  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
+}
+.exp-page.acc-page > .aov-head { margin-top: 0; margin-bottom: 0; }
+.exp-page > .ofc-reg-summary {
+  gap: 0.55rem;
+}
+.exp-page > .ofc-reg-summary .ofc-reg-tile {
+  padding: 0.75rem 0.85rem;
+  border-radius: 12px;
+  transition: border-color 0.16s ease, box-shadow 0.16s ease, transform 0.16s ease, background-color 0.16s ease;
+}
+.exp-page > .ofc-reg-summary .ofc-reg-tile:hover {
+  transform: translateY(-1px);
+}
+.exp-page > .ofc-reg-summary .ofc-reg-tile-label {
+  font-size: 0.66rem;
+  letter-spacing: 0.06em;
+}
+.exp-page > .ofc-reg-summary .ofc-reg-tile strong {
+  font-size: 1.22rem;
+}
+.exp-page > .ofc-reg-summary .ofc-reg-tile small {
+  font-size: 0.72rem;
+  line-height: 1.3;
+}
+.exp-page .acc-budgets header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem 1rem;
+}
+.exp-page .acc-budgets header h2 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+.exp-page .acc-budgets header p {
+  margin: 0.2rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.84rem;
+}
+.kja-accounts .exp-page .acc-budgets > header > a.exp-text-link,
+.exp-text-link {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  gap: 0;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--admin-navy);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(25, 35, 43, 0.18);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.kja-accounts .exp-page .acc-budgets > header > a.exp-text-link:hover,
+.exp-text-link:hover {
+  background: none;
+  color: var(--admin-red);
+  border-color: rgba(200, 30, 45, 0.35);
+}
+.exp-aside-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.65rem;
+  border-radius: 999px;
+  background: #fff3d9;
+  color: #8a5a00 !important;
+  font-size: 0.76rem !important;
+  font-weight: 750 !important;
+  text-decoration: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+.exp-aside-action:hover {
+  background: #ffe4ad;
+  color: #6f4800 !important;
+}
+.exp-aside-action i { font-size: 0.7rem; }
+
+.exp-page .ofc-finder {
+  gap: 0.7rem;
+}
+.exp-page .ofc-finder-top {
+  align-items: flex-end;
+  gap: 0.55rem;
+}
+.exp-page .ofc-finder-search input {
+  height: 34px;
+  border-radius: 9px;
+  font-size: 0.86rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.exp-page .ofc-finder-field.is-inline > span {
+  font-size: 0.66rem;
+  letter-spacing: 0.07em;
+}
+.exp-page .ofc-finder-field.is-inline select {
+  height: 34px;
+  min-width: 132px;
+  border-radius: 9px;
+  font-size: 0.84rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.exp-page .ofc-finder-search .exp-search-btn,
+.exp-search-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 0.85rem;
+  border: 0;
+  border-radius: 9px;
+  background: var(--admin-navy);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.15s ease, transform 0.15s ease;
+}
+.exp-search-btn:hover {
+  background: #2c3a44;
+  transform: translateY(-1px);
+}
+.exp-page .ofc-finder-active {
+  gap: 0.45rem 0.65rem;
+  padding-top: 0.7rem;
+}
+.exp-page .ofc-finder-active > span {
+  font-size: 0.76rem;
+}
+.exp-page .ofc-finder-active li a {
+  min-height: 28px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 650;
+  transition: background-color 0.15s ease;
+}
+.exp-page .ofc-finder-clear {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.exp-page .ofc-reg-results h2 {
+  font-size: 1.12rem;
+  letter-spacing: -0.01em;
+}
+.exp-page .ofc-reg-results > div > p {
+  margin: 0.2rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+}
+.exp-page .acc-exp-aside {
+  gap: 0.45rem;
+}
+.exp-page .acc-exp-aside p,
+.exp-page .acc-exp-aside a:not(.exp-aside-action) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--admin-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.exp-page .acc-exp-aside a:not(.exp-aside-action):hover {
+  color: var(--admin-navy);
+}
+.exp-page .apl-empty a,
+.exp-page .ofc-empty a {
+  color: var(--admin-navy);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid rgba(25, 35, 43, 0.18);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+.exp-page .apl-empty a:hover,
+.exp-page .ofc-empty a:hover {
+  color: var(--admin-red);
+  border-color: rgba(200, 30, 45, 0.35);
+}
+.exp-page .acc-exp-table .ofc-who-name {
+  font-weight: 750;
+  transition: color 0.15s ease;
+}
+.exp-page .acc-exp-table .ofc-who-name:hover {
+  color: var(--admin-red);
+}
+.exp-page .acc-exp-table .acc-exp-amount {
+  font-variant-numeric: tabular-nums;
+  font-weight: 750;
+}
+
+.exp-icon-btn {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(25, 35, 43, 0.1);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--admin-navy);
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.exp-icon-btn:hover {
+  border-color: rgba(25, 35, 43, 0.22);
+  background: #f7f9fb;
+  color: var(--admin-red);
+}
+.exp-form-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem;
+}
+.exp-page .acc-expense-form .admin-btn,
+.exp-add-panel .acc-expense-form .admin-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  min-height: 34px;
+  height: 34px;
+  padding: 0 0.9rem;
+  border-radius: 9px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+}
+.exp-page .acc-expense-form .admin-btn:hover:not(:disabled),
+.exp-add-panel .acc-expense-form .admin-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.exp-page .acc-expense-form .admin-btn-gold,
+.exp-add-panel .acc-expense-form .admin-btn-gold {
+  box-shadow: 0 8px 18px -14px rgba(168, 106, 0, 0.7);
+}
+.exp-page .acc-expense-form .admin-btn-ghost,
+.exp-add-panel .acc-expense-form .admin-btn-ghost {
+  background: #fff;
+}
+.exp-page .enr-section .enr-head h2 {
+  font-size: 1.02rem !important;
+  letter-spacing: -0.01em;
+}
+.exp-page .enr-section .enr-head p,
+.exp-add-panel .enr-section .enr-head p {
+  font-size: 0.82rem;
+  line-height: 1.4;
+}
+.exp-page .acc-expense-form .ofc-field > span > b,
+.exp-add-panel .acc-expense-form .ofc-field > span > b {
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+.exp-page .acc-expense-form .ofc-field > span > em,
+.exp-add-panel .acc-expense-form .ofc-field > span > em {
+  font-size: 0.74rem;
+}
+.exp-page .acc-expense-form .enr-chips label > span,
+.exp-add-panel .acc-expense-form .enr-chips label > span {
+  min-height: 32px;
+  padding: 0.3rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 650;
+  transition: border-color 0.15s ease, background-color 0.15s ease, color 0.15s ease;
+}
+.exp-page .acc-exp-cats label > span {
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease, background-color 0.15s ease;
+}
+.exp-page .acc-exp-cats label:hover > span {
+  transform: translateY(-1px);
+}
+
 /* ---------------------------------------------------------------- new expense */
+
+.exp-add-panel {
+  padding: 0.95rem 1.05rem 1.05rem;
+  border: 1px solid rgba(25, 35, 43, 0.07);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 28px -24px rgba(25, 35, 43, 0.4);
+  animation: acc-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.exp-add-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.85rem;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(25, 35, 43, 0.06);
+}
+.exp-add-kicker {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.exp-add-head h2 {
+  margin: 0.12rem 0 0;
+  color: var(--admin-navy);
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: 1.12rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+.exp-add-head p {
+  margin: 0.25rem 0 0;
+  max-width: 38rem;
+  color: var(--admin-muted);
+  font-size: 0.84rem;
+  line-height: 1.4;
+}
+@media (max-width: 760px) {
+  .exp-add-head { align-items: center; }
+  .exp-page .ofc-finder-search .exp-search-btn { display: none; }
+}
 
 .acc-page > .app-back { margin-bottom: 0; }
 .acc-expense-form .ofc-field > .acc-amount-input,

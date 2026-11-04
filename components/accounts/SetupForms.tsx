@@ -31,7 +31,7 @@ import {
 import type { ActionResult } from "@/lib/office-forms";
 
 /** A dialog form that runs a server action with the form data and closes when it works. */
-function FormDialog({ open, onClose, title, description, action, submit, children }: {
+function FormDialog({ open, onClose, title, description, action, submit, children, className, wide = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
@@ -39,12 +39,14 @@ function FormDialog({ open, onClose, title, description, action, submit, childre
   action: (form: FormData) => Promise<ActionResult>;
   submit: string;
   children: React.ReactNode;
+  className?: string;
+  wide?: boolean;
 }) {
   const { result, setResult, pending, run } = useOfficeAction();
   return (
-    <Dialog open={open} onClose={() => { setResult(null); onClose(); }} title={title} description={description}>
+    <Dialog open={open} onClose={() => { setResult(null); onClose(); }} title={title} description={description} wide={wide}>
       <form
-        className="ofc-form is-compact"
+        className={`ofc-form is-compact${className ? ` ${className}` : ""}`}
         onSubmit={(event) => {
           event.preventDefault();
           const data = new FormData(event.currentTarget);
@@ -55,23 +57,43 @@ function FormDialog({ open, onClose, title, description, action, submit, childre
         <Feedback result={result} />
         <div className="acc-dialog-foot">
           <button type="button" className="admin-btn admin-btn-ghost" onClick={onClose}>Cancel</button>
-          <button type="submit" className="admin-btn" disabled={pending}>{pending ? "Saving…" : submit}</button>
+          <button type="submit" className="admin-btn set-save-btn" disabled={pending}>
+            <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-check"}`} aria-hidden="true" />
+            {pending ? "Saving…" : submit}
+          </button>
         </div>
       </form>
     </Dialog>
   );
 }
 
-function RowButton({ label, icon, onClick, danger = false, disabled = false }: { label: string; icon: string; onClick: () => void; danger?: boolean; disabled?: boolean }) {
+function RowButton({ label, icon, onClick, danger = false, disabled = false, text }: {
+  label: string;
+  icon: string;
+  onClick: () => void;
+  danger?: boolean;
+  disabled?: boolean;
+  /** Visible label. Prefer this for common actions so the page is easy to scan. */
+  text?: string;
+}) {
   return (
-    <button type="button" className={`acc-row-btn${danger ? " is-danger" : ""}`} onClick={onClick} disabled={disabled} title={label} aria-label={label}>
+    <button
+      type="button"
+      className={`acc-row-btn${text ? " is-label" : ""}${danger ? " is-danger" : ""}`}
+      onClick={onClick}
+      disabled={disabled}
+      title={label}
+      aria-label={label}
+    >
       <i className={`fa-solid ${icon}`} aria-hidden="true" />
+      {text ? <span>{text}</span> : null}
     </button>
   );
 }
 
-function Section({ id, title, meta, description, action, children }: {
+function Section({ id, step, title, meta, description, action, children }: {
   id: string;
+  step: number;
   title: string;
   meta?: string;
   description: React.ReactNode;
@@ -83,6 +105,7 @@ function Section({ id, title, meta, description, action, children }: {
       <header className="ofc-reg-results">
         <div>
           <h2 id={`${id}-heading`}>
+            <span className="set-step-num" aria-hidden="true">{step}</span>
             {title}
             {meta ? <span className="set-count">{meta}</span> : null}
           </h2>
@@ -126,9 +149,10 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
   return (
     <Section
       id="terms"
+      step={1}
       title="Terms"
       meta={terms.length ? `${terms.length} on file` : undefined}
-      description="The current term is used for new payments and invoices."
+      description="Pick the term you are billing now. New payments and invoices use the current term."
       action={<AddButton label="Add a term" onClick={() => setEditing("new")} />}
     >
       <Feedback result={result} />
@@ -142,7 +166,7 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
                 <th scope="col">Fees due</th>
                 <th scope="col">Invoices</th>
                 <th scope="col">Status</th>
-                <th scope="col"><span className="visually-hidden">Actions</span></th>
+                <th scope="col" className="is-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -158,16 +182,22 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
                     {entry.is_current ? (
                       <span className="set-pill"><i className="fa-solid fa-circle-check" aria-hidden="true" /> Current</span>
                     ) : (
-                      <button type="button" className="set-quiet" disabled={pending} onClick={() => run(() => setCurrentTerm(entry.id))}>Make current</button>
+                      <span className="set-muted">Not current</span>
                     )}
                   </td>
-                  <td className="is-actions">
+                  <td className="is-actions" data-label="Actions">
                     <div className="set-actions">
-                      <RowButton label={`Edit ${entry.label}`} icon="fa-pen" onClick={() => setEditing(entry)} />
+                      {!entry.is_current ? (
+                        <button type="button" className="set-make-current" disabled={pending} onClick={() => run(() => setCurrentTerm(entry.id))}>
+                          <i className="fa-solid fa-check" aria-hidden="true" /> Make current
+                        </button>
+                      ) : null}
+                      <RowButton label={`Edit ${entry.label}`} icon="fa-pen" text="Edit" onClick={() => setEditing(entry)} />
                       {!entry.is_current && !usage[entry.id] ? (
                         <RowButton
                           label={`Remove ${entry.label}`}
                           icon="fa-trash-can"
+                          text="Remove"
                           danger
                           disabled={pending}
                           onClick={() => window.confirm(`Remove ${entry.label}? Its fee rates go too.`) && run(() => deleteTerm(entry.id))}
@@ -236,9 +266,10 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
   return (
     <Section
       id="items"
+      step={2}
       title="Fee items"
       meta={items.length ? `${billing} billing` : undefined}
-      description="What families are billed for. Switch an item off to stop billing it."
+      description="What families are billed for: Tuition, Lunch, Transport, and so on. Switch one off to stop billing it."
       action={<AddButton label="Add an item" onClick={() => setEditing("new")} />}
     >
       <Feedback result={result} />
@@ -250,7 +281,7 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
                 <th scope="col">Item</th>
                 <th scope="col">Kind</th>
                 <th scope="col">Billed</th>
-                <th scope="col"><span className="visually-hidden">Actions</span></th>
+                <th scope="col" className="is-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -269,9 +300,9 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
                         <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
                       </label>
                     </td>
-                    <td className="is-actions">
+                    <td className="is-actions" data-label="Actions">
                       <div className="set-actions">
-                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => setEditing(entry)} />
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" text="Edit" onClick={() => setEditing(entry)} />
                       </div>
                     </td>
                   </tr>
@@ -318,21 +349,41 @@ export function ItemsManager({ items }: { items: FeeItem[] }) {
 
 // ---------------------------------------------------------------- discounts
 
+function formatDiscountValue(method: "percent" | "fixed", raw: string) {
+  if (method === "percent") {
+    const cleaned = raw.replace(/[^\d.]/g, "");
+    const [whole, ...rest] = cleaned.split(".");
+    const decimals = rest.join("").slice(0, 2);
+    return decimals ? `${whole}.${decimals}` : whole;
+  }
+  const digits = raw.replace(/[^\d]/g, "").slice(0, 12);
+  return digits ? Number(digits).toLocaleString("en-US") : "";
+}
+
 export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usage: Record<string, number> }) {
   const [editing, setEditing] = useState<DiscountRule | "new" | null>(null);
   const [method, setMethod] = useState<"percent" | "fixed">("percent");
   const [kind, setKind] = useState<DiscountRule["kind"]>("bursary");
+  const [valueText, setValueText] = useState("");
   const { result, pending, run } = useOfficeAction();
   const rule = editing && editing !== "new" ? editing : null;
+  const kindInfo = DISCOUNT_KINDS.find((entry) => entry.value === kind);
   const open = (next: DiscountRule | "new") => {
+    const nextMethod = next === "new" ? "percent" : next.method;
     setEditing(next);
-    setMethod(next === "new" ? "percent" : next.method);
+    setMethod(nextMethod);
     setKind(next === "new" ? "bursary" : next.kind);
+    setValueText(next === "new" ? "" : formatDiscountValue(nextMethod, String(Number(next.value))));
+  };
+  const pickMethod = (next: "percent" | "fixed") => {
+    setMethod(next);
+    setValueText((current) => formatDiscountValue(next, current));
   };
   const active = rules.filter((entry) => entry.active).length;
   return (
     <Section
       id="discounts"
+      step={4}
       title="Discounts"
       meta={rules.length ? `${active} on` : undefined}
       description="Sibling and staff discounts apply automatically. Bursaries are given to individual pupils from their fee account."
@@ -347,7 +398,7 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
                 <th scope="col">Discount</th>
                 <th scope="col">Who</th>
                 <th scope="col">Pupils</th>
-                <th scope="col"><span className="visually-hidden">Actions</span></th>
+                <th scope="col" className="is-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -359,19 +410,20 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
                     <td>
                       <Who
                         gold
-                        mark={entry.method === "percent" ? `${Number(entry.value)}%` : <i className="fa-solid fa-tag" />}
+                        mark={entry.method === "percent" ? `${Number(entry.value)}%` : <i className="fa-solid fa-coins" />}
                         title={<>{entry.name} <span className="set-amount">{discountText(entry.method, entry.value)}</span></>}
                         detail={entry.kind === "sibling" ? `From the ${ordinal(entry.sibling_from)} child in a family, on tuition` : info?.note}
                       />
                     </td>
                     <td data-label="Who"><span className="set-kind">{info?.label ?? entry.kind}{entry.active ? "" : " · Off"}</span></td>
                     <td className="set-num" data-label="Pupils">{pupils ? pupils.toLocaleString("en-GB") : <span className="set-muted">-</span>}</td>
-                    <td className="is-actions">
+                    <td className="is-actions" data-label="Actions">
                       <div className="set-actions">
-                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => open(entry)} />
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" text="Edit" onClick={() => open(entry)} />
                         <RowButton
                           label={`Remove ${entry.name}`}
                           icon="fa-trash-can"
+                          text="Remove"
                           danger
                           disabled={pending}
                           onClick={() => window.confirm(`Remove ${entry.name}? Pupils who already have it keep it.`) && run(() => deleteDiscountRule(entry.id))}
@@ -392,32 +444,93 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
         open={editing !== null}
         onClose={() => setEditing(null)}
         title={rule ? `Edit ${rule.name}` : "Add a discount"}
-        description="Discounts come off tuition when term invoices are generated."
+        description="Comes off tuition on new term invoices. Choose a percentage or a fixed UGX amount."
         action={saveDiscountRule}
         submit={rule ? "Save discount" : "Add discount"}
+        className="set-discount-form"
       >
         <input type="hidden" name="id" value={rule?.id ?? ""} />
+        <input type="hidden" name="method" value={method} />
+        <input type="hidden" name="kind" value={kind} />
+
         <label className="ofc-field is-wide">
           <span>Name</span>
           <input name="name" required maxLength={80} defaultValue={rule?.name ?? ""} placeholder="For example: Sports bursary" />
         </label>
-        <label className="ofc-field">
-          <span>Who gets it</span>
-          <select name="kind" value={kind} onChange={(event) => setKind(event.target.value as DiscountRule["kind"])}>
-            {DISCOUNT_KINDS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-          </select>
+
+        <fieldset className="ofc-field is-wide set-choice">
+          <legend>Who gets it</legend>
+          <div className="set-choice-grid" role="radiogroup" aria-label="Who gets it">
+            {DISCOUNT_KINDS.map((entry) => (
+              <button
+                key={entry.value}
+                type="button"
+                role="radio"
+                aria-checked={kind === entry.value}
+                className={kind === entry.value ? "is-on" : ""}
+                onClick={() => setKind(entry.value)}
+              >
+                <strong>{entry.label}</strong>
+                <small>{entry.note}</small>
+              </button>
+            ))}
+          </div>
+        </fieldset>
+
+        <fieldset className="ofc-field is-wide set-choice">
+          <legend>How much comes off</legend>
+          <div className="set-method-switch" role="radiogroup" aria-label="Discount method">
+            <button
+              type="button"
+              role="radio"
+              aria-checked={method === "percent"}
+              className={method === "percent" ? "is-on" : ""}
+              onClick={() => pickMethod("percent")}
+            >
+              <i className="fa-solid fa-percent" aria-hidden="true" />
+              <span>
+                <strong>Percentage</strong>
+                <small>Share of tuition</small>
+              </span>
+            </button>
+            <button
+              type="button"
+              role="radio"
+              aria-checked={method === "fixed"}
+              className={method === "fixed" ? "is-on" : ""}
+              onClick={() => pickMethod("fixed")}
+            >
+              <i className="fa-solid fa-coins" aria-hidden="true" />
+              <span>
+                <strong>Fixed amount</strong>
+                <small>Solid UGX figure</small>
+              </span>
+            </button>
+          </div>
+        </fieldset>
+
+        <label className="ofc-field is-wide">
+          <span>{method === "percent" ? "Percentage of tuition" : "Fixed amount off tuition"}</span>
+          <span className={`set-value-box${method === "fixed" ? " is-money" : " is-percent"}`}>
+            {method === "fixed" ? <em>UGX</em> : null}
+            <input
+              name="value"
+              required
+              inputMode={method === "percent" ? "decimal" : "numeric"}
+              value={valueText}
+              onChange={(event) => setValueText(formatDiscountValue(method, event.target.value))}
+              placeholder={method === "percent" ? "10" : "100,000"}
+              aria-label={method === "percent" ? "Percentage" : "Fixed amount in UGX"}
+            />
+            {method === "percent" ? <em>%</em> : null}
+          </span>
+          <small className="set-field-hint">
+            {method === "percent"
+              ? "Example: 10 means 10% of the tuition line."
+              : "Example: 150,000 comes straight off the tuition line."}
+          </small>
         </label>
-        <label className="ofc-field">
-          <span>Type</span>
-          <select name="method" value={method} onChange={(event) => setMethod(event.target.value as "percent" | "fixed")}>
-            <option value="percent">Percentage of tuition</option>
-            <option value="fixed">Fixed amount (UGX)</option>
-          </select>
-        </label>
-        <label className="ofc-field">
-          <span>{method === "percent" ? "Percentage" : "Amount (UGX)"}</span>
-          <input name="value" required inputMode="decimal" defaultValue={rule ? String(Number(rule.value)) : ""} placeholder={method === "percent" ? "10" : "100,000"} />
-        </label>
+
         {kind === "sibling" ? (
           <label className="ofc-field">
             <span>Starts from child</span>
@@ -426,11 +539,20 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
             </select>
           </label>
         ) : <input type="hidden" name="sibling_from" value="2" />}
-        <label className="ofc-check is-wide">
+
+        <label className="ofc-check is-wide set-discount-active">
           <input type="checkbox" name="active" defaultChecked={rule?.active ?? true} />
-          {kind === "sibling" || kind === "staff" ? "Apply automatically to new term invoices" : "Available to give to pupils"}
+          <span>
+            <strong>{kind === "sibling" || kind === "staff" ? "Apply automatically" : "Available to give"}</strong>
+            <small>
+              {kind === "sibling" || kind === "staff"
+                ? "Added to new term invoices when this matches a pupil."
+                : "Staff can attach it to a pupil from their fee account."}
+            </small>
+          </span>
         </label>
-        <p className="acc-dialog-note is-wide">{DISCOUNT_KINDS.find((entry) => entry.value === kind)?.note}.</p>
+
+        {kindInfo ? <p className="acc-dialog-note is-wide set-discount-note">{kindInfo.note}.</p> : null}
       </FormDialog>
     </Section>
   );
@@ -456,9 +578,10 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
   return (
     <Section
       id="categories"
+      step={5}
       title="Expense categories"
       meta={categories.length ? `${shown} shown` : undefined}
-      description={<>Used to group spending. Monthly plans are watched on the <Link href={`${ACCOUNTS_BASE}/budgeting`}>Budgeting page</Link>.</>}
+      description={<>Group spending so reports stay tidy. Monthly plans are watched on the <Link href={`${ACCOUNTS_BASE}/budgeting`}>Budgeting page</Link>.</>}
       action={<AddButton label="Add a category" onClick={() => { setEditing("new"); setIcon("fa-receipt"); }} />}
     >
       <Feedback result={result} />
@@ -471,7 +594,7 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
                 <th scope="col">Monthly budget</th>
                 <th scope="col">This month</th>
                 <th scope="col">Shown</th>
-                <th scope="col"><span className="visually-hidden">Actions</span></th>
+                <th scope="col" className="is-actions">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -500,9 +623,9 @@ export function CategoriesManager({ categories, spent }: { categories: ExpenseCa
                         <em className="visually-hidden">{entry.active ? "On" : "Off"}</em>
                       </label>
                     </td>
-                    <td className="is-actions">
+                    <td className="is-actions" data-label="Actions">
                       <div className="set-actions">
-                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" onClick={() => { setEditing(entry); setIcon(entry.icon); }} />
+                        <RowButton label={`Edit ${entry.name}`} icon="fa-pen" text="Edit" onClick={() => { setEditing(entry); setIcon(entry.icon); }} />
                       </div>
                     </td>
                   </tr>

@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
 import { AutoSubmit, ClickRow } from "@/components/accounts/client";
 import { Chips, InvoiceStatus, Progress, notReady } from "@/components/accounts/ui";
 import { ActionButton } from "@/components/office/client";
@@ -11,6 +10,7 @@ import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { amount, day, daysBetween, hrefWith, kampalaToday, overdueText, percent, ugx, ugxShort, type TermBalance } from "@/lib/accounts-format";
 import { SCHOOL_CLASSES, className, fetchAll, isClassCode, pick, searchNeedle } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
+import "../overview.css";
 import "./invoices.css";
 
 export const metadata = { title: "Invoices" };
@@ -122,23 +122,25 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
   const narrowed = Boolean(q || status || cls || kind || filters.term);
 
   return (
-    <div className="app-page ofc-page acc-page inv-page">
-      <PageHeader
-        kicker="Billing"
-        icon="fa-file-invoice"
-        title="Invoices"
-        description={term ? <>Term bills and extra charges for <strong>{term.label}</strong>. Issue a draft to put it on the balance and in the parent portal.</> : <>Every term bill and extra charge on file.</>}
-        actions={
-          <>
-            <Link className="admin-hero-btn is-primary" href={`${BASE}/generate${term ? `?term=${term.id}` : ""}`}>
-              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate term invoices
-            </Link>
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/students`}>
-              <i className="fa-solid fa-user" aria-hidden="true" /> Bill one pupil
-            </Link>
-          </>
-        }
-      />
+    <div className="app-page ofc-page acc-page aov-page inv-page">
+      <header className="aov-head inv-head">
+        <div>
+          <p className="aov-kicker"><i className="fa-solid fa-file-invoice" aria-hidden="true" /> Billing</p>
+          <h1>Invoices</h1>
+          <p className="aov-lede">
+            {term ? <span className="aov-term">{term.label}</span> : <span className="aov-term">All terms</span>}
+            <span>{term ? "Term bills and extra charges. Issue drafts to put them on balances." : "Every term bill and extra charge on file."}</span>
+          </p>
+        </div>
+        <div className="aov-actions">
+          <Link className="aov-btn is-primary" href={`${BASE}/generate${term ? `?term=${term.id}` : ""}`}>
+            <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Generate
+          </Link>
+          <Link className="aov-btn" href={`${ACCOUNTS_BASE}/students`}>
+            <i className="fa-solid fa-user" aria-hidden="true" /> Bill one pupil
+          </Link>
+        </div>
+      </header>
 
       {term ? (
         <section className="inv-board" aria-label={`${term.label} billing`}>
@@ -202,8 +204,7 @@ export default async function InvoicesPage({ searchParams }: { searchParams: Pro
             <div className="inv-draft">
               <i className="fa-regular fa-file" aria-hidden="true" />
               <p>
-                <strong>{n(drafts.count)} draft{drafts.count === 1 ? "" : "s"}</strong> for {term.label}, totalling {ugx(draftTotal)}.
-                Issue them to put them on balances and in the parent portal.
+                <strong>{n(drafts.count)} draft{drafts.count === 1 ? "" : "s"}</strong> · {ugx(draftTotal)}. Issue to put them on balances and in the parent portal.
               </p>
               <div className="inv-draft-actions">
                 <Link className="inv-text" href={href({ status: "draft" })}>Review</Link>

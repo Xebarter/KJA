@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { FeeRateGrid } from "@/components/accounts/FeeRateGrid";
 import { SetupNav, type SetupTile } from "@/components/accounts/SetupNav";
 import { CategoriesManager, DiscountsManager, ItemsManager, TermsManager } from "@/components/accounts/SetupForms";
@@ -100,6 +100,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       tone: current ? "ok" : "warn",
       value: current ? `T${current.term}` : "-",
       note: current ? current.label : "Choose a term to bill",
+      next: current ? undefined : "Add or choose the current term",
     },
     {
       id: "items",
@@ -108,15 +109,17 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       tone: hasTuition ? "navy" : "warn",
       value: String(active.length),
       note: !allItems.length ? "Nothing to bill yet" : !hasTuition ? "Tuition is missing" : allItems.length === active.length ? "All items are billed" : `${allItems.length - active.length} switched off`,
+      next: hasTuition ? undefined : "Add a Tuition fee item",
     },
     {
       id: "rates",
-      label: "Classes set",
+      label: "Class fees",
       icon: "fa-table-cells",
       tone: term && classesLeft <= 0 ? "ok" : "warn",
       value: term ? String(ratedClasses.size) : "-",
       note: !term ? "Add a term first" : classesLeft > 0 ? `${classesLeft} still to set` : "Every class has fees",
       share: term ? Math.round((ratedClasses.size / SCHOOL_CLASSES.length) * 100) : undefined,
+      next: !term ? "Add a term first" : classesLeft > 0 ? "Set fees for every class" : undefined,
     },
     {
       id: "discounts",
@@ -125,6 +128,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
       tone: activeRules.length ? "gold" : "warn",
       value: String(activeRules.length),
       note: activeRules.length ? "On for new invoices" : discountRules.length ? "None switched on" : "None added yet",
+      next: activeRules.length ? undefined : "Add a sibling, staff or bursary discount",
     },
     {
       id: "categories",
@@ -138,29 +142,29 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
 
   const ready = [Boolean(current), hasTuition, Boolean(term) && classesLeft <= 0, activeRules.length > 0].filter(Boolean).length;
   const ratesNote = !term
-    ? "Add a term first, then set what each class pays."
+    ? "Add a term first, then type what each class pays."
     : staleTerm
       ? `That term no longer exists. Showing ${term.label}.`
-      : `What each class pays in ${term.label}.`;
+      : `Type the amount each class pays in ${term.label}. Save when you are done.`;
 
   return (
     <div className="app-page ofc-page acc-page set-page">
-      <PageHeader
+      <AccountsPageHeader
         kicker="Setup"
         icon="fa-sliders"
         title="Fee setup"
         description={ready === 4
-          ? "Fee setup is complete for the current term. New invoices use these terms, class fees and discounts."
-          : `${ready} of 4 setup steps are done. Terms, class fees, discounts and expense categories are what new invoices are built from.`}
+          ? "Everything is ready. New invoices use these terms, class fees and discounts."
+          : "Set the term, what families pay, then class amounts. Work top to bottom. Each step unlocks the next."}
         actions={
           <>
-            <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/invoices/generate`}><i className="fa-solid fa-file-invoice" aria-hidden="true" /> Generate term invoices</Link>
-            <Link className="admin-hero-btn" href="/fees" target="_blank"><i className="fa-solid fa-globe" aria-hidden="true" /> Website fee page</Link>
+            <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/invoices/generate`}><i className="fa-solid fa-file-invoice" aria-hidden="true" /> Generate invoices</Link>
+            <Link className="aov-btn" href="/fees" target="_blank"><i className="fa-solid fa-globe" aria-hidden="true" /> Website fees</Link>
           </>
         }
       />
 
-      <SetupNav tiles={tiles} />
+      <SetupNav tiles={tiles} ready={ready} total={4} />
 
       <TermsManager terms={terms} usage={termUse} />
       <ItemsManager items={allItems} />
@@ -169,6 +173,7 @@ export default async function SettingsPage({ searchParams }: { searchParams: Pro
         <header className="ofc-reg-results">
           <div>
             <h2 id="rates-heading">
+              <span className="set-step-num" aria-hidden="true">3</span>
               Fees by class
               {term ? <span className="set-count">{ratedClasses.size} of {SCHOOL_CLASSES.length}</span> : null}
             </h2>

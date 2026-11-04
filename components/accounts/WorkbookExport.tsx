@@ -64,10 +64,12 @@ export function WorkbookExport({
 
   return (
     <aside className="acr-workbook no-print" aria-label="Reconciliation workbook">
-      <span className="acr-workbook-icon" aria-hidden="true"><i className="fa-solid fa-file-excel" /></span>
-      <div className="acr-workbook-copy">
-        <strong>Reconciliation workbook</strong>
-        <p>Choose the dates to include, then download one Excel file of receipts, methods, debtors and spending.</p>
+      <div className="acr-workbook-lead">
+        <span className="acr-workbook-icon" aria-hidden="true"><i className="fa-solid fa-file-excel" /></span>
+        <div className="acr-workbook-copy">
+          <strong>Excel workbook</strong>
+          <p>Receipts, methods, debtors and spending for bank reconciliation.</p>
+        </div>
       </div>
 
       <div className="acr-workbook-form">

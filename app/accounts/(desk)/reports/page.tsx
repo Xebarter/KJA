@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
 import { AgingBar, ColumnChart, notReady } from "@/components/accounts/ui";
 import { PrintButton } from "@/components/office/client";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
@@ -11,6 +10,7 @@ import { isClassCode, pick, studentStatusInfo } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import { BillingBoard } from "./billing";
 import { ReportDesk } from "./nav";
+import "../overview.css";
 import "./reports.css";
 
 export const metadata = { title: "Reports" };
@@ -216,7 +216,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   ].map((period) => ({ ...period, href: href({ term: period.value }) }));
 
   return (
-    <div className="app-page ofc-page acc-page acr-page">
+    <div className="app-page ofc-page acc-page aov-page acr-page">
       <header className="acr-print-only acr-print-head">
         <img src="/images/kja-logo.png" alt="" />
         <div>
@@ -229,31 +229,33 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         As of {day(report.today)} · Prepared by {preparedBy} · {generated}
       </p>
 
-      <PageHeader
-        kicker="Insights"
-        icon="fa-chart-column"
-        title="Reports"
-        description={<>Billing, collections, debtors and spending for <strong>{report.periodLabel}</strong>. Download the Excel workbook for bank and cash reconciliation, or pick a section below.</>}
-        actions={
-          <>
-            <a
-              className="admin-hero-btn is-primary"
-              href={hrefWith(`${ACCOUNTS_BASE}/reports/export`, {
-                ...filters,
-                kind: "workbook",
-                from: workbookDefaults.from,
-                to: workbookDefaults.to,
-              })}
-            >
-              <i className="fa-solid fa-file-excel" aria-hidden="true" /> Download Excel
-            </a>
-            <PrintButton label="Print" />
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/debtors`}>
-              <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors
-            </Link>
-          </>
-        }
-      />
+      <header className="aov-head acr-head no-print">
+        <div>
+          <p className="aov-kicker"><i className="fa-solid fa-chart-column" aria-hidden="true" /> Insights</p>
+          <h1>Reports</h1>
+          <p className="aov-lede">
+            <span className="aov-term">{report.periodLabel}</span>
+            <span>Billing, collections, debtors and spending. Pick a section below.</span>
+          </p>
+        </div>
+        <div className="aov-actions">
+          <a
+            className="aov-btn is-primary"
+            href={hrefWith(`${ACCOUNTS_BASE}/reports/export`, {
+              ...filters,
+              kind: "workbook",
+              from: workbookDefaults.from,
+              to: workbookDefaults.to,
+            })}
+          >
+            <i className="fa-solid fa-file-excel" aria-hidden="true" /> Excel
+          </a>
+          <PrintButton label="Print" className="aov-btn" />
+          <Link className="aov-btn" href={`${ACCOUNTS_BASE}/debtors`}>
+            <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors
+          </Link>
+        </div>
+      </header>
 
       <ReportDesk
         items={NAV}

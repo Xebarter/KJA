@@ -1,6 +1,9 @@
+import "../overview.css";
+import "./reports.css";
+
 export default function ReportsLoading() {
   return (
-    <div className="app-page ofc-page acc-page acr-page acc-skel acr-loading" aria-busy="true" aria-live="polite">
+    <div className="app-page ofc-page acc-page aov-page acr-page acc-skel acr-loading" aria-busy="true" aria-live="polite">
       <span className="visually-hidden">Loading the report</span>
       <i className="acr-skel-hero" />
       <div className="acr-skel-stats">

@@ -59,7 +59,7 @@ export default async function FamilyPaymentPage({ params }: { params: Promise<{ 
           <>
             <a className="admin-hero-btn is-primary" href={receipt} target="_blank" rel="noreferrer"><i className="fa-solid fa-print" aria-hidden="true" /> Print receipt</a>
             <a className="admin-hero-btn" href={`${receipt}?download=1`}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a>
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/payments/new?family=${batch.family_id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Another family payment</Link>
+            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/payments?record=1&family=${batch.family_id}`}><i className="fa-solid fa-plus" aria-hidden="true" /> Another family payment</Link>
           </>
         }
       />

@@ -15,10 +15,11 @@ export default function AccountsLoading() {
         <div className="aov-skel-col">
           <i className="acc-skel-card is-tall" />
           <i className="acc-skel-card is-mid" />
+          <i className="acc-skel-card is-mid" />
         </div>
         <div className="aov-skel-col">
-          <i className="acc-skel-card is-mid" />
           <i className="acc-skel-card is-tall" />
+          <i className="acc-skel-card is-mid" />
         </div>
       </div>
     </div>

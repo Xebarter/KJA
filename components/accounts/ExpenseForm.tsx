@@ -11,8 +11,8 @@ type Status = "done" | "todo" | "optional";
 
 const SECTIONS = [
   { id: "expense-category", title: "Category" },
-  { id: "expense-details", title: "The expense" },
-  { id: "expense-payment", title: "Payment and receipt" },
+  { id: "expense-details", title: "Details" },
+  { id: "expense-payment", title: "Payment & receipt" },
 ];
 
 function Field({ label, hint, wide, required, children }: { label: string; hint?: string; wide?: boolean; required?: boolean; children: React.ReactNode }) {
@@ -43,11 +43,12 @@ function Section({ id, n, title, sub, status, children }: { id: string; n: numbe
   );
 }
 
-export function ExpenseForm({ categories, campuses, expense, spentBy }: {
+export function ExpenseForm({ categories, campuses, expense, spentBy, onCancel }: {
   categories: ExpenseCategory[];
   campuses: string[];
   expense?: Expense | null;
   spentBy: Record<string, number>;
+  onCancel?: () => void;
 }) {
   const router = useRouter();
   const active = categories.filter((category) => category.active || category.id === expense?.category_id);
@@ -110,7 +111,7 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
         });
       }}
     >
-      <Section id="expense-category" n={1} title="Category" sub="Where this spending belongs. The monthly budget, if there is one, is a guide." status={status["expense-category"]}>
+      <Section id="expense-category" n={1} title="Category" sub="Where this spending belongs." status={status["expense-category"]}>
         <div className="acc-exp-cats" role="radiogroup" aria-label="Category">
           {active.map((entry) => {
             const cap = entry.monthly_budget ?? 0;
@@ -136,7 +137,7 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
         ) : null}
       </Section>
 
-      <Section id="expense-details" n={2} title="The expense" sub="Who it is for, how much, and what the money buys." status={status["expense-details"]}>
+      <Section id="expense-details" n={2} title="Details" sub="Who was paid, how much, and what for." status={status["expense-details"]}>
         <div className="ofc-fields enr-cols-2">
           <Field label="Paid to" required wide>
             <input name="payee" required maxLength={120} value={payee} onChange={(event) => setPayee(event.target.value)} placeholder="Supplier or person" autoFocus={!expense} />
@@ -147,13 +148,13 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
           <Field label="Date" required>
             <input type="date" name="spent_on" value={spentOn} max={kampalaToday()} required onChange={(event) => setSpentOn(event.target.value)} />
           </Field>
-          <Field label="What it's for" required wide>
-            <textarea name="description" required rows={3} maxLength={600} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="For example: 20 reams of printing paper for exams" />
+          <Field label="What it’s for" required wide>
+            <textarea name="description" required rows={3} maxLength={600} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="e.g. 20 reams of printing paper for exams" />
           </Field>
         </div>
         {campuses.length ? (
           <div className="ofc-field enr-gap-top">
-            <span><b>Campus</b><em>{campuses.length > 1 ? "Leave blank for the whole school" : "Optional"}</em></span>
+            <span><b>Campus</b><em>{campuses.length > 1 ? "Blank = whole school" : "Optional"}</em></span>
             <div className="enr-chips" role="radiogroup" aria-label="Campus">
               <label>
                 <input type="radio" name="campus" value="" checked={campus === ""} onChange={() => setCampus("")} />
@@ -170,10 +171,10 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
         ) : null}
       </Section>
 
-      <Section id="expense-payment" n={3} title="Payment and receipt" sub="You can leave this until the request is approved and the money goes out." status={status["expense-payment"]}>
+      <Section id="expense-payment" n={3} title="Payment & receipt" sub="Optional now. Fill in when the money goes out." status={status["expense-payment"]}>
         <div className="ofc-field">
-          <span><b>How it will be paid</b><em>Optional</em></span>
-          <div className="enr-chips" role="radiogroup" aria-label="How it will be paid">
+          <span><b>Payment method</b><em>Optional</em></span>
+          <div className="enr-chips" role="radiogroup" aria-label="Payment method">
             <label>
               <input type="radio" name="method" value="" checked={method === ""} onChange={() => setMethod("")} />
               <span>Decide later</span>
@@ -187,14 +188,14 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
           </div>
         </div>
         <div className="ofc-fields enr-gap-top">
-          <Field label="Invoice or reference" hint="Optional">
-            <input name="reference" maxLength={80} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Supplier invoice number" />
+          <Field label="Invoice / reference" hint="Optional">
+            <input name="reference" maxLength={80} value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Supplier invoice no." />
           </Field>
           <label className={`ofc-field is-wide acc-file${fileName ? " has-file" : ""}`}>
-            <span><b>Receipt or quotation</b><em>Optional, PDF or photo, up to 5 MB</em></span>
+            <span><b>Receipt or quote</b><em>Optional · PDF or photo · max 5 MB</em></span>
             <span className="acc-file-box">
               <i className={`fa-solid ${fileName ? "fa-file-circle-check" : "fa-cloud-arrow-up"}`} aria-hidden="true" />
-              <span>{fileName || (expense?.receipt_path ? "Replace the attached file" : "Choose a file")}</span>
+              <span>{fileName || (expense?.receipt_path ? "Replace attached file" : "Choose a file")}</span>
               <input
                 type="file"
                 name="receipt"
@@ -210,12 +211,17 @@ export function ExpenseForm({ categories, campuses, expense, spentBy }: {
       <footer className="ofc-form-foot enr-foot">
         <div className="enr-progress">
           <span className="enr-progress-bar" aria-hidden="true"><span style={{ width: `${doneCount * 50}%` }} /></span>
-          <span>{doneCount === 2 ? (expense ? "Ready to save" : "Ready to send") : `${doneCount} of 2 required steps done`}</span>
+          <span>{doneCount === 2 ? (expense ? "Ready to save" : "Ready to send") : `${doneCount} of 2 done`}</span>
         </div>
-        <div>
-          <Link className="admin-btn admin-btn-ghost" href={backHref}>Cancel</Link>
+        <div className="exp-form-actions">
+          {onCancel ? (
+            <button type="button" className="admin-btn admin-btn-ghost" onClick={onCancel}>Cancel</button>
+          ) : (
+            <Link className="admin-btn admin-btn-ghost" href={backHref}>Cancel</Link>
+          )}
           <button className="admin-btn admin-btn-gold" type="submit" disabled={pending}>
-            <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-paper-plane"}`} aria-hidden="true" /> {pending ? "Saving…" : expense ? "Save changes" : "Send for approval"}
+            <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : expense ? "fa-floppy-disk" : "fa-paper-plane"}`} aria-hidden="true" />
+            {pending ? "Saving…" : expense ? "Save" : "Send for approval"}
           </button>
         </div>
       </footer>

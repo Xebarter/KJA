@@ -1,14 +1,17 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { Suspense } from "react";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { AutoSubmit, ClickRow } from "@/components/accounts/client";
+import { PaymentsRecordButton, PaymentsRecordPanel } from "@/components/accounts/PaymentsRecord";
 import { Chips, MethodTag, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
+import type { PupilHit } from "./actions";
 import { PAYMENT_RANGES, parsePaymentFilters, paymentDates, paymentsQuery } from "./filters";
 import { aggRows, num } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, requireAccounts } from "@/lib/accounts";
 import { PAYMENT_METHODS, amount, dateTime, day, hrefWith, ugx, ugxShort, type Payment } from "@/lib/accounts-format";
 import { loadPeople } from "@/lib/admin-applications";
-import { fetchAll, pick } from "@/lib/students";
+import { fetchAll, isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./payments.css";
 
@@ -48,6 +51,38 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const campuses = await loadCampuses(supabase);
   const rangeLabel = PAYMENT_RANGES.find((entry) => entry.value === (filters.range || "term"))?.label
     ?? (filters.range === "custom" ? "Custom dates" : "This term");
+
+  const studentId = pick(params, "student");
+  const familyId = pick(params, "family");
+  const termParam = pick(params, "term");
+  let pupil: PupilHit | null = null;
+  if (isUuid(studentId)) {
+    const { data } = await supabase
+      .from("student_balances")
+      .select("student_id, full_name, student_number, class_code, stream, campus, status, family_id, family_code, mailing_name, balance")
+      .eq("student_id", studentId)
+      .maybeSingle();
+    if (data) pupil = { ...(data as PupilHit), balance: Number(data.balance) };
+  }
+  const recordTermId = terms.find((term) => term.id === termParam)?.id ?? current?.id ?? "";
+  const familyMode = isUuid(familyId);
+  const termOptions = terms.map((term) => ({ id: term.id, label: term.label }));
+  const recordPanel = (
+    <Suspense fallback={null}>
+      <PaymentsRecordPanel
+        terms={termOptions}
+        termId={recordTermId}
+        pupil={pupil}
+        familyId={familyMode ? familyId : ""}
+        mode={familyMode ? "family" : "pupil"}
+      />
+    </Suspense>
+  );
+  const recordButton = (
+    <Suspense fallback={<Link className="aov-btn is-primary" href={`${BASE}?record=1`}><i className="fa-solid fa-plus" aria-hidden="true" /> Record payment</Link>}>
+      <PaymentsRecordButton />
+    </Suspense>
+  );
 
   const active: { key: string; label: string; href: string }[] = [];
   if (filters.q) active.push({ key: "q", label: `Search: “${filters.q}”`, href: href({ q: "" }) });
@@ -166,11 +201,9 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   const actions = (
     <>
-      <Link className="admin-hero-btn is-primary" href={`${BASE}/new`}>
-        <i className="fa-solid fa-plus" aria-hidden="true" /> Record a payment
-      </Link>
+      {recordButton}
       {!online ? (
-        <a className="admin-hero-btn" href={exportHref}>
+        <a className="aov-btn" href={exportHref}>
           <i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV
         </a>
       ) : null}
@@ -203,13 +236,15 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
     return (
       <div className="app-page ofc-page acc-page pay-page">
-        <PageHeader
+        <AccountsPageHeader
           kicker="Billing"
           icon="fa-money-bill-wave"
           title="Payments"
           description="Admission fees paid online when families applied. Shown for reference. They aren’t part of term balances."
           actions={actions}
         />
+
+        {recordPanel}
 
         <section className="pay-board" aria-label="Online payment summary">
           <div className="pay-board-main">
@@ -326,13 +361,15 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="app-page ofc-page acc-page pay-page">
-      <PageHeader
+      <AccountsPageHeader
         kicker="Billing"
         icon="fa-money-bill-wave"
         title="Payments"
-        description="Every fee payment received, with its receipt. Void a payment if it was recorded in error. It stays on record."
+        description="Record a payment here, then browse every receipt below. Void a payment if it was recorded in error. It stays on record."
         actions={actions}
       />
+
+      {recordPanel}
 
       <section className="pay-board" aria-label="Payment summary">
         <div className="pay-board-main">
@@ -441,7 +478,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                 <Link href={clearHref}>Clear filters</Link>
               </>
             ) : (
-              <Link href={`${BASE}/new`}>Record the first payment</Link>
+              <Link href={`${BASE}?record=1`}>Record the first payment</Link>
             )}
           </Empty>
         )}

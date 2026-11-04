@@ -158,12 +158,12 @@ export function FeeRateGrid({
         </table>
       </div>
 
-      <div className="set-foot">
+      <div className={`set-foot${dirty ? " is-dirty" : ""}`}>
         <div className="set-extras">
           {tuition && website ? (
             <button
               type="button"
-              className="admin-btn admin-btn-ghost"
+              className="admin-btn admin-btn-ghost set-tool-btn"
               title="Fills the Tuition column from the fees published on the website. Check whether they are per term before saving."
               onClick={() => {
                 setValues((current) => {
@@ -174,18 +174,18 @@ export function FeeRateGrid({
                 setResult({ warning: "Tuition filled from the website fee page. Check the amounts are per term, then save." });
               }}
             >
-              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Fill tuition from website
+              <i className="fa-solid fa-wand-magic-sparkles" aria-hidden="true" /> Fill from website
             </button>
           ) : null}
           {terms.length > 1 ? (
             <span className="set-copy">
               <select value={copyFrom} onChange={(event) => setCopyFrom(event.target.value)} aria-label="Copy rates from another term">
-                <option value="">Copy every campus from…</option>
+                <option value="">Copy from another term…</option>
                 {terms.filter((term) => term.id !== termId).map((term) => <option key={term.id} value={term.id}>{term.label}</option>)}
               </select>
               <button
                 type="button"
-                className="admin-btn admin-btn-ghost"
+                className="admin-btn admin-btn-ghost set-tool-btn"
                 disabled={!copyFrom || pending}
                 onClick={() => {
                   const from = terms.find((term) => term.id === copyFrom)?.label;
@@ -193,20 +193,20 @@ export function FeeRateGrid({
                   run(() => copyRates(copyFrom, termId), () => setCopyFrom(""));
                 }}
               >
-                Copy
+                <i className="fa-solid fa-copy" aria-hidden="true" /> Copy
               </button>
             </span>
           ) : null}
           <Feedback result={result} />
         </div>
-        <div>
-          {dirty ? <span className="set-dirty"><i className="fa-solid fa-circle" aria-hidden="true" /> Unsaved changes</span> : null}
-          <button type="button" className="admin-btn admin-btn-ghost" disabled={!dirty || pending} onClick={() => { setValues(initial); setResult(null); }}>
+        <div className="set-save-group">
+          {dirty ? <span className="set-dirty"><i className="fa-solid fa-circle" aria-hidden="true" /> Unsaved</span> : <span className="set-clean">All saved</span>}
+          <button type="button" className="admin-btn admin-btn-ghost set-tool-btn" disabled={!dirty || pending} onClick={() => { setValues(initial); setResult(null); }}>
             Undo
           </button>
           <button
             type="button"
-            className="admin-btn"
+            className="admin-btn set-save-btn"
             disabled={!dirty || pending}
             onClick={() => {
               const payload = items.flatMap((item) =>
@@ -218,6 +218,7 @@ export function FeeRateGrid({
               run(() => saveRates(termId, campus, payload));
             }}
           >
+            <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-floppy-disk"}`} aria-hidden="true" />
             {pending ? "Saving…" : "Save fees"}
           </button>
         </div>

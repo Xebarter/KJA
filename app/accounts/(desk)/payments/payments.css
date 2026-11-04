@@ -3,24 +3,7 @@
 .pay-page {
   font-family: Roboto, "Segoe UI", system-ui, sans-serif;
 }
-.pay-page.acc-page > .admin-hero { margin-top: 0; margin-bottom: 0; }
-.pay-page .admin-hero-actions { gap: .55rem; }
-.pay-page .admin-hero-btn {
-  min-height: 42px;
-  padding: .55rem 1.15rem;
-  border-radius: 999px;
-  font-size: .9rem;
-  font-weight: 700;
-  letter-spacing: .01em;
-  transition: background-color .18s ease, border-color .18s ease, transform .18s ease, box-shadow .18s ease;
-}
-.pay-page .admin-hero-btn:hover { transform: translateY(-1px); }
-.pay-page .admin-hero-btn.is-primary {
-  box-shadow: 0 10px 22px -12px rgba(253, 163, 27, .85);
-}
-.pay-page .admin-hero-btn.is-primary:hover {
-  box-shadow: 0 14px 26px -12px rgba(253, 163, 27, .95);
-}
+.pay-page.acc-page > .aov-head { margin-top: 0; margin-bottom: 0; }
 
 /* ---------------------------------------------------------------- summary */
 
@@ -990,11 +973,148 @@
 .acc-alloc-list a { color: var(--admin-navy); }
 .acc-alloc-list a:hover { color: var(--admin-red); }
 
+/* ---------------------------------------------------------------- on-page recorder */
+
+.pay-record-panel {
+  padding: 1rem 1.15rem 1.15rem;
+  border: 1px solid rgba(25, 35, 43, 0.07);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 32px -26px rgba(25, 35, 43, 0.45);
+  animation: acc-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+.pay-record-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.85rem;
+  border-bottom: 1px solid rgba(25, 35, 43, 0.06);
+}
+.pay-record-kicker {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.pay-record-head h2 {
+  margin: 0.15rem 0 0;
+  color: var(--admin-navy);
+  font-size: 1.2rem;
+  font-weight: 800;
+}
+.pay-record-head p {
+  margin: 0.3rem 0 0;
+  max-width: 40rem;
+  color: var(--admin-muted);
+  font-size: 0.88rem;
+  line-height: 1.4;
+}
+.pay-record-panel .acc-pay-form { max-width: 48rem; }
+
+.pay-page .acc-alloc-head,
+.pay-form-page .acc-alloc-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.65rem 1rem;
+}
+.pay-page .acc-alloc-title,
+.pay-form-page .acc-alloc-title {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  flex: 1 1 14rem;
+}
+.acc-split-switch {
+  display: inline-flex;
+  flex: none;
+  padding: 0.18rem;
+  border: 1px solid rgba(25, 35, 43, 0.1);
+  border-radius: 999px;
+  background: #fff;
+}
+.acc-split-switch button {
+  min-height: 30px;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--admin-muted);
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.acc-split-switch button.is-on {
+  background: var(--admin-navy);
+  color: #fff;
+}
+.acc-manual-split {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.55rem;
+}
+.acc-manual-split li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) minmax(9rem, 11rem);
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid rgba(25, 35, 43, 0.08);
+  border-radius: 12px;
+  background: #fff;
+}
+.acc-manual-amount { display: block; margin: 0; min-width: 0; }
+.acc-manual-amount .acc-amount-input { min-height: 38px; }
+.acc-manual-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.55rem 0.85rem;
+  margin-top: 0.75rem;
+}
+.acc-manual-foot > p {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+}
+.acc-manual-foot > p.is-ok { color: #127238; }
+.acc-manual-foot > p.is-warn { color: #9a5b00; }
+.acc-manual-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+.acc-manual-tools .admin-btn {
+  min-height: 30px;
+  height: 30px;
+  padding: 0 0.7rem;
+  border-radius: 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 @media (max-width: 560px) {
   .pay-page .acc-pay-mode,
   .pay-form-page .acc-pay-mode { grid-template-columns: 1fr; }
   .pay-page .acc-pay-mode button.is-on,
   .pay-form-page .acc-pay-mode button.is-on { transform: none; }
+  .pay-record-head { flex-direction: column; }
+  .acc-manual-split li {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .acc-manual-amount {
+    grid-column: 1 / -1;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .pay-page .acc-pay-mode button,
@@ -1004,5 +1124,6 @@
   .pay-page .acc-quick-amounts.is-family button,
   .pay-form-page .acc-quick-amounts.is-family button,
   .pay-page .acc-alloc,
-  .pay-form-page .acc-alloc { transition: none; animation: none; }
+  .pay-form-page .acc-alloc,
+  .pay-record-panel { transition: none; animation: none; }
 }

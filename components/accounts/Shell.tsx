@@ -17,8 +17,8 @@ import type { SidebarHit } from "@/lib/sidebar-search";
 
 const ACCOUNTS_PLACES: SidebarHit[] = [
   ...accountsNav.map((item) => ({ id: item.href, href: item.href, title: item.label, meta: item.group, icon: item.icon })),
-  { id: `${ACCOUNTS_BASE}/payments/new`, href: `${ACCOUNTS_BASE}/payments/new`, title: "Record a payment", meta: "Quick add", icon: "fa-cash-register" },
-  { id: `${ACCOUNTS_BASE}/expenses/new`, href: `${ACCOUNTS_BASE}/expenses/new`, title: "Add an expense", meta: "Quick add", icon: "fa-file-circle-plus" },
+  { id: `${ACCOUNTS_BASE}/payments?record=1`, href: `${ACCOUNTS_BASE}/payments?record=1`, title: "Record a payment", meta: "Quick add", icon: "fa-cash-register" },
+  { id: `${ACCOUNTS_BASE}/expenses?add=1`, href: `${ACCOUNTS_BASE}/expenses?add=1`, title: "Add an expense", meta: "Quick add", icon: "fa-file-circle-plus" },
 ];
 
 function isActive(pathname: string, href: string) {
@@ -69,8 +69,8 @@ export function AccountsShell({
     // Desktop: never stampede the local Next host with sidebar prefetches.
     if (isDesktopClient()) return;
     for (const item of accountsNav) router.prefetch(item.href);
-    router.prefetch(`${ACCOUNTS_BASE}/payments/new`);
-    router.prefetch(`${ACCOUNTS_BASE}/expenses/new`);
+    router.prefetch(`${ACCOUNTS_BASE}/payments`);
+    router.prefetch(`${ACCOUNTS_BASE}/expenses`);
   }, [router]);
 
   useEffect(() => {
@@ -102,8 +102,8 @@ export function AccountsShell({
       <DeskWarmup
         hrefs={[
           ...nav.map((item) => item.href),
-          `${ACCOUNTS_BASE}/payments/new`,
-          `${ACCOUNTS_BASE}/expenses/new`,
+          `${ACCOUNTS_BASE}/payments`,
+          `${ACCOUNTS_BASE}/expenses`,
         ]}
       />
       <header className="admin-topbar">
@@ -171,18 +171,6 @@ export function AccountsShell({
               </Link>
             );
           })}
-          {show(`${ACCOUNTS_BASE}/payments/new`) ? (
-            <Link href={`${ACCOUNTS_BASE}/payments/new`} prefetch={false} className={pathname === `${ACCOUNTS_BASE}/payments/new` ? "active" : ""}>
-              <i className="fa-solid fa-cash-register" aria-hidden="true" />
-              <span>Record a payment</span>
-            </Link>
-          ) : null}
-          {show(`${ACCOUNTS_BASE}/expenses/new`) ? (
-            <Link href={`${ACCOUNTS_BASE}/expenses/new`} prefetch={false} className={pathname === `${ACCOUNTS_BASE}/expenses/new` ? "active" : ""}>
-              <i className="fa-solid fa-file-circle-plus" aria-hidden="true" />
-              <span>Add an expense</span>
-            </Link>
-          ) : null}
         </nav>
 
         <div className="admin-side-foot">

@@ -1,6 +1,6 @@
 import { Fragment, type CSSProperties } from "react";
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { ClickRow } from "@/components/accounts/client";
 import { FeeFinder, type FeeFilters } from "@/components/accounts/FeeFinder";
 import { Chips, Progress } from "@/components/accounts/ui";
@@ -114,15 +114,15 @@ export function FeeAccountsView({
 
   return (
     <div className="app-page ofc-page acc-page fac-page">
-      <PageHeader
+      <AccountsPageHeader
         kicker="Billing"
         icon="fa-children"
         title="Fee accounts"
         description="Every pupil’s billed, paid and outstanding fees. Filter the register, then open a statement or take a payment."
         actions={
           <>
-            <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/payments/new`}><i className="fa-solid fa-plus" aria-hidden="true" /> Record a payment</Link>
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/debtors`}><i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors</Link>
+            <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/payments?record=1`}><i className="fa-solid fa-plus" aria-hidden="true" /> Record payment</Link>
+            <Link className="aov-btn" href={`${ACCOUNTS_BASE}/debtors`}><i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors</Link>
           </>
         }
       />

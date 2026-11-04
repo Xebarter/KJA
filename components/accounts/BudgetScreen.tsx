@@ -156,7 +156,7 @@ export function BudgetingView({ month, today, focus, q, book, outstanding, visib
             <i className="fa-solid fa-file-csv" aria-hidden="true" /> Download CSV
           </Link>
           <PrintBudget />
-          <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/expenses/new`}>
+          <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/expenses?add=1`}>
             <i className="fa-solid fa-plus" aria-hidden="true" /> Add an expense
           </Link>
         </div>

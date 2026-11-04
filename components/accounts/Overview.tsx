@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { AgingBar, ColumnChart, Progress, type Column } from "@/components/accounts/ui";
 import { StudentFace } from "@/components/StudentFace";
 import { ACCOUNTS_BASE } from "@/lib/accounts";
@@ -144,46 +145,52 @@ export function AccountsOverview(props: AccountsOverviewProps) {
 
   return (
     <div className="app-page ofc-page acc-page aov-page">
-      <header className="aov-head">
-        <div>
-          <p className="aov-kicker">
-            <i className="fa-regular fa-calendar" aria-hidden="true" /> {props.todayLabel}
-          </p>
-          <h1>{props.title}</h1>
-          <p className="aov-lede">
+      <AccountsPageHeader
+        kicker={props.todayLabel}
+        icon="fa-calendar"
+        iconFamily="regular"
+        title={props.title}
+        description={
+          <>
             {props.termLabel ? <span className="aov-term">{props.termLabel}</span> : <span className="aov-term is-setup">No term set</span>}
             <span>
-              <strong>{ugxShort(props.collectedToday)}</strong> collected today
+              <strong>{ugxShort(props.collectedToday)}</strong> in today
             </span>
-            <span className="aov-dot" aria-hidden="true" />
             {props.outstanding ? (
-              <span>
-                <strong>{props.debtorCount.toLocaleString("en-GB")}</strong> {props.debtorCount === 1 ? "pupil" : "pupils"} still {props.debtorCount === 1 ? "owes" : "owe"}{" "}
-                <strong>{ugxShort(props.outstanding)}</strong>
-              </span>
+              <>
+                <span className="aov-dot" aria-hidden="true" />
+                <span>
+                  <strong>{ugxShort(props.outstanding)}</strong> still owed
+                </span>
+              </>
             ) : (
-              <span>Every current pupil is paid up</span>
+              <>
+                <span className="aov-dot" aria-hidden="true" />
+                <span>All current pupils paid up</span>
+              </>
             )}
-          </p>
-        </div>
-        <div className="aov-actions">
-          <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/payments/new`}>
-            <i className="fa-solid fa-plus" aria-hidden="true" /> Record a payment
-          </Link>
-          <Link className="aov-btn" href={`${ACCOUNTS_BASE}/expenses/new`}>
-            <i className="fa-solid fa-receipt" aria-hidden="true" /> Add an expense
-          </Link>
-          <Link className="aov-btn" href={`${ACCOUNTS_BASE}/reports`}>
-            <i className="fa-solid fa-chart-column" aria-hidden="true" /> Reports
-          </Link>
-        </div>
-      </header>
+          </>
+        }
+        actions={
+          <>
+            <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/payments?record=1`}>
+              <i className="fa-solid fa-plus" aria-hidden="true" /> Record payment
+            </Link>
+            <Link className="aov-btn" href={`${ACCOUNTS_BASE}/expenses?add=1`}>
+              <i className="fa-solid fa-receipt" aria-hidden="true" /> Add expense
+            </Link>
+            <Link className="aov-btn" href={`${ACCOUNTS_BASE}/reports`}>
+              <i className="fa-solid fa-chart-column" aria-hidden="true" /> Reports
+            </Link>
+          </>
+        }
+      />
 
       {props.needsSetup ? (
-        <div className="acc-banner is-warn">
+        <div className="acc-banner is-warn aov-setup">
           <i className="fa-solid fa-sliders" aria-hidden="true" />
-          <p>Set up terms and class fees first, then generate this term&apos;s invoices.</p>
-          <Link className="admin-btn" href={`${ACCOUNTS_BASE}/settings`}>
+          <p>Set the current term and class fees, then generate invoices.</p>
+          <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/settings`}>
             Fee setup
           </Link>
         </div>
@@ -227,61 +234,11 @@ export function AccountsOverview(props: AccountsOverviewProps) {
       </section>
 
       <div className="aov-grid">
-        <div className="aov-col">
-          <Card id="aov-cash" title="Last 30 days" description="Fees received against spending that is approved or paid." action={{ href: `${ACCOUNTS_BASE}/reports`, label: "Full reports" }}>
-            <ul className="aov-cash">
-              <li className="is-in">
-                <span>Fees received</span>
-                <strong>{ugxShort(props.received30)}</strong>
-              </li>
-              <li className="is-out">
-                <span>Spending</span>
-                <strong>{ugxShort(props.spent30)}</strong>
-              </li>
-              <li className={net < 0 ? "is-down" : "is-net"}>
-                <span>Net</span>
-                <strong>{ugxShort(net)}</strong>
-              </li>
-            </ul>
-            {moved ? (
-              <ColumnChart columns={props.columns} label="Fees received and spending over 30 days" legend={["Fees received", "Spending"]} />
-            ) : (
-              <Quiet icon="fa-chart-column">No fees or spending in the last 30 days.</Quiet>
-            )}
-          </Card>
-
-          <Card id="aov-classes" title="Collected by class" description={props.termLabel ?? "This term"} action={{ href: `${ACCOUNTS_BASE}/reports`, label: "Reports" }}>
-            {classGroups.length || otherClasses.length ? (
-              <div className="aov-classes">
-                {classGroups.map((section) => (
-                  <div key={section.key}>
-                    <p className="aov-section">{section.label}</p>
-                    <ul>
-                      {section.rows.map((row) => (
-                        <ClassRow key={row.code} row={row} />
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-                {otherClasses.length ? (
-                  <ul>
-                    {otherClasses.map((row) => (
-                      <ClassRow key={row.code} row={row} />
-                    ))}
-                  </ul>
-                ) : null}
-              </div>
-            ) : (
-              <Quiet icon="fa-chalkboard">Generate term invoices to see collection by class.</Quiet>
-            )}
-          </Card>
-        </div>
-
-        <div className="aov-col">
+        <div className="aov-col aov-col-desk">
           <Card
             id="aov-desk"
             title="Needs attention"
-            description={waiting ? `${waiting} ${waiting === 1 ? "thing" : "things"} to look at` : "Nothing waiting on you"}
+            description={waiting ? `${waiting} ${waiting === 1 ? "item" : "items"} waiting` : "Nothing waiting"}
             action={{ href: `${ACCOUNTS_BASE}/debtors`, label: "Debtors" }}
           >
             {props.outstanding ? (
@@ -329,7 +286,7 @@ export function AccountsOverview(props: AccountsOverviewProps) {
             ) : null}
           </Card>
 
-          <Card id="aov-receipts" title="Recent payments" description="Latest receipts on the books." action={{ href: `${ACCOUNTS_BASE}/payments`, label: "All payments" }}>
+          <Card id="aov-receipts" title="Recent payments" description="Latest receipts." action={{ href: `${ACCOUNTS_BASE}/payments`, label: "All payments" }}>
             {props.payments.length ? (
               <ul className="aov-people">
                 {props.payments.map((row) => {
@@ -354,12 +311,12 @@ export function AccountsOverview(props: AccountsOverviewProps) {
               </ul>
             ) : (
               <Quiet icon="fa-money-bill-wave">
-                No payments yet. <Link href={`${ACCOUNTS_BASE}/payments/new`}>Record the first payment</Link>
+                No payments yet. <Link href={`${ACCOUNTS_BASE}/payments?record=1`}>Record one</Link>
               </Quiet>
             )}
           </Card>
 
-          <Card id="aov-activity" title="Activity" description="The latest changes on fee accounts.">
+          <Card id="aov-activity" title="Activity" description="Latest fee-account changes.">
             {props.activity.length ? (
               <ol className="aov-log">
                 {props.activity.map((row) => (
@@ -379,6 +336,56 @@ export function AccountsOverview(props: AccountsOverviewProps) {
               </ol>
             ) : (
               <Quiet icon="fa-clock-rotate-left">Nothing recorded yet.</Quiet>
+            )}
+          </Card>
+        </div>
+
+        <div className="aov-col aov-col-insight">
+          <Card id="aov-cash" title="Last 30 days" description="Fees received vs approved or paid spending." action={{ href: `${ACCOUNTS_BASE}/reports`, label: "Reports" }}>
+            <ul className="aov-cash">
+              <li className="is-in">
+                <span>Fees received</span>
+                <strong>{ugxShort(props.received30)}</strong>
+              </li>
+              <li className="is-out">
+                <span>Spending</span>
+                <strong>{ugxShort(props.spent30)}</strong>
+              </li>
+              <li className={net < 0 ? "is-down" : "is-net"}>
+                <span>Net</span>
+                <strong>{ugxShort(net)}</strong>
+              </li>
+            </ul>
+            {moved ? (
+              <ColumnChart columns={props.columns} label="Fees received and spending over 30 days" legend={["Fees received", "Spending"]} />
+            ) : (
+              <Quiet icon="fa-chart-column">No fees or spending in the last 30 days.</Quiet>
+            )}
+          </Card>
+
+          <Card id="aov-classes" title="Collected by class" description={props.termLabel ?? "This term"} action={{ href: `${ACCOUNTS_BASE}/reports`, label: "Reports" }}>
+            {classGroups.length || otherClasses.length ? (
+              <div className="aov-classes">
+                {classGroups.map((section) => (
+                  <div key={section.key}>
+                    <p className="aov-section">{section.label}</p>
+                    <ul>
+                      {section.rows.map((row) => (
+                        <ClassRow key={row.code} row={row} />
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+                {otherClasses.length ? (
+                  <ul>
+                    {otherClasses.map((row) => (
+                      <ClassRow key={row.code} row={row} />
+                    ))}
+                  </ul>
+                ) : null}
+              </div>
+            ) : (
+              <Quiet icon="fa-chalkboard">Generate term invoices to see collection by class.</Quiet>
             )}
           </Card>
         </div>

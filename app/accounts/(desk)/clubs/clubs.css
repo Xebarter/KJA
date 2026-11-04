@@ -1,7 +1,7 @@
 /* Clubs. Collection summary, catalogue, then this term's consents. */
 
 .clb-page { font-family: Roboto, "Segoe UI", system-ui, sans-serif; }
-.clb-page.acc-page > .admin-hero { margin-top: 0; margin-bottom: 0; }
+.clb-page.acc-page > .aov-head { margin-top: 0; margin-bottom: 0; }
 
 /* ---------------------------------------------------------------- summary */
 

@@ -1,6 +1,8 @@
 import Link from "next/link";
-import { PageHeader } from "@/components/admin/PageHeader";
+import { Suspense } from "react";
+import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
 import { ExpenseFinder, ExpenseTable, type ExpenseFinderFilters, type ExpenseListRow } from "@/components/accounts/ExpenseRegister";
+import { ExpensesAddButton, ExpensesAddPanel } from "@/components/accounts/ExpensesAdd";
 import { Progress, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
 import { groupOf } from "@/lib/accounts-agg";
@@ -136,33 +138,33 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
   const mineTotal = mineCount.count ?? 0;
   const tiles = [
     {
-      key: "all", label: "All expenses", icon: "fa-receipt", tone: "navy",
-      count: base, note: narrowed ? "In this view" : viewNote, on: !status && !mine,
+      key: "all", label: "All", icon: "fa-receipt", tone: "navy",
+      count: base, note: narrowed ? "Filtered view" : viewNote, on: !status && !mine,
       href: href({ status: "", mine: "" }),
     },
     {
-      key: "pending", label: "Awaiting approval", icon: "fa-hourglass-half", tone: pending.count ? "warn" : "ok",
-      count: pending.count, note: moneyNote(pending, "Nothing waiting"), on: status === "pending",
+      key: "pending", label: "To approve", icon: "fa-hourglass-half", tone: pending.count ? "warn" : "ok",
+      count: pending.count, note: moneyNote(pending, "None waiting"), on: status === "pending",
       href: href({ status: status === "pending" ? "" : "pending" }),
     },
     {
       key: "approved", label: "To pay", icon: "fa-circle-check", tone: "pay",
-      count: approved.count, note: moneyNote(approved, "Nothing approved"), on: status === "approved",
+      count: approved.count, note: moneyNote(approved, "None ready"), on: status === "approved",
       href: href({ status: status === "approved" ? "" : "approved" }),
     },
     {
       key: "paid", label: "Paid", icon: "fa-money-bill-wave", tone: "ok",
-      count: paid.count, note: moneyNote(paid, "None paid"), on: status === "paid",
+      count: paid.count, note: moneyNote(paid, "None yet"), on: status === "paid",
       href: href({ status: status === "paid" ? "" : "paid" }),
     },
     {
       key: "rejected", label: "Rejected", icon: "fa-ban", tone: rejected.count ? "stop" : "ok",
-      count: rejected.count, note: moneyNote(rejected, "None rejected"), on: status === "rejected",
+      count: rejected.count, note: moneyNote(rejected, "None"), on: status === "rejected",
       href: href({ status: status === "rejected" ? "" : "rejected" }),
     },
     {
-      key: "mine", label: "Only mine", icon: "fa-user", tone: "gold",
-      count: mineTotal, note: mineTotal ? "Raised by you" : "None of yours in this view", on: mine,
+      key: "mine", label: "Mine", icon: "fa-user", tone: "gold",
+      count: mineTotal, note: mineTotal ? "Raised by you" : "None in view", on: mine,
       href: href({ mine: mine ? "" : "1" }),
     },
   ];
@@ -200,20 +202,46 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
   });
   const filtered = Boolean(q || status || category || month || filters.month === "all" || mine || campus);
 
+  const editId = pick(params, "edit");
+  const editing = isUuid(editId)
+    ? await supabase.from("expenses").select("*").eq("id", editId).maybeSingle<Expense>()
+    : { data: null };
+  const expense = editing.data && editing.data.status === "pending" && (editing.data.requested_by === user.id || profile.role === "admin")
+    ? editing.data
+    : null;
+  const formSpentBy = Object.fromEntries([...spentBy].filter(([id]) => id));
+  const addButton = (
+    <Suspense fallback={<Link className="aov-btn is-primary" href={`${BASE}?add=1`}><i className="fa-solid fa-plus" aria-hidden="true" /> Add expense</Link>}>
+      <ExpensesAddButton />
+    </Suspense>
+  );
+  const addPanel = (
+    <Suspense fallback={null}>
+      <ExpensesAddPanel
+        categories={categories}
+        campuses={campuses}
+        expense={expense}
+        spentBy={formSpentBy}
+      />
+    </Suspense>
+  );
+
   return (
-    <div className="app-page ofc-page acc-page">
-      <PageHeader
+    <div className="app-page ofc-page acc-page enr-page exp-page">
+      <AccountsPageHeader
         kicker="Spending"
         icon="fa-receipt"
         title="Expenses"
-        description="Raise a spending request, get it approved by a second person, then mark it paid. Attach the receipt so the books always balance."
+        description="Raise a request, get approval, then mark it paid. Attach a receipt when you can."
         actions={
           <>
-            <Link className="admin-hero-btn is-primary" href={`${BASE}/new`}><i className="fa-solid fa-plus" aria-hidden="true" /> Add an expense</Link>
-            <Link className="admin-hero-btn" href={`${ACCOUNTS_BASE}/budgeting`}><i className="fa-solid fa-scale-balanced" aria-hidden="true" /> Budgets</Link>
+            {addButton}
+            <Link className="aov-btn" href={`${ACCOUNTS_BASE}/budgeting`}><i className="fa-solid fa-scale-balanced" aria-hidden="true" /> Budgets</Link>
           </>
         }
       />
+
+      {addPanel}
 
       <nav className="ofc-reg-summary" aria-label="Expense summary and quick filters">
         {tiles.map((tile) => (
@@ -238,10 +266,10 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         <section className="admin-card acc-budgets">
           <header>
             <div>
-              <h2>Budgets for {monthLabel(budgetMonth)}</h2>
-              <p>Approved and paid spending against each monthly budget.</p>
+              <h2>{monthLabel(budgetMonth)} budgets</h2>
+              <p>Approved and paid spending against each monthly plan.</p>
             </div>
-            <Link href={`${ACCOUNTS_BASE}/budgeting?month=${budgetMonth}`}>Open budgeting</Link>
+            <Link className="exp-text-link" href={`${ACCOUNTS_BASE}/budgeting?month=${budgetMonth}`}>Manage budgets</Link>
           </header>
           <ul>
             {budgets.map((entry) => {
@@ -280,21 +308,21 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
             <h2 id="expense-results">
               {total.toLocaleString("en-GB")} expense{total === 1 ? "" : "s"}
             </h2>
-            <p>{scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : "Showing every expense, most recent first"}</p>
+            <p>{scope ? scope.charAt(0).toUpperCase() + scope.slice(1) : "Most recent first"}</p>
           </div>
           <div className="acc-exp-aside">
             {needsYou ? (
-              <Link href={href({ status: "pending", mine: "" })} scroll={false}>
+              <Link className="exp-aside-action" href={href({ status: "pending", mine: "" })} scroll={false}>
                 <i className="fa-solid fa-hourglass-half" aria-hidden="true" />
-                {needsYou.toLocaleString("en-GB")} waiting for you to approve
+                {needsYou.toLocaleString("en-GB")} to approve
               </Link>
             ) : null}
             {month === budgetMonth ? (
-              <p><i className="fa-solid fa-wallet" aria-hidden="true" /> {ugx(spentMonth)} spent in {monthLabel(budgetMonth)}</p>
+              <p><i className="fa-solid fa-wallet" aria-hidden="true" /> {ugx(spentMonth)} in {monthLabel(budgetMonth)}</p>
             ) : (
               <Link href={href({ month: budgetMonth })} scroll={false}>
                 <i className="fa-solid fa-wallet" aria-hidden="true" />
-                {ugx(spentMonth)} spent in {monthLabel(budgetMonth)}
+                {ugx(spentMonth)} in {monthLabel(budgetMonth)}
               </Link>
             )}
           </div>
@@ -303,11 +331,11 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
         {rows.length ? (
           <ExpenseTable rows={listRows} />
         ) : (
-          <Empty icon={filtered ? "fa-face-meh" : "fa-folder-open"} title={filtered ? "No expenses match" : "No expenses yet"}>
+          <Empty icon={filtered ? "fa-face-meh" : "fa-folder-open"} title={filtered ? "No matching expenses" : "No expenses yet"}>
             {filtered ? (
-              <>Nothing matches these filters. <Link href={BASE}>Clear them</Link> to see every expense.</>
+              <>Try clearing a filter, or <Link href={BASE}>show all</Link>.</>
             ) : (
-              <Link href={`${BASE}/new`}>Add the first expense</Link>
+              <Link href={`${BASE}?add=1`}>Add expense</Link>
             )}
           </Empty>
         )}

@@ -74,7 +74,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
         actions={
           <>
             {!isVoid ? (
-              <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/payments/new?student=${invoice.student_id}&term=${invoice.term_id}`}>
+              <Link className="admin-hero-btn is-primary" href={`${ACCOUNTS_BASE}/payments?record=1&student=${invoice.student_id}&term=${invoice.term_id}`}>
                 <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Record payment
               </Link>
             ) : null}

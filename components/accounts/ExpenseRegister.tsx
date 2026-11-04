@@ -102,11 +102,11 @@ export function ExpenseFinder({ filters, categories, campuses, months }: {
                 setQ("");
               }
             }}
-            placeholder="Start typing a payee, description or reference"
+            placeholder="Payee, description, or reference"
             autoComplete="off"
             aria-busy={searching}
           />
-          <button type="submit" className="admin-btn">Search</button>
+          <button type="submit" className="exp-search-btn">Search</button>
         </form>
         <label className="ofc-finder-field is-inline">
           <span>Month</span>

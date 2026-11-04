@@ -44,7 +44,7 @@ export function ExpenseActions({ id, status, refNo, amount, payee, canDecide, ca
       ) : null}
       {status === "pending" && canEdit ? (
         <>
-          <a className="admin-btn admin-btn-ghost" href={`${ACCOUNTS_BASE}/expenses/new?edit=${id}`}><i className="fa-solid fa-pen" aria-hidden="true" /> Edit</a>
+          <a className="admin-btn admin-btn-ghost" href={`${ACCOUNTS_BASE}/expenses?add=1&edit=${id}`}><i className="fa-solid fa-pen" aria-hidden="true" /> Edit</a>
           <button
             type="button"
             className="admin-btn admin-btn-ghost"
