@@ -12,10 +12,9 @@
     "lib": ["ES2022"],
     "types": ["node"],
     "outDir": "./out",
-    "baseUrl": ".",
     "paths": {
-      "@shared/*": ["src/shared/*"],
-      "@proxy/*": ["src/proxy/*"]
+      "@shared/*": ["./src/shared/*"],
+      "@proxy/*": ["./src/proxy/*"]
     }
   },
   "include": [

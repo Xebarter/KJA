@@ -1,8 +1,9 @@
 {
   "name": "kja-desktop",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "KJA Staff Desktop - Electron shell over the Next.js office desks",
+  "author": "Kampala Junior Academy",
   "main": "./out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev",
@@ -38,6 +39,7 @@
   "build": {
     "appId": "ug.kja.desktop",
     "productName": "KJA Staff Desktop",
+    "copyright": "Copyright © Kampala Junior Academy",
     "afterPack": "./scripts/after-pack.cjs",
     "directories": {
       "output": "release"

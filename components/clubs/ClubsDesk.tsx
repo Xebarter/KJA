@@ -990,7 +990,17 @@ export function ClubRegister({
   }, [rows, filters.classCode]);
 
   const campuses = useMemo(
-    () => [...new Set(rows.map((row) => row.campus?.trim()).filter((campus): campus is string => Boolean(campus) && isClubCampus(campus)))].sort((a, b) => a.localeCompare(b)),
+    () =>
+      [
+        ...new Set(
+          rows
+            .map((row) => row.campus?.trim())
+            .filter((campus): campus is string => {
+              if (!campus) return false;
+              return isClubCampus(campus);
+            }),
+        ),
+      ].sort((a, b) => a.localeCompare(b)),
     [rows],
   );
 

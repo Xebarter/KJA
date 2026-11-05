@@ -56,6 +56,7 @@ export function createSplashWindow(): BrowserWindow {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false,
+      devTools: !app.isPackaged,
     },
   });
 
@@ -107,6 +108,7 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
       sandbox: false,
       partition: SESSION_PARTITION,
       spellcheck: true,
+      devTools: !app.isPackaged,
     },
   });
 
@@ -132,6 +134,7 @@ export async function createDeskWindow(): Promise<BrowserWindow> {
             sandbox: false,
             partition: SESSION_PARTITION,
             spellcheck: true,
+            devTools: !app.isPackaged,
           },
         },
       };

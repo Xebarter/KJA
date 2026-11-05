@@ -62,8 +62,10 @@ type Pupil = {
 };
 
 function asFilters(input?: ClubRollFilters | readonly string[] | null): ClubRollFilters {
-  if (Array.isArray(input) || input == null) return { clubIds: input ?? null };
-  return input;
+  if (input == null) return { clubIds: null };
+  // `readonly string[]` is not narrowed away by Array.isArray's false branch in TS.
+  if (Array.isArray(input)) return { clubIds: input };
+  return input as ClubRollFilters;
 }
 
 /** `filters.clubIds` limits the roll to those clubs. Omit it to include every club that has consent. */

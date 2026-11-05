@@ -47,7 +47,8 @@ npm run dev
 | --- | --- |
 | `npm run dev` | Electron + proxy + Next (development) |
 | `npm test` | Proxy / outbox unit and integration tests |
-| `npm run pack` | Standalone Next (`KJA_DESKTOP=1`) + Electron Windows installer |
+| `npm run pack` | Production Windows installer (`KJA-Staff-Desktop-Setup-<version>.exe` under `release/`) |
+| `npm run typecheck` | Typecheck Electron main / preload / renderer |
 
 ## Behaviour
 
@@ -68,7 +69,9 @@ npm run dev
 5. An `afterPack` hook copies `standalone/node_modules` (electron-builder drops root `node_modules`) and CSS/JS into `.next-desktop/static` (custom `distDir`).
 6. Cold start shows an instant native splash; the first open after install still waits on Next.js, then later clicks reuse the warm desks process.
 7. Do **not** run website `next dev` and Desktop App at the same time against a shared cache — they use separate folders (`.next` vs `.next-desktop`).
-8. Installer output is under `Desktop App/release/`.
+8. Installer output is under `Desktop App/release/` (`KJA-Staff-Desktop-Setup-<version>.exe`).
+9. Close any running Staff Desktop (and free `release/win-unpacked`) before packing — Windows locks `app.asar` otherwise.
+10. Apply pending Supabase SQL (through `0071_system_logs.sql`) on the live project before relying on Logs offline snapshots.
 
 ## Website hooks (desktop-gated)
 

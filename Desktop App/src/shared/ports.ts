@@ -64,13 +64,20 @@ export const CRITICAL_HYDRATE_PATHS = [
   "/rest/v1/invoices?select=*&order=issued_on.desc.nullslast,created_at.desc&limit=800",
   "/rest/v1/payments?select=*&order=paid_on.desc.nullslast,created_at.desc&limit=800",
   "/rest/v1/student_balances?select=student_id,full_name,student_number,class_code,stream,campus,status,balance,family_id,class_order&order=class_order.desc.nullslast&limit=2500",
-  // Clubs
-  "/rest/v1/clubs?select=id,title,campus,meeting,section,active,published&order=title.asc",
+  // Clubs desk
+  "/rest/v1/clubs?select=id,title,campus,meeting,section,category,fee_amount,active,published,sort_order&order=sort_order.asc,title.asc",
   "/rest/v1/club_consents?select=id,club_id,student_id,consented_at,withdrawn_at&withdrawn_at=is.null&order=consented_at.desc&limit=2000",
-  // Admin CMS light lists
+  "/rest/v1/club_schedules?select=id,club_id,weekday,start_time,end_time,venue,campus,notes,active&active=eq.true&order=weekday.asc,start_time.asc&limit=1000",
+  "/rest/v1/club_leaders?select=id,club_id,profile_id,role,phone,active&active=eq.true&limit=500",
+  // Store / Library light catalogues
+  "/rest/v1/store_categories?select=id,name,sort_order,active&order=sort_order.asc",
+  "/rest/v1/store_items?select=id,sku,name,unit,qty_on_hand,reorder_level,active&active=eq.true&order=name.asc&limit=1500",
+  "/rest/v1/library_titles?select=id,title,authors,category&order=title.asc&limit=1500",
+  // Admin CMS + system trail
   "/rest/v1/campuses?select=id,slug,title,published&order=slug.asc",
   "/rest/v1/vacancies?select=id,title,published,closes_on&order=closes_on.desc&limit=100",
-  "/rest/v1/stories?select=id,slug,title,published,published_at&order=published_at.desc&limit=100",
+  "/rest/v1/news?select=id,slug,title,published,published_at&order=published_at.desc&limit=80",
+  "/rest/v1/system_logs?select=id,source,kind,severity,body,created_at,actor_id&order=created_at.desc&limit=80",
 ] as const;
 
 /**
