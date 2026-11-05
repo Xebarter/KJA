@@ -1,32 +1,47 @@
 /*
  * Printable club roll. Each club with at least one consent starts on its own page,
- * under the school letterhead, with expected income set against what was collected.
+ * under a light mesh letterhead, with expected income set against what was collected.
  */
-import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage, type RGB } from "pdf-lib";
+import {
+  PDFDocument,
+  StandardFonts,
+  clip,
+  endPath,
+  popGraphicsState,
+  pushGraphicsState,
+  rectangle,
+  rgb,
+  type PDFFont,
+  type PDFImage,
+  type PDFPage,
+  type RGB,
+} from "pdf-lib";
 import { amount, ugx } from "@/lib/accounts-format";
 import type { School } from "@/lib/accounts-pdf";
 import type { ClubRoll, ClubRollLearner, ClubRollSheet } from "@/lib/club-roll";
 
 const NAVY = rgb(0.098, 0.137, 0.169);
-const NAVY_SOFT = rgb(0.16, 0.21, 0.25);
 const RED = rgb(0.894, 0.141, 0.208);
 const GOLD = rgb(0.992, 0.639, 0.106);
-const GOLD_DEEP = rgb(0.604, 0.357, 0);
+const GOLD_DEEP = rgb(0.55, 0.34, 0.05);
+const GOLD_SOFT = rgb(0.86, 0.72, 0.42);
 const INK = rgb(0.098, 0.137, 0.169);
 const MUTED = rgb(0.435, 0.396, 0.353);
 const LINE = rgb(0.91, 0.87, 0.79);
+const PAPER = rgb(1, 0.992, 0.976);
+const CREAM = rgb(0.992, 0.976, 0.945);
 const TINT = rgb(0.992, 0.976, 0.945);
 const GOLD_TINT = rgb(1, 0.957, 0.882);
 const GREEN = rgb(0.09, 0.502, 0.239);
 const GREEN_SOFT = rgb(0.89, 0.961, 0.91);
 const WHITE = rgb(1, 1, 1);
-const SOFT = rgb(0.78, 0.8, 0.82);
+const HAIR = rgb(0.93, 0.9, 0.86);
 
 const W = 595.28;
 const H = 841.89;
 const M = 36;
 const CW = W - M * 2;
-const FOOT = 46;
+const FOOT = 42;
 const LIMIT = FOOT + 28;
 
 const COLS = [
@@ -57,6 +72,10 @@ function fit(text: string, font: PDFFont, size: number, width: number) {
 
 function rounded(w: number, h: number, r: number) {
   return `M${r},0 H${w - r} Q${w},0 ${w},${r} V${h - r} Q${w},${h} ${w - r},${h} H${r} Q0,${h} 0,${h - r} V${r} Q0,0 ${r},0 Z`;
+}
+
+function trackedWidth(value: string, font: PDFFont, size: number, gap: number) {
+  return font.widthOfTextAtSize(value, size) + gap * Math.max(0, value.length - 1);
 }
 
 function totalsOf(club: ClubRollSheet) {
@@ -111,8 +130,6 @@ export async function buildClubRollPdf(roll: ClubRoll, school: School, crestByte
     const clean = latin(value);
     page.drawText(clean, { x: cx - font.widthOfTextAtSize(clean, size) / 2, y: yy, size, font, color });
   };
-  const spacedWidth = (value: string, size: number, font: PDFFont, gap: number) =>
-    font.widthOfTextAtSize(value, size) + gap * Math.max(0, value.length - 1);
   const spaced = (value: string, x: number, yy: number, size: number, font: PDFFont, color: RGB, gap: number) => {
     let at = x;
     for (const char of latin(value)) {
@@ -130,70 +147,143 @@ export async function buildClubRollPdf(roll: ClubRoll, school: School, crestByte
     });
   };
 
+  const drawMesh = (bandBottom: number, bandH: number) => {
+    page.drawRectangle({ x: 0, y: bandBottom, width: W, height: bandH, color: PAPER });
+    page.pushOperators(pushGraphicsState(), rectangle(0, bandBottom, W, bandH), clip(), endPath());
+    const step = 11;
+    let index = 0;
+    for (let x = -bandH; x <= W + bandH; x += step, index += 1) {
+      const fine = index % 2 !== 0;
+      page.drawLine({
+        start: { x, y: bandBottom },
+        end: { x: x + bandH, y: bandBottom + bandH },
+        thickness: fine ? 0.22 : 0.35,
+        color: GOLD,
+        opacity: fine ? 0.09 : 0.18,
+      });
+      page.drawLine({
+        start: { x, y: bandBottom + bandH },
+        end: { x: x + bandH, y: bandBottom },
+        thickness: fine ? 0.22 : 0.35,
+        color: GOLD,
+        opacity: fine ? 0.09 : 0.18,
+      });
+    }
+    page.pushOperators(popGraphicsState());
+  };
+
   const footer = () => {
-    text(fit(`Club roll  ·  ${roll.termLabel}  ·  Paid is 0 until the fee is received`, italic, 8, CW - 80), M, FOOT + 16, 8, italic, MUTED);
-    right(`Page ${pageNo}`, W - M, FOOT + 16, 8, bold, MUTED);
-    page.drawRectangle({ x: 0, y: FOOT, width: W, height: 2.5, color: GOLD });
-    page.drawRectangle({ x: 0, y: 0, width: W, height: FOOT, color: NAVY });
-    const contact = [school.phone, school.email, "kja.ug"].filter(Boolean).join("    |    ");
-    centered(fit(contact, bold, 8, CW), W / 2, 26, 8, bold, WHITE);
-    if (school.address) centered(fit(school.address, regular, 7.5, CW), W / 2, 13, 7.5, regular, SOFT);
+    page.drawRectangle({ x: 0, y: FOOT + 8, width: W, height: 0.7, color: HAIR });
+    text(fit(`Club roll  ·  ${roll.termLabel}  ·  Paid is 0 until the fee is received`, italic, 7.5, CW - 72), M, FOOT + 18, 7.5, italic, MUTED);
+    right(`Page ${pageNo}`, W - M, FOOT + 18, 7.5, bold, MUTED);
+    page.drawRectangle({ x: 0, y: FOOT, width: W, height: 2.2, color: GOLD });
+    page.drawRectangle({ x: 0, y: 0, width: W, height: FOOT, color: PAPER });
+    page.pushOperators(pushGraphicsState(), rectangle(0, 0, W, FOOT), clip(), endPath());
+    const step = 10;
+    let index = 0;
+    for (let x = -FOOT; x <= W + FOOT; x += step, index += 1) {
+      const fine = index % 2 !== 0;
+      page.drawLine({
+        start: { x, y: 0 },
+        end: { x: x + FOOT, y: FOOT },
+        thickness: fine ? 0.18 : 0.28,
+        color: GOLD,
+        opacity: fine ? 0.07 : 0.14,
+      });
+      page.drawLine({
+        start: { x, y: FOOT },
+        end: { x: x + FOOT, y: 0 },
+        thickness: fine ? 0.18 : 0.28,
+        color: GOLD,
+        opacity: fine ? 0.07 : 0.14,
+      });
+    }
+    page.pushOperators(popGraphicsState());
+    const contact = [school.phone, school.email, "kja.ug"].filter(Boolean).join("    ·    ");
+    centered(fit(contact, bold, 7.5, CW), W / 2, 24, 7.5, bold, NAVY);
+    if (school.address) centered(fit(school.address, regular, 7, CW), W / 2, 12, 7, regular, MUTED);
   };
 
   const watermark = () => {
     if (!crest) return;
-    const size = 300;
-    page.drawImage(crest, { x: (W - size) / 2, y: H / 2 - size / 2 - 40, width: size, height: size, opacity: 0.04 });
+    const size = 280;
+    page.drawImage(crest, { x: (W - size) / 2, y: H / 2 - size / 2 - 36, width: size, height: size, opacity: 0.035 });
   };
 
   const newPage = () => {
     page = pdf.addPage([W, H]);
     pageNo += 1;
+    page.drawRectangle({ x: 0, y: 0, width: W, height: H, color: WHITE });
     watermark();
     footer();
   };
 
   const letterhead = () => {
-    const band = 118;
-    page.drawRectangle({ x: 0, y: H - band, width: W, height: band, color: NAVY });
-    page.drawRectangle({ x: W - 176, y: H - band, width: 176, height: band, color: NAVY_SOFT });
-    page.drawRectangle({ x: 0, y: H - band - 4, width: W, height: 4, color: GOLD });
-    page.drawRectangle({ x: 0, y: H - band - 5.5, width: W, height: 1.5, color: RED });
-    const crestCx = M + 36;
-    const crestCy = H - band / 2 + 2;
-    page.drawCircle({ x: crestCx, y: crestCy, size: 32, color: WHITE, borderColor: GOLD, borderWidth: 2 });
-    if (crest) page.drawImage(crest, { x: crestCx - 22, y: crestCy - 22, width: 44, height: 44 });
-    const nameX = M + 80;
-    spaced("KAMPALA JUNIOR ACADEMY", nameX, H - 44, 11.5, bold, WHITE, 0.7);
-    text("Accounts Office", nameX, H - 62, 9, bold, GOLD);
-    if (school.address) text(fit(school.address, regular, 8, 230), nameX, H - 78, 8, regular, SOFT);
+    const top = 8;
+    const band = 108;
+    const bandTop = H - top;
+    const bandBottom = bandTop - band;
+
+    drawMesh(bandBottom, band);
+    page.drawRectangle({ x: 0, y: bandTop - 2.4, width: W, height: 2.4, color: GOLD });
+    page.drawRectangle({ x: 0, y: bandBottom - 2.2, width: W, height: 2.2, color: GOLD });
+    page.drawRectangle({ x: 0, y: bandBottom - 3.8, width: W, height: 0.65, color: RED });
+
+    const badge = 58;
+    const crestCx = M + badge / 2;
+    const crestCy = bandBottom + band / 2;
+    page.drawCircle({ x: crestCx, y: crestCy, size: badge / 2 + 1.6, color: WHITE, borderColor: GOLD, borderWidth: 1.35 });
+    page.drawCircle({ x: crestCx, y: crestCy, size: badge / 2 - 1.2, color: CREAM, borderColor: GOLD_SOFT, borderWidth: 0.6 });
+    if (crest) {
+      const inset = 8;
+      page.drawImage(crest, {
+        x: crestCx - (badge - inset) / 2,
+        y: crestCy - (badge - inset) / 2,
+        width: badge - inset,
+        height: badge - inset,
+      });
+    }
+
+    const nameX = M + badge + 16;
+    const established = "ESTABLISHED 1993";
+    spaced(established, nameX, crestCy + 28, 6.5, bold, GOLD_DEEP, 0.85);
+    spaced("KAMPALA JUNIOR ACADEMY", nameX, crestCy + 10, 12, bold, NAVY, 0.55);
+    text("Clubs Desk", nameX, crestCy - 6, 9, bold, GOLD_DEEP);
+    if (school.address) text(fit(school.address, regular, 7.5, 250), nameX, crestCy - 20, 7.5, regular, MUTED);
     const contact = [school.phone, school.email].filter(Boolean).join("   ·   ");
-    if (contact) text(fit(contact, regular, 8, 230), nameX, H - 92, 8, regular, SOFT);
+    if (contact) text(fit(contact, regular, 7.5, 250), nameX, crestCy - 32, 7.5, regular, MUTED);
+
     const tag = "CLUB ROLL";
-    spaced(tag, W - M - spacedWidth(tag, 8, bold, 1.5), H - 46, 8, bold, GOLD, 1.5);
-    right(fit(roll.termLabel, bold, 11, 150), W - M, H - 66, 11, bold, WHITE);
-    right(roll.generatedOn, W - M, H - 82, 8, regular, SOFT);
-    y = H - band - 28;
+    const tagW = trackedWidth(tag, bold, 7.5, 1.4);
+    spaced(tag, W - M - tagW, crestCy + 18, 7.5, bold, GOLD_DEEP, 1.4);
+    right(fit(roll.termLabel, bold, 11, 150), W - M, crestCy - 2, 11, bold, NAVY);
+    right(roll.generatedOn, W - M, crestCy - 16, 7.5, regular, MUTED);
+
+    y = bandBottom - 26;
   };
 
   const slim = (title: string) => {
-    page.drawRectangle({ x: 0, y: H - 32, width: W, height: 32, color: NAVY });
-    page.drawRectangle({ x: 0, y: H - 36, width: W, height: 4, color: GOLD });
-    const nameX = M + (crest ? 24 : 0);
-    if (crest) page.drawImage(crest, { x: M, y: H - 26, width: 16, height: 16 });
-    text("KAMPALA JUNIOR ACADEMY", nameX, H - 21, 8, bold, WHITE);
-    right(fit(`${title}  ·  continued`, bold, 8, 250), W - M, H - 21, 8, bold, GOLD);
-    y = H - 54;
+    const band = 34;
+    const bandBottom = H - band;
+    drawMesh(bandBottom, band);
+    page.drawRectangle({ x: 0, y: H - 2.2, width: W, height: 2.2, color: GOLD });
+    page.drawRectangle({ x: 0, y: bandBottom - 1.6, width: W, height: 1.6, color: GOLD });
+    const nameX = M + (crest ? 22 : 0);
+    if (crest) page.drawImage(crest, { x: M, y: H - 24, width: 14, height: 14 });
+    text("KAMPALA JUNIOR ACADEMY", nameX, H - 20, 8, bold, NAVY);
+    right(fit(`${title}  ·  continued`, bold, 8, 250), W - M, H - 20, 8, bold, GOLD_DEEP);
+    y = bandBottom - 18;
   };
 
   const tableHead = () => {
-    page.drawSvgPath(`M8,0 H${CW - 8} Q${CW},0 ${CW},8 V22 H0 V8 Q0,0 8,0 Z`, { x: M, y, color: NAVY });
+    page.drawSvgPath(`M8,0 H${CW - 8} Q${CW},0 ${CW},8 V24 H0 V8 Q0,0 8,0 Z`, { x: M, y, color: CREAM });
+    page.drawRectangle({ x: M, y: y - 24, width: CW, height: 1.1, color: GOLD });
     COLS.forEach((col, index) => {
       const label = col.label.toUpperCase();
-      if (col.right) right(label, colX[index] + col.width - 8, y - 15, 7, bold, WHITE);
-      else text(label, colX[index] + 8, y - 15, 7, bold, WHITE);
+      if (col.right) right(label, colX[index] + col.width - 8, y - 15, 7, bold, MUTED);
+      else text(label, colX[index] + 8, y - 15, 7, bold, MUTED);
     });
-    y -= 22;
+    y -= 24;
   };
 
   const continueSheet = (title: string) => {
@@ -228,19 +318,19 @@ export async function buildClubRollPdf(roll: ClubRoll, school: School, crestByte
     if (y - block < LIMIT) {
       newPage();
       slim(club.title);
-      y = H - 54;
+      y = H - 52;
       tableHead();
     }
-    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1.1, color: NAVY });
-    page.drawLine({ start: { x: M, y: y - 2.2 }, end: { x: W - M, y: y - 2.2 }, thickness: 0.35, color: NAVY });
-    y -= 2.2;
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: GOLD_SOFT });
+    page.drawLine({ start: { x: M, y: y - 1.8 }, end: { x: W - M, y: y - 1.8 }, thickness: 0.35, color: GOLD });
+    y -= 1.8;
     const totalH = 24;
     page.drawRectangle({ x: M, y: y - totalH, width: CW, height: totalH, color: GOLD_TINT });
     text("Total", colX[1] + 8, y - 16, 9, bold, INK);
     text(`${club.learners.length} ${club.learners.length === 1 ? "learner" : "learners"}`, colX[2] + 8, y - 16, 8, regular, MUTED);
     right(amount(figures.expected), colX[4] + COLS[4].width - 8, y - 16, 9, bold, INK);
     right(amount(figures.collected), colX[5] + COLS[5].width - 8, y - 16, 9, bold, GREEN);
-    page.drawLine({ start: { x: M, y: y - totalH }, end: { x: W - M, y: y - totalH }, thickness: 1.1, color: NAVY });
+    page.drawLine({ start: { x: M, y: y - totalH }, end: { x: W - M, y: y - totalH }, thickness: 1, color: GOLD_SOFT });
     y -= totalH + 12;
 
     const balance = figures.balance;
@@ -278,14 +368,14 @@ export async function buildClubRollPdf(roll: ClubRoll, school: School, crestByte
     newPage();
     letterhead();
     const figures = totalsOf(club);
-    text(club.category.toUpperCase(), M, y, 8, bold, GOLD_DEEP);
-    right(`Club ${index + 1} of ${roll.clubs.length}`, W - M, y, 8, bold, MUTED);
-    y -= 20;
-    text(fit(club.title, bold, 20, CW - 8), M, y, 20, bold, INK);
-    y -= 16;
+    text(club.category.toUpperCase(), M, y, 7.5, bold, GOLD_DEEP);
+    right(`Club ${index + 1} of ${roll.clubs.length}`, W - M, y, 7.5, bold, MUTED);
+    y -= 18;
+    text(fit(club.title, bold, 19, CW - 8), M, y, 19, bold, INK);
+    y -= 15;
     const meta = `${club.audience}   ·   ${ugx(club.fee)} a learner   ·   ${club.learners.length} consented`;
     text(fit(meta, regular, 9, CW), M, y, 9, regular, MUTED);
-    y -= 18;
+    y -= 16;
 
     const gap = 8;
     const cardW = (CW - gap * 2) / 3;
@@ -302,9 +392,9 @@ export async function buildClubRollPdf(roll: ClubRoll, school: School, crestByte
       text(fit(card[1], bold, 13, cardW - 20), x + 10, y - 31, 13, bold, card[5]);
       text(fit(card[2], regular, 7.5, cardW - 20), x + 10, y - 44, 7.5, regular, MUTED);
     });
-    y -= cardH + 16;
+    y -= cardH + 14;
     text("Amounts in Uganda shillings. Paid is 0 when nothing has been received this term.", M, y, 8, italic, MUTED);
-    y -= 14;
+    y -= 13;
     tableHead();
   };
 

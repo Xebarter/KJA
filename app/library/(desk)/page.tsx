@@ -18,6 +18,7 @@ export default async function LibraryOverviewPage() {
   const auth = await requireLibrary();
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
   const today = todayKampala();
   const weekAgo = (() => {
     const [y, m, d] = today.split("-").map(Number);
@@ -41,13 +42,14 @@ export default async function LibraryOverviewPage() {
     returnedWeek,
     topLoansPack,
   ] = await Promise.all([
-    auth.supabase.from("library_loans").select("id", { count: "exact", head: true }).eq("library_id", libraryId).is("returned_at", null),
+    auth.supabase.from("library_loans").select("id", { count: "exact", head: true }).eq("library_id", libraryId).eq("campus", campus).is("returned_at", null),
     auth.supabase
       .from("library_loans")
       .select(
         "id, due_at, borrower_kind, library_items(accession, barcode, library_titles(title, authors)), students(id, full_name, photo_path, class_code, stream), teaching_staff(id, full_name, photo_path)",
       )
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .is("returned_at", null)
       .lt("due_at", today)
       .order("due_at")
@@ -56,50 +58,59 @@ export default async function LibraryOverviewPage() {
       .from("library_reservations")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .eq("status", "ready"),
     auth.supabase
       .from("library_reservations")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .eq("status", "queued"),
     auth.supabase
       .from("library_fines")
       .select("id, amount", { count: "exact" })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .is("paid_at", null)
       .is("waived_at", null),
     auth.supabase.from("library_titles").select("id", { count: "exact", head: true }),
-    auth.supabase.from("library_items").select("id", { count: "exact", head: true }).eq("library_id", libraryId).neq("status", "withdrawn"),
+    auth.supabase.from("library_items").select("id", { count: "exact", head: true }).eq("library_id", libraryId).eq("campus", campus).neq("status", "withdrawn"),
     auth.supabase
       .from("library_items")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .eq("status", "available"),
     auth.supabase
       .from("library_items")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .eq("status", "on_loan"),
     auth.supabase
       .from("library_items")
       .select("id, accession, barcode, library_titles(title, authors)", { count: "exact" })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .eq("status", "missing")
       .limit(5),
     auth.supabase
       .from("library_loans")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .gte("issued_at", `${weekAgo}T00:00:00+03:00`),
     auth.supabase
       .from("library_loans")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .gte("returned_at", `${weekAgo}T00:00:00+03:00`),
     auth.supabase
       .from("library_loans")
       .select("id, library_items(title_id, library_titles(id, title, authors))")
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .gte("issued_at", `${weekAgo}T00:00:00+03:00`)
       .limit(200),
   ]);

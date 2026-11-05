@@ -89,20 +89,23 @@ class TeacherRepository {
 
     final classes = <ClassPost>[];
     final subjects = <SubjectPost>[];
+    final rollKeys = <String>{};
     if (term != null) {
       final classRows = await _db
           .from('class_teachers')
-          .select('class_code, stream')
+          .select('class_code, stream, campus')
           .eq('term_id', term.id)
           .eq('staff_id', staffId);
       for (final row in _maps(classRows)) {
         final code = asText(row['class_code']);
         final stream = asText(row['stream']);
+        final campus = asText(row['campus'], 'Kitante');
+        rollKeys.add('$campus|$code|$stream');
         classes.add(
           ClassPost(
             classCode: code,
             stream: stream,
-            label: classLabelOf(code, stream),
+            label: '$campus · ${classLabelOf(code, stream)}',
           ),
         );
       }
@@ -110,12 +113,14 @@ class TeacherRepository {
 
       final subjectRows = await _db
           .from('subject_teachers')
-          .select('class_code, stream, subject_id, subjects(name)')
+          .select('class_code, stream, campus, subject_id, subjects(name)')
           .eq('term_id', term.id)
           .eq('staff_id', staffId);
       for (final row in _maps(subjectRows)) {
         final code = asText(row['class_code']);
         final stream = asText(row['stream']);
+        final campus = asText(row['campus'], 'Kitante');
+        rollKeys.add('$campus|$code|$stream');
         final subjectId = asText(row['subject_id']);
         final subjectName = embedName(row['subjects']);
         subjects.add(
@@ -132,11 +137,6 @@ class TeacherRepository {
     }
 
     final allowedPosts = {for (final post in subjects) post.key};
-    // Only the classes this teacher leads or teaches - not the whole school roll.
-    final rollKeys = <String>{
-      for (final post in classes) '${post.classCode}|${post.stream}',
-      for (final post in subjects) '${post.classCode}|${post.stream}',
-    };
     final pupils = <Pupil>[];
     if (rollKeys.isNotEmpty) {
       final rollPosts = <ClassPost>[
@@ -153,16 +153,23 @@ class TeacherRepository {
             ),
       ];
       // Prefer a narrow or-filter so we do not download the whole school.
+      final siteByPost = <String, String>{};
+      for (final key in rollKeys) {
+        final parts = key.split('|');
+        if (parts.length >= 3) {
+          siteByPost['${parts[1]}|${parts[2]}'] = parts[0];
+        }
+      }
       final orFilter = [
         for (final post in rollPosts)
-          'and(class_code.eq.${post.classCode},stream.eq.${post.stream})',
+          'and(class_code.eq.${post.classCode},stream.eq.${post.stream},campus.eq.${siteByPost['${post.classCode}|${post.stream}'] ?? 'Kitante'})',
       ].join(',');
       dynamic pupilRows;
       try {
         pupilRows = await _db
             .from('students')
             .select(
-              'id, full_name, student_number, class_code, stream, profile_id, photo_path, status',
+              'id, full_name, student_number, class_code, stream, campus, profile_id, photo_path, status',
             )
             .eq('status', 'active')
             .or(orFilter)
@@ -171,7 +178,7 @@ class TeacherRepository {
         pupilRows = await _db
             .from('students')
             .select(
-              'id, full_name, student_number, class_code, stream, profile_id, photo_path, status',
+              'id, full_name, student_number, class_code, stream, campus, profile_id, photo_path, status',
             )
             .eq('status', 'active')
             .order('full_name');
@@ -179,7 +186,8 @@ class TeacherRepository {
       for (final row in _maps(pupilRows)) {
         final code = asText(row['class_code']);
         final stream = asText(row['stream']);
-        if (!rollKeys.contains('$code|$stream')) continue;
+        final campus = asText(row['campus'], 'Kitante');
+        if (!rollKeys.contains('$campus|$code|$stream')) continue;
         pupils.add(
           Pupil(
             id: asText(row['id']),

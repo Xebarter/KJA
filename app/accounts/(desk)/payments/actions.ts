@@ -1,9 +1,12 @@
 "use server";
 
+import { randomBytes } from "crypto";
 import { ACCOUNTS_BASE, logAccounts, refreshAccounts, requireAccounts } from "@/lib/accounts";
 import { allocateFamilyPayment, type FamilyPayBucket, type FamilyPaySlice } from "@/lib/accounts-family-pay";
 import { isPaymentMethod, kampalaToday, methodInfo, parseAmount, ugx } from "@/lib/accounts-format";
+import { isCampusId } from "@/lib/campuses";
 import { dateField, field, type ActionResult } from "@/lib/office-forms";
+import { admissionFees } from "@/lib/payments/admission";
 import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, displayPhone, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
 
@@ -618,4 +621,377 @@ export async function voidPaymentBatch(batchId: string, reason: string): Promise
   const studentPaths = [...new Set((lines || []).map((row) => `${ACCOUNTS_BASE}/students/${row.student_id}`))];
   refreshAccounts(PAYMENTS, `${PAYMENTS}/batch/${batchId}`, `${ACCOUNTS_BASE}/families/${batch.family_id}`, ...studentPaths);
   return { ok: `Family receipt ${batch.receipt_no} voided.` };
+}
+
+export type ChargeProduct = {
+  id: string;
+  name: string;
+  kind: "ple" | "tour" | "admission" | "other";
+  default_amount: number;
+  description: string | null;
+  active: boolean;
+  online_eligible: boolean;
+};
+
+export type ClubPayOption = {
+  id: string;
+  title: string;
+  fee: number;
+  category: string | null;
+};
+
+/** Active charge products for the recorder. */
+export async function loadChargeProducts(): Promise<{ error?: string; rows: ChargeProduct[] }> {
+  const auth = await requireAccounts();
+  if ("error" in auth) return { error: auth.error, rows: [] };
+  const { data, error } = await auth.supabase
+    .from("charge_products")
+    .select("id, name, kind, default_amount, description, active, online_eligible")
+    .eq("active", true)
+    .order("sort_order")
+    .order("name");
+  if (error) return { error: error.message, rows: [] };
+  return { rows: (data || []) as ChargeProduct[] };
+}
+
+/** Clubs a pupil has consented to and not yet paid for the current term. */
+export async function loadClubOptionsForPupil(studentId: string): Promise<{ error?: string; rows: ClubPayOption[]; termLabel?: string }> {
+  const auth = await requireAccounts();
+  if ("error" in auth) return { error: auth.error, rows: [] };
+  if (!isUuid(studentId)) return { rows: [] };
+  const { supabase } = auth;
+  const { data: term } = await supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle();
+  if (!term) return { error: "Set the current term before recording a club payment.", rows: [] };
+
+  const [{ data: consents }, { data: paid }, { data: clubs }] = await Promise.all([
+    supabase.from("club_consents").select("club_id").eq("student_id", studentId).is("withdrawn_at", null),
+    supabase.from("club_payments").select("club_id").eq("student_id", studentId).eq("term_id", term.id).is("voided_at", null),
+    supabase.from("clubs").select("id, title, fee_amount, category, active").eq("active", true).not("guide_no", "is", null).order("sort_order"),
+  ]);
+  const consented = new Set((consents || []).map((row) => row.club_id as string));
+  const already = new Set((paid || []).map((row) => row.club_id as string));
+  const rows = ((clubs || []) as { id: string; title: string; fee_amount: number; category: string | null; active: boolean }[])
+    .filter((club) => consented.has(club.id) && !already.has(club.id) && Number(club.fee_amount) > 0)
+    .map((club) => ({ id: club.id, title: club.title, fee: Number(club.fee_amount), category: club.category }));
+  return { rows, termLabel: term.label as string };
+}
+
+/** Record a club fee at the desk (same ledger as online club settle). */
+export async function recordDeskClubPayment(form: FormData): Promise<ActionResult> {
+  const auth = await requireAccounts("payments");
+  if ("error" in auth) return { error: auth.error };
+  const studentId = String(form.get("student_id") || "");
+  const clubId = String(form.get("club_id") || "");
+  const method = String(form.get("method") || "");
+  const reference = field(form, "reference", 80);
+  const payer = field(form, "payer_name", 120);
+  if (!isUuid(studentId) || !isUuid(clubId)) return { error: "Choose the child and the club." };
+  if (!isPaymentMethod(method)) return { error: "Choose how the money was received." };
+  if (methodInfo(method).needsReference && !reference) return { error: "Enter the receipt or transaction reference." };
+
+  const { supabase, user } = auth;
+  const [{ data: club }, { data: term }, { data: consent }, { data: student }] = await Promise.all([
+    supabase.from("clubs").select("id, title, fee_amount").eq("id", clubId).maybeSingle(),
+    supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle(),
+    supabase.from("club_consents").select("id").eq("student_id", studentId).eq("club_id", clubId).is("withdrawn_at", null).maybeSingle(),
+    supabase.from("students").select("id, full_name, family_id").eq("id", studentId).maybeSingle(),
+  ]);
+  if (!student) return { error: "That pupil is not on the register." };
+  if (!club) return { error: "That club is not on the catalogue." };
+  if (!consent) return { error: "The parent has not consented to this club." };
+  if (!term) return { error: "Set the current term before recording a club payment." };
+  const amount = Number(club.fee_amount);
+  if (!Number.isFinite(amount) || amount <= 0) return { error: "This club has no fee to record." };
+
+  const { data: existing } = await supabase
+    .from("club_payments")
+    .select("id")
+    .eq("student_id", studentId)
+    .eq("club_id", clubId)
+    .eq("term_id", term.id)
+    .is("voided_at", null)
+    .maybeSingle();
+  if (existing) return { error: "This club is already paid for the current term." };
+
+  const paid = dateField(form, "paid_on");
+  if (paid.error) return { error: "Check the payment date." };
+  const paidOn = paid.value ?? kampalaToday();
+  if (paidOn > kampalaToday()) return { error: "The payment date can't be in the future." };
+
+  const { data: payment, error } = await supabase
+    .from("club_payments")
+    .insert({
+      student_id: studentId,
+      family_id: student.family_id,
+      club_id: clubId,
+      term_id: term.id,
+      amount,
+      method,
+      reference,
+      paid_on: paidOn,
+      payer_name: payer,
+      notes: field(form, "notes", 500) || "Recorded by the accounts office.",
+      source: "manual",
+      received_by: user.id,
+    })
+    .select("id, receipt_no")
+    .single();
+  if (error) {
+    if (error.code === "23505") return { error: "This payment is already on record." };
+    return { error: error.message };
+  }
+  await logAccounts(supabase, user.id, {
+    kind: "payment",
+    entity: "payment",
+    entityId: payment.id,
+    studentId,
+    body: `Recorded ${ugx(amount)} for ${club.title}, ${student.full_name}, ${term.label} (${payment.receipt_no}).`,
+  });
+  refreshAccounts(
+    PAYMENTS,
+    `${PAYMENTS}/club/${payment.id}`,
+    `/clubs`,
+    `/clubs/register`,
+    `/clubs/receipts`,
+    `${ACCOUNTS_BASE}/students/${studentId}`,
+  );
+  return { ok: `Club receipt ${payment.receipt_no} saved.`, id: payment.id };
+}
+
+/** Published campus admission fees for the desk recorder. */
+export async function loadAdmissionFees(): Promise<{ error?: string; rows: { campus: string; fee: number }[] }> {
+  const auth = await requireAccounts();
+  if ("error" in auth) return { error: auth.error, rows: [] };
+  try {
+    const rows = await admissionFees();
+    return { rows };
+  } catch {
+    return { rows: [] };
+  }
+}
+
+/** Record a physical (desk) admission fee into admission_payments. */
+export async function recordDeskAdmissionPayment(form: FormData): Promise<ActionResult> {
+  const auth = await requireAccounts("payments");
+  if ("error" in auth) return { error: auth.error };
+  const childName = field(form, "child_name", 120);
+  const payerName = field(form, "payer_name", 120);
+  const campus = field(form, "campus", 60);
+  const method = String(form.get("method") || "");
+  const reference = field(form, "reference", 80);
+  const phone = field(form, "phone", 40);
+  const email = field(form, "payer_email", 120);
+  const applicationId = String(form.get("application_id") || "");
+  if (!childName) return { error: "Enter the child’s name." };
+  if (!payerName) return { error: "Enter who paid." };
+  if (!campus || !isCampusId(campus)) return { error: "Choose the campus." };
+  if (!isPaymentMethod(method)) return { error: "Choose how the money was received." };
+  if (methodInfo(method).needsReference && !reference) return { error: "Enter the receipt or transaction reference." };
+
+  const fees = await admissionFees();
+  const feeRow = fees.find((item) => item.campus.trim().toLowerCase() === campus.trim().toLowerCase());
+  const value = parseAmount(form.get("amount")) || feeRow?.fee || 0;
+  if (!value || value <= 0) return { error: "Enter the admission amount received." };
+
+  const paid = dateField(form, "paid_on");
+  if (paid.error) return { error: "Check the payment date." };
+  const paidOn = paid.value ?? kampalaToday();
+  if (paidOn > kampalaToday()) return { error: "The payment date can't be in the future." };
+
+  const { supabase, user } = auth;
+  const paidAt = `${paidOn}T12:00:00+03:00`;
+  const token = randomBytes(24).toString("base64url");
+  const draft = {
+    user_id: null,
+    parent_name: payerName,
+    email: email || "",
+    phone: phone || null,
+    child_name: childName,
+    child_dob: null,
+    campus,
+    grade: null,
+    message: "Recorded at the accounts desk.",
+  };
+
+  const insert: Record<string, unknown> = {
+    receipt_token: token,
+    campus,
+    amount: value,
+    currency: "UGX",
+    phone: phone || "",
+    network: null,
+    payer_name: payerName,
+    payer_email: email || null,
+    child_name: childName,
+    application: draft,
+    status: "paid",
+    paid_at: paidAt,
+    method,
+    source: "manual",
+    reference,
+    received_by: user.id,
+    notes: field(form, "notes", 500) || "Physical admission fee recorded at the accounts desk.",
+    application_id: isUuid(applicationId) ? applicationId : null,
+  };
+
+  const { data: created, error } = await supabase.from("admission_payments").insert(insert).select("id").single();
+  if (error) {
+    if (/column|schema cache|Could not find/i.test(error.message || "")) {
+      return { error: "Run supabase/0066_accounts_payment_register.sql so desk admission payments can be saved." };
+    }
+    return { error: error.message };
+  }
+
+  const receiptNo = `KJA-AF-${paidOn.replace(/-/g, "").slice(0, 6)}-${created.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`;
+  await supabase.from("admission_payments").update({ receipt_no: receiptNo }).eq("id", created.id);
+
+  if (isUuid(applicationId)) {
+    await supabase
+      .from("applications")
+      .update({ payment_status: "paid", payment_id: created.id, admission_fee: value })
+      .eq("id", applicationId)
+      .is("payment_status", null);
+  }
+
+  await logAccounts(supabase, user.id, {
+    kind: "payment",
+    entity: "payment",
+    entityId: created.id,
+    body: `Recorded admission fee ${ugx(value)} for ${childName} at ${campus} (${receiptNo}).`,
+  });
+  refreshAccounts(PAYMENTS);
+  return { ok: `Admission receipt ${receiptNo} saved.`, id: created.id };
+}
+
+/** Record PLE / tour / other charge at the desk. */
+export async function recordChargePayment(form: FormData): Promise<ActionResult> {
+  const auth = await requireAccounts("payments");
+  if ("error" in auth) return { error: auth.error };
+  const productId = String(form.get("product_id") || "");
+  const studentId = String(form.get("student_id") || "");
+  const method = String(form.get("method") || "");
+  const reference = field(form, "reference", 80);
+  if (!isUuid(productId)) return { error: "Choose what was paid for." };
+  if (!isPaymentMethod(method)) return { error: "Choose how the money was received." };
+  if (methodInfo(method).needsReference && !reference) return { error: "Enter the receipt or transaction reference." };
+
+  const { supabase, user } = auth;
+  const { data: product } = await supabase
+    .from("charge_products")
+    .select("id, name, kind, default_amount, active")
+    .eq("id", productId)
+    .maybeSingle();
+  if (!product || !product.active) return { error: "That charge is not available." };
+
+  const value = parseAmount(form.get("amount")) || Number(product.default_amount) || 0;
+  if (!value || value <= 0) return { error: "Enter the amount received." };
+
+  const paid = dateField(form, "paid_on");
+  if (paid.error) return { error: "Check the payment date." };
+  const paidOn = paid.value ?? kampalaToday();
+  if (paidOn > kampalaToday()) return { error: "The payment date can't be in the future." };
+
+  let familyId: string | null = null;
+  let studentName = field(form, "payer_name", 120) || product.name;
+  if (isUuid(studentId)) {
+    const { data: student } = await supabase.from("students").select("full_name, family_id").eq("id", studentId).maybeSingle();
+    if (!student) return { error: "That pupil is not on the register." };
+    familyId = student.family_id;
+    studentName = student.full_name;
+  } else if (product.kind !== "other") {
+    return { error: "Choose the pupil this payment is for." };
+  }
+
+  const { data: term } = await supabase.from("fee_terms").select("id").eq("is_current", true).maybeSingle();
+  const termId = String(form.get("term_id") || "") || term?.id || null;
+
+  const { data: payment, error } = await supabase
+    .from("charge_payments")
+    .insert({
+      student_id: isUuid(studentId) ? studentId : null,
+      family_id: familyId,
+      product_id: productId,
+      term_id: isUuid(String(termId)) ? termId : null,
+      amount: value,
+      method,
+      reference,
+      paid_on: paidOn,
+      payer_name: field(form, "payer_name", 120),
+      notes: field(form, "notes", 500),
+      source: "manual",
+      received_by: user.id,
+    })
+    .select("id, receipt_no")
+    .single();
+  if (error) {
+    if (/charge_payments|schema cache|does not exist/i.test(error.message || "")) {
+      return { error: "Run supabase/0066_accounts_payment_register.sql to enable charge payments." };
+    }
+    if (error.code === "23505") return { error: "A payment with that reference is already recorded." };
+    return { error: error.message };
+  }
+
+  await logAccounts(supabase, user.id, {
+    kind: "payment",
+    entity: "payment",
+    entityId: payment.id,
+    studentId: isUuid(studentId) ? studentId : undefined,
+    body: `Received ${ugx(value)} for ${product.name}${isUuid(studentId) ? `, ${studentName}` : ""} (${payment.receipt_no}).`,
+  });
+  refreshAccounts(PAYMENTS, `${PAYMENTS}/charge/${payment.id}`, ...(isUuid(studentId) ? [`${ACCOUNTS_BASE}/students/${studentId}`] : []));
+  return { ok: `Receipt ${payment.receipt_no} saved.`, id: payment.id };
+}
+
+export async function voidClubPayment(id: string, reason: string): Promise<ActionResult> {
+  const auth = await requireAccounts("payments");
+  if ("error" in auth) return { error: auth.error };
+  if (!isUuid(id)) return { error: "Payment not found." };
+  const why = reason.replace(/\s+/g, " ").trim().slice(0, 300);
+  if (why.length < 4) return { error: "Say why the payment is being voided." };
+  const { supabase, user } = auth;
+  const { data, error } = await supabase
+    .from("club_payments")
+    .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: why })
+    .eq("id", id)
+    .is("voided_at", null)
+    .select("receipt_no, student_id, amount")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: "This payment is already void." };
+  await logAccounts(supabase, user.id, {
+    kind: "void",
+    entity: "payment",
+    entityId: id,
+    studentId: data.student_id,
+    body: `Voided club receipt ${data.receipt_no} (${ugx(data.amount)}): ${why}`,
+  });
+  refreshAccounts(PAYMENTS, `${PAYMENTS}/club/${id}`, `/clubs`, `/clubs/register`, `/clubs/receipts`, `${ACCOUNTS_BASE}/students/${data.student_id}`);
+  return { ok: `Receipt ${data.receipt_no} voided.` };
+}
+
+export async function voidChargePayment(id: string, reason: string): Promise<ActionResult> {
+  const auth = await requireAccounts("payments");
+  if ("error" in auth) return { error: auth.error };
+  if (!isUuid(id)) return { error: "Payment not found." };
+  const why = reason.replace(/\s+/g, " ").trim().slice(0, 300);
+  if (why.length < 4) return { error: "Say why the payment is being voided." };
+  const { supabase, user } = auth;
+  const { data, error } = await supabase
+    .from("charge_payments")
+    .update({ voided_at: new Date().toISOString(), voided_by: user.id, void_reason: why })
+    .eq("id", id)
+    .is("voided_at", null)
+    .select("receipt_no, student_id, amount")
+    .maybeSingle();
+  if (error) return { error: error.message };
+  if (!data) return { error: "This payment is already void." };
+  await logAccounts(supabase, user.id, {
+    kind: "void",
+    entity: "payment",
+    entityId: id,
+    studentId: data.student_id ?? undefined,
+    body: `Voided charge receipt ${data.receipt_no} (${ugx(data.amount)}): ${why}`,
+  });
+  refreshAccounts(PAYMENTS, `${PAYMENTS}/charge/${id}`, ...(data.student_id ? [`${ACCOUNTS_BASE}/students/${data.student_id}`] : []));
+  return { ok: `Receipt ${data.receipt_no} voided.` };
 }

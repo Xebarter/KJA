@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { OfflineNeed } from "@/components/desk/OfflineNeed";
 import {
   AGING,
   expenseStatusInfo,
@@ -9,6 +10,7 @@ import {
   ugxShort,
   type AgingKey,
 } from "@/lib/accounts-format";
+import { isOfflineError } from "@/lib/offline";
 
 /** A full-page message when the accounts office can't load: not connected, no access or the migration hasn't run. */
 export function AccountsNotice({ title, icon = "fa-plug-circle-exclamation", heading, children }: {
@@ -50,6 +52,16 @@ export function notReady(title: string, problem: { kind: "config" } | { kind: "a
   }
   if (problem.kind === "auth") {
     return <AccountsNotice title={title} icon="fa-lock" heading="Not available"><p>{problem.message}</p></AccountsNotice>;
+  }
+  if (isOfflineError(problem.message)) {
+    return (
+      <OfflineNeed
+        title={title}
+        kicker="Accounts office"
+        icon="fa-calculator"
+        description="Kampala Junior Academy fees, payments and spending."
+      />
+    );
   }
   return <AccountsNotice title={title} heading="The accounts office isn't set up yet"><SchemaHint message={problem.message || "The accounts tables are not available yet."} /></AccountsNotice>;
 }

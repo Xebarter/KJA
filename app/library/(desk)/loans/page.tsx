@@ -18,6 +18,7 @@ export default async function LoansPage({
   const auth = await requireLibrary("loans");
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
   const today = todayKampala();
   const settings = await loadSettings(auth.supabase, libraryId);
   const view = query.view === "overdue" ? "overdue" : "open";
@@ -28,6 +29,7 @@ export default async function LoansPage({
       "id, due_at, issued_at, borrower_kind, note, library_items(accession, barcode, library_titles(title)), students(id, full_name, student_number, photo_path), teaching_staff(id, full_name, photo_path)",
     )
     .eq("library_id", libraryId)
+    .eq("campus", campus)
     .is("returned_at", null)
     .order("due_at")
     .limit(100);
@@ -39,6 +41,7 @@ export default async function LoansPage({
       .from("library_loans")
       .select("id", { count: "exact", head: true })
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .is("returned_at", null)
       .lt("due_at", today),
   ]);

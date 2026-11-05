@@ -16,7 +16,7 @@ export default async function ChatReviewPage({
 }) {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Chat review" state={opened} />;
-  const { supabase, office, user } = opened.auth;
+  const { supabase, office, user, campuses } = opened.auth;
   if (!office) {
     return (
       <div className="app-page">
@@ -30,7 +30,7 @@ export default async function ChatReviewPage({
   const classKey = String(Array.isArray(query.class) ? query.class[0] : query.class || "");
   const flaggedOnly = String(Array.isArray(query.flagged) ? query.flagged[0] : query.flagged || "") === "1";
 
-  const pupils = await loadRoll(supabase, user.id);
+  const pupils = await loadRoll(supabase, user.id, undefined, campuses);
   const groups = groupPupils(pupils);
   const classOptions = groups.map((g) => ({
     value: `${g.code}|${g.stream}`,

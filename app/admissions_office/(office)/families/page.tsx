@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { FamilyFinder, FamilyTable, type FamilyListRow } from "@/components/office/FamilyRegister";
-import { Empty, MigrationHint, OfficeNotice, Pager } from "@/components/office/ui";
+import { Empty, LoadErrorNotice, OfficeNotice, Pager } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { OFFICE, cap, everyWord, pick, searchNeedle, searchWords, splitName } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
@@ -63,7 +63,7 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
   ]);
   if ("error" in auth) return <OfficeNotice title="Families" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   if (activeKids.error) {
-    return <OfficeNotice title="Families" heading="Families could not be loaded"><MigrationHint message={activeKids.error.message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Families" message={activeKids.error.message} fallbackHeading="Families could not be loaded" />;
   }
 
   const childCounts = new Map<string, number>();
@@ -82,7 +82,7 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
   if (found) {
     const [families, guardians, contacts, kids] = found;
     if (families.error) {
-      return <OfficeNotice title="Families" heading="Families could not be loaded"><MigrationHint message={families.error.message} /></OfficeNotice>;
+      return <LoadErrorNotice title="Families" message={families.error.message} fallbackHeading="Families could not be loaded" />;
     }
     ids = [...new Set([
       ...(families.data || []).map((row) => row.id as string),
@@ -115,7 +115,7 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
       let query = supabase.from("families").select("id, family_code, mailing_name, home_area", { count: "exact" });
       if (ids) query = query.in("id", ids);
       const { data, count, error } = await query.order("mailing_name", { nullsFirst: false }).order("family_code").range(from, from + PAGE_SIZE - 1);
-      if (error) return <OfficeNotice title="Families" heading="Families could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
+      if (error) return <LoadErrorNotice title="Families" message={error.message} fallbackHeading="Families could not be loaded" />;
       rows = (data || []) as FamilyRow[];
       total = count ?? 0;
     }

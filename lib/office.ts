@@ -1,5 +1,7 @@
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
+import { loadCampusScope } from "@/lib/campus-access";
+import type { CampusId } from "@/lib/campuses";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { isOfficeRole, OFFICE_BASE } from "@/lib/office-nav";
@@ -22,7 +24,8 @@ export async function requireOffice(...pages: string[]) {
   if (!(await dashboardAllowed(grants, "admissions", pages))) {
     return { error: pages.length ? "This account doesn't have access to that page." : "This account doesn't have access to the admissions office." } as const;
   }
-  return { supabase, user, profile, grants } as const;
+  const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "admissions");
+  return { supabase, user, profile, grants, campuses } as const;
 }
 
 export function refreshOffice(...paths: string[]) {

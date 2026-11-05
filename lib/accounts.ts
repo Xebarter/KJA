@@ -4,10 +4,13 @@ import { cache } from "react";
 import { ACCOUNTS_BASE, isAccountsRole } from "@/lib/accounts-nav";
 import { forgetAccountsRoll } from "@/lib/accounts-roll";
 import { pickCurrentTerm, sortTerms, type Term } from "@/lib/accounts-format";
+import { loadCampusScope } from "@/lib/campus-access";
+import { CAMPUS_OPTIONS, type CampusId } from "@/lib/campuses";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { everyWord, searchNeedle, searchWords } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
+import { logSystem } from "@/lib/system-logs";
 
 export { ACCOUNTS_BASE, ACCOUNTS_ROLES, accountsNav, isAccountsRole } from "@/lib/accounts-nav";
 
@@ -24,7 +27,8 @@ export async function requireAccounts(...pages: string[]) {
   if (!(await dashboardAllowed(grants, "accounts", pages))) {
     return { error: pages.length ? "This account doesn't have access to that page." : "This account doesn't have access to the accounts office." } as const;
   }
-  return { supabase, user, profile, grants } as const;
+  const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "accounts");
+  return { supabase, user, profile, grants, campuses } as const;
 }
 
 export function refreshAccounts(...paths: string[]) {
@@ -46,24 +50,35 @@ export async function logAccounts(
   actorId: string,
   entry: { kind: string; body: string; entity?: string; entityId?: string | null; studentId?: string | null },
 ) {
+  const body = entry.body.slice(0, 2000);
   await supabase.from("account_activity").insert({
     actor_id: actorId,
     kind: entry.kind,
     entity: entry.entity ?? null,
     entity_id: entry.entityId ?? null,
     student_id: entry.studentId ?? null,
-    body: entry.body.slice(0, 2000),
+    body,
+  });
+  await logSystem(supabase, actorId, {
+    source: "accounts",
+    kind: entry.kind,
+    body,
+    entityType: entry.entity ?? null,
+    entityId: entry.entityId ?? null,
+    studentId: entry.studentId ?? null,
   });
 }
 
-/** The campuses pupils are registered at, for filters and the fee grid. */
+/** The campuses pupils are registered at, for filters and the fee grid. Always includes ops campuses. */
 let campusCache: { at: number; values: string[] } | null = null;
 
-export const loadCampuses = cache(async function loadCampuses(supabase: SupabaseClient) {
-  if (campusCache && Date.now() - campusCache.at < 60_000) return campusCache.values;
+export const loadCampuses = cache(async function loadCampuses(supabase: SupabaseClient, allowed?: readonly string[]) {
+  if (!allowed && campusCache && Date.now() - campusCache.at < 60_000) return campusCache.values;
   const { data } = await supabase.from("students").select("campus").not("campus", "is", null).eq("status", "active").limit(5000);
-  const values = [...new Set((data || []).map((row) => String(row.campus).trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
-  campusCache = { at: Date.now(), values };
+  const fromRegister = (data || []).map((row) => String(row.campus).trim()).filter(Boolean);
+  const values = [...new Set([...CAMPUS_OPTIONS, ...fromRegister])].sort((a, b) => a.localeCompare(b));
+  if (!allowed) campusCache = { at: Date.now(), values };
+  if (allowed?.length) return values.filter((campus) => allowed.includes(campus));
   return values;
 });
 
@@ -88,5 +103,5 @@ export function balanceSearch(raw: string) {
 
 /** True when the error means 0014_accounts.sql hasn't been run yet. */
 export function missingAccountsSchema(message: string | null | undefined) {
-  return Boolean(message && /fee_terms|invoices|payments|student_balances|expenses|does not exist|schema cache/i.test(message));
+  return Boolean(message && /fee_terms|invoices|payments|student_balances|expenses|accounts_payment_register|charge_payments|does not exist|schema cache/i.test(message));
 }

@@ -30,7 +30,7 @@ export default async function AccountsHome() {
   if (!supabaseConfigured()) return notReady("Overview", { kind: "config" });
   const auth = await requireAccounts();
   if ("error" in auth) return notReady("Overview", { kind: "auth", message: auth.error });
-  const { supabase } = auth;
+  const { supabase, campuses } = auth;
   const { current, error } = await loadTerms(supabase);
   if (error) return notReady("Overview", { kind: "schema", message: error });
 
@@ -42,7 +42,7 @@ export default async function AccountsHome() {
     sumOf(supabase.from("payments").select("amount.sum()").eq("paid_on", today).is("voided_at", null)),
     termId ? sumOf(supabase.from("payments").select("amount.sum()").eq("term_id", termId).is("voided_at", null)) : Promise.resolve(0),
     termId ? sumOf(supabase.from("invoices").select("total.sum()").eq("status", "issued").eq("term_id", termId)) : Promise.resolve(0),
-    loadFeeBook(supabase).catch(() => []),
+    loadFeeBook(supabase, campuses).catch(() => []),
     supabase.from("expenses").select("*").eq("status", "pending").order("created_at", { ascending: false }).limit(8),
     supabase
       .from("payments")

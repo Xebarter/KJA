@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { PrintButton } from "@/components/office/client";
-import { MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { APPLICATION_STATUSES, formatDate } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
 import { loadReportRows, percent, tally, type ReportRow } from "@/lib/office-reports";
@@ -61,7 +61,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
     all = rows;
     applications = (apps.data || []) as Application[];
   } catch (error) {
-    return <OfficeNotice title="Reports" heading="Reports could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Reports" message={(error as Error).message} fallbackHeading="Reports could not be loaded" />;
   }
 
   // ------------------------------------------------------------ register today

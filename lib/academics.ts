@@ -4,6 +4,7 @@ import { forget, remember } from "@/lib/remember";
 import { normalizeSubjectKind, type SubjectKind } from "@/lib/subject-kind";
 import { subjectFits as subjectFitsClass } from "@/lib/subject-bands";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
+import { logSystem } from "@/lib/system-logs";
 
 export { ACADEMICS_BASE, ACADEMICS_ROLES, academicsNav, academicsSchemaScript, isAcademicsRole } from "@/lib/academics-nav";
 export type { AcademicsBadge, AcademicsNavItem } from "@/lib/academics-nav";
@@ -21,11 +22,13 @@ export async function logAcademics(
   actorId: string,
   entry: { kind: "marks" | "scheme" | "report" | "calendar" | "intervention" | "reminder" | "timetable" | "setup"; body: string },
 ) {
+  const body = entry.body.slice(0, 2000);
   await supabase.from("academic_activity").insert({
     actor_id: actorId,
     kind: entry.kind,
-    body: entry.body.slice(0, 2000),
+    body,
   });
+  await logSystem(supabase, actorId, { source: "academics", kind: entry.kind, body });
 }
 
 export function kampalaToday(now = new Date()) {
@@ -62,19 +65,30 @@ export type SubjectRow = {
 
 export type {
   BandRow,
+  BandSection,
   DivisionBand,
   DivisionTrack,
+  GradeBandSection,
 } from "@/lib/grading-scale";
 export {
   DEFAULT_DIVISION_BANDS,
+  DEFAULT_SUBJECT_BANDS,
   bandMidpoint,
+  bandsForSection,
   divisionFor,
   divisionTrack,
+  divisionTrackForClass,
+  effectiveBandSection,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
   gradeFor,
+  isBandSection,
+  isGradeBandSection,
   mapDivisionBand,
   subjectAggregate,
 } from "@/lib/grading-scale";
-import type { BandRow } from "@/lib/grading-scale";
+import type { BandRow, GradeBandSection } from "@/lib/grading-scale";
+import { DEFAULT_SUBJECT_BANDS, effectiveBandSection, gradeBandSection, isBandSection } from "@/lib/grading-scale";
 
 export type StaffRow = {
   id: string;
@@ -186,6 +200,16 @@ export function streamFromQuery(value: string | undefined) {
   return value.slice(0, 20);
 }
 
+/** URL query for campus (operational site name). */
+export function campusQuery(campus: string) {
+  return encodeURIComponent(campus.trim());
+}
+
+export function campusFromQuery(value: string | undefined) {
+  if (value === undefined) return null;
+  return decodeURIComponent(value).trim().slice(0, 80);
+}
+
 export function classSection(code: string | null | undefined): "nursery" | "primary" {
   return SCHOOL_CLASSES.find((entry) => entry.code === code)?.section === "nursery" ? "nursery" : "primary";
 }
@@ -194,10 +218,17 @@ export function classOrder(code: string | null | undefined) {
   return SCHOOL_CLASSES.find((entry) => entry.code === code)?.order ?? null;
 }
 
-export function classLabel(code: string | null | undefined, stream?: string | null) {
+export function classLabel(code: string | null | undefined, stream?: string | null, campus?: string | null) {
   const name = className(code);
   const extra = streamOf(stream);
-  return extra ? `${name} ${extra}` : name;
+  const base = extra ? `${name} ${extra}` : name;
+  const site = (campus || "").trim();
+  return site ? `${base} · ${site}` : base;
+}
+
+/** Composite key for one campus + class + stream teaching group. */
+export function classGroupKey(campus: string | null | undefined, code: string | null | undefined, stream?: string | null) {
+  return `${(campus || "").trim()}|${code || ""}|${streamOf(stream)}`;
 }
 
 export function subjectFits(subject: SubjectRow, code: string | null | undefined) {
@@ -213,40 +244,40 @@ export function num(value: unknown) {
 export type ScaleBand = { label: string; min: number; max: number };
 
 /** The scale printed on a report card when a class has not frozen its own rules. */
-export const DEFAULT_GRADE_SCALE: Record<"nursery" | "primary", ScaleBand[]> = {
-  primary: [
-    { label: "D1", min: 80, max: 100 },
-    { label: "D2", min: 70, max: 79 },
-    { label: "C3", min: 65, max: 69 },
-    { label: "C4", min: 60, max: 64 },
-    { label: "C5", min: 55, max: 59 },
-    { label: "C6", min: 50, max: 54 },
-    { label: "P7", min: 45, max: 49 },
-    { label: "P8", min: 40, max: 44 },
-    { label: "F9", min: 0, max: 39 },
-  ],
-  nursery: [
-    { label: "Exceeding", min: 75, max: 100 },
-    { label: "Secure", min: 50, max: 74 },
-    { label: "Developing", min: 25, max: 49 },
-    { label: "Beginning", min: 0, max: 24 },
-  ],
+export const DEFAULT_GRADE_SCALE: Record<"nursery" | "primary" | GradeBandSection, ScaleBand[]> = {
+  nursery: DEFAULT_SUBJECT_BANDS.nursery.map(({ label, min, max }) => ({ label, min, max })),
+  lower: DEFAULT_SUBJECT_BANDS.lower.map(({ label, min, max }) => ({ label, min, max })),
+  upper: DEFAULT_SUBJECT_BANDS.upper.map(({ label, min, max }) => ({ label, min, max })),
+  primary: DEFAULT_SUBJECT_BANDS.upper.map(({ label, min, max }) => ({ label, min, max })),
 };
 
-/** Frozen rules win, then the live bands, then the school default. */
+/** Frozen rules win, then the live bands, then the school default for that class section. */
 export function scaleBands(
-  section: "nursery" | "primary",
+  section: "nursery" | "primary" | GradeBandSection | string | null | undefined,
   rules?: unknown,
-  live?: { label: string; min_score: number; max_score: number; sort_order?: number }[] | null,
+  live?: { label: string; min_score: number; max_score: number; sort_order?: number; section?: string }[] | null,
 ): ScaleBand[] {
   const frozen = parseScale(rules);
   if (frozen.length) return frozen;
-  if (live?.length) {
-    return [...live]
+  const wanted =
+    section === "nursery" || section === "lower" || section === "upper" || section === "primary"
+      ? section
+      : gradeBandSection(typeof section === "string" ? section : null);
+  const typed = (live || []).map((band) => ({
+    ...band,
+    section: isBandSection(String(band.section || wanted)) ? String(band.section || wanted) : "primary",
+  })) as BandRow[];
+  const effective = effectiveBandSection(typed, wanted);
+  const rows = typed.filter((band) => band.section === effective);
+  if (rows.length) {
+    return [...rows]
       .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || b.max_score - a.max_score)
       .map((band) => ({ label: band.label, min: Number(band.min_score), max: Number(band.max_score) }));
   }
-  return DEFAULT_GRADE_SCALE[section];
+  if (wanted === "nursery") return DEFAULT_GRADE_SCALE.nursery;
+  if (wanted === "lower") return DEFAULT_GRADE_SCALE.lower;
+  if (wanted === "upper") return DEFAULT_GRADE_SCALE.upper;
+  return DEFAULT_GRADE_SCALE.primary;
 }
 
 function parseScale(rules: unknown): ScaleBand[] {
@@ -387,9 +418,10 @@ function skillLabelsFrom(raw: unknown): string[] {
 }
 
 export function mapBand(row: Record<string, unknown>): BandRow {
+  const section = String(row.section || "");
   return {
     id: String(row.id),
-    section: row.section === "nursery" ? "nursery" : "primary",
+    section: isBandSection(section) ? section : "primary",
     label: String(row.label),
     min_score: num(row.min_score) ?? 0,
     max_score: num(row.max_score) ?? 0,
@@ -442,16 +474,38 @@ export async function loadCurrentTerm(supabase: SupabaseClient): Promise<{ term:
   }
 }
 
-export type ClassGroup<T> = { code: string; name: string; section: "nursery" | "primary"; order: number; stream: string; pupils: T[] };
+export type ClassGroup<T> = {
+  code: string;
+  name: string;
+  section: "nursery" | "primary";
+  order: number;
+  stream: string;
+  campus: string;
+  pupils: T[];
+};
 
-export function groupPupils<T extends { class_code: string | null; stream: string | null }>(pupils: T[]) {
+export function groupPupils<T extends { class_code: string | null; stream: string | null; campus?: string | null }>(pupils: T[]) {
   const groups: ClassGroup<T>[] = [];
   for (const entry of SCHOOL_CLASSES) {
     const mine = pupils.filter((pupil) => pupil.class_code === entry.code);
-    const streams = [...new Set(mine.map((pupil) => streamOf(pupil.stream)))].sort((a, b) => a.localeCompare(b));
-    for (const stream of streams) {
-      const rows = mine.filter((pupil) => streamOf(pupil.stream) === stream);
-      if (rows.length) groups.push({ code: entry.code, name: entry.name, section: entry.section === "nursery" ? "nursery" : "primary", order: entry.order, stream, pupils: rows });
+    const campuses = [...new Set(mine.map((pupil) => String(pupil.campus || "").trim() || "Kitante"))].sort((a, b) => a.localeCompare(b));
+    for (const campus of campuses) {
+      const atCampus = mine.filter((pupil) => (String(pupil.campus || "").trim() || "Kitante") === campus);
+      const streams = [...new Set(atCampus.map((pupil) => streamOf(pupil.stream)))].sort((a, b) => a.localeCompare(b));
+      for (const stream of streams) {
+        const rows = atCampus.filter((pupil) => streamOf(pupil.stream) === stream);
+        if (rows.length) {
+          groups.push({
+            code: entry.code,
+            name: entry.name,
+            section: entry.section === "nursery" ? "nursery" : "primary",
+            order: entry.order,
+            stream,
+            campus,
+            pupils: rows,
+          });
+        }
+      }
     }
   }
   return groups;

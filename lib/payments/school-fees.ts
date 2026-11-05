@@ -6,6 +6,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { createCollection, fetchCollection, paymentsConfigured, requestPinPrompt } from "@/lib/payments/gateway";
 import { displayMsisdn, networkOf, normalizeMsisdn } from "@/lib/payments/mobile";
 import { paymentsCallbackUrl } from "@/lib/payments/public-url";
+import { logPortal } from "@/lib/system-logs";
 
 export type FeePaymentView = {
   id: string;
@@ -125,13 +126,22 @@ async function ensureLedger(row: FeeCollection, paidAt: string, transactionRef: 
     .eq("id", row.id)
     .select("*")
     .single();
+  const body = `Parent paid ${ugx(row.amount)} online for ${row.child_name}, ${row.term_label}.`;
   await db.from("account_activity").insert({
     actor_id: row.user_id,
     kind: "payment",
     entity: "payment",
     entity_id: paymentId,
     student_id: row.student_id,
-    body: `Parent paid ${ugx(row.amount)} online for ${row.child_name}, ${row.term_label}.`,
+    body,
+  });
+  await logPortal(db, row.user_id, {
+    kind: "payment",
+    body,
+    entityType: "payment",
+    entityId: paymentId,
+    studentId: row.student_id,
+    meta: { amount: row.amount },
   });
   revalidatePath("/account/fees");
   revalidatePath("/account");

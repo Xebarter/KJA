@@ -227,6 +227,13 @@
 .tt-lesson.is-3 { box-shadow: inset 3px 0 0 #5b3d91; }
 .tt-lesson.is-4 { box-shadow: inset 3px 0 0 #a31824; }
 .tt-lesson.is-5 { box-shadow: inset 3px 0 0 #3d4a55; }
+.tt-lesson.is-club {
+  box-shadow: inset 3px 0 0 #0f6e68;
+  background: linear-gradient(180deg, #f3fbf9, #eef8f5);
+  cursor: default;
+  pointer-events: none;
+}
+.tt-lesson.is-club strong { color: #0f6e68; font-size: .78rem; }
 .tt-lesson.is-editing { outline: 2px solid #c9a227; outline-offset: 1px; }
 .tt-lesson strong { color: #19232b; font-size: .84rem; font-weight: 700; line-height: 1.25; }
 .tt-lesson small { color: #6d6458; font-size: .72rem; line-height: 1.35; }

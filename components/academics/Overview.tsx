@@ -471,16 +471,18 @@ async function OverviewWithPicture({
   light,
   supabase,
   userId,
+  campuses,
 }: {
   light: OverviewLight;
   supabase: Session["supabase"];
   userId: string;
+  campuses?: readonly string[];
 }) {
   let picture: AcademicPicture | null = null;
   let pictureError = "";
   if (light.term) {
     try {
-      picture = await loadAcademicPicture(supabase, light.term, light.today, userId);
+      picture = await loadAcademicPicture(supabase, light.term, light.today, userId, campuses);
     } catch (error) {
       pictureError = error instanceof Error ? error.message : "The academic picture could not be loaded.";
       if (missingAcademicsSchema(pictureError)) {
@@ -496,7 +498,7 @@ async function OverviewWithPicture({
   return renderOverviewHome(light, picture, pictureError);
 }
 
-export async function Overview({ supabase, profile, office }: Session) {
+export async function Overview({ supabase, profile, office, campuses }: Session) {
   const today = kampalaToday();
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) {
@@ -505,7 +507,7 @@ export async function Overview({ supabase, profile, office }: Session) {
   const term = termPack.term;
 
   const [roll, marks, presentCount, markedCount, cardsResult, teachersResult] = await Promise.all([
-    loadRoll(supabase, profile.id).catch((error: unknown) => error),
+    loadRoll(supabase, profile.id, undefined, office ? campuses : undefined).catch((error: unknown) => error),
     loadDayMarks(supabase, profile.id, today).catch(() => [] as { student_id: string }[]),
     term
       ? supabase.from("attendance").select("student_id", { count: "exact", head: true }).eq("term_id", term.id).in("status", ["present", "late"])
@@ -565,7 +567,7 @@ export async function Overview({ supabase, profile, office }: Session) {
 
   return (
     <Suspense fallback={renderOverviewHome(light, null, "")}>
-      <OverviewWithPicture light={light} supabase={supabase} userId={profile.id} />
+      <OverviewWithPicture light={light} supabase={supabase} userId={profile.id} campuses={office ? campuses : undefined} />
     </Suspense>
   );
 }

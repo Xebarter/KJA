@@ -228,6 +228,90 @@ export class ProxyStore {
     this.schedulePersist();
   }
 
+  /** Cached GET rows for one user + table (used to patch list bodies after offline writes). */
+  listCachesForTable(userId: string, tableName: string): CacheRow[] {
+    const stmt = this.db.prepare(
+      `SELECT user_id, url, method, status, headers, body, fetched_at, table_name
+       FROM http_cache WHERE user_id = ? AND table_name = ? AND method = 'GET'`,
+    );
+    stmt.bind([userId, tableName]);
+    const rows: CacheRow[] = [];
+    while (stmt.step()) {
+      const row = stmt.getAsObject() as Record<string, unknown>;
+      rows.push({
+        user_id: String(row.user_id),
+        url: String(row.url),
+        method: String(row.method),
+        status: Number(row.status),
+        headers: String(row.headers),
+        body: blobToBuffer(row.body),
+        fetched_at: Number(row.fetched_at),
+        table_name: row.table_name == null ? null : String(row.table_name),
+      });
+    }
+    stmt.free();
+    return rows;
+  }
+
+  /**
+   * Merge an offline write into cached JSON list/detail bodies for this table
+   * so desks keep working without wiping every filtered GET.
+   */
+  patchTableCaches(
+    userId: string,
+    tableName: string,
+    action: "upsert" | "delete",
+    row: Record<string, unknown>,
+  ) {
+    const id = row.id == null ? null : String(row.id);
+    if (!id) return;
+    const caches = this.listCachesForTable(userId, tableName);
+    for (const cached of caches) {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(cached.body.toString("utf8"));
+      } catch {
+        continue;
+      }
+      let next: unknown = payload;
+      let changed = false;
+      if (Array.isArray(payload)) {
+        if (action === "delete") {
+          const filtered = payload.filter((item) => !(item && typeof item === "object" && String((item as { id?: unknown }).id) === id));
+          if (filtered.length !== payload.length) {
+            next = filtered;
+            changed = true;
+          }
+        } else {
+          const index = payload.findIndex((item) => item && typeof item === "object" && String((item as { id?: unknown }).id) === id);
+          if (index >= 0) {
+            const copy = [...payload];
+            copy[index] = { ...(payload[index] as object), ...row, id };
+            next = copy;
+            changed = true;
+          } else {
+            // Prepend so newly created rows appear on list pages.
+            next = [{ ...row, id }, ...payload];
+            changed = true;
+          }
+        }
+      } else if (payload && typeof payload === "object" && String((payload as { id?: unknown }).id) === id) {
+        next = action === "delete" ? null : { ...(payload as object), ...row, id };
+        changed = true;
+      }
+      if (!changed) continue;
+      if (next == null) {
+        this.invalidateUrl(userId, cached.url);
+        continue;
+      }
+      this.putCache({
+        ...cached,
+        body: Buffer.from(JSON.stringify(next)),
+        fetched_at: Date.now(),
+      });
+    }
+  }
+
   touchGetLog(userId: string, url: string) {
     this.db.run(
       `INSERT INTO get_log (user_id, url, last_seen) VALUES (?, ?, ?)

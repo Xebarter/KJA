@@ -45,26 +45,32 @@ export function splashHtml(logoSrc: string): string {
   .seal {
     width: 96px;
     height: 96px;
-    border-radius: 50%;
-    background: #fff;
-    border: 2px solid rgba(253, 163, 27, 0.5);
+    border-radius: 24px;
+    background: transparent;
     display: grid;
     place-items: center;
-    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3);
     margin-bottom: 20px;
-    overflow: hidden;
+    overflow: visible;
   }
   .logo {
-    width: 88px;
-    height: 88px;
-    object-fit: cover;
-    border-radius: 50%;
+    width: 96px;
+    height: 96px;
+    object-fit: contain;
+    display: block;
+    filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.35));
   }
   .logo-fallback {
+    width: 96px;
+    height: 96px;
+    border-radius: 24px;
+    display: grid;
+    place-items: center;
+    background: linear-gradient(145deg, #1d2a34, #141d24);
     font-weight: 800;
     font-size: 26px;
     letter-spacing: -0.04em;
-    color: var(--navy);
+    color: var(--gold);
+    box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3);
   }
   .kicker {
     margin: 0;

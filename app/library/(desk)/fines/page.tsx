@@ -11,6 +11,7 @@ export default async function FinesPage() {
   const auth = await requireLibrary("fines");
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
 
   const { data, error } = await auth.supabase
     .from("library_fines")
@@ -18,6 +19,7 @@ export default async function FinesPage() {
       "id, amount, reason, created_at, paid_at, waived_at, note, library_loans(borrower_kind, students(id, full_name, photo_path), teaching_staff(id, full_name, photo_path), library_items(library_titles(title)))",
     )
     .eq("library_id", libraryId)
+    .eq("campus", campus)
     .order("created_at", { ascending: false })
     .limit(120);
 

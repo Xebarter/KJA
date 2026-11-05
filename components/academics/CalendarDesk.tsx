@@ -48,7 +48,7 @@ export function CalendarDesk({
   termEnd: string | null;
   save: Save;
   showCampus?: boolean;
-  scope?: { classCode: string; stream: string } | null;
+  scope?: { classCode: string; stream: string; campus?: string } | null;
 }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const focusTitle = useRef(false);
@@ -198,6 +198,7 @@ export function CalendarDesk({
               <input type="hidden" name="term_id" value={termId} />
               {scope ? <input type="hidden" name="class_code" value={scope.classCode} /> : null}
               {scope ? <input type="hidden" name="stream" value={scope.stream} /> : null}
+              {scope?.campus && !showCampus ? <input type="hidden" name="campus" value={scope.campus} /> : null}
               {draft.id ? <input type="hidden" name="id" value={draft.id} /> : null}
               <div className="ofc-fields">
                 <label className="ofc-field cal-span"><span>Title</span>

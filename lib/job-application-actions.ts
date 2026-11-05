@@ -25,6 +25,7 @@ import {
 } from "@/lib/job-applications";
 import { JOB_BUCKET } from "@/lib/job-applications-server";
 import { createClient } from "@/lib/supabase/server";
+import { mirrorJobLogs } from "@/lib/system-logs";
 
 type DbError = { code?: string; message: string } | null;
 
@@ -243,7 +244,9 @@ export async function updateJobApplication(formData: FormData): Promise<JobActio
 
   const { error } = await supabase.from("job_applications").update(patch).eq("id", id);
   if (error) return { error: friendly(error) };
-  await supabase.from("job_application_activity").insert(activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id })));
+  const activityRows = activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id }));
+  await supabase.from("job_application_activity").insert(activityRows);
+  await mirrorJobLogs(supabase, activityRows);
   refresh(id);
   return { ok: "Saved." };
 }
@@ -260,9 +263,14 @@ export async function setJobStage(list: string[], stage: string): Promise<JobAct
   if (!changed.length) return { ok: "Already in that stage." };
   const { error } = await supabase.from("job_applications").update({ status: stage, read: true }).in("id", changed.map((row) => row.id));
   if (error) return { error: friendly(error) };
-  await supabase.from("job_application_activity").insert(
-    changed.map((row) => ({ application_id: row.id, actor_id: user.id, kind: "status", body: `Moved from ${stageInfo(row.status).label} to ${stageInfo(stage).label}` })),
-  );
+  const activityRows = changed.map((row) => ({
+    application_id: row.id,
+    actor_id: user.id,
+    kind: "status",
+    body: `Moved from ${stageInfo(row.status).label} to ${stageInfo(stage).label}`,
+  }));
+  await supabase.from("job_application_activity").insert(activityRows);
+  await mirrorJobLogs(supabase, activityRows);
   refresh();
   return { ok: `Moved ${changed.length} ${changed.length === 1 ? "applicant" : "applicants"} to ${stageInfo(stage).label}.` };
 }
@@ -278,7 +286,9 @@ export async function assignJobApplications(list: string[], owner: string | null
   if (error) return { error: friendly(error) };
   const names = await loadPeople(supabase, [owner]);
   const body = owner ? `Assigned to ${owner === user.id ? "themselves" : names.get(owner) ?? "a teammate"}` : "Removed the owner";
-  await supabase.from("job_application_activity").insert(targets.map((id) => ({ application_id: id, actor_id: user.id, kind: "assign", body })));
+  const activityRows = targets.map((id) => ({ application_id: id, actor_id: user.id, kind: "assign", body }));
+  await supabase.from("job_application_activity").insert(activityRows);
+  await mirrorJobLogs(supabase, activityRows);
   refresh();
   return { ok: `Updated ${targets.length} ${targets.length === 1 ? "applicant" : "applicants"}.` };
 }
@@ -302,9 +312,14 @@ export async function rateJobApplication(id: string, rating: number | null): Pro
   const { supabase, user } = auth;
   const { error } = await supabase.from("job_applications").update({ rating }).eq("id", id);
   if (error) return { error: friendly(error) };
-  await supabase.from("job_application_activity").insert({
-    application_id: id, actor_id: user.id, kind: "rating", body: rating ? `Rated ${rating} out of 5` : "Cleared the rating",
-  });
+  const activityRow = {
+    application_id: id,
+    actor_id: user.id,
+    kind: "rating",
+    body: rating ? `Rated ${rating} out of 5` : "Cleared the rating",
+  };
+  await supabase.from("job_application_activity").insert(activityRow);
+  await mirrorJobLogs(supabase, [activityRow]);
   refresh(id);
   return { ok: "Rating saved." };
 }
@@ -316,8 +331,10 @@ export async function addJobNote(formData: FormData): Promise<JobActionResult> {
   if (!isId(id)) return { error: "This application could not be found." };
   const body = String(formData.get("body") || "").trim().slice(0, 4000);
   if (!body) return { error: "Write a note first." };
-  const { error } = await auth.supabase.from("job_application_activity").insert({ application_id: id, actor_id: auth.user.id, kind: "note", body });
+  const activityRow = { application_id: id, actor_id: auth.user.id, kind: "note", body };
+  const { error } = await auth.supabase.from("job_application_activity").insert(activityRow);
   if (error) return { error: friendly(error) };
+  await mirrorJobLogs(auth.supabase, [activityRow]);
   refresh(id);
   return { ok: "Note added." };
 }

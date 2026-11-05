@@ -81,7 +81,7 @@ export function StoreShell({
   return (
     <div className={`admin-shell ofc-shell store-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Store" />
-      <DeskWarmup hrefs={nav.map((item) => item.href)} />
+      <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
         <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />

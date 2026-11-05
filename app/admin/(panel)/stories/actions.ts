@@ -5,6 +5,7 @@ import { fromKampalaInput } from "@/lib/applications";
 import { isStoryTable, sourceForTable, STORY_SOURCES, type StoryTable } from "@/lib/newsroom";
 import { refreshSite } from "@/lib/site-cache";
 import { normalizeTags, slugify, storyPath } from "@/lib/story-admin";
+import { logCms } from "@/lib/system-logs";
 
 export type StoryActionResult = { ok?: string; error?: string; warning?: string; id?: string; table?: StoryTable; updatedAt?: string | null };
 
@@ -115,10 +116,17 @@ export async function saveStory(formData: FormData): Promise<StoryActionResult> 
   }
   if (result.error) return { error: friendly(result.error, table, slug) };
 
-  refresh();
   const status = !published ? "Draft saved." : publishedAt && new Date(publishedAt).getTime() > Date.now() ? "Story scheduled." : "Story published.";
   const saved = (result.data ?? {}) as Record<string, unknown>;
-  return { ok: status, warning, id: String(saved.id ?? id), table, updatedAt: (saved.updated_at as string | null | undefined) ?? null };
+  const savedId = String(saved.id ?? id);
+  await logCms(supabase, auth.user.id, {
+    kind: published ? "publish" : id ? "edit" : "create",
+    body: `${status} “${title}” (${table}).`,
+    entityType: table,
+    entityId: savedId || null,
+  });
+  refresh();
+  return { ok: status, warning, id: savedId, table, updatedAt: (saved.updated_at as string | null | undefined) ?? null };
 }
 
 export async function setStoryFlag(table: string, id: string, field: "published" | "featured", value: boolean): Promise<StoryActionResult> {
@@ -132,6 +140,19 @@ export async function setStoryFlag(table: string, id: string, field: "published"
   }
   const { error } = await auth.supabase.from(table).update(patch).eq("id", id);
   if (error) return { error: friendly(error, table) };
+  await logCms(auth.supabase, auth.user.id, {
+    kind: field === "featured" ? "feature" : value ? "publish" : "edit",
+    body:
+      field === "featured"
+        ? value
+          ? `Featured a story on the newsroom (${table}).`
+          : `Removed featuring from a story (${table}).`
+        : value
+          ? `Published a story (${table}).`
+          : `Moved a story to drafts (${table}).`,
+    entityType: table,
+    entityId: id,
+  });
   refresh();
   if (field === "featured") return { ok: value ? "Featured on the newsroom." : "No longer featured." };
   return { ok: value ? "Story published." : "Moved to drafts." };

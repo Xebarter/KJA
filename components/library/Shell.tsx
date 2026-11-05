@@ -4,14 +4,15 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { Fragment, useEffect, useMemo, useState, useTransition } from "react";
 import { signOut } from "@/app/actions";
-import { setActiveLibrary } from "@/app/library/(desk)/actions";
+import { setActiveCampus, setActiveLibrary } from "@/app/library/(desk)/actions";
+import type { CampusId } from "@/lib/campuses";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
 import { DesktopChrome } from "@/components/DesktopChrome";
 import { initials } from "@/lib/applications";
 import { pageIdForPath } from "@/lib/dashboard-access";
 import { isDesktopClient } from "@/lib/desktop";
-import { LIBRARY_BASE, LIBRARY_LABELS, libraryNav, type LibraryBadge, type LibraryId } from "@/lib/library-nav";
+import { LIBRARY_BASE, LIBRARY_LABELS, LIBRARY_SHORT_LABELS, libraryNav, type LibraryBadge, type LibraryId } from "@/lib/library-nav";
 
 function isActive(pathname: string, href: string) {
   return href === LIBRARY_BASE ? pathname === LIBRARY_BASE : pathname === href || pathname.startsWith(`${href}/`);
@@ -31,6 +32,8 @@ export function LibraryShell({
   badges,
   libraries,
   activeLibrary,
+  campuses,
+  activeCampus,
   pages = null,
   canSwitch = false,
   home = LIBRARY_BASE,
@@ -40,6 +43,8 @@ export function LibraryShell({
   badges: Record<LibraryBadge, number>;
   libraries: LibraryId[];
   activeLibrary: LibraryId;
+  campuses: CampusId[];
+  activeCampus: CampusId;
   pages?: string[] | null;
   canSwitch?: boolean;
   home?: string;
@@ -98,10 +103,18 @@ export function LibraryShell({
     });
   }
 
+  function switchCampus(campus: CampusId) {
+    if (campus === activeCampus || pending) return;
+    startTransition(async () => {
+      await setActiveCampus(campus);
+      router.refresh();
+    });
+  }
+
   return (
     <div className={`admin-shell ofc-shell lib-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Library" />
-      <DeskWarmup hrefs={nav.map((item) => item.href)} />
+      <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
         <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />
@@ -132,8 +145,24 @@ export function LibraryShell({
           </span>
         </Link>
 
+        {campuses.length > 1 ? (
+          <div className="lib-switch is-campus" role="group" aria-label="Active campus">
+            {campuses.map((campus) => (
+              <button
+                key={campus}
+                type="button"
+                className={activeCampus === campus ? "is-on" : ""}
+                disabled={pending}
+                onClick={() => switchCampus(campus)}
+              >
+                {campus}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
         {libraries.length > 1 ? (
-          <div className="lib-switch" role="group" aria-label="Active library">
+          <div className={`lib-switch${libraries.length > 2 ? " is-cols-3" : ""}`} role="group" aria-label="Active library section">
             {libraries.map((id) => (
               <button
                 key={id}
@@ -142,12 +171,14 @@ export function LibraryShell({
                 disabled={pending}
                 onClick={() => switchLibrary(id)}
               >
-                {id === "lower" ? "Lower" : "Upper"}
+                {LIBRARY_SHORT_LABELS[id]}
               </button>
             ))}
           </div>
         ) : (
-          <p className="lib-switch is-solo">{LIBRARY_LABELS[activeLibrary]}</p>
+          <p className="lib-switch is-solo">
+            {activeCampus} · {LIBRARY_LABELS[activeLibrary]}
+          </p>
         )}
 
         <nav className="admin-nav lib-nav" aria-label="Library desk">

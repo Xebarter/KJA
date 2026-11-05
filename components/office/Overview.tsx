@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { APPLICATION_STATUSES, OPEN_STATUSES, PIPELINE, formatDateTime, initials, timeAgo } from "@/lib/applications";
 import type { requireOffice } from "@/lib/office";
@@ -196,7 +196,7 @@ export async function Overview({ supabase }: OfficeSession) {
     studentActivityData = (studentActivity.data || []) as Activity[];
     appActivityData = (appActivity.data || []) as Activity[];
   } catch (error) {
-    return <OfficeNotice title="Overview" heading="The student register could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Overview" message={(error as Error).message} fallbackHeading="The student register could not be loaded" />;
   }
 
   const classes = SCHOOL_CLASSES.map((entry) => {

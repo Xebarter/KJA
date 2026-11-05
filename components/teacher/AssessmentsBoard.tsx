@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { PaperCard } from "@/components/academics/AssessmentsDesk";
-import { MARKS_SHEET_EVENT } from "@/components/academics/UploadMarks";
+import { MARKS_SHEET_EVENT, marksSittingKey } from "@/components/academics/UploadMarks";
 
 type Filter = "all" | "open" | "submitted" | "approved";
 
@@ -49,7 +49,7 @@ export function AssessmentsBoard({ papers }: { papers: PaperCard[] }) {
   const groups = useMemo(() => {
     const map = new Map<string, { key: string; name: string; kindLabel: string; heldOn: string; papers: PaperCard[] }>();
     for (const paper of visible) {
-      const key = `${paper.name}\u0000${paper.kindLabel}\u0000${paper.heldOn}`;
+      const key = marksSittingKey(paper.name, paper.kindLabel, paper.heldOn);
       const group = map.get(key) ?? {
         key,
         name: paper.name,

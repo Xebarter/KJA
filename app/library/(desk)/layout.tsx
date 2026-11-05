@@ -1,7 +1,8 @@
 import { LibraryShell } from "@/components/library/Shell";
 import { shellPages } from "@/lib/dashboard-access";
 import { requireLibrary } from "@/lib/library-access";
-import { LIBRARY_LABELS } from "@/lib/library-nav";
+import { DEFAULT_CAMPUS, type CampusId } from "@/lib/campuses";
+import type { LibraryId } from "@/lib/library-nav";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { schemaHint, todayKampala } from "@/lib/library";
 
@@ -11,8 +12,10 @@ export default async function LibraryDeskLayout({ children }: { children: React.
   const auth = await requireLibrary();
   const badges = { overdue: 0, ready: 0, fines: 0 };
   let person = { name: "Library", email: "", role: "Library officer" };
-  let libraries = Object.keys(LIBRARY_LABELS) as ("lower" | "upper")[];
-  let activeLibrary: "lower" | "upper" = "lower";
+  let libraries: LibraryId[] = ["lower"];
+  let activeLibrary: LibraryId = "lower";
+  let campuses: CampusId[] = [];
+  let activeCampus: CampusId = DEFAULT_CAMPUS;
   let pages: string[] | null = null;
   let canSwitch = false;
   let home = "/library";
@@ -26,6 +29,8 @@ export default async function LibraryDeskLayout({ children }: { children: React.
     };
     libraries = auth.libraries;
     activeLibrary = auth.activeLibrary;
+    campuses = auth.campuses;
+    activeCampus = auth.activeCampus;
     const shell = shellPages(auth.grants, "library");
     pages = shell.pages;
     canSwitch = shell.canSwitch;
@@ -37,17 +42,20 @@ export default async function LibraryDeskLayout({ children }: { children: React.
         .from("library_loans")
         .select("id", { count: "exact", head: true })
         .eq("library_id", activeLibrary)
+        .eq("campus", activeCampus)
         .is("returned_at", null)
         .lt("due_at", today),
       auth.supabase
         .from("library_reservations")
         .select("id", { count: "exact", head: true })
         .eq("library_id", activeLibrary)
+        .eq("campus", activeCampus)
         .eq("status", "ready"),
       auth.supabase
         .from("library_fines")
         .select("id", { count: "exact", head: true })
         .eq("library_id", activeLibrary)
+        .eq("campus", activeCampus)
         .is("paid_at", null)
         .is("waived_at", null),
     ]);
@@ -62,6 +70,8 @@ export default async function LibraryDeskLayout({ children }: { children: React.
       badges={badges}
       libraries={libraries}
       activeLibrary={activeLibrary}
+      campuses={campuses}
+      activeCampus={activeCampus}
       pages={pages}
       canSwitch={canSwitch}
       home={home}

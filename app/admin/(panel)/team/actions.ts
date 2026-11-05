@@ -5,6 +5,7 @@ import { sendTestAlert } from "@/lib/admin-alerts";
 import { requireFullAdmin } from "@/lib/admin-applications";
 import { forgetPrefix } from "@/lib/remember";
 import { serviceClient } from "@/lib/supabase/service";
+import { logTeam } from "@/lib/system-logs";
 import { removeTeamLogin, resetTeamPassword, saveTeamLogin, type TeamLoginResult } from "@/lib/team-login";
 import { ensureTeacherPortalAccess, resetTeacherPortalPassword } from "@/lib/teacher-portal-login";
 
@@ -17,6 +18,8 @@ function refresh() {
   revalidatePath("/accounts", "layout");
   revalidatePath("/academics_office", "layout");
   revalidatePath("/library", "layout");
+  revalidatePath("/store", "layout");
+  revalidatePath("/clubs", "layout");
   revalidatePath("/teacher");
   revalidatePath("/choose-dashboard");
 }
@@ -25,7 +28,15 @@ export async function saveTeamMember(formData: FormData): Promise<TeamLoginResul
   const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
   const result = await saveTeamLogin(formData);
-  if (!result.error) refresh();
+  if (!result.error) {
+    const name = result.name || String(formData.get("full_name") || formData.get("email") || "team member").trim();
+    await logTeam(auth.supabase, auth.user.id, {
+      kind: "grant",
+      body: `Saved team access for ${name}.`,
+      entityType: "profile",
+    });
+    refresh();
+  }
   return result;
 }
 
@@ -33,7 +44,15 @@ export async function issueTeamPassword(id: string): Promise<TeamLoginResult> {
   const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
   const result = await resetTeamPassword(id);
-  if (!result.error) refresh();
+  if (!result.error) {
+    await logTeam(auth.supabase, auth.user.id, {
+      kind: "password",
+      body: `Reset desk password for ${result.name || result.email || "a team member"}.`,
+      entityType: "profile",
+      entityId: id,
+    });
+    refresh();
+  }
   return result;
 }
 
@@ -41,7 +60,15 @@ export async function removeTeamMember(id: string): Promise<TeamLoginResult> {
   const auth = await requireFullAdmin();
   if ("error" in auth) return { error: auth.error };
   const result = await removeTeamLogin(id);
-  if (!result.error) refresh();
+  if (!result.error) {
+    await logTeam(auth.supabase, auth.user.id, {
+      kind: "remove",
+      body: result.ok || "Removed a team login.",
+      entityType: "profile",
+      entityId: id,
+    });
+    refresh();
+  }
   return result;
 }
 
@@ -78,6 +105,12 @@ export async function issueTeacherDeskPassword(staffId: string): Promise<TeamLog
       active: true,
     });
     if (created.error) return { error: created.error };
+    await logTeam(auth.supabase, auth.user.id, {
+      kind: "password",
+      body: `Issued teacher desk login for ${name}.`,
+      entityType: "teaching_staff",
+      entityId: staffId,
+    });
     refresh();
     return {
       ok: created.ok,
@@ -94,6 +127,12 @@ export async function issueTeacherDeskPassword(staffId: string): Promise<TeamLog
     displayName: name,
   });
   if (reset.error) return { error: reset.error };
+  await logTeam(auth.supabase, auth.user.id, {
+    kind: "password",
+    body: `Reset teacher desk password for ${name}.`,
+    entityType: "teaching_staff",
+    entityId: staffId,
+  });
   refresh();
   return {
     ok: reset.ok,

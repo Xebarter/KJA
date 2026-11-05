@@ -18,6 +18,14 @@ export type TimetableLesson = {
   tone: number;
 };
 
+export type TimetableClubTime = {
+  id: string;
+  weekday: number;
+  period: number;
+  label: string;
+  detail: string;
+};
+
 export type TimetableChoice = { id: string; name: string };
 export type TimetableClash = { id: string; staffId: string; weekday: number; period: number; label: string };
 export type TimetableDay = { value: number; label: string };
@@ -59,9 +67,10 @@ export function ClassJump({ options, value }: { options: ClassOption[]; value: s
 }
 
 export function TimetableDesk({
-  lessons, subjects, staff, clashes, days, periods,   termId, classCode, stream, save, initial, today,
+  lessons, clubTimes = [], subjects, staff, clashes, days, periods, termId, classCode, stream, save, initial, today,
 }: {
   lessons: TimetableLesson[];
+  clubTimes?: TimetableClubTime[];
   subjects: TimetableChoice[];
   staff: TimetableChoice[];
   clashes: TimetableClash[];
@@ -130,7 +139,10 @@ export function TimetableDesk({
             <span className="tt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
             <div>
               <h2>The week</h2>
-              <p>Click an empty period to add a lesson. Click a lesson to change it.</p>
+              <p>
+                Click an empty period to add a lesson. Club times from the clubs desk appear as{" "}
+                <em>Club time</em> and stay read-only here.
+              </p>
             </div>
           </div>
         </header>
@@ -148,6 +160,7 @@ export function TimetableDesk({
                 <div className="tt-period" role="rowheader"><strong>{period}</strong><small>Period</small></div>
                 {days.map((day) => {
                   const cell = lessons.filter((lesson) => lesson.weekday === day.value && lesson.period === period);
+                  const clubs = clubTimes.filter((row) => row.weekday === day.value && row.period === period);
                   const aimed = draft?.weekday === day.value && draft.period === period;
                   return (
                     <div key={`${day.value}-${period}`} className={`tt-cell${day.value === today ? " is-today" : ""}${aimed ? " is-aim" : ""}`} role="gridcell">
@@ -167,11 +180,18 @@ export function TimetableDesk({
                             <button type="submit" name="intent" value="delete">Remove</button>
                           </DeskForm>
                         </article>
-                      )) : (
+                      )) : null}
+                      {clubs.map((club) => (
+                        <article key={club.id} className="tt-lesson is-club" title={club.detail || club.label}>
+                          <strong>{club.label}</strong>
+                          {club.detail ? <small className="tt-when">{club.detail}</small> : null}
+                        </article>
+                      ))}
+                      {!cell.length ? (
                         <button type="button" className={`tt-open${aimed ? " is-on" : ""}`} onClick={() => openBlank(day.value, period)}>
                           Add
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   );
                 })}

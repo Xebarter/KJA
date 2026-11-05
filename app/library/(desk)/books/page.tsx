@@ -20,6 +20,7 @@ export default async function BooksPage({
   const auth = await requireLibrary("books");
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
   const q = (query.q || "").trim();
   const addId = (query.add || "").trim();
   const stockView = query.view === "stock";
@@ -33,12 +34,12 @@ export default async function BooksPage({
 
   const [titlesPack, itemStatsPack, addTitlePack, categoryPack, stockBoard] = await Promise.all([
     stockView ? Promise.resolve({ data: [] as { id: string; title: string; authors: string; category: string; notes: string }[], error: null }) : titlesQuery,
-    auth.supabase.from("library_items").select("title_id, status").eq("library_id", libraryId).neq("status", "withdrawn"),
+    auth.supabase.from("library_items").select("title_id, status").eq("library_id", libraryId).eq("campus", campus).neq("status", "withdrawn"),
     addId
       ? auth.supabase.from("library_titles").select("id, title, authors, category").eq("id", addId).maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     auth.supabase.from("library_titles").select("category").neq("category", "").limit(400),
-    stockView ? loadStockBoard(auth.supabase, libraryId, q) : Promise.resolve(null),
+    stockView ? loadStockBoard(auth.supabase, libraryId, q, campus) : Promise.resolve(null),
   ]);
 
   const missing = schemaHint(titlesPack.error?.message || itemStatsPack.error?.message || categoryPack.error?.message);

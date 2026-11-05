@@ -58,7 +58,13 @@
   border-bottom: 1px solid var(--tch-line, #ebe5d9);
   background:
     linear-gradient(var(--tch-accent, #fda31b), var(--tch-accent, #fda31b)) top / 100% 3px no-repeat,
-    #fff;
+    linear-gradient(180deg, #fff8ea 0%, #fff 100%);
+}
+
+.tch-prf-security .tch-prf-card-head {
+  background:
+    linear-gradient(var(--tch-sky, #1d56b0), var(--tch-sky, #1d56b0)) top / 100% 3px no-repeat,
+    linear-gradient(180deg, #f0f5fc 0%, #fff 100%);
 }
 
 .tch-prf-card-icon {
@@ -68,9 +74,14 @@
   width: 34px;
   height: 34px;
   border-radius: 10px;
-  background: var(--tch-wash, #f7f1e6);
-  color: var(--tch-ink, #19232b);
+  background: var(--tch-accent-wash, #fff1d6);
+  color: var(--tch-accent-deep, #9a5b00);
   font-size: 0.85rem;
+}
+
+.tch-prf-security .tch-prf-card-icon {
+  background: var(--tch-sky-wash, #e8f0fc);
+  color: var(--tch-sky, #1d56b0);
 }
 
 .tch-prf-card-head h2 {
@@ -355,18 +366,20 @@
   padding: 0 1.05rem;
   border: 0;
   border-radius: 11px;
-  background: var(--tch-navy, #19232b);
-  color: #fff;
+  background: linear-gradient(135deg, #fda31b, #f08a00);
+  color: var(--tch-navy, #19232b);
   font: inherit;
   font-size: 0.9rem;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   width: fit-content;
-  transition: background 0.15s ease;
+  box-shadow: 0 10px 18px -14px rgba(253, 163, 27, 0.85);
+  transition: filter 0.15s ease, transform 0.15s ease;
 }
 
 .tch-prf-save:hover {
-  background: #24333e;
+  filter: brightness(1.04);
+  transform: translateY(-1px);
 }
 
 @media (max-width: 900px) {

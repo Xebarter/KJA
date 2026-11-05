@@ -14,6 +14,7 @@ export const ROLE_LABELS: Record<string, string> = {
   academics: "Academics officer",
   library: "Librarian",
   store: "Store officer",
+  clubs: "Clubs officer",
   officer: "Team member",
   staff: "Teacher",
 };

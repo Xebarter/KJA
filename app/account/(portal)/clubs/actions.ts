@@ -5,11 +5,12 @@ import { clubFits } from "@/lib/clubs";
 import { clubPaymentStatus, startClubPayment } from "@/lib/payments/clubs";
 import { getSessionUser } from "@/lib/portal";
 import { isUuid } from "@/lib/students";
+import { logPortal } from "@/lib/system-logs";
 
 function refresh() {
   revalidatePath("/account/clubs");
   revalidatePath("/account");
-  revalidatePath("/accounts/clubs");
+  revalidatePath("/clubs");
 }
 
 export async function consentToClub(form: FormData) {
@@ -36,6 +37,13 @@ export async function consentToClub(form: FormData) {
     if (error.code === "23505") return { error: "You have already consented to this club." };
     return { error: "The consent could not be saved." };
   }
+  await logPortal(supabase, user.id, {
+    kind: "consent",
+    body: "Parent consented to a club online.",
+    entityType: "club",
+    entityId: clubId,
+    studentId,
+  });
   refresh();
   return { ok: true as const, id: data?.id ?? null };
 }
@@ -43,10 +51,17 @@ export async function consentToClub(form: FormData) {
 export async function withdrawClubConsent(form: FormData) {
   const id = String(form.get("id") || "");
   if (!isUuid(id)) return { error: "Choose the consent to withdraw." };
-  const { supabase } = await getSessionUser();
+  const { user, supabase } = await getSessionUser();
   if (!supabase) return { error: "Sign in to update this consent." };
   const { error } = await supabase.from("club_consents").update({ withdrawn_at: new Date().toISOString() }).eq("id", id).is("withdrawn_at", null);
   if (error) return { error: "The consent could not be withdrawn." };
+  await logPortal(supabase, user?.id ?? null, {
+    kind: "withdraw",
+    body: "Parent withdrew a club consent online.",
+    entityType: "club_consent",
+    entityId: id,
+    severity: "notice",
+  });
   refresh();
   return { ok: true };
 }

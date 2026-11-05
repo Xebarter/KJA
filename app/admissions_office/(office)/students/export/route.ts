@@ -17,13 +17,14 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const filters = parseStudentFilters(Object.fromEntries(url.searchParams));
   const ids = (url.searchParams.get("ids") || "").split(",").filter(isUuid).slice(0, 1000);
+  const campusScope = { campuses: auth.campuses };
 
   let rows: DirectoryRow[];
   try {
     rows = await fetchAll<DirectoryRow>((from, to) => {
       const query = ids.length
-        ? studentsQuery(auth.supabase, { ...filters, status: "all", q: "" }, "*").in("id", ids)
-        : studentsQuery(auth.supabase, filters, "*");
+        ? studentsQuery(auth.supabase, { ...filters, status: "all", q: "" }, "*", campusScope).in("id", ids)
+        : studentsQuery(auth.supabase, filters, "*", campusScope);
       return query.range(from, to);
     }, 20000);
   } catch (error) {

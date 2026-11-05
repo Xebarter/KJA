@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { kampalaToday, streamOf } from "@/lib/academics";
+import { classGroupKey, kampalaToday, streamOf } from "@/lib/academics";
+import { operationalCampus } from "@/lib/campuses";
 import {
   EMPTY_ACADEMICS_BADGES,
   type AcademicsBadgeCounts,
@@ -28,8 +29,8 @@ export async function loadAcademicsBadges(
     const termId = term.data?.id;
     const [pupils, attendance, closures, drafts, schemes] = await Promise.all([
       userId
-        ? fetchAll<{ id: string; class_code: string | null; stream: string | null }>((from, to) =>
-          supabase.from("students").select("id, class_code, stream").eq("status", "active").order("id").range(from, to),
+        ? fetchAll<{ id: string; class_code: string | null; stream: string | null; campus: string | null }>((from, to) =>
+          supabase.from("students").select("id, class_code, stream, campus").eq("status", "active").order("id").range(from, to),
         ).catch(() => [])
         : Promise.resolve([]),
       userId
@@ -44,15 +45,19 @@ export async function loadAcademicsBadges(
       supabase.from("schemes").select("id", { count: "exact", head: true }).eq("status", "submitted"),
     ]);
     const marked = new Set(attendance.map((row) => row.student_id));
-    const closed = new Set(closures.map((row) => `${row.class_code}|${streamOf(row.stream)}`));
+    const closed = new Set(closures.map((row) => classGroupKey(row.campus, row.class_code, row.stream)));
     let open = 0;
     for (const entry of SCHOOL_CLASSES) {
       const mine = pupils.filter((row) => row.class_code === entry.code);
-      const streams = [...new Set(mine.map((row) => streamOf(row.stream as string | null)))];
-      for (const stream of streams) {
-        if (closed.has(`${entry.code}|${stream}`)) continue;
-        const group = mine.filter((row) => streamOf(row.stream as string | null) === stream);
-        if (group.length && group.some((row) => !marked.has(row.id as string))) open += 1;
+      const campuses = [...new Set(mine.map((row) => operationalCampus(row.campus)))];
+      for (const campus of campuses) {
+        const atCampus = mine.filter((row) => operationalCampus(row.campus) === campus);
+        const streams = [...new Set(atCampus.map((row) => streamOf(row.stream as string | null)))];
+        for (const stream of streams) {
+          if (closed.has(classGroupKey(campus, entry.code, stream))) continue;
+          const group = atCampus.filter((row) => streamOf(row.stream as string | null) === stream);
+          if (group.length && group.some((row) => !marked.has(row.id as string))) open += 1;
+        }
       }
     }
     return {

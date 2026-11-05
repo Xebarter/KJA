@@ -2,7 +2,7 @@ import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ActionButton } from "@/components/office/client";
 import { Clear, DataQualityNav, MissingDetails, PupilCell, type CheckItem, type Gap, type GapPupil, type PupilInfo } from "@/components/office/DataQuality";
-import { MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { OFFICE, ageOutlier, cap, displayPhone, fetchAll, pick, studentAge, telHref } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
@@ -115,7 +115,7 @@ export default async function DataQualityPage({ searchParams }: { searchParams: 
       fetchAll<{ family_id: string }>((from, to) => supabase.from("family_contacts").select("family_id").eq("kind", "phone").order("id").range(from, to), 50000),
     ]);
   } catch (error) {
-    return <OfficeNotice title="Data quality" heading="The register could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Data quality" message={(error as Error).message} fallbackHeading="The register could not be loaded" />;
   }
 
   const reviewRows = rows.filter((row) => row.needs_review);

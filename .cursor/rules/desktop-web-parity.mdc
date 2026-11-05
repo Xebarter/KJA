@@ -27,8 +27,9 @@ The Desktop App is an **Electron shell** over the existing Next.js staff desks. 
 
 ## Offline / performance
 
-- Reads: loopback proxy SQLite cache (stale-while-revalidate)
-- Writes: plain PostgREST table mutations may queue offline; RPC, storage, and service-role stay online-only
+- Reads: loopback proxy SQLite cache (stale-while-revalidate); critical hydrate + eager DeskWarmup fill desks for long offline use
+- Auth: offline grace keeps the last `/auth/v1/user` while disconnected (see `OFFLINE_AUTH_GRACE_MS`)
+- Writes: plain PostgREST table mutations queue offline and patch cached lists; RPC, storage, service-role, mail, and payment gateways stay online-only
 - Follow `Desktop App/README.md` for ports, env (`KJA_UPSTREAM_SUPABASE_URL`), and packaging
 
 A desk page is “done” when it looks and behaves like the website in the Electron window, with instant sidebar revisits after warmup.

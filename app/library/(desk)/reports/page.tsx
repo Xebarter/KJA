@@ -77,11 +77,12 @@ export default async function LibraryReportsPage({
   const auth = await requireLibrary("reports");
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
   const range = parseReportRange(query.range);
   const who = (query.who || "").trim() || null;
   const tab = parseTab(query.tab, Boolean(who));
 
-  const report = await loadLibraryReport(auth.supabase, libraryId, { range, person: who });
+  const report = await loadLibraryReport(auth.supabase, libraryId, { range, person: who, campus });
   const { kpis } = report;
   const whoParam = who && report.person ? who : null;
   const rangeLabel = RANGES.find((item) => item.id === range)?.label || "90 days";

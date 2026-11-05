@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, screen } from "electron";
 import { existsSync, readFileSync } from "node:fs";
 import { writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import {
   PROXY_PORT,
   PROXY_URL,
@@ -550,7 +550,7 @@ app.whenReady().then(async () => {
     "download:save",
     async (
       event,
-      payload: { data?: ArrayBuffer; filename?: string },
+      payload: { data?: ArrayBuffer | Uint8Array; filename?: string },
     ): Promise<
       | { ok: true; path: string }
       | { ok: false; canceled: true }
@@ -562,7 +562,7 @@ app.whenReady().then(async () => {
         const filename = safeDownloadName(payload?.filename || "download");
         const win = BrowserWindow.fromWebContents(event.sender);
         const options: Electron.SaveDialogOptions = {
-          title: "Save file",
+          title: "Save workbook",
           defaultPath: join(app.getPath("downloads"), filename),
           filters: saveFilters(filename),
         };
@@ -571,12 +571,17 @@ app.whenReady().then(async () => {
             ? await dialog.showSaveDialog(win, options)
             : await dialog.showSaveDialog(options);
         if (result.canceled || !result.filePath) return { ok: false, canceled: true };
+        // Copy into a fresh Buffer - IPC may hand us a view over a pooled ArrayBuffer.
         const bytes =
           data instanceof ArrayBuffer
-            ? Buffer.from(data)
-            : Buffer.from(data.buffer, data.byteOffset, data.byteLength);
-        await writeFile(result.filePath, bytes);
-        return { ok: true, path: result.filePath };
+            ? Buffer.from(new Uint8Array(data))
+            : Buffer.from(new Uint8Array(data.buffer, data.byteOffset, data.byteLength));
+        if (!bytes.length) return { ok: false, error: "Nothing to save." };
+        const target = result.filePath.toLowerCase().endsWith(extname(filename).toLowerCase())
+          ? result.filePath
+          : `${result.filePath}${extname(filename) || ""}`;
+        await writeFile(target, bytes);
+        return { ok: true, path: target };
       } catch (e) {
         return { ok: false, error: e instanceof Error ? e.message : String(e) };
       }

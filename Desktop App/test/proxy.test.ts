@@ -105,6 +105,32 @@ describe("ProxyStore + optimistic writes", () => {
     expect(store.pendingCount()).toBe(1);
   });
 
+  it("patches cached list bodies instead of wiping them on offline insert", () => {
+    store.putCache({
+      user_id: "u1",
+      url: "https://example.supabase.co/rest/v1/class_notices?select=*",
+      method: "GET",
+      status: 200,
+      headers: JSON.stringify({ "content-type": "application/json" }),
+      body: Buffer.from(JSON.stringify([{ id: "n1", title: "Old" }])),
+      fetched_at: Date.now(),
+      table_name: "class_notices",
+    });
+    const result = applyOptimisticWrite(
+      store,
+      "u1",
+      "POST",
+      "/rest/v1/class_notices",
+      "?select=*",
+      Buffer.from(JSON.stringify({ title: "New note" })),
+    );
+    expect(result.status).toBe(201);
+    const cached = store.getCache("u1", "https://example.supabase.co/rest/v1/class_notices?select=*");
+    const rows = JSON.parse(String(cached?.body)) as { title: string }[];
+    expect(rows.some((row) => row.title === "New note")).toBe(true);
+    expect(rows.some((row) => row.title === "Old")).toBe(true);
+  });
+
   it("caches auth user for offline reuse", () => {
     store.putAuthUser("u1", Math.floor(Date.now() / 1000) + 3600, '{"id":"u1"}', "{}");
     const row = store.getAuthUser("u1");
@@ -132,12 +158,26 @@ describe("startProxy integration", () => {
       }
       if (url.startsWith("/rest/v1/students") && req.method === "GET") {
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify([{ id: "1", name: "Ada" }]));
+        res.end(
+          JSON.stringify([
+            { id: "1", name: "Ada", full_name: "Ada", status: "active", sex: "M" },
+            { id: "2", name: "Bea", full_name: "Bea", status: "active", sex: "F" },
+          ]),
+        );
+        return;
+      }
+      if (url.startsWith("/rest/v1/students") && req.method === "HEAD") {
+        res.writeHead(200, {
+          "content-type": "application/json",
+          "content-range": "*/2",
+          "preference-applied": "count=exact",
+        });
+        res.end();
         return;
       }
       if (url.startsWith("/rest/v1/students") && req.method === "POST") {
         res.writeHead(201, { "content-type": "application/json" });
-        res.end(JSON.stringify([{ id: "2", name: "New" }]));
+        res.end(JSON.stringify([{ id: "3", name: "New", status: "active" }]));
         return;
       }
       if (url.startsWith("/rest/v1/applications") && req.method === "GET") {
@@ -294,6 +334,157 @@ describe("startProxy integration", () => {
     const third = await fetch(`${base}/rest/v1/applications?select=id,status`, { headers });
     expect(third.status).toBe(200);
     expect(applicationsHits).toBe(3);
+
+    // Offline still has the last snapshot from online visits.
+    proxy.setOnline(false);
+    const offline = await fetch(`${base}/rest/v1/applications?select=id,status`, { headers });
+    expect(offline.status).toBe(200);
+    expect(offline.headers.get("x-kja-cache")).toBe("offline");
+    expect(applicationsHits).toBe(3);
+  });
+
+  it("keeps list caches after an offline insert", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "patch-cache.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    const token = makeJwt("user-a");
+    const headers = { apikey: "anon", Authorization: `Bearer ${token}` };
+
+    const warm = await fetch(`${base}/rest/v1/students?status=eq.active`, { headers });
+    expect(warm.status).toBe(200);
+
+    proxy.setOnline(false);
+    const created = await fetch(`${base}/rest/v1/students`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json", Prefer: "return=representation" },
+      body: JSON.stringify({ full_name: "Offline Ada", status: "active" }),
+    });
+    expect(created.status).toBe(201);
+
+    const list = await fetch(`${base}/rest/v1/students?status=eq.active`, { headers });
+    expect(list.status).toBe(200);
+    const rows = (await list.json()) as { full_name?: string }[];
+    expect(rows.some((row) => row.full_name === "Offline Ada")).toBe(true);
+  });
+
+  it("serves auth user offline after JWT expiry within grace", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "auth-grace.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    proxy.store.putAuthUser("user-a", Math.floor(Date.now() / 1000) + 3600, JSON.stringify({ id: "user-a" }), "{}");
+
+    proxy.setOnline(false);
+    const expired = makeJwt("user-a", -60);
+    const res = await fetch(`${base}/auth/v1/user`, {
+      headers: { apikey: "anon", Authorization: `Bearer ${expired}` },
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get("x-kja-cache")).toBe("offline-grace");
+    expect(await res.json()).toEqual({ id: "user-a" });
+  });
+
+  it("answers offline list filters with in() and ilike or-groups from entities", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "filter-synth.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    const token = makeJwt("user-a");
+    const headers = { apikey: "anon", Authorization: `Bearer ${token}` };
+
+    const warm = await fetch(`${base}/rest/v1/students?select=*`, { headers });
+    expect(warm.status).toBe(200);
+
+    proxy.setOnline(false);
+    const filtered = await fetch(
+      `${base}/rest/v1/students?select=id,full_name,status&status=in.(active)&or=(full_name.ilike.%25Ada%25,name.ilike.%25Ada%25)&order=full_name.asc`,
+      { headers },
+    );
+    expect(filtered.status).toBe(200);
+    expect(filtered.headers.get("x-kja-cache")).toBe("entities");
+    const rows = (await filtered.json()) as { full_name?: string; name?: string }[];
+    expect(rows.some((row) => (row.full_name || row.name) === "Ada")).toBe(true);
+  });
+
+  it("answers offline HEAD Prefer count=exact from entities", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "head-count.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    const token = makeJwt("user-a");
+    const headers = {
+      apikey: "anon",
+      Authorization: `Bearer ${token}`,
+      Prefer: "count=exact",
+    };
+
+    // Warm the table cache + entities via a normal GET (hydrate-style).
+    const warm = await fetch(`${base}/rest/v1/students?select=id,status,sex&status=eq.active`, {
+      headers: { apikey: "anon", Authorization: `Bearer ${token}` },
+    });
+    expect(warm.status).toBe(200);
+
+    proxy.setOnline(false);
+
+    const head = await fetch(`${base}/rest/v1/students?select=id&status=eq.active`, {
+      method: "HEAD",
+      headers,
+    });
+    expect(head.status).toBe(200);
+    expect(head.headers.get("x-kja-cache")).toMatch(/offline|entities/);
+    expect(head.headers.get("content-range")).toMatch(/\/\d+$/);
+
+    const boys = await fetch(`${base}/rest/v1/students?select=id&status=eq.active&sex=eq.M`, {
+      method: "HEAD",
+      headers,
+    });
+    expect(boys.status).toBe(200);
+    expect(boys.headers.get("content-range")).toBeTruthy();
+  });
+
+  it("caches online HEAD counts and replays them offline", async () => {
+    proxy = await startProxy({
+      upstreamUrl: `http://127.0.0.1:${upstreamPort}`,
+      anonKey: "anon",
+      dbPath: join(dir, "head-cache.sqlite"),
+      port: 0,
+    });
+    const base = `http://127.0.0.1:${proxy.port}`;
+    const token = makeJwt("user-a");
+    const headers = {
+      apikey: "anon",
+      Authorization: `Bearer ${token}`,
+      Prefer: "count=exact",
+    };
+
+    const online = await fetch(`${base}/rest/v1/students?select=id&status=eq.active`, {
+      method: "HEAD",
+      headers,
+    });
+    expect(online.status).toBe(200);
+    expect(online.headers.get("content-range")).toBeTruthy();
+
+    proxy.setOnline(false);
+    const offline = await fetch(`${base}/rest/v1/students?select=id&status=eq.active`, {
+      method: "HEAD",
+      headers,
+    });
+    expect(offline.status).toBe(200);
+    expect(offline.headers.get("x-kja-cache")).toBe("offline");
+    expect(offline.headers.get("content-range")).toBe(online.headers.get("content-range"));
   });
 
   it("replays Content-Range on a cached 206 so the awards query can be read", async () => {

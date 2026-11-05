@@ -9,6 +9,7 @@ import { getContent } from "@/lib/content";
 import { emailSetupProblem, sendEmail } from "@/lib/email/send";
 import { loadPayment, refreshPayment } from "@/lib/payments/admission";
 import { serviceClient } from "@/lib/supabase/service";
+import { mirrorApplicationLogs } from "@/lib/system-logs";
 
 export type ActionResult = { error?: string; ok?: string; warning?: string };
 
@@ -104,7 +105,9 @@ export async function moveApplication(input: MoveInput): Promise<ActionResult> {
     }
   }
 
-  await supabase.from("application_activity").insert(activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id })));
+  const activityRows = activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id }));
+  await supabase.from("application_activity").insert(activityRows);
+  await mirrorApplicationLogs(supabase, activityRows);
   refresh(id);
   return { ok: status === current.status ? "Saved." : `Moved to ${label}.`, warning };
 }
@@ -166,9 +169,9 @@ export async function updateApplication(formData: FormData): Promise<ActionResul
 
   const { error } = await supabase.from("applications").update(patch).eq("id", id);
   if (error) return { error: error.message };
-  await supabase.from("application_activity").insert(
-    activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id })),
-  );
+  const activityRows = activity.map((entry) => ({ ...entry, application_id: id, actor_id: user.id }));
+  await supabase.from("application_activity").insert(activityRows);
+  await mirrorApplicationLogs(supabase, activityRows);
   refresh(id);
   return { ok: "Saved." };
 }
@@ -179,10 +182,10 @@ export async function addApplicationNote(formData: FormData): Promise<ActionResu
   const id = String(formData.get("id") || "");
   const body = String(formData.get("body") || "").trim().slice(0, 4000);
   if (!body) return { error: "Write a note first." };
-  const { error } = await auth.supabase
-    .from("application_activity")
-    .insert({ application_id: id, actor_id: auth.user.id, kind: "note", body });
+  const row = { application_id: id, actor_id: auth.user.id, kind: "note", body };
+  const { error } = await auth.supabase.from("application_activity").insert(row);
   if (error) return { error: error.message };
+  await mirrorApplicationLogs(auth.supabase, [row]);
   refresh(id);
   return { ok: "Note added." };
 }
@@ -231,9 +234,9 @@ export async function bulkUpdateApplications(
   const { error } = await supabase.from("applications").update(patch).in("id", targets);
   if (error) return { error: error.message };
   if (kind) {
-    await supabase.from("application_activity").insert(
-      targets.map((id) => ({ application_id: id, actor_id: user.id, kind, body })),
-    );
+    const activityRows = targets.map((id) => ({ application_id: id, actor_id: user.id, kind, body }));
+    await supabase.from("application_activity").insert(activityRows);
+    await mirrorApplicationLogs(supabase, activityRows);
   }
   refresh();
   return { ok: `Updated ${targets.length} application${targets.length === 1 ? "" : "s"}.` };

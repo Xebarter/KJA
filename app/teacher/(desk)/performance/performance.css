@@ -76,7 +76,9 @@
   padding: 1rem 1.05rem;
   border: 1px solid var(--tch-line);
   border-radius: 16px;
-  background: var(--tch-panel);
+  background:
+    radial-gradient(90% 60% at 100% 0%, rgba(29, 86, 176, 0.05), transparent 55%),
+    var(--tch-panel);
   box-shadow: var(--tch-shadow);
   animation: perf-in 0.35s cubic-bezier(0.2, 0.7, 0.2, 1) both;
 }
@@ -92,9 +94,24 @@
   width: 2.15rem;
   height: 2.15rem;
   border-radius: 11px;
-  background: var(--tch-wash);
-  color: var(--tch-ink);
+  background: var(--tch-sky-wash);
+  color: var(--tch-sky);
   font-size: 0.85rem;
+}
+
+.perf-strip > div:nth-child(2) .perf-strip-icon {
+  background: var(--tch-mint-wash);
+  color: var(--tch-mint);
+}
+
+.perf-strip > div:nth-child(3) .perf-strip-icon {
+  background: var(--tch-accent-wash);
+  color: var(--tch-accent-deep);
+}
+
+.perf-strip > div:nth-child(4) .perf-strip-icon {
+  background: var(--tch-rose-wash, #fdecee);
+  color: var(--tch-rose);
 }
 
 .perf-strip .is-warn .perf-strip-icon {

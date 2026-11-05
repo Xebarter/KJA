@@ -10,6 +10,7 @@ import { CONTENT_TABLE_PAGE } from "@/lib/dashboard-access";
 import { ALUMNI_QUESTIONS } from "@/lib/forms";
 import { refreshSite } from "@/lib/site-cache";
 import { createClient } from "@/lib/supabase/server";
+import { logCms } from "@/lib/system-logs";
 
 const TABLES = new Set([
   "pages",
@@ -32,7 +33,7 @@ const TABLES = new Set([
 async function adminClient(...pages: string[]) {
   const auth = await requireAdmin(...pages);
   if ("error" in auth) throw new Error(auth.error);
-  return auth.supabase;
+  return auth;
 }
 
 function clean(value: FormDataEntryValue | null) {
@@ -43,7 +44,8 @@ function clean(value: FormDataEntryValue | null) {
 export async function saveRecord(table: string, formData: FormData) {
   const page = CONTENT_TABLE_PAGE[table];
   if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
-  const supabase = await adminClient(page);
+  const auth = await adminClient(page);
+  const { supabase, user } = auth;
   const id = clean(formData.get("id"));
   const payload: Record<string, unknown> = {};
   for (const [key, value] of formData.entries()) {
@@ -60,36 +62,56 @@ export async function saveRecord(table: string, formData: FormData) {
   if (id) {
     const { error } = await supabase.from(table).update(payload).eq("id", id);
     if (error) throw new Error(error.message);
+    await logCms(supabase, user.id, {
+      kind: "edit",
+      body: `Updated ${table.replace(/_/g, " ")} content.`,
+      entityType: table,
+      entityId: id,
+    });
     refreshSite();
     return id;
   }
   const { data, error } = await supabase.from(table).insert(payload).select("id").single();
   if (error) throw new Error(error.message);
+  const createdId = data?.id ? String(data.id) : "";
+  await logCms(supabase, user.id, {
+    kind: "create",
+    body: `Created ${table.replace(/_/g, " ")} content.`,
+    entityType: table,
+    entityId: createdId || null,
+  });
   refreshSite();
-  return data?.id ? String(data.id) : "";
+  return createdId;
 }
 
 export async function deleteRecord(table: string, id: string) {
   const page = CONTENT_TABLE_PAGE[table];
   if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
-  const supabase = await adminClient(page);
-  const { error } = await supabase.from(table).delete().eq("id", id);
+  const auth = await adminClient(page);
+  const { error } = await auth.supabase.from(table).delete().eq("id", id);
   if (error) throw new Error(error.message);
+  await logCms(auth.supabase, auth.user.id, {
+    kind: "delete",
+    body: `Deleted ${table.replace(/_/g, " ")} content.`,
+    entityType: table,
+    entityId: id,
+    severity: "notice",
+  });
   refreshSite();
 }
 
 export async function reorderRecords(table: string, ids: string[]) {
   const page = CONTENT_TABLE_PAGE[table];
   if (!TABLES.has(table) || !page) throw new Error("Unknown collection.");
-  const supabase = await adminClient(page);
-  const results = await Promise.all(ids.map((id, index) => supabase.from(table).update({ sort_order: index }).eq("id", id)));
+  const auth = await adminClient(page);
+  const results = await Promise.all(ids.map((id, index) => auth.supabase.from(table).update({ sort_order: index }).eq("id", id)));
   const failed = results.find((result) => result.error);
   if (failed?.error) throw new Error(failed.error.message);
   refreshSite();
 }
 
 export async function saveSettings(formData: FormData) {
-  const supabase = await adminClient("settings");
+  const auth = await adminClient("settings");
   const jsonFields = ["counters", "hero_slides", "features", "choose_items", "socials"] as const;
   const payload: Record<string, unknown> = { id: 1 };
   for (const [key, value] of formData.entries()) {
@@ -101,21 +123,27 @@ export async function saveSettings(formData: FormData) {
     payload[key] = clean(value);
   }
   payload.popup_enabled = formData.get("popup_enabled") === "on";
-  const { data: saved, error } = await supabase.from("site_settings").update(payload).eq("id", 1).select("id");
+  const { data: saved, error } = await auth.supabase.from("site_settings").update(payload).eq("id", 1).select("id");
   if (error) throw new Error(error.message);
   if (!saved?.length) throw new Error("Site settings could not be saved.");
+  await logCms(auth.supabase, auth.user.id, {
+    kind: "setup",
+    body: "Updated site settings.",
+    entityType: "site_settings",
+    severity: "notice",
+  });
   refreshSite();
 }
 
 export async function uploadMedia(formData: FormData) {
-  const supabase = await adminClient("images", "stories", "content-website", "content-people", "content-events", "content-alumni", "content-careers");
+  const auth = await adminClient("images", "stories", "content-website", "content-people", "content-events", "content-alumni", "content-careers");
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) throw new Error("Choose an image.");
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
   const storagePath = `${Date.now()}-${safeName}`;
-  const { error } = await supabase.storage.from("media").upload(storagePath, file, { upsert: false });
+  const { error } = await auth.supabase.storage.from("media").upload(storagePath, file, { upsert: false });
   if (error) throw new Error(error.message);
-  const { data } = supabase.storage.from("media").getPublicUrl(storagePath);
+  const { data } = auth.supabase.storage.from("media").getPublicUrl(storagePath);
   return data.publicUrl;
 }
 
@@ -130,7 +158,7 @@ function setPointer(root: Record<string, unknown>, pointer: Array<string | numbe
 }
 
 export async function updateImageTarget(target: ImageTarget, imageUrl: string) {
-  const supabase = await adminClient("images");
+  const { supabase } = await adminClient("images");
   if (target.kind === "public-file") {
     refreshSite();
     revalidatePath("/admin");

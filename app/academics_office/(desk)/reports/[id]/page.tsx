@@ -5,7 +5,16 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { DeskForm, PrintButton } from "@/components/academics/Form";
 import { formatScore, ordinal, ReportSheet, type SheetActivity, type SheetCard, type SheetLine } from "@/components/academics/ReportSheet";
 import { AcademicsGate } from "@/components/academics/ui";
-import { ACADEMICS_BASE, CONDUCT, classLabel, classSection, num, scaleBands } from "@/lib/academics";
+import {
+  ACADEMICS_BASE,
+  CONDUCT,
+  classLabel,
+  classSection,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
+  num,
+  scaleBands,
+} from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
 import { ensureDraftReportComments } from "@/lib/comment-engine";
@@ -60,6 +69,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     }
   }
   const nursery = classSection(card.class_code) === "nursery";
+  const markSection = gradeBandSection(card.class_code);
   const activityQuery = await supabase
     .from("report_card_activities")
     .select("slot, activity_name, level, score, max_score, skills, comment")
@@ -87,7 +97,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     card.class_code
       ? loadSubjectInitials(supabase, { termId: card.term_id, classCode: card.class_code, stream: card.stream || "" })
       : Promise.resolve(new Map<string, string>()),
-    supabase.from("grade_bands").select("label, min_score, max_score, sort_order").eq("section", nursery ? "nursery" : "primary").order("sort_order"),
+    supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
   ]);
   const term = card.fee_terms as { label?: string } | { label?: string }[] | null;
   const termLabel = Array.isArray(term) ? term[0]?.label : term?.label;
@@ -148,7 +158,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       teacher_initials: initials.get(String(line.subject_id)) || null,
       parts: parts.get(`${id}:${line.subject_id}`) ?? [],
     })).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
-    scale: scaleBands(nursery ? "nursery" : "primary", card.grade_rules, bands.error ? null : bands.data),
+    scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
   };
   const closing = await loadReportClosing(supabase, { termId: card.term_id, classCode: card.class_code, campus: pupil?.campus });
   sheet.fees = closing.fees;

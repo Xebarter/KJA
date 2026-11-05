@@ -6,7 +6,7 @@ import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { ACADEMICS_BASE, dateKindLabel, kampalaToday, loadCurrentTerm, reasonLabel, type TermRow } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
-import { loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
+import { groupMissingMarks, loadAcademicPicture, type AcademicPicture } from "@/lib/academics-insights";
 import { emailSetupProblem } from "@/lib/email/send";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -16,7 +16,7 @@ export default async function InsightsPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Insights" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Insights" />;
-  const { supabase, user } = opened.auth;
+  const { supabase, user, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Insights" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -45,7 +45,7 @@ export default async function InsightsPage() {
         }
       />
       <Suspense fallback={<InsightsFallback />}>
-        <InsightsBody supabase={supabase} term={term} userId={user.id} />
+        <InsightsBody supabase={supabase} term={term} userId={user.id} campuses={campuses} />
       </Suspense>
     </div>
   );
@@ -55,14 +55,16 @@ async function InsightsBody({
   supabase,
   term,
   userId,
+  campuses,
 }: {
   supabase: SupabaseClient;
   term: TermRow;
   userId: string;
+  campuses: readonly string[];
 }) {
   let picture: AcademicPicture;
   try {
-    picture = await loadAcademicPicture(supabase, term, kampalaToday(), userId);
+    picture = await loadAcademicPicture(supabase, term, kampalaToday(), userId, campuses);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Insights could not be loaded.";
     return <AcademicsGate title="Insights" state={{ notice: "schema", message }} />;
@@ -70,6 +72,8 @@ async function InsightsBody({
   const mail = emailSetupProblem();
   const openFollow = picture.interventions.filter((row) => row.status === "open");
   const nf = (value: number) => value.toLocaleString("en-GB");
+  const missingTotal = picture.gaps.reduce((sum, paper) => sum + paper.missing, 0);
+  const gapSittings = groupMissingMarks(picture.gaps);
 
   return (
     <>
@@ -77,40 +81,64 @@ async function InsightsBody({
         <strong>{nf(picture.pupils)}</strong> pupils in <strong>{nf(picture.classes)}</strong> classes
       </p>
       <section className="ins-strip" aria-label="This term">
-        <div>
-          <span>Mean score</span>
+        <article className="ins-kpi is-navy">
+          <header>
+            <span>Mean score</span>
+            <i className="fa-solid fa-chart-simple" aria-hidden="true" />
+          </header>
           <strong>{picture.mean ?? "-"}</strong>
           <small>Across report lines</small>
-        </div>
-        <div className={picture.openMarkbooks.length ? "is-warn" : "is-ok"}>
-          <span>Open markbooks</span>
+        </article>
+        <article className={`ins-kpi${picture.openMarkbooks.length ? " is-warn" : " is-ok"}`}>
+          <header>
+            <span>Open markbooks</span>
+            <i className="fa-solid fa-pen-to-square" aria-hidden="true" />
+          </header>
           <strong>{nf(picture.openMarkbooks.length)}</strong>
           <small>Still being filled</small>
-        </div>
-        <div className={picture.schemesWaiting.length ? "is-warn" : "is-ok"}>
-          <span>Schemes waiting</span>
+        </article>
+        <article className={`ins-kpi${picture.schemesWaiting.length ? " is-warn" : " is-ok"}`}>
+          <header>
+            <span>Schemes waiting</span>
+            <i className="fa-solid fa-list-check" aria-hidden="true" />
+          </header>
           <strong>{nf(picture.schemesWaiting.length)}</strong>
           <small>Not yet approved</small>
-        </div>
-        <div className={picture.overdueLessons ? "is-warn" : "is-ok"}>
-          <span>Overdue lessons</span>
+        </article>
+        <article className={`ins-kpi${picture.overdueLessons ? " is-warn" : " is-ok"}`}>
+          <header>
+            <span>Overdue lessons</span>
+            <i className="fa-solid fa-clock" aria-hidden="true" />
+          </header>
           <strong>{nf(picture.overdueLessons)}</strong>
           <small>Past the due date</small>
-        </div>
+        </article>
       </section>
 
       <div className="ins-layout">
         <div className="ins-main">
-          <section className="ins-card" aria-label="Performance">
+          <section className="ins-card ins-perf-card" aria-label="Performance">
             <CardHead icon="fa-chart-column" title="Performance" text="Average scores for this term." />
+            <div className="ins-perf-hero">
+              <div className="ins-perf-hero-figure">
+                <strong>{picture.mean ?? "-"}</strong>
+                <span>Term mean</span>
+              </div>
+              <p>
+                Averages by campus, class, and subject from report lines this term.
+                {picture.bySubject[0]?.value != null ? (
+                  <> Leading subject: <strong>{picture.bySubject[0].label}</strong> at {picture.bySubject[0].value}.</>
+                ) : null}
+              </p>
+            </div>
             <div className="ins-perf">
-              <Bars title="Campus" rows={picture.byCampus} />
-              <Bars title="Class" rows={picture.byClass} />
-              <Bars title="Subject" rows={picture.bySubject} />
+              <Bars icon="fa-school" title="Campus" rows={picture.byCampus} />
+              <Bars icon="fa-chalkboard" title="Class" rows={picture.byClass} />
+              <Bars icon="fa-book-open" title="Subject" rows={picture.bySubject} />
             </div>
           </section>
 
-          <section className="ins-card" aria-label="Missing marks">
+          <section className={`ins-card ins-gaps${picture.gaps.length ? " has-gaps" : " is-clear"}`} aria-label="Missing marks">
             <CardHead
               icon="fa-pen-to-square"
               title="Missing marks"
@@ -119,18 +147,88 @@ async function InsightsBody({
             />
             {mail ? <p className="ins-note">{mail}</p> : null}
             {picture.gaps.length ? (
-              <ul className="ins-rows">
-                {picture.gaps.map((paper) => (
-                  <li key={paper.id}>
-                    <Link href={`${ACADEMICS_BASE}/assessments/${paper.id}`}>
-                      <strong>{paper.name}</strong>
-                      <small>{paper.classLabel}</small>
-                      <em className="is-late">{nf(paper.missing)} missing</em>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="ins-quiet">Every markbook is filled in.</p>}
+              <>
+                <div className="ins-gaps-summary">
+                  <div className="ins-gaps-summary-figure">
+                    <strong>{nf(missingTotal)}</strong>
+                    <span>empty rows</span>
+                  </div>
+                  <p>
+                    Across <strong>{nf(gapSittings.length)}</strong> {gapSittings.length === 1 ? "assessment" : "assessments"} ·{" "}
+                    <strong>{nf(picture.gaps.length)}</strong> {picture.gaps.length === 1 ? "subject" : "subjects"}.
+                    Expand an assessment, then a class, to open the markbook.
+                  </p>
+                </div>
+                <div className="ins-gaps-groups">
+                  {gapSittings.map((sitting, sittingIndex) => (
+                    <details key={sitting.key} className="ins-gaps-group ins-gaps-sitting" open={sittingIndex === 0}>
+                      <summary>
+                        <span className="ins-gaps-group-title">
+                          <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                          <span className="ins-gaps-sitting-copy">
+                            <strong>{sitting.name}</strong>
+                            <small>
+                              {sitting.kindLabel}
+                              {sitting.heldOn ? ` · ${shortDay(sitting.heldOn)}` : ""}
+                              {` · ${nf(sitting.classCount)} ${sitting.classCount === 1 ? "class" : "classes"}`}
+                            </small>
+                          </span>
+                        </span>
+                        <span className="ins-gaps-group-meta">
+                          <em>{nf(sitting.missing)}</em>
+                          <small>
+                            missing · {nf(sitting.subjectCount)} {sitting.subjectCount === 1 ? "subject" : "subjects"}
+                          </small>
+                        </span>
+                      </summary>
+                      <div className="ins-gaps-classes">
+                        {sitting.classes.map((group, classIndex) => (
+                          <details key={group.label} className="ins-gaps-class" open={sittingIndex === 0 && classIndex === 0}>
+                            <summary>
+                              <span className="ins-gaps-group-title">
+                                <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                                <strong>{group.label}</strong>
+                              </span>
+                              <span className="ins-gaps-group-meta">
+                                <em>{nf(group.missing)}</em>
+                                <small>
+                                  missing · {nf(group.subjects.length)} {group.subjects.length === 1 ? "subject" : "subjects"}
+                                </small>
+                              </span>
+                            </summary>
+                            <ul className="ins-gaps-list">
+                              {group.subjects.map((paper) => (
+                                <li key={paper.id}>
+                                  <Link href={`${ACADEMICS_BASE}/assessments/${paper.id}`}>
+                                    <span className="ins-gaps-mark" aria-hidden="true" />
+                                    <span className="ins-gaps-body">
+                                      <strong>{paper.subject}</strong>
+                                    </span>
+                                    <span className="ins-gaps-count">
+                                      <em>{nf(paper.missing)}</em>
+                                      <small>missing</small>
+                                    </span>
+                                    <i className="fa-solid fa-chevron-right ins-gaps-go" aria-hidden="true" />
+                                  </Link>
+                                </li>
+                              ))}
+                            </ul>
+                          </details>
+                        ))}
+                      </div>
+                    </details>
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="ins-gaps-done">
+                <span className="ins-gaps-done-icon" aria-hidden="true"><i className="fa-solid fa-check" /></span>
+                <div>
+                  <strong>Every markbook is filled in</strong>
+                  <p>No empty rows for this term.</p>
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="ins-card" aria-label="Schemes and coverage">
@@ -241,10 +339,10 @@ async function InsightsBody({
 function InsightsFallback() {
   return (
     <section className="ins-strip is-loading" aria-busy="true" aria-label="Loading insights">
-      <div><span>Mean score</span><strong>…</strong><small>Loading</small></div>
-      <div><span>Open markbooks</span><strong>…</strong><small>Loading</small></div>
-      <div><span>Schemes waiting</span><strong>…</strong><small>Loading</small></div>
-      <div><span>Overdue lessons</span><strong>…</strong><small>Loading</small></div>
+      <article className="ins-kpi is-navy"><header><span>Mean score</span></header><strong>…</strong><small>Loading</small></article>
+      <article className="ins-kpi"><header><span>Open markbooks</span></header><strong>…</strong><small>Loading</small></article>
+      <article className="ins-kpi"><header><span>Schemes waiting</span></header><strong>…</strong><small>Loading</small></article>
+      <article className="ins-kpi"><header><span>Overdue lessons</span></header><strong>…</strong><small>Loading</small></article>
     </section>
   );
 }
@@ -274,17 +372,29 @@ function Remind({ termId, topic, label, disabled }: { termId: string; topic: str
   );
 }
 
-function Bars({ title, rows }: { title: string; rows: { label: string; value: number | null }[] }) {
+function Bars({ icon, title, rows }: { icon: string; title: string; rows: { label: string; value: number | null }[] }) {
+  const peak = rows.reduce((max, row) => Math.max(max, row.value ?? 0), 0);
   return (
     <div className="ins-bars">
-      <h3>{title}</h3>
-      {rows.length ? rows.map((row) => (
-        <div className="ins-bar" key={row.label}>
-          <span>{row.label}</span>
-          <strong>{row.value ?? "-"}</strong>
-          <span className="ins-track" aria-hidden="true"><i style={{ width: `${Math.max(0, Math.min(100, row.value ?? 0))}%` }} /></span>
-        </div>
-      )) : <p className="ins-quiet">No averages yet.</p>}
+      <h3>
+        <i className={`fa-solid ${icon}`} aria-hidden="true" />
+        {title}
+      </h3>
+      {rows.length ? (
+        <ul className="ins-bars-list">
+          {rows.map((row, index) => {
+            const value = row.value ?? 0;
+            const width = peak > 0 ? Math.max(0, Math.min(100, Math.round((value / peak) * 100))) : Math.max(0, Math.min(100, value));
+            return (
+              <li className={`ins-bar${row.value !== null && row.value === peak && peak > 0 ? " is-lead" : ""}`} key={row.label} style={{ animationDelay: `${index * 40}ms` }}>
+                <span className="ins-bar-label">{row.label}</span>
+                <strong>{row.value ?? "-"}</strong>
+                <span className="ins-track" aria-hidden="true"><i style={{ width: `${width}%` }} /></span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : <p className="ins-quiet">No averages yet.</p>}
     </div>
   );
 }

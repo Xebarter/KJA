@@ -38,7 +38,7 @@ function shortDay(iso: string | null) {
 export default async function AssessmentsPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Assessments" state={opened} />;
-  const { supabase, office, user } = opened.auth;
+  const { supabase, office, user, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -61,7 +61,7 @@ export default async function AssessmentsPage() {
   }
   const [subjectsQuery, pupils, enteredById] = await Promise.all([
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     term
       ? groupOf(supabase.from("assessment_scores").select("assessment_id, id.count(), assessments!inner(term_id)").eq("assessments.term_id", term.id), "assessment_id", "count")
       : Promise.resolve(new Map<string, number>()),

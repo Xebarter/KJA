@@ -13,6 +13,7 @@ import {
   type DashboardId,
   type Grant,
 } from "@/lib/dashboard-access";
+import { CAMPUS_DASHBOARDS, CAMPUS_OPTIONS, campusesLabel, isCampusDashboard, type CampusDashboardId, type CampusId } from "@/lib/campuses";
 import { LIBRARY_IDS, LIBRARY_LABELS, type LibraryId } from "@/lib/library-nav";
 
 export type TeamPerson = {
@@ -24,6 +25,8 @@ export type TeamPerson = {
   fullAdmin: boolean;
   grants: Grant[];
   libraries: LibraryId[];
+  /** Per-desk geographic campuses (admin/admissions/accounts/academics/store). */
+  campuses: Partial<Record<CampusDashboardId, CampusId[]>>;
 };
 
 /** Teachers from Academics → Staff - managed there; listed here for desk visibility. */
@@ -58,6 +61,7 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "academics", label: "Academics" },
   { id: "library", label: "Library" },
   { id: "store", label: "Store" },
+  { id: "clubs", label: "Clubs" },
 ];
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -70,6 +74,7 @@ function emptySelection(): Selection {
     academics: { all: false, pages: [] },
     library: { all: false, pages: [] },
     store: { all: false, pages: [] },
+    clubs: { all: false, pages: [] },
   };
 }
 
@@ -179,10 +184,22 @@ export function TeamManager({
   const [editing, setEditing] = useState<TeamPerson | null>(null);
   const [full, setFull] = useState(false);
   const [selection, setSelection] = useState<Selection>(emptySelection);
+  /** Library desk: nursery / lower / upper sections (campuses are set separately below). */
   const [libraryScope, setLibraryScope] = useState<LibraryId[]>(["lower"]);
+  const [campusScope, setCampusScope] = useState<Partial<Record<CampusDashboardId, CampusId[]>>>(() =>
+    Object.fromEntries(CAMPUS_DASHBOARDS.map((dashboard) => [dashboard, [...CAMPUS_OPTIONS]])) as Partial<
+      Record<CampusDashboardId, CampusId[]>
+    >,
+  );
   const [issuedQueue, setIssuedQueue] = useState<Issued[]>(() => teacherSync?.issued ?? []);
   const issued = issuedQueue[0] || null;
   const [formKey, setFormKey] = useState(0);
+
+  function emptyCampusScope(): Partial<Record<CampusDashboardId, CampusId[]>> {
+    return Object.fromEntries(CAMPUS_DASHBOARDS.map((dashboard) => [dashboard, [...CAMPUS_OPTIONS]])) as Partial<
+      Record<CampusDashboardId, CampusId[]>
+    >;
+  }
 
   function dismissIssued() {
     setIssuedQueue((queue) => queue.slice(1));
@@ -198,6 +215,7 @@ export function TeamManager({
       academics: 0,
       library: 0,
       store: 0,
+      clubs: 0,
     };
     for (const person of people) {
       for (const grant of person.grants) tally[grant.dashboard] += 1;
@@ -260,6 +278,12 @@ export function TeamManager({
     setFull(next.full);
     setSelection(next.selection);
     setLibraryScope(person.libraries.length ? person.libraries : ["lower"]);
+    const nextCampuses = emptyCampusScope();
+    for (const dashboard of CAMPUS_DASHBOARDS) {
+      const chosen = person.campuses[dashboard];
+      nextCampuses[dashboard] = chosen?.length ? [...chosen] : [...CAMPUS_OPTIONS];
+    }
+    setCampusScope(nextCampuses);
     setResult(null);
     document.getElementById("team-invite")?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
@@ -269,6 +293,7 @@ export function TeamManager({
     setFull(false);
     setSelection(emptySelection());
     setLibraryScope(["lower"]);
+    setCampusScope(emptyCampusScope());
     setFormKey((value) => value + 1);
     setResult(null);
   }
@@ -276,6 +301,12 @@ export function TeamManager({
   function toggleDashboard(dashboard: DashboardId, all: boolean) {
     setSelection((current) => ({ ...current, [dashboard]: { all, pages: all ? [] : current[dashboard].pages } }));
     if (dashboard === "library" && all && !libraryScope.length) setLibraryScope(["lower"]);
+    if (isCampusDashboard(dashboard) && all) {
+      setCampusScope((current) => ({
+        ...current,
+        [dashboard]: current[dashboard]?.length ? current[dashboard] : [...CAMPUS_OPTIONS],
+      }));
+    }
   }
 
   function toggleLibraryScope(id: LibraryId) {
@@ -287,6 +318,25 @@ export function TeamManager({
       }
       return LIBRARY_IDS.filter((item) => item === id || current.includes(item));
     });
+  }
+
+  function toggleCampusScope(dashboard: CampusDashboardId, campus: CampusId) {
+    setCampusScope((current) => {
+      const list = current[dashboard] ?? [...CAMPUS_OPTIONS];
+      const has = list.includes(campus);
+      if (has) {
+        const next = list.filter((item) => item !== campus);
+        return { ...current, [dashboard]: next.length ? next : list };
+      }
+      return { ...current, [dashboard]: CAMPUS_OPTIONS.filter((item) => item === campus || list.includes(item)) };
+    });
+  }
+
+  function toggleAllCampuses(dashboard: CampusDashboardId, all: boolean) {
+    setCampusScope((current) => ({
+      ...current,
+      [dashboard]: all ? [...CAMPUS_OPTIONS] : current[dashboard]?.length ? current[dashboard] : [CAMPUS_OPTIONS[0]],
+    }));
   }
 
   function togglePage(dashboard: DashboardId, page: string) {
@@ -353,7 +403,7 @@ export function TeamManager({
       </div>
 
       <div className="tm-grid">
-        <section className="tm-panel" id="team-members" aria-label="Team members">
+        <section className="tm-panel tm-people" id="team-members" aria-label="Team members">
           <header className="tm-panel-head">
             <div className="tm-panel-title">
               <span className="tm-panel-icon" aria-hidden="true"><i className="fa-solid fa-users" /></span>
@@ -362,6 +412,7 @@ export function TeamManager({
                 <p>{visible.length === people.length ? `${nf(people.length)} on the team` : `${nf(visible.length)} of ${nf(people.length)} shown`}</p>
               </div>
             </div>
+            <em className="tm-people-count" aria-hidden="true">{nf(visible.length)}</em>
           </header>
 
           <div className="tm-tools">
@@ -399,15 +450,19 @@ export function TeamManager({
 
           {visible.length ? (
             <ul className="tm-list">
-              {visible.map((person) => {
+              {visible.map((person, index) => {
                 const busy = removing === person.id;
                 const aloneAdmin = person.fullAdmin && adminCount <= 1;
                 const seesApps = person.grants.some((grant) => grant.dashboard === "admin" || grant.dashboard === "admissions");
                 const appsHref = `/admin/applications?owner=${person.isYou ? "me" : person.id}`;
                 const editingThis = editing?.id === person.id;
                 return (
-                  <li key={person.id} className={`${person.isYou ? "is-you" : ""}${editingThis ? " is-editing" : ""}`.trim()}>
-                    <span className="tm-avatar" aria-hidden="true">{initials(person.name)}</span>
+                  <li
+                    key={person.id}
+                    className={`${person.isYou ? "is-you" : ""}${editingThis ? " is-editing" : ""}`.trim()}
+                    style={{ animationDelay: `${Math.min(index, 12) * 35}ms` }}
+                  >
+                    <span className={`tm-avatar tone-${(person.name.charCodeAt(0) || 0) % 4}`} aria-hidden="true">{initials(person.name)}</span>
                     <div className="tm-who">
                       <strong>
                         <span>{person.name}</span>
@@ -422,6 +477,16 @@ export function TeamManager({
                             <em key={grant.dashboard} className={`tm-role-pill is-${grant.dashboard}`}>{grantSummary(grant)}</em>
                           ))
                         )}
+                        {!person.fullAdmin
+                          ? CAMPUS_DASHBOARDS.filter((dashboard) => person.grants.some((grant) => grant.dashboard === dashboard)).map((dashboard) => {
+                              const campuses = person.campuses[dashboard] ?? [...CAMPUS_OPTIONS];
+                              return (
+                                <em key={`campus-${dashboard}`} className="tm-role-pill is-campus" title={`${DASHBOARD_META[dashboard].label} campuses`}>
+                                  {DASHBOARD_META[dashboard].label}: {campusesLabel(campuses)}
+                                </em>
+                              );
+                            })
+                          : null}
                       </span>
                     </div>
                     {seesApps ? (
@@ -431,7 +496,7 @@ export function TeamManager({
                           <strong>{person.open}</strong>
                         </p>
                         <span className="tm-bar" aria-hidden="true">
-                          <span style={{ width: `${(person.open / busiest) * 100}%` }} />
+                          <span style={{ width: `${busiest ? (person.open / busiest) * 100 : 0}%` }} />
                         </span>
                       </div>
                     ) : (
@@ -477,6 +542,18 @@ export function TeamManager({
                   ? "Clear the search or choose All to see everyone."
                   : "Use Add access on the right to create the first sign-in."}
               </p>
+              {people.length && (query || filter !== "all") ? (
+                <button
+                  type="button"
+                  className="tm-btn"
+                  onClick={() => {
+                    setQuery("");
+                    setFilter("all");
+                  }}
+                >
+                  Show everyone
+                </button>
+              ) : null}
             </div>
           )}
         </section>
@@ -622,6 +699,31 @@ export function TeamManager({
                               ))}
                             </div>
                           ) : null}
+                          {isCampusDashboard(dashboard) && active ? (
+                            <div className="tm-library-scope tm-campus-scope">
+                              <p>Campuses they can open on this desk</p>
+                              <label className="tm-page tm-page-all">
+                                <input
+                                  type="checkbox"
+                                  checked={(campusScope[dashboard]?.length ?? 0) === CAMPUS_OPTIONS.length}
+                                  onChange={(event) => toggleAllCampuses(dashboard, event.target.checked)}
+                                />
+                                <span>All campuses</span>
+                              </label>
+                              {CAMPUS_OPTIONS.map((campus) => (
+                                <label key={campus} className="tm-page">
+                                  <input
+                                    type="checkbox"
+                                    name={`campus_scope_${dashboard}`}
+                                    value={campus}
+                                    checked={(campusScope[dashboard] ?? []).includes(campus)}
+                                    onChange={() => toggleCampusScope(dashboard, campus)}
+                                  />
+                                  <span>{campus}</span>
+                                </label>
+                              ))}
+                            </div>
+                          ) : null}
                         </details>
                       );
                     })}
@@ -629,6 +731,13 @@ export function TeamManager({
                 )}
                 {full
                   ? LIBRARY_IDS.map((id) => <input key={id} type="hidden" name="library_scope" value={id} />)
+                  : null}
+                {full
+                  ? CAMPUS_DASHBOARDS.flatMap((dashboard) =>
+                      CAMPUS_OPTIONS.map((campus) => (
+                        <input key={`${dashboard}-${campus}`} type="hidden" name={`campus_scope_${dashboard}`} value={campus} />
+                      )),
+                    )
                   : null}
               </div>
 

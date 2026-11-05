@@ -34,7 +34,7 @@ export default async function InterventionsPage({ searchParams }: { searchParams
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Interventions" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Interventions" />;
-  const { supabase, user } = opened.auth;
+  const { supabase, user, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -44,7 +44,7 @@ export default async function InterventionsPage({ searchParams }: { searchParams
   const selected = terms.find((row) => row.id === params.term) || term;
   const [rowsQuery, pupils, awardsPack] = await Promise.all([
     term ? supabase.from("learner_interventions").select("id, student_id, reason, note, follow_up_on, status").eq("term_id", term.id).order("follow_up_on") : Promise.resolve({ data: [], error: null }),
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, campuses),
     selected ? loadTermAwards(supabase, selected.id) : Promise.resolve({ awards: [], error: null as string | null }),
   ]);
   if (rowsQuery.error) return <AcademicsGate title="Interventions" state={{ notice: "schema", message: rowsQuery.error.message }} />;

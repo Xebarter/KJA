@@ -4,14 +4,15 @@ import Link from "next/link";
 import { useDeferredValue, useMemo, useRef, useState, useTransition } from "react";
 import { runPromotion, type PromotionRow } from "@/app/admissions_office/(office)/promotions/actions";
 import { Highlight, fold, queryWords } from "@/components/office/ClassFinder";
+import type { PromotionSeason } from "@/lib/promotions";
 import { OFFICE, SCHOOL_CLASSES, SECTIONS, className } from "@/lib/students";
 
 export type PromotionPupil = { id: string; full_name: string; class_code: string | null; stream: string | null; student_number: string };
 
 const STEPS = [
-  { label: "Review the moves", note: "Who goes where" },
-  { label: "Choose repeaters", note: "Pupils who stay back" },
-  { label: "Confirm and run", note: "Make the change" },
+  { label: "Automatic moves", note: "Everyone moves up" },
+  { label: "Who repeats", note: "Optional exceptions" },
+  { label: "Confirm", note: "Run once" },
 ] as const;
 
 const SHOWN = 80;
@@ -20,7 +21,17 @@ const SECTION_OF = new Map<string, string>(SCHOOL_CLASSES.map((entry) => [entry.
 const nf = (value: number) => value.toLocaleString("en-GB");
 const plural = (count: number, one: string, many = `${one}s`) => `${nf(count)} ${count === 1 ? one : many}`;
 
-export function PromotionWizard({ pupils, initial, unplaced }: { pupils: PromotionPupil[]; initial: PromotionRow[]; unplaced: number }) {
+export function PromotionWizard({
+  pupils,
+  initial,
+  unplaced,
+  season,
+}: {
+  pupils: PromotionPupil[];
+  initial: PromotionRow[];
+  unplaced: number;
+  season: PromotionSeason;
+}) {
   const [step, setStep] = useState(0);
   const [exclude, setExclude] = useState<string[]>([]);
   const [q, setQ] = useState("");
@@ -32,7 +43,6 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
   const top = useRef<HTMLDivElement>(null);
   const deferred = useDeferredValue(q);
 
-  // The server's dry run fixes each class's destination and size; repeaters are worked out here, instantly.
   const rows = useMemo(() => {
     const kept = new Map<string, number>();
     const chosen = new Set(exclude);
@@ -76,6 +86,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
     top.current?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
   const ready = confirmation.trim() === String(moving);
+  const canRun = season.open;
 
   if (done) {
     const moved = done.rows.reduce((sum, row) => sum + row.moving, 0);
@@ -93,8 +104,8 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
         </dl>
         <Flow rows={done.rows} compact />
         <div className="opr-done-actions">
-          <Link className="admin-btn" href={`${OFFICE}/classes`}><i className="fa-solid fa-chalkboard" aria-hidden="true" /> See the new classes</Link>
-          <Link className="admin-btn admin-btn-ghost" href={`${OFFICE}/reports#leavers`}>Leavers report</Link>
+          <Link className="opr-btn opr-btn-primary" href={`${OFFICE}/classes`}><i className="fa-solid fa-chalkboard" aria-hidden="true" /> See the new classes</Link>
+          <Link className="opr-btn opr-btn-ghost" href={`${OFFICE}/reports#leavers`}>Leavers report</Link>
         </div>
       </section>
     );
@@ -110,30 +121,54 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
     );
   }
 
+  if (!canRun) {
+    return (
+      <div className="opr" ref={top}>
+        <Glance moving={moving} graduating={graduating} repeating={0} unplaced={unplaced} />
+        <section className="admin-card opr-wizard is-locked" aria-label="Promotion locked">
+          <div className="opr-lock">
+            <span className="opr-lock-icon" aria-hidden="true">
+              <i className={`fa-solid ${season.status === "done" ? "fa-circle-check" : "fa-lock"}`} />
+            </span>
+            <div>
+              <h2>
+                {season.status === "done"
+                  ? `${season.academicYear} promotion already ran`
+                  : "Opens at the beginning of the new year"}
+              </h2>
+              <p>
+                {season.status === "done"
+                  ? "Learners were promoted automatically for this academic year. Choosing who repeats is only available at the start of the next year."
+                  : "When Term 1 of the new academic year begins, every learner moves up automatically. You can mark anyone who should repeat their class at that time only."}
+              </p>
+            </div>
+          </div>
+          <div className="opr-body">
+            <header className="opr-body-head">
+              <h3>Planned moves for the next run</h3>
+              <p>Preview only. Nothing changes until promotion opens in Term 1.</p>
+            </header>
+            <Flow rows={initial} />
+          </div>
+          <footer className="opr-foot">
+            <Link className="opr-btn opr-btn-ghost" href={`${OFFICE}/classes`}>
+              <i className="fa-solid fa-chalkboard" aria-hidden="true" /> Classes
+            </Link>
+            <span className="opr-foot-note">
+              {season.status === "done" ? "Completed for this year" : "Waiting for Term 1"}
+            </span>
+            <Link className="opr-btn opr-btn-soft" href={`${OFFICE}/students/export`}>
+              <i className="fa-solid fa-download" aria-hidden="true" /> Export register
+            </Link>
+          </footer>
+        </section>
+      </div>
+    );
+  }
+
   return (
     <div className="opr" ref={top}>
-      <dl className="opr-stats" aria-label="The promotion at a glance">
-        <div className="is-up">
-          <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-arrow-up" /></span> Moving up</dt>
-          <dd>{nf(moving - graduating)}</dd>
-          <small>Into the next class</small>
-        </div>
-        <div className="is-grad">
-          <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-graduation-cap" /></span> Graduating</dt>
-          <dd>{nf(graduating)}</dd>
-          <small>Leaving Primary Seven</small>
-        </div>
-        <div className={repeating ? "is-stay" : "is-quiet"}>
-          <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-rotate-left" /></span> Repeating</dt>
-          <dd>{nf(repeating)}</dd>
-          <small>{repeating ? "Staying in their class" : "Nobody stays back yet"}</small>
-        </div>
-        <div className={unplaced ? "is-warn" : "is-quiet"}>
-          <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-slash" /></span> Without a class</dt>
-          <dd>{nf(unplaced)}</dd>
-          <small>{unplaced ? <Link href={`${OFFICE}/data-quality#missing`}>Not moved. Place them first <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : "Everyone has a class"}</small>
-        </div>
-      </dl>
+      <Glance moving={moving} graduating={graduating} repeating={repeating} unplaced={unplaced} />
 
       <section className="admin-card opr-wizard" aria-label="Promotion steps">
         <div className="opr-head">
@@ -158,8 +193,11 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
         {step === 0 ? (
           <div className="opr-body" key="review">
             <header className="opr-body-head">
-              <h2>Where everyone goes</h2>
-              <p>Every active pupil moves up one class and Primary Seven graduates. Nothing changes until you confirm on the last step.</p>
+              <h2>Everyone moves up automatically</h2>
+              <p>
+                For <strong>{season.academicYear}</strong>, every active pupil moves one class higher and Primary Seven graduates.
+                On the next step you can keep selected learners in their current class.
+              </p>
             </header>
             <Flow rows={rows} />
           </div>
@@ -168,8 +206,11 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
         {step === 1 ? (
           <div className="opr-body" key="repeaters">
             <header className="opr-body-head">
-              <h2>Who repeats a class</h2>
-              <p>Choose any pupils who will repeat their class next year. They stay where they are; everyone else moves up.</p>
+              <h2>Who should repeat</h2>
+              <p>
+                Optional. Choose learners who stay in their current class. Everyone else is promoted automatically.
+                This choice is only available at the beginning of the new academic year.
+              </p>
             </header>
             <div className="opr-pick">
               <div className="opr-pick-main">
@@ -222,7 +263,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
                 ) : (
                   <p className="opr-hint">
                     <span aria-hidden="true"><i className={`fa-solid ${q || cls ? "fa-user-xmark" : "fa-magnifying-glass"}`} /></span>
-                    {q || cls ? "No pupils match." : "Search for a pupil, or choose a class to see everyone in it."}
+                    {q || cls ? "No pupils match." : "Search for a pupil, or choose a class. Leave empty if nobody repeats."}
                   </p>
                 )}
               </div>
@@ -231,7 +272,9 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
                 <header>
                   <h3>Repeating</h3>
                   <span className="opr-count">{exclude.length}</span>
-                  {exclude.length ? <button type="button" className="opr-clear" onClick={() => setExclude([])}>Clear all</button> : null}
+                  {exclude.length ? (
+                    <button type="button" className="opr-btn opr-btn-text" onClick={() => setExclude([])}>Clear all</button>
+                  ) : null}
                 </header>
                 {exclude.length ? (
                   <ul>
@@ -243,7 +286,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
                             <strong>{pupil?.full_name ?? "Unknown pupil"}</strong>
                             <small>Stays in {className(pupil?.class_code)}</small>
                           </span>
-                          <button type="button" className="ofc-icon-btn" onClick={() => toggle(id)} aria-label={`Undo: ${pupil?.full_name ?? "pupil"} moves up`} title="Undo">
+                          <button type="button" className="opr-icon-btn" onClick={() => toggle(id)} aria-label={`Undo: ${pupil?.full_name ?? "pupil"} moves up`} title="Undo">
                             <i className="fa-solid fa-xmark" aria-hidden="true" />
                           </button>
                         </li>
@@ -251,7 +294,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
                     })}
                   </ul>
                 ) : (
-                  <p className="opr-hint is-small"><i className="fa-regular fa-circle-check" aria-hidden="true" /> No repeaters. Everyone moves up.</p>
+                  <p className="opr-hint is-small"><i className="fa-regular fa-circle-check" aria-hidden="true" /> No repeaters. Everyone moves up automatically.</p>
                 )}
               </aside>
             </div>
@@ -273,7 +316,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
             }}
           >
             <header className="opr-body-head">
-              <h2>Ready to promote</h2>
+              <h2>Confirm automatic promotion</h2>
               <p>
                 This will move <strong>{plural(moving - graduating, "pupil")}</strong> up a class, graduate <strong>{plural(graduating, "pupil")}</strong> from Primary Seven
                 {repeating ? <> and keep <strong>{plural(repeating, "pupil")}</strong> in their class</> : null}.
@@ -281,7 +324,7 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
             </header>
             <Flow rows={rows} compact />
             <ul className="opr-checks">
-              <li><i className="fa-solid fa-calendar-check" aria-hidden="true" /> Run it once, at the end of the school year. It can&apos;t be undone in one click.</li>
+              <li><i className="fa-solid fa-calendar-check" aria-hidden="true" /> Run once at the start of the academic year. It can&apos;t be undone in one click.</li>
               <li>
                 <i className="fa-solid fa-download" aria-hidden="true" /> Keep a copy first:{" "}
                 <a href={`${OFFICE}/students/export`}>download the register as a spreadsheet</a>.
@@ -308,20 +351,21 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
 
         <footer className="opr-foot">
           {step > 0 ? (
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => go(step - 1)} disabled={pending}>
+            <button type="button" className="opr-btn opr-btn-ghost" onClick={() => go(step - 1)} disabled={pending}>
               <i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back
             </button>
           ) : <span />}
           <span className="opr-foot-note">
-            <strong>{nf(moving)}</strong> promoted{repeating ? <> · <strong>{nf(repeating)}</strong> repeating</> : null}
+            <strong>{nf(moving)}</strong> promoted automatically{repeating ? <> · <strong>{nf(repeating)}</strong> repeating</> : null}
           </span>
           {step < 2 ? (
-            <button type="button" className="admin-btn" onClick={() => go(step + 1)}>
-              {step === 0 ? "Next: choose repeaters" : "Next: confirm"} <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+            <button type="button" className="opr-btn opr-btn-primary" onClick={() => go(step + 1)}>
+              {step === 0 ? "Next: who repeats" : "Next: confirm"} <i className="fa-solid fa-arrow-right" aria-hidden="true" />
             </button>
           ) : (
-            <button type="submit" form="promotion-confirm" className="admin-btn ofc-danger" disabled={pending || !ready || !moving}>
-              <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-stairs"}`} aria-hidden="true" /> {pending ? "Promoting…" : `Promote ${nf(moving)} pupils`}
+            <button type="submit" form="promotion-confirm" className="opr-btn opr-btn-accent" disabled={pending || !ready || !moving}>
+              <i className={`fa-solid ${pending ? "fa-spinner fa-spin" : "fa-stairs"}`} aria-hidden="true" />
+              {pending ? "Promoting…" : `Promote ${nf(moving)} learners`}
             </button>
           )}
         </footer>
@@ -330,7 +374,43 @@ export function PromotionWizard({ pupils, initial, unplaced }: { pupils: Promoti
   );
 }
 
-/** Each class's move as a card, grouped into nursery and primary unless compact. */
+function Glance({
+  moving,
+  graduating,
+  repeating,
+  unplaced,
+}: {
+  moving: number;
+  graduating: number;
+  repeating: number;
+  unplaced: number;
+}) {
+  return (
+    <dl className="opr-stats" aria-label="The promotion at a glance">
+      <div className="is-up">
+        <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-arrow-up" /></span> Moving up</dt>
+        <dd>{nf(moving - graduating)}</dd>
+        <small>Promoted automatically</small>
+      </div>
+      <div className="is-grad">
+        <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-graduation-cap" /></span> Graduating</dt>
+        <dd>{nf(graduating)}</dd>
+        <small>Leaving Primary Seven</small>
+      </div>
+      <div className={repeating ? "is-stay" : "is-quiet"}>
+        <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-rotate-left" /></span> Repeating</dt>
+        <dd>{nf(repeating)}</dd>
+        <small>{repeating ? "Staying in their class" : "Nobody stays back yet"}</small>
+      </div>
+      <div className={unplaced ? "is-warn" : "is-quiet"}>
+        <dt><span className="opr-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-slash" /></span> Without a class</dt>
+        <dd>{nf(unplaced)}</dd>
+        <small>{unplaced ? <Link href={`${OFFICE}/data-quality#missing`}>Not moved. Place them first <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : "Everyone has a class"}</small>
+      </div>
+    </dl>
+  );
+}
+
 function Flow({ rows, compact = false }: { rows: PromotionRow[]; compact?: boolean }) {
   if (compact) {
     return (

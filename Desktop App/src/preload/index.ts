@@ -11,7 +11,10 @@ export type KjaDesktopApi = {
   getSyncStatus: () => Promise<SyncStatus>;
   flushOutbox: () => Promise<SyncStatus>;
   retryBoot: () => Promise<boolean>;
-  saveDownload: (payload: { data: ArrayBuffer; filename: string }) => Promise<DesktopSaveResult>;
+  saveDownload: (payload: {
+    data: ArrayBuffer | Uint8Array;
+    filename: string;
+  }) => Promise<DesktopSaveResult>;
   onBootStatus: (cb: (status: BootStatus) => void) => () => void;
   onSyncStatus: (cb: (status: SyncStatus) => void) => () => void;
   onTableChanged: (cb: (payload: { userId: string; table: string }) => void) => () => void;

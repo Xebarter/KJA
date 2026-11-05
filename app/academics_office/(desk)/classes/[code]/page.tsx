@@ -5,23 +5,45 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassRoster } from "@/components/academics/ClassRoster";
 import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { ACADEMICS_BASE, classLabel, classSection, kampalaToday, mapStaff, mapSubject, loadCurrentTerm, streamFromQuery, streamQuery, subjectFits } from "@/lib/academics";
+import {
+  ACADEMICS_BASE,
+  campusFromQuery,
+  campusQuery,
+  classLabel,
+  classSection,
+  kampalaToday,
+  mapStaff,
+  mapSubject,
+  loadCurrentTerm,
+  streamFromQuery,
+  streamQuery,
+  subjectFits,
+} from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
+import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
 import { isClassCode } from "@/lib/students";
 
 export const metadata = { title: "Class" };
-
-type Pupil = { id: string; full_name: string; student_number: string; sex: string | null; class_code: string | null; stream: string | null; photo_path: string | null };
 
 function initials(name: string) {
   const parts = name.split(/\s+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 
-export default async function ClassPage({ params, searchParams }: {
+function campusPick(raw: string | null, options: string[]) {
+  const fromQuery = campusFromQuery(raw ?? undefined);
+  if (fromQuery && CAMPUS_OPTIONS.includes(fromQuery as (typeof CAMPUS_OPTIONS)[number])) return fromQuery;
+  if (options.length === 1) return options[0];
+  return operationalCampus(null);
+}
+
+export default async function ClassPage({
+  params,
+  searchParams,
+}: {
   params: Promise<{ code: string }>;
-  searchParams: Promise<{ stream?: string }>;
+  searchParams: Promise<{ stream?: string; campus?: string }>;
 }) {
   const { code } = await params;
   const query = await searchParams;
@@ -29,16 +51,19 @@ export default async function ClassPage({ params, searchParams }: {
   const stream = streamFromQuery(query.stream);
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title={code} state={opened} />;
-  const { supabase, office, user } = opened.auth;
+  const { supabase, office, user, campuses } = opened.auth;
 
   const [roll, termPack, staffQuery, subjectQuery] = await Promise.all([
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     loadCurrentTerm(supabase),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
   ]);
   const pupils = roll.filter((pupil) => pupil.class_code === code);
-  const streams = [...new Set(pupils.map((pupil) => pupil.stream || ""))].sort();
+  const campusOptions = [...new Set(pupils.map((pupil) => operationalCampus(pupil.campus)))].sort((a, b) => a.localeCompare(b));
+  const campus = campusPick(query.campus ?? null, campusOptions);
+  const atCampus = pupils.filter((pupil) => operationalCampus(pupil.campus) === campus);
+  const streams = [...new Set(atCampus.map((pupil) => pupil.stream || ""))].sort();
   const chosen = stream === null && streams.length === 1 ? streams[0] : stream;
   if (termPack.error) return <AcademicsGate title={code} state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -50,18 +75,19 @@ export default async function ClassPage({ params, searchParams }: {
   const subjectTeachers = new Map<string, string>();
   if (term && chosen !== null) {
     const [classRow, subjectRows] = await Promise.all([
-      supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("class_code", code).eq("stream", chosen).maybeSingle(),
-      supabase.from("subject_teachers").select("subject_id, staff_id").eq("term_id", term.id).eq("class_code", code).eq("stream", chosen),
+      supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("campus", campus).eq("class_code", code).eq("stream", chosen).maybeSingle(),
+      supabase.from("subject_teachers").select("subject_id, staff_id").eq("term_id", term.id).eq("campus", campus).eq("class_code", code).eq("stream", chosen),
     ]);
     classTeacher = classRow.data?.staff_id || "";
     for (const row of subjectRows.data || []) subjectTeachers.set(row.subject_id as string, row.staff_id as string);
   }
-  const visible = chosen === null ? [] : pupils.filter((pupil) => (pupil.stream || "") === chosen);
+  const visible = chosen === null ? [] : atCampus.filter((pupil) => (pupil.stream || "") === chosen);
   const boys = visible.filter((pupil) => pupil.sex === "M").length;
   const girls = visible.filter((pupil) => pupil.sex === "F").length;
   const teacher = staff.find((member) => member.id === classTeacher) ?? null;
   const assigned = subjects.filter((subject) => subjectTeachers.has(subject.id)).length;
-  const label = chosen === null ? code : classLabel(code, chosen);
+  const label = chosen === null ? classLabel(code, null, campus) : classLabel(code, chosen, campus);
+  const campusQs = `campus=${campusQuery(campus)}`;
 
   return (
     <div className="app-page ofc-page acr-page">
@@ -73,14 +99,29 @@ export default async function ClassPage({ params, searchParams }: {
         actions={
           chosen !== null ? (
             <>
-              <Link className="admin-hero-btn is-primary" href={`${ACADEMICS_BASE}/attendance?date=${kampalaToday()}&class=${code}&stream=${streamQuery(chosen)}`}><i className="fa-solid fa-clipboard-user" aria-hidden="true" /> Today&apos;s register</Link>
-              {office ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports?class=${code}&stream=${streamQuery(chosen)}`}><i className="fa-solid fa-file-lines" aria-hidden="true" /> Report cards</Link> : null}
+              <Link className="admin-hero-btn is-primary" href={`${ACADEMICS_BASE}/attendance?date=${kampalaToday()}&class=${code}&stream=${streamQuery(chosen)}&${campusQs}`}><i className="fa-solid fa-clipboard-user" aria-hidden="true" /> Today&apos;s register</Link>
+              {office ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports?class=${code}&stream=${streamQuery(chosen)}&${campusQs}`}><i className="fa-solid fa-file-lines" aria-hidden="true" /> Report cards</Link> : null}
             </>
           ) : (
             <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/classes`}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> All classes</Link>
           )
         }
       />
+
+      {campusOptions.length > 1 ? (
+        <nav className="acr-streams" aria-label="Campuses">
+          {campusOptions.map((entry) => (
+            <Link
+              key={entry}
+              className={entry === campus ? "is-on" : ""}
+              href={`${ACADEMICS_BASE}/classes/${code}?campus=${campusQuery(entry)}${chosen !== null ? `&stream=${streamQuery(chosen)}` : ""}`}
+            >
+              {entry}
+              <span>{pupils.filter((pupil) => operationalCampus(pupil.campus) === entry).length}</span>
+            </Link>
+          ))}
+        </nav>
+      ) : null}
 
       {chosen === null ? (
         <section className="acr-pick" aria-label="Streams">
@@ -91,12 +132,12 @@ export default async function ClassPage({ params, searchParams }: {
           {streams.length ? (
             <ul>
               {streams.map((entry) => {
-                const group = pupils.filter((pupil) => (pupil.stream || "") === entry);
+                const group = atCampus.filter((pupil) => (pupil.stream || "") === entry);
                 const groupBoys = group.filter((pupil) => pupil.sex === "M").length;
                 const groupGirls = group.filter((pupil) => pupil.sex === "F").length;
                 return (
                   <li key={entry || "-"}>
-                    <Link href={`${ACADEMICS_BASE}/classes/${code}?stream=${streamQuery(entry)}`}>
+                    <Link href={`${ACADEMICS_BASE}/classes/${code}?stream=${streamQuery(entry)}&${campusQs}`}>
                       <span className="acr-pick-code">{entry || "-"}</span>
                       <span>
                         <strong>{entry ? `Stream ${entry}` : "No stream"}</strong>
@@ -112,16 +153,16 @@ export default async function ClassPage({ params, searchParams }: {
                 );
               })}
             </ul>
-          ) : <Empty title="No pupils in this class" />}
+          ) : <Empty title="No pupils in this class at this campus" />}
         </section>
       ) : (
         <>
           {streams.length > 1 ? (
             <nav className="acr-streams" aria-label="Streams">
               {streams.map((entry) => (
-                <Link key={entry || "-"} className={entry === chosen ? "is-on" : ""} href={`${ACADEMICS_BASE}/classes/${code}?stream=${streamQuery(entry)}`}>
+                <Link key={entry || "-"} className={entry === chosen ? "is-on" : ""} href={`${ACADEMICS_BASE}/classes/${code}?stream=${streamQuery(entry)}&${campusQs}`}>
                   {entry || "No stream"}
-                  <span>{pupils.filter((pupil) => (pupil.stream || "") === entry).length}</span>
+                  <span>{atCampus.filter((pupil) => (pupil.stream || "") === entry).length}</span>
                 </Link>
               ))}
             </nav>
@@ -181,6 +222,7 @@ export default async function ClassPage({ params, searchParams }: {
                     <input type="hidden" name="term_id" value={term.id} />
                     <input type="hidden" name="class_code" value={code} />
                     <input type="hidden" name="stream" value={chosen} />
+                    <input type="hidden" name="campus" value={campus} />
                     <div className={`acr-lead-who${teacher ? "" : " is-open"}`}>
                       <em aria-hidden="true">{teacher ? initials(teacher.full_name) : <i className="fa-solid fa-user" />}</em>
                       <span>
@@ -236,6 +278,7 @@ export default async function ClassPage({ params, searchParams }: {
                             <input type="hidden" name="term_id" value={term.id} />
                             <input type="hidden" name="class_code" value={code} />
                             <input type="hidden" name="stream" value={chosen} />
+                            <input type="hidden" name="campus" value={campus} />
                             <input type="hidden" name="subject_id" value={subject.id} />
                             <span className="acr-subject">
                               <strong>{subject.name}</strong>

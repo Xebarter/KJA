@@ -1,5 +1,7 @@
 import { PageHeader } from "@/components/admin/PageHeader";
+import { OfflineNeed } from "@/components/desk/OfflineNeed";
 import { academicsSchemaScript } from "@/lib/academics-nav";
+import { isOfflineError } from "@/lib/offline";
 
 export function AcademicsNotice({
   title,
@@ -44,6 +46,16 @@ export function AcademicsGate({ title, state }: { title: string; state: { notice
     );
   }
   if (state.notice === "schema") {
+    if (isOfflineError(state.message)) {
+      return (
+        <OfflineNeed
+          title={title}
+          kicker={kicker}
+          icon="fa-graduation-cap"
+          description={description}
+        />
+      );
+    }
     const script = academicsSchemaScript(state.message);
     return (
       <AcademicsNotice title={title} heading={teacherDesk ? "Teacher desk is not set up yet" : "Academics office is not set up yet"} kicker={kicker} description={description}>

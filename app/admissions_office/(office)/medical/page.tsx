@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/admin/PageHeader";
 import { PrintButton } from "@/components/office/client";
 import { MedicalRegister, type MedicalRow, type MedicalView } from "@/components/office/MedicalRegister";
-import { MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { studentPhotoUrl } from "@/lib/student-photos";
 import { fetchAll, isClassCode, pick } from "@/lib/students";
@@ -55,7 +55,7 @@ export default async function MedicalPage({ searchParams }: { searchParams: Prom
         .order("full_name")
         .range(from, to));
   } catch (error) {
-    return <OfficeNotice title="Medical" heading="Medical records could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Medical" message={(error as Error).message} fallbackHeading="Medical records could not be loaded" />;
   }
 
   const rows: MedicalRow[] = all.map((row) => ({

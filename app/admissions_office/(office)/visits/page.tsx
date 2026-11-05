@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { PrintButton } from "@/components/office/client";
-import { OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { VisitPlanner, type VisitRow, type VisitView, type WaitingRow } from "@/components/office/VisitPlanner";
 import { loadPeople } from "@/lib/admin-applications";
 import { CAMPUS_OPTIONS, ageFrom } from "@/lib/applications";
@@ -23,7 +23,8 @@ export default async function VisitsPage({ searchParams }: { searchParams: Promi
   const { supabase } = auth;
 
   const view = VIEWS.find((entry) => entry === pick(params, "range")) ?? "upcoming";
-  const campus = CAMPUS_OPTIONS.includes(pick(params, "campus")) ? pick(params, "campus") : "";
+  const wantedCampus = pick(params, "campus");
+  const campus = (CAMPUS_OPTIONS as readonly string[]).includes(wantedCampus) ? wantedCampus : "";
 
   const [{ data, error }, { data: waitingData }] = await Promise.all([
     supabase
@@ -41,7 +42,7 @@ export default async function VisitsPage({ searchParams }: { searchParams: Promi
       .order("created_at", { ascending: true })
       .limit(20),
   ]);
-  if (error) return <OfficeNotice title="School visits" heading="Visits could not be loaded"><p>{error.message}</p></OfficeNotice>;
+  if (error) return <LoadErrorNotice title="School visits" message={error.message} fallbackHeading="Visits could not be loaded" />;
 
   const people = await loadPeople(supabase, (data || []).map((visit) => visit.assigned_to));
   const visits: VisitRow[] = (data || []).map((visit) => ({
@@ -85,7 +86,7 @@ export default async function VisitsPage({ searchParams }: { searchParams: Promi
       <VisitPlanner
         visits={visits}
         waiting={waiting}
-        campuses={CAMPUS_OPTIONS}
+        campuses={[...CAMPUS_OPTIONS]}
         initialView={view}
         initialCampus={campus}
         serverNow={Date.now()}

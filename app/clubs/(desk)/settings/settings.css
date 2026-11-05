@@ -1,0 +1,525 @@
+/* Clubs Settings — calm setup hub */
+
+.clubs-settings-page {
+  --cs-ease: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.clubs-settings-page .clubs-head-lede {
+  max-width: 40rem;
+}
+
+/* Status strip */
+.cs-status {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0 0 1.35rem;
+}
+
+.cs-status-item {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem 1.05rem 0.95rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 14px;
+  background:
+    linear-gradient(165deg, #fffefb 0%, var(--clubs-panel) 100%);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+  min-width: 0;
+  transition: border-color 0.2s var(--cs-ease), transform 0.2s var(--cs-ease), box-shadow 0.2s var(--cs-ease);
+}
+
+.cs-status-item:hover {
+  border-color: #ddd4c4;
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px -18px rgba(25, 35, 43, 0.35);
+}
+
+.cs-status-item > span {
+  color: var(--clubs-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cs-status-item strong {
+  color: var(--clubs-navy);
+  font-family: var(--clubs-display);
+  font-size: 1.35rem;
+  font-weight: 700;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-status-item small {
+  color: var(--clubs-ink-soft);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cs-status-item.is-ok strong { color: var(--clubs-ok); }
+.cs-status-item.is-warn {
+  border-color: rgba(154, 91, 0, 0.22);
+  background: linear-gradient(165deg, #fffaf0, #fff6e8);
+}
+.cs-status-item.is-warn strong { color: var(--clubs-warn); }
+
+/* Layout */
+.cs-shell {
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(0, 1fr);
+  gap: 1rem 1.1rem;
+  align-items: start;
+}
+
+.cs-stack {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.cs-card {
+  margin: 0;
+  padding: 1.25rem 1.3rem 1.3rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: var(--clubs-radius);
+  background: var(--clubs-panel);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset;
+}
+
+.cs-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cs-card-head h2 {
+  margin: 0;
+  color: var(--clubs-navy);
+  font-family: var(--clubs-display);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.cs-card-head p {
+  margin: 0.28rem 0 0;
+  color: var(--clubs-muted);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.cs-card-mark {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 2.45rem;
+  height: 2.45rem;
+  border-radius: 12px;
+  background: rgba(25, 35, 43, 0.06);
+  color: var(--clubs-navy);
+  font-size: 0.92rem;
+}
+
+.cs-card-mark.is-gold {
+  background: rgba(253, 163, 27, 0.16);
+  color: #9a5b00;
+}
+
+.cs-card-mark.is-ok {
+  background: rgba(23, 128, 61, 0.12);
+  color: var(--clubs-ok);
+}
+
+.cs-card-mark.is-warn {
+  background: rgba(154, 91, 0, 0.12);
+  color: var(--clubs-warn);
+}
+
+/* Campus chips */
+.cs-campus-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin: 0 0 1rem;
+}
+
+.cs-campus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2rem;
+  padding: 0 0.75rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--clubs-navy);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.cs-campus i {
+  font-size: 0.68rem;
+  color: var(--clubs-gold);
+}
+
+.cs-campus.is-on {
+  border-color: rgba(253, 163, 27, 0.45);
+  background: rgba(253, 163, 27, 0.1);
+}
+
+.cs-campus.is-off {
+  opacity: 0.55;
+  color: var(--clubs-muted);
+}
+
+.cs-campus.is-off i { color: var(--clubs-muted); }
+
+.cs-note {
+  margin: 0;
+  padding: 0.85rem 0.95rem;
+  border-left: 3px solid var(--clubs-gold);
+  border-radius: 0 10px 10px 0;
+  background: var(--clubs-wash);
+  color: var(--clubs-ink-soft);
+  font-size: 0.84rem;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.cs-note strong {
+  color: var(--clubs-navy);
+  font-weight: 750;
+}
+
+.cs-note a {
+  color: var(--clubs-navy);
+  font-weight: 750;
+  text-decoration: underline;
+  text-decoration-color: rgba(253, 163, 27, 0.55);
+  text-underline-offset: 0.15em;
+}
+
+.cs-note a:hover {
+  text-decoration-color: var(--clubs-gold);
+}
+
+/* Facts list */
+.cs-facts {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0;
+}
+
+.cs-facts li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: baseline;
+  padding: 0.72rem 0;
+  border-bottom: 1px solid var(--clubs-edge);
+}
+
+.cs-facts li:last-child { border-bottom: 0; padding-bottom: 0; }
+.cs-facts li:first-child { padding-top: 0; }
+
+.cs-facts span {
+  color: var(--clubs-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.cs-facts strong {
+  color: var(--clubs-navy);
+  font-size: 0.86rem;
+  font-weight: 750;
+  text-align: right;
+}
+
+.cs-facts em {
+  font-style: normal;
+  color: var(--clubs-ok);
+  font-weight: 800;
+}
+
+.cs-facts em.is-warn { color: var(--clubs-warn); }
+
+/* Desk map */
+.cs-map {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.cs-map-link {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 14px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition:
+    border-color 0.18s var(--cs-ease),
+    background-color 0.18s var(--cs-ease),
+    transform 0.18s var(--cs-ease),
+    box-shadow 0.18s var(--cs-ease);
+}
+
+.cs-map-link:hover {
+  border-color: #ddd4c4;
+  background: var(--clubs-soft);
+  transform: translateX(2px);
+  box-shadow: 0 12px 22px -20px rgba(25, 35, 43, 0.4);
+  color: inherit;
+}
+
+.cs-map-icon {
+  display: grid;
+  place-items: center;
+  width: 2.35rem;
+  height: 2.35rem;
+  border-radius: 11px;
+  background: rgba(25, 35, 43, 0.06);
+  color: var(--clubs-navy);
+  font-size: 0.85rem;
+}
+
+.cs-map-link:hover .cs-map-icon {
+  background: rgba(253, 163, 27, 0.16);
+  color: #9a5b00;
+}
+
+.cs-map-copy {
+  display: grid;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.cs-map-copy strong {
+  color: var(--clubs-navy);
+  font-size: 0.92rem;
+  font-weight: 750;
+}
+
+.cs-map-copy small {
+  color: var(--clubs-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cs-map-link > i {
+  color: var(--clubs-muted);
+  font-size: 0.72rem;
+  transition: color 0.18s ease, transform 0.18s var(--cs-ease);
+}
+
+.cs-map-link:hover > i {
+  color: var(--clubs-gold);
+  transform: translateX(2px);
+}
+
+/* Workflow steps */
+.cs-flow {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.65rem;
+  counter-reset: cs-step;
+}
+
+.cs-flow li {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.8rem;
+  align-items: start;
+  padding: 0.75rem 0.85rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 12px;
+  background: #fff;
+  counter-increment: cs-step;
+}
+
+.cs-flow li::before {
+  content: counter(cs-step);
+  display: grid;
+  place-items: center;
+  width: 1.65rem;
+  height: 1.65rem;
+  margin-top: 0.05rem;
+  border-radius: 999px;
+  background: var(--clubs-navy);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.cs-flow strong {
+  display: block;
+  color: var(--clubs-navy);
+  font-size: 0.88rem;
+  font-weight: 750;
+}
+
+.cs-flow small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--clubs-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* Schema checklist */
+.cs-check {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.cs-check li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.7rem;
+  align-items: center;
+  padding: 0.7rem 0.8rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.cs-check i {
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+}
+
+.cs-check li.is-ready i {
+  background: rgba(23, 128, 61, 0.12);
+  color: var(--clubs-ok);
+}
+
+.cs-check li.is-missing i {
+  background: rgba(200, 30, 45, 0.1);
+  color: var(--clubs-danger);
+}
+
+.cs-check strong {
+  display: block;
+  color: var(--clubs-navy);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.cs-check small {
+  display: block;
+  margin-top: 0.1rem;
+  color: var(--clubs-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.cs-check code {
+  padding: 0.15rem 0.4rem;
+  border-radius: 6px;
+  background: var(--clubs-wash);
+  color: var(--clubs-navy);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.cs-check em {
+  font-style: normal;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.cs-check li.is-ready em { color: var(--clubs-ok); }
+.cs-check li.is-missing em { color: var(--clubs-danger); }
+
+/* Printables */
+.cs-prints {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.cs-print {
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid var(--clubs-line);
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease, transform 0.18s var(--cs-ease);
+}
+
+.cs-print:hover {
+  border-color: rgba(253, 163, 27, 0.45);
+  background: rgba(253, 163, 27, 0.08);
+  transform: translateY(-1px);
+  color: inherit;
+}
+
+.cs-print strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--clubs-navy);
+  font-size: 0.84rem;
+  font-weight: 750;
+}
+
+.cs-print strong i {
+  color: var(--clubs-gold);
+  font-size: 0.75rem;
+}
+
+.cs-print small {
+  color: var(--clubs-muted);
+  font-size: 0.74rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.cs-footer {
+  margin: 1.25rem 0 0;
+  color: var(--clubs-muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.45;
+  text-align: center;
+}
+
+@media (max-width: 980px) {
+  .cs-status { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .cs-shell { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  .cs-status { grid-template-columns: 1fr 1fr; }
+  .cs-prints { grid-template-columns: 1fr; }
+  .cs-card { padding: 1.05rem 1.05rem 1.1rem; }
+}

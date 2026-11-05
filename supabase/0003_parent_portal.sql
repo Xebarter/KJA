@@ -1,7 +1,10 @@
 -- Parent portal. Run after 0001_schema.sql (safe to re-run).
 
+-- Keep the full role set so this script stays safe to re-run after later
+-- desk / portal migrations (admissions, accounts, academics, library, store, etc.).
 alter table public.profiles drop constraint if exists profiles_role_check;
-alter table public.profiles add constraint profiles_role_check check (role in ('admin', 'staff', 'parent'));
+alter table public.profiles add constraint profiles_role_check
+  check (role in ('admin', 'admissions', 'accounts', 'academics', 'library', 'store', 'officer', 'staff', 'parent', 'student'));
 alter table public.profiles alter column role set default 'parent';
 alter table public.profiles add column if not exists full_name text;
 alter table public.profiles add column if not exists email text;

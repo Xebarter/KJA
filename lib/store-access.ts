@@ -1,4 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { loadCampusScope } from "@/lib/campus-access";
+import type { CampusId } from "@/lib/campuses";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { createClient } from "@/lib/supabase/server";
@@ -8,6 +10,7 @@ export type StoreAuth = {
   user: { id: string; email?: string | null };
   profile: { id: string; role: string | null; full_name: string | null; email: string | null };
   grants: Awaited<ReturnType<typeof loadGrants>>;
+  campuses: CampusId[];
 };
 
 export async function requireStore(...pages: string[]): Promise<StoreAuth | { error: string }> {
@@ -27,5 +30,6 @@ export async function requireStore(...pages: string[]): Promise<StoreAuth | { er
         : "This account doesn't have access to the store desk.",
     };
   }
-  return { supabase, user, profile, grants };
+  const campuses = await loadCampusScope(supabase, user.id, profile.role, "store");
+  return { supabase, user, profile, grants, campuses };
 }

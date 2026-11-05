@@ -21,6 +21,7 @@ import {
   type Application,
 } from "@/lib/applications";
 import { loadUnpaidApplications } from "@/lib/admission-followups";
+import type { CampusId } from "@/lib/campuses";
 import { getContent } from "@/lib/content";
 import { emailSetupProblem } from "@/lib/email/send";
 import { supabaseConfigured } from "@/lib/supabase/server";
@@ -69,9 +70,11 @@ function duplicateKeys(row: { child_name: string | null; phone: string | null; e
 export async function ApplicationsWorkspace({
   searchParams,
   base,
+  campuses,
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
   base: string;
+  campuses: readonly CampusId[];
 }) {
   if (!supabaseConfigured()) {
     return <Notice title="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code> to receive applications here.</p></Notice>;
@@ -85,11 +88,12 @@ export async function ApplicationsWorkspace({
   const now = Date.now();
 
   const boardStatuses = filters.attention ? BOARD_STATUSES.filter((status) => status !== "enrolled") : BOARD_STATUSES;
+  const scope = { campuses };
   const itemsQuery = board
-    ? applicationsQuery(supabase, filters, user.id, COLUMNS, { statuses: boardStatuses })
+    ? applicationsQuery(supabase, filters, user.id, COLUMNS, { statuses: boardStatuses, ...scope })
       .or(`status.neq.enrolled,created_at.gte.${new Date(now - 180 * DAY).toISOString()}`)
       .limit(BOARD_LIMIT + 1)
-    : applicationsQuery(supabase, filters, user.id, COLUMNS, { count: "exact" }).range(from, from + PAGE_SIZE - 1);
+    : applicationsQuery(supabase, filters, user.id, COLUMNS, { count: "exact", ...scope }).range(from, from + PAGE_SIZE - 1);
 
   // Summary tiles only need these fields - not the full application row.
   const [listResult, summaryResult, team, content, unpaid] = await Promise.all([

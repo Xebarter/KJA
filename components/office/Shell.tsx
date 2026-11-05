@@ -108,7 +108,7 @@ export function OfficeShell({
   return (
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Admissions" />
-      <DeskWarmup hrefs={nav.map((item) => item.href)} />
+      <DeskWarmup hrefs={nav.map((item) => item.href)} eager />
       <header className="admin-topbar">
         <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />

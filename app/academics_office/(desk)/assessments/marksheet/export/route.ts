@@ -104,7 +104,7 @@ export async function GET(request: Request) {
   papersRequest = query.held ? papersRequest.eq("held_on", query.held) : papersRequest.is("held_on", null);
   const [papersQuery, roll, bandsQuery] = await Promise.all([
     papersRequest,
-    loadRoll(auth.supabase, auth.user.id),
+    loadRoll(auth.supabase, auth.user.id, undefined, auth.office ? auth.campuses : undefined),
     nursery ? auth.supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order") : Promise.resolve({ data: [], error: null }),
   ]);
   if (papersQuery.error || bandsQuery.error) return new Response("The marksheet could not be prepared.", { status: 500 });

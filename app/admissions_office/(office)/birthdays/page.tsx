@@ -1,7 +1,7 @@
 import { PageHeader } from "@/components/admin/PageHeader";
 import { BirthdayPlanner, type BirthdayRow, type BirthdayView } from "@/components/office/BirthdayPlanner";
 import { PrintButton } from "@/components/office/client";
-import { MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { BIRTHDAY_RANGES, type BirthdayRange } from "@/lib/birthdays";
 import { requireOffice } from "@/lib/office";
 import { studentPhotoUrl } from "@/lib/student-photos";
@@ -56,7 +56,7 @@ export default async function BirthdaysPage({ searchParams }: { searchParams: Pr
         .order("full_name")
         .range(from, to));
   } catch (error) {
-    return <OfficeNotice title="Birthdays" heading="Birthdays could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Birthdays" message={(error as Error).message} fallbackHeading="Birthdays could not be loaded" />;
   }
 
   const rows: BirthdayRow[] = all.map((row) => ({

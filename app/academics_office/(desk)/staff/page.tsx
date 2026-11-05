@@ -23,7 +23,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   const query = await searchParams;
   let data;
   try {
-    data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id);
+    data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id, opened.auth.campuses);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not load the staff list.";
     return <AcademicsGate title="Staff" state={{ notice: "schema", message }} />;
@@ -33,7 +33,7 @@ export default async function StaffPage({ searchParams }: { searchParams: Promis
   const repair = await syncAssignedTeacherDeskLogins();
   if (repair.linked) {
     try {
-      data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id);
+      data = await loadStaffDesk(opened.auth.supabase, opened.auth.user.id, opened.auth.campuses);
     } catch {
       // Keep the first load if refresh fails; issued passwords still surface below.
     }

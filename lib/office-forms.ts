@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePhone } from "@/lib/students";
+import { logSystem } from "@/lib/system-logs";
 
 export type ActionResult = { error?: string; ok?: string; warning?: string; id?: string };
 
@@ -56,11 +57,26 @@ export async function logStudents(
   body: string,
 ) {
   if (!studentIds.length) return;
+  const text = body.slice(0, 4000);
   for (let start = 0; start < studentIds.length; start += 500) {
     await supabase.from("student_activity").insert(
-      studentIds.slice(start, start + 500).map((studentId) => ({ student_id: studentId, actor_id: actorId, kind, body: body.slice(0, 4000) })),
+      studentIds.slice(start, start + 500).map((studentId) => ({ student_id: studentId, actor_id: actorId, kind, body: text })),
     );
   }
+  // One school-wide row per batch — avoid N× dual-write cost on promotions / family edits.
+  const summary =
+    studentIds.length === 1
+      ? text.slice(0, 2000)
+      : `${text.slice(0, 1800)} (${studentIds.length} students)`;
+  await logSystem(supabase, actorId, {
+    source: "admissions",
+    kind,
+    body: summary,
+    entityType: "student",
+    entityId: studentIds[0],
+    studentId: studentIds[0],
+    meta: studentIds.length > 1 ? { student_count: studentIds.length } : undefined,
+  });
 }
 
 /** Logs a family change on the timeline of every current child in that family. */

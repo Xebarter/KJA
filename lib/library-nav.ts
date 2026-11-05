@@ -1,15 +1,22 @@
 export const LIBRARY_BASE = "/library";
 
-export const LIBRARY_IDS = ["lower", "upper"] as const;
+export const LIBRARY_IDS = ["nursery", "lower", "upper"] as const;
 export type LibraryId = (typeof LIBRARY_IDS)[number];
 
 export const LIBRARY_LABELS: Record<LibraryId, string> = {
+  nursery: "Nursery",
   lower: "Lower Primary",
   upper: "Upper Primary",
 };
 
+export const LIBRARY_SHORT_LABELS: Record<LibraryId, string> = {
+  nursery: "Nursery",
+  lower: "Lower",
+  upper: "Upper",
+};
+
 export function isLibraryId(value: string | null | undefined): value is LibraryId {
-  return value === "lower" || value === "upper";
+  return value === "nursery" || value === "lower" || value === "upper";
 }
 
 export type LibraryBadge = "overdue" | "ready" | "fines";

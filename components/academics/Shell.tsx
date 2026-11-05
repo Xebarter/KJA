@@ -136,6 +136,7 @@ export function AcademicsShell({
     <div className={`admin-shell ofc-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Academics" />
       <DeskWarmup
+        eager
         hrefs={[
           ...nav.map((item) => item.href),
           ...(show(`${ACADEMICS_BASE}/attendance`) ? [`${ACADEMICS_BASE}/attendance`] : []),

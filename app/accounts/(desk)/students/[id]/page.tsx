@@ -403,7 +403,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
                   return (
                     <li key={club.id}>
                       <div>
-                        <strong>{club.title}</strong>
+                        <strong><a href={`/clubs/catalogue/${club.id}`}>{club.title}</a></strong>
                         <small>{ugx(club.fee)}{receipt ? ` · ${receipt}` : ""}</small>
                       </div>
                       <span className={`fac-seat is-${status}`}>
@@ -413,6 +413,7 @@ export default async function FeeAccountPage({ params, searchParams }: {
                   );
                 })}
               </ul>
+              <p className="fac-note"><a href="/clubs/register">Open Clubs desk</a></p>
             </Panel>
           ) : null}
 

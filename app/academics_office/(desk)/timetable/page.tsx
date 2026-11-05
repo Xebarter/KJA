@@ -6,6 +6,7 @@ import { AcademicsGate, Empty } from "@/components/academics/ui";
 import { ACADEMICS_BASE, PERIODS, WEEKDAYS, classLabel, groupPupils, mapStaff, mapSubject, loadCurrentTerm, streamFromQuery, streamOf, streamQuery, subjectFits, type ClassGroup } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
+import { bellsFromLessons, clubTimeHint, loadClubTimeOverlays } from "@/lib/club-timetable-overlay";
 
 export const metadata = { title: "Timetable" };
 
@@ -28,11 +29,11 @@ type Group = ClassGroup<{ class_code: string | null; stream: string | null }>;
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
-export default async function TimetablePage({ searchParams }: { searchParams: Promise<{ class?: string; stream?: string; day?: string; period?: string; edit?: string }> }) {
+export default async function TimetablePage({ searchParams }: { searchParams: Promise<{ class?: string; stream?: string; campus?: string; day?: string; period?: string; edit?: string }> }) {
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Timetable" state={opened} />;
-  const { supabase, office, staffId, user } = opened.auth;
+  const { supabase, office, staffId, user, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Timetable" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -40,7 +41,7 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
     term ? supabase.from("timetable_slots").select("*").eq("term_id", term.id).order("period") : Promise.resolve({ data: [], error: null }),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
   ]);
   if (slotsQuery.error) return <AcademicsGate title="Timetable" state={{ notice: "schema", message: slotsQuery.error.message }} />;
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
@@ -49,7 +50,15 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
   const staffName = new Map(staff.map((member) => [member.id, member.full_name]));
   const groups = groupPupils(pupils);
   const stream = streamFromQuery(query.stream);
-  const selected = office ? groups.find((group) => group.code === query.class && (stream === null || group.stream === stream)) ?? null : null;
+  const campusQ = String(query.campus || "").trim();
+  const selected = office
+    ? groups.find(
+        (group) =>
+          group.code === query.class &&
+          (stream === null || group.stream === stream) &&
+          (!campusQ || group.campus === campusQ),
+      ) ?? null
+    : null;
   const allSlots = (slotsQuery.data || []) as Slot[];
   const slots = allSlots.filter((slot) => {
     if (!office) return Boolean(staffId) && slot.staff_id === staffId;
@@ -61,6 +70,20 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
   const focusDay = WEEKDAYS.find((day) => String(day.value) === query.day)?.value ?? editing?.weekday ?? null;
   const focusPeriod = PERIODS.find((period) => String(period) === query.period) ?? editing?.period ?? null;
   const today = kampalaWeekday();
+  const clubOverlays =
+    selected
+      ? await loadClubTimeOverlays(supabase, {
+          classCode: selected.code,
+          campus: selected.campus,
+          bells: bellsFromLessons(
+            slots.map((slot) => ({
+              period: slot.period,
+              starts: slot.starts_at,
+              ends: slot.ends_at,
+            })),
+          ),
+        })
+      : [];
 
   return (
     <div className="app-page ofc-page tt-page">
@@ -69,7 +92,7 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
         icon="fa-table-cells"
         title={office && selected ? classLabel(selected.code, selected.stream) : "Timetable"}
         description={office
-          ? (term ? <>{term.label}. <strong>{selected ? "Place each lesson in its period." : "Open a class to build the week."}</strong></> : "Set a current term before building the timetable.")
+          ? (term ? <>{term.label}. <strong>{selected ? "Place each lesson in its period." : "Open a class to build the week."}</strong> Club times from Clubs appear automatically.</> : "Set a current term before building the timetable.")
           : "Your lessons this term."}
       />
       {!term ? <Empty icon="fa-calendar" title="No current term">Set a current term before building the timetable.</Empty> : office && !selected ? (
@@ -80,6 +103,7 @@ export default async function TimetablePage({ searchParams }: { searchParams: Pr
           groups={groups}
           selected={selected}
           slots={slots}
+          clubOverlays={clubOverlays}
           clashes={allSlots.flatMap((slot) => slot.staff_id ? [{ id: slot.id, staffId: slot.staff_id, weekday: slot.weekday, period: slot.period, label: classLabel(slot.class_code, slot.stream) }] : [])}
           subjects={fitting}
           staff={staff}
@@ -151,14 +175,14 @@ function ClassBoard({ title, icon, groups, slots }: { title: string; icon: strin
           const missing = slots.filter((slot) => sameClass(slot, group) && !slot.staff_id).length;
           const percent = Math.round((count / CAPACITY) * 100);
           return (
-            <Link key={`${group.code}-${group.stream}`} className="tt-class" href={classHref(group.code, group.stream)}>
+            <Link key={`${group.campus}-${group.code}-${group.stream}`} className="tt-class" href={classHref(group.code, group.stream, group.campus)}>
               <span className="tt-mark" aria-hidden="true">{group.code}</span>
               <span className="tt-class-copy">
                 <span className="tt-class-top">
                   <strong>{classLabel(group.code, group.stream)}</strong>
                   <em className={percent === 100 ? "is-full" : ""}>{percent}%</em>
                 </span>
-                <small>{group.pupils.length} {group.pupils.length === 1 ? "pupil" : "pupils"}</small>
+                <small>{group.campus} · {group.pupils.length} {group.pupils.length === 1 ? "pupil" : "pupils"}</small>
                 <span className="tt-bar" aria-hidden="true"><span style={{ width: `${percent}%` }} /></span>
                 <span className="tt-class-meta">{count} of {CAPACITY} periods{missing ? ` · ${missing} without a teacher` : ""}</span>
               </span>
@@ -171,12 +195,13 @@ function ClassBoard({ title, icon, groups, slots }: { title: string; icon: strin
 }
 
 function Week({
-  office, groups, selected, slots, clashes, subjects, staff, subjectName, staffName, termId, editing, focusDay, focusPeriod, today,
+  office, groups, selected, slots, clubOverlays, clashes, subjects, staff, subjectName, staffName, termId, editing, focusDay, focusPeriod, today,
 }: {
   office: boolean;
   groups: Group[];
   selected: Group | null;
   slots: Slot[];
+  clubOverlays: Awaited<ReturnType<typeof loadClubTimeOverlays>>;
   clashes: TimetableClash[];
   subjects: ReturnType<typeof mapSubject>[];
   staff: ReturnType<typeof mapStaff>[];
@@ -193,10 +218,7 @@ function Week({
   const open = Math.max(0, CAPACITY - slots.length);
   const classes = new Set(slots.map((slot) => `${slot.class_code}:${slot.stream}`)).size;
   const unassigned = slots.length - assigned;
-  const siblings = selected ? groups.filter((group) => group.code === selected.code) : [];
-  const focusName = WEEKDAYS.find((day) => day.value === focusDay)?.label;
-  const focusLabel = focusName && focusPeriod ? `${focusName} · Period ${focusPeriod}` : "";
-  const taken = Boolean(focusLabel) && slots.some((slot) => slot.weekday === focusDay && slot.period === focusPeriod && slot.id !== editing?.id);
+  const siblings = selected ? groups.filter((group) => group.code === selected.code && group.campus === selected.campus) : [];
   const lessons: TimetableLesson[] = slots.map((slot) => ({
     id: slot.id,
     weekday: slot.weekday,
@@ -209,6 +231,13 @@ function Week({
     ends: slot.ends_at?.slice(0, 5) || "",
     room: slot.room || "",
     tone: tone(slot.subject_id),
+  }));
+  const clubTimes = clubOverlays.map((row) => ({
+    id: row.id,
+    weekday: row.weekday,
+    period: row.period,
+    label: row.label,
+    detail: clubTimeHint(row),
   }));
 
   return (
@@ -223,7 +252,7 @@ function Week({
                 {siblings.map((group) => {
                   const on = group.stream === selected.stream;
                   return (
-                    <Link key={`${group.code}-${group.stream}`} href={classHref(group.code, group.stream)} className={on ? "is-on" : ""} aria-current={on ? "page" : undefined} aria-label={classLabel(group.code, group.stream)}>
+                    <Link key={`${group.campus}-${group.code}-${group.stream}`} href={classHref(group.code, group.stream, group.campus)} className={on ? "is-on" : ""} aria-current={on ? "page" : undefined} aria-label={classLabel(group.code, group.stream)}>
                       {group.stream || "Main"}
                     </Link>
                   );
@@ -232,11 +261,11 @@ function Week({
             ) : null}
           </div>
           <ClassJump
-            value={`${selected.code}|${selected.stream}`}
+            value={`${selected.campus}|${selected.code}|${selected.stream}`}
             options={groups.map((group) => ({
-              value: `${group.code}|${group.stream}`,
-              href: classHref(group.code, group.stream),
-              label: classLabel(group.code, group.stream),
+              value: `${group.campus}|${group.code}|${group.stream}`,
+              href: classHref(group.code, group.stream, group.campus),
+              label: `${classLabel(group.code, group.stream)} · ${group.campus}`,
               section: group.section === "nursery" ? "Nursery" : "Primary",
             }))}
           />
@@ -265,6 +294,7 @@ function Week({
       {office && selected ? (
         <TimetableDesk
           lessons={lessons}
+          clubTimes={clubTimes}
           subjects={subjects.map((subject) => ({ id: subject.id, name: subject.name }))}
           staff={staff.map((member) => ({ id: member.id, name: member.full_name }))}
           clashes={clashes}
@@ -328,8 +358,9 @@ function Week({
   );
 }
 
-function classHref(code: string, stream: string) {
+function classHref(code: string, stream: string, campus?: string) {
   const params = new URLSearchParams({ class: code, stream: streamQuery(stream) });
+  if (campus) params.set("campus", campus);
   return `${ACADEMICS_BASE}/timetable?${params}`;
 }
 

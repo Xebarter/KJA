@@ -15,7 +15,7 @@ export default async function FeeAccountsPage({ searchParams }: { searchParams: 
   if (!supabaseConfigured()) return notReady("Fee accounts", { kind: "config" });
   const auth = await requireAccounts();
   if ("error" in auth) return notReady("Fee accounts", { kind: "auth", message: auth.error });
-  const { supabase } = auth;
+  const { supabase, campuses: allowedCampuses } = auth;
   const params = await searchParams;
 
   const statusParam = pick(params, "status");
@@ -29,7 +29,7 @@ export default async function FeeAccountsPage({ searchParams }: { searchParams: 
   const from = (page - 1) * FEE_PAGE_SIZE;
   const filters = { q, status, balance, class: cls, campus, sort };
 
-  const campuses = await loadCampuses(supabase);
+  const campuses = await loadCampuses(supabase, allowedCampuses);
   let rows: BalanceRow[];
   let total: number;
   let totals: FeeTotals;
@@ -37,7 +37,7 @@ export default async function FeeAccountsPage({ searchParams }: { searchParams: 
   if (!q) {
     let book: FeePupil[];
     try {
-      book = await loadFeeBook(supabase);
+      book = await loadFeeBook(supabase, allowedCampuses);
     } catch (error) {
       return notReady("Fee accounts", { kind: "schema", message: error instanceof Error ? error.message : "Couldn't load fee accounts." });
     }

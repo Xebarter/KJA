@@ -5,51 +5,17 @@ import { saveBand, saveDivisionBand, saveNextTermStart } from "@/app/academics_o
 import { DeskForm } from "@/components/academics/Form";
 import {
   DEFAULT_DIVISION_BANDS,
+  bandsForSection,
   divisionFor,
   gradeFor,
   type BandRow,
   type DivisionBand,
   type DivisionTrack,
+  type GradeBandSection,
 } from "@/lib/grading-scale";
 import { formatReportDate } from "@/lib/report-format";
 
-const SECTIONS = [
-  {
-    value: "primary" as const,
-    title: "Primary",
-    blurb: "Marks become letter grades like D1. Lower points mean a stronger grade.",
-    icon: "fa-graduation-cap",
-    samples: [92, 72, 55, 36],
-    placeholder: "D1",
-  },
-  {
-    value: "nursery" as const,
-    title: "Nursery",
-    blurb: "Teachers pick a band such as Secure. The markbook stores the middle of that range.",
-    icon: "fa-seedling",
-    samples: [88, 60, 30, 10],
-    placeholder: "Secure",
-  },
-];
-
-const DIVISION_TRACKS = [
-  {
-    value: "upper" as const,
-    title: "Upper primary",
-    blurb: "Four academic subjects (PLE-style). AGG is the sum of subject points; GRADE is 1–4 or U.",
-    samples: [8, 16, 26, 32, 40],
-  },
-  {
-    value: "lower" as const,
-    title: "Lower primary",
-    blurb: "More than four academic subjects. AGG still sums points; GRADE uses these ceilings.",
-    samples: [12, 24, 40, 50, 70],
-  },
-];
-
-const INK = ["#19232b", "#24323c", "#3d4c58", "#8a5a12", "#c9a227", "#d4bc6a", "#e6d7a4", "#efeae2"];
-
-type Tab = "marks" | "aggregate" | "date";
+type DeskTab = GradeBandSection | "date";
 
 type NextTerm = {
   ready: boolean;
@@ -57,6 +23,59 @@ type NextTerm = {
   label: string;
   startsOn: string | null;
 };
+
+const SECTIONS: {
+  value: GradeBandSection;
+  title: string;
+  short: string;
+  range: string;
+  blurb: string;
+  icon: string;
+  samples: number[];
+  placeholder: string;
+  division?: DivisionTrack;
+  divisionBlurb?: string;
+  divisionSamples?: number[];
+}[] = [
+  {
+    value: "nursery",
+    title: "Nursery",
+    short: "Early years",
+    range: "Reception · Baby · Middle · Top",
+    blurb: "Teachers choose a progress band. The markbook stores the middle of that range so reports stay consistent.",
+    icon: "fa-seedling",
+    samples: [88, 60, 30, 10],
+    placeholder: "Secure",
+  },
+  {
+    value: "lower",
+    title: "Lower section",
+    short: "P1–P3",
+    range: "Primary One to Primary Three",
+    blurb: "Letter grades from marks. Lower points mean a stronger grade. Aggregate ceilings below decide the report GRADE when a class has more than four academic subjects.",
+    icon: "fa-book-open",
+    samples: [92, 72, 55, 36],
+    placeholder: "D1",
+    division: "lower",
+    divisionBlurb: "More than four academic subjects. AGG is the sum of subject points; GRADE uses these ceilings.",
+    divisionSamples: [12, 24, 40, 50, 70],
+  },
+  {
+    value: "upper",
+    title: "Upper section",
+    short: "P4–P7",
+    range: "Primary Four to Primary Seven",
+    blurb: "PLE-style letter grades from marks. Aggregate ceilings below decide the report GRADE for four-subject classes.",
+    icon: "fa-graduation-cap",
+    samples: [92, 72, 55, 36],
+    placeholder: "D1",
+    division: "upper",
+    divisionBlurb: "Four academic subjects (PLE-style). AGG is the sum of subject points; GRADE is 1–4 or U.",
+    divisionSamples: [8, 16, 26, 32, 40],
+  },
+];
+
+const INK = ["#19232b", "#24323c", "#3d4c58", "#8a5a12", "#c9a227", "#d4bc6a", "#e6d7a4", "#efeae2"];
 
 export function GradingDesk({
   bands,
@@ -69,153 +88,250 @@ export function GradingDesk({
   divisionReady: boolean;
   nextTerm: NextTerm;
 }) {
-  const [tab, setTab] = useState<Tab>("marks");
-  const [section, setSection] = useState<"primary" | "nursery">("primary");
-  const [track, setTrack] = useState<"upper" | "lower">("upper");
+  const [tab, setTab] = useState<DeskTab>("nursery");
 
   const reviews = useMemo(
     () =>
       SECTIONS.map((item) => ({
         section: item,
-        review: reviewScale(bands.filter((band) => band.section === item.value)),
+        review: reviewScale(bandsForSection(bands, item.value)),
       })),
     [bands],
   );
   const openIssues = reviews.reduce((sum, item) => sum + item.review.issues.length, 0);
-  const activeSection = SECTIONS.find((item) => item.value === section)!;
-  const activeReview = reviews.find((item) => item.section.value === section)!.review;
-  const activeTrack = DIVISION_TRACKS.find((item) => item.value === track)!;
-  const trackBands = divisions.filter((band) => band.track === track);
+  const active = SECTIONS.find((item) => item.value === tab) ?? null;
+  const activeReview = active ? reviews.find((item) => item.section.value === active.value)!.review : null;
+  const readySections = reviews.filter((item) => !item.review.issues.length && item.review.ranked.length).length;
 
   return (
     <div className="grd-desk">
       <div className={`grd-status${openIssues ? " is-warn" : " is-ok"}`}>
         <i className={`fa-solid ${openIssues ? "fa-triangle-exclamation" : "fa-circle-check"}`} aria-hidden="true" />
         <div>
-          <strong>{openIssues ? "Subject grades need a quick look" : "Subject grades look complete"}</strong>
+          <strong>{openIssues ? "Subject grades need a quick look" : "Section grading looks complete"}</strong>
           <p>
             {openIssues
-              ? `${openIssues} gap${openIssues === 1 ? "" : "s"} on the mark scale. Fix them under Subject grades. Approved report cards keep the rules they already have.`
-              : "New draft report cards will use these rules. Approved cards keep the rules they already have."}
+              ? `${openIssues} gap${openIssues === 1 ? "" : "s"} across Nursery, Lower and Upper. Fix them on the matching section. Approved report cards keep the rules they already have.`
+              : `${readySections} of 3 sections ready. New draft report cards will use these rules. Approved cards keep the rules they already have.`}
           </p>
         </div>
       </div>
 
       <nav className="grd-tabs" aria-label="Grading settings">
-        {(
-          [
-            { id: "marks" as const, label: "Subject grades", icon: "fa-percent", hint: "Primary & nursery marks" },
-            { id: "aggregate" as const, label: "Report grade", icon: "fa-layer-group", hint: "AGG → GRADE" },
-            { id: "date" as const, label: "Next term date", icon: "fa-calendar-day", hint: "Printed on reports" },
-          ] as const
-        ).map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            className={tab === item.id ? "is-active" : undefined}
-            aria-current={tab === item.id ? "page" : undefined}
-            onClick={() => setTab(item.id)}
-          >
-            <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
-            <span>
-              <strong>{item.label}</strong>
-              <em>{item.hint}</em>
-            </span>
-          </button>
-        ))}
+        {SECTIONS.map((item) => {
+          const review = reviews.find((row) => row.section.value === item.value)!.review;
+          const watch = review.issues.length > 0 || review.ranked.length === 0;
+          return (
+            <button
+              key={item.value}
+              type="button"
+              className={tab === item.value ? "is-active" : undefined}
+              aria-current={tab === item.value ? "page" : undefined}
+              onClick={() => setTab(item.value)}
+            >
+              <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
+              <span>
+                <strong>{item.title}</strong>
+                <em>{item.short}</em>
+              </span>
+              <b className={watch ? "is-watch" : "is-set"}>{watch ? "Review" : "Ready"}</b>
+            </button>
+          );
+        })}
+        <button
+          type="button"
+          className={tab === "date" ? "is-active" : undefined}
+          aria-current={tab === "date" ? "page" : undefined}
+          onClick={() => setTab("date")}
+        >
+          <i className="fa-solid fa-calendar-day" aria-hidden="true" />
+          <span>
+            <strong>Next term date</strong>
+            <em>Printed on reports</em>
+          </span>
+          <b className={nextTerm.startsOn ? "is-set" : "is-watch"}>{nextTerm.startsOn ? "Set" : "Needed"}</b>
+        </button>
       </nav>
 
-      {tab === "marks" ? (
-        <section className="grd-panel" aria-label="Subject grades">
+      {active && activeReview ? (
+        <section className="grd-panel" aria-label={active.title}>
           <header className="grd-panel-head">
-            <div>
-              <h2>Subject grades</h2>
-              <p>Choose Primary or Nursery, check the colour bar, then edit a band if something is wrong.</p>
-            </div>
-            <div className="grd-switch" role="tablist" aria-label="School section">
-              {SECTIONS.map((item) => (
-                <button
-                  key={item.value}
-                  type="button"
-                  role="tab"
-                  aria-selected={section === item.value}
-                  className={section === item.value ? "is-active" : undefined}
-                  onClick={() => setSection(item.value)}
-                >
-                  <i className={`fa-solid ${item.icon}`} aria-hidden="true" /> {item.title}
-                </button>
-              ))}
-            </div>
-          </header>
-          <Scale
-            section={activeSection}
-            bands={bands.filter((band) => band.section === activeSection.value)}
-            ranked={activeReview.ranked}
-            issues={activeReview.issues}
-          />
-        </section>
-      ) : null}
-
-      {tab === "aggregate" ? (
-        <section className="grd-panel" aria-label="Report grade">
-          <header className="grd-panel-head">
-            <div>
-              <h2>Report grade (AGG → GRADE)</h2>
-              <p>After subject points are added up, these ceilings decide the overall grade on the report card.</p>
-            </div>
-            {divisionReady ? (
-              <div className="grd-switch" role="tablist" aria-label="Primary track">
-                {DIVISION_TRACKS.map((item) => (
-                  <button
-                    key={item.value}
-                    type="button"
-                    role="tab"
-                    aria-selected={track === item.value}
-                    className={track === item.value ? "is-active" : undefined}
-                    onClick={() => setTrack(item.value)}
-                  >
-                    {item.title}
-                  </button>
-                ))}
-              </div>
-            ) : null}
-          </header>
-          {divisionReady ? (
-            <DivisionScale track={activeTrack} bands={trackBands} />
-          ) : (
-            <p className="grd-quiet">
-              Run <code>supabase/0032_report_aggregate.sql</code> to set AGG → GRADE cutoffs for upper and lower primary.
-            </p>
-          )}
-        </section>
-      ) : null}
-
-      {tab === "date" ? (
-        <section className="grd-panel" aria-label="Next term date">
-          <header className="grd-panel-head">
-            <div>
-              <h2>Next term starts</h2>
-              <p>
-                This date is printed beside the fees on every report card
-                {nextTerm.current ? <> for the term after <strong>{nextTerm.current}</strong></> : null}.
+            <div className="grd-panel-intro">
+              <p className="grd-kicker">
+                <i className={`fa-solid ${active.icon}`} aria-hidden="true" />
+                {active.range}
               </p>
+              <h2>{active.title} grading</h2>
+              <p>{active.blurb}</p>
+            </div>
+            <div className="grd-panel-meta">
+              <span className={activeReview.issues.length || !activeReview.ranked.length ? "grd-pill is-watch" : "grd-pill is-set"}>
+                {activeReview.issues.length || !activeReview.ranked.length ? "Needs review" : "Ready"}
+              </span>
+              <span className="grd-meta-count">
+                {activeReview.ranked.length} subject band{activeReview.ranked.length === 1 ? "" : "s"}
+                {active.division ? " · report GRADE cutoffs" : ""}
+              </span>
             </div>
           </header>
-          {nextTerm.ready ? (
-            <DeskForm action={saveNextTermStart} className="grd-next-form">
-              <label className="ofc-field">
-                <span>Next term starts on</span>
-                <input name="starts_on" type="date" required defaultValue={nextTerm.startsOn ?? ""} />
-              </label>
-              <button className="grd-save" type="submit">Save date</button>
-            </DeskForm>
-          ) : (
-            <p className="grd-quiet">Set a current term in Accounts before choosing when the next one starts.</p>
-          )}
-          {nextTerm.startsOn ? <p className="grd-next-when">{formatReportDate(nextTerm.startsOn)}</p> : null}
+
+          <div className="grd-stack">
+            <Scale
+              section={active}
+              bands={bandsForSection(bands, active.value)}
+              ranked={activeReview.ranked}
+              issues={activeReview.issues}
+            />
+
+            {active.division ? (
+              <div className="grd-subpanel">
+                <header className="grd-subhead">
+                  <div>
+                    <h3>Report grade · AGG → GRADE</h3>
+                    <p>{active.divisionBlurb}</p>
+                  </div>
+                </header>
+                {divisionReady ? (
+                  <DivisionScale
+                    track={active.division}
+                    title={active.title}
+                    blurb={active.divisionBlurb || ""}
+                    samples={active.divisionSamples || []}
+                    bands={divisions.filter((band) => band.track === active.division)}
+                  />
+                ) : (
+                  <p className="grd-quiet">
+                    Run <code>supabase/0032_report_aggregate.sql</code> to set AGG → GRADE cutoffs for lower and upper primary.
+                  </p>
+                )}
+              </div>
+            ) : (
+              <aside className="grd-aside">
+                <i className="fa-solid fa-info-circle" aria-hidden="true" />
+                <div>
+                  <strong>No aggregate grade</strong>
+                  <p>Nursery reports use progress bands only. Overall GRADE from AGG is for Lower and Upper primary.</p>
+                </div>
+              </aside>
+            )}
+          </div>
         </section>
       ) : null}
+
+      {tab === "date" ? <NextTermPanel nextTerm={nextTerm} /> : null}
     </div>
+  );
+}
+
+function NextTermPanel({ nextTerm }: { nextTerm: NextTerm }) {
+  const [preview, setPreview] = useState(nextTerm.startsOn ?? "");
+  const formatted = preview ? formatReportDate(preview) : "";
+  const parts = preview ? preview.split("-").map(Number) : [];
+  const day = parts[2] ? String(parts[2]) : "—";
+  const month = preview
+    ? new Date(Date.UTC(parts[0], parts[1] - 1, parts[2])).toLocaleDateString("en-GB", {
+        month: "long",
+        year: "numeric",
+        timeZone: "UTC",
+      })
+    : "Choose a date";
+  const weekday = formatted ? formatted.split(",")[0] : "Not set";
+
+  return (
+    <section className="grd-panel grd-date-panel" aria-label="Next term date">
+      <header className="grd-panel-head">
+        <div className="grd-panel-intro">
+          <p className="grd-kicker">
+            <i className="fa-solid fa-calendar-day" aria-hidden="true" />
+            Printed beside fees on every report card
+          </p>
+          <h2>Next term starts</h2>
+          <p>
+            Set the opening day for{" "}
+            <strong>{nextTerm.label || "the following term"}</strong>
+            {nextTerm.current ? (
+              <>
+                {" "}
+                after the current term, <strong>{nextTerm.current}</strong>
+              </>
+            ) : null}
+            . Parents see this date on paper and online reports.
+          </p>
+        </div>
+        <span className={nextTerm.startsOn ? "grd-pill is-set" : "grd-pill is-watch"}>
+          {nextTerm.startsOn ? "On reports" : "Not set"}
+        </span>
+      </header>
+
+      <div className="grd-date-body">
+        {!nextTerm.ready ? (
+          <p className="grd-quiet">Set a current term in Accounts before choosing when the next one starts.</p>
+        ) : (
+          <>
+            <div className="grd-date-layout">
+              <div className="grd-date-card" aria-hidden={formatted ? undefined : true}>
+                <span className="grd-date-weekday">{weekday}</span>
+                <strong className="grd-date-day">{day}</strong>
+                <span className="grd-date-month">{month}</span>
+                <em className="grd-date-label">{nextTerm.label || "Next term"}</em>
+              </div>
+
+              <div className="grd-date-editor">
+                <ol className="grd-date-steps">
+                  <li>
+                    <span>1</span>
+                    <div>
+                      <strong>Current term</strong>
+                      <p>{nextTerm.current || "Not set in Accounts"}</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>2</span>
+                    <div>
+                      <strong>Next term</strong>
+                      <p>{nextTerm.label || "Following term"}</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>3</span>
+                    <div>
+                      <strong>Opening day</strong>
+                      <p>{formatted || "Pick the date pupils return"}</p>
+                    </div>
+                  </li>
+                </ol>
+
+                <DeskForm action={saveNextTermStart} className="grd-next-form">
+                  <label className="ofc-field grd-date-field">
+                    <span>Next term starts on</span>
+                    <input
+                      name="starts_on"
+                      type="date"
+                      required
+                      defaultValue={nextTerm.startsOn ?? ""}
+                      onChange={(event) => setPreview(event.target.value)}
+                    />
+                  </label>
+                  <button className="grd-save grd-save-lg" type="submit">
+                    <i className="fa-solid fa-floppy-disk" aria-hidden="true" />
+                    Save date
+                  </button>
+                </DeskForm>
+              </div>
+            </div>
+
+            <aside className="grd-date-preview">
+              <p className="grd-date-preview-kicker">On the report card</p>
+              <div className="grd-date-preview-sheet">
+                <small>School fees for next term</small>
+                <strong>{formatted || "Date appears here once saved"}</strong>
+                <p>Shown with the fee schedule for {nextTerm.label || "the next term"}.</p>
+              </div>
+            </aside>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -234,10 +350,12 @@ function Scale({
 
   return (
     <div className="grd-body">
-      <p className="grd-note">{section.blurb}</p>
-      <span className={issues.length ? "grd-pill is-watch" : "grd-pill is-set"}>
-        {issues.length ? "Needs review" : "Ready"}
-      </span>
+      <div className="grd-body-top">
+        <div>
+          <h3>Subject grades</h3>
+          <p className="grd-note">Check the colour bar, then edit a band if a range is wrong or missing.</p>
+        </div>
+      </div>
 
       {ranked.length ? (
         <>
@@ -258,15 +376,21 @@ function Scale({
             </div>
             <div className="grd-axis" aria-hidden="true">
               {[0, 25, 50, 75, 100].map((tick) => (
-                <span key={tick} style={{ left: `${tick}%` }}>{tick}</span>
+                <span key={tick} style={{ left: `${tick}%` }}>
+                  {tick}
+                </span>
               ))}
             </div>
             <ul className="grd-key">
               {ranked.map((band, index) => (
                 <li key={band.id}>
                   <i style={bandInk(index, ranked.length)}>{band.label}</i>
-                  <span>{mark(band.min_score)}–{mark(band.max_score)}%</span>
-                  <em>{band.points} {band.points === 1 ? "pt" : "pts"}</em>
+                  <span>
+                    {mark(band.min_score)}–{mark(band.max_score)}%
+                  </span>
+                  <em>
+                    {band.points} {band.points === 1 ? "pt" : "pts"}
+                  </em>
                 </li>
               ))}
             </ul>
@@ -277,7 +401,10 @@ function Scale({
               const band = gradeFor(bands, section.value, score);
               return (
                 <div key={score} className={band ? undefined : "is-open"}>
-                  <strong>{score}<small>%</small></strong>
+                  <strong>
+                    {score}
+                    <small>%</small>
+                  </strong>
                   <span>{band ? band.label : "No grade"}</span>
                   <em>{band ? `${band.points} ${band.points === 1 ? "pt" : "pts"}` : "Uncovered"}</em>
                 </div>
@@ -305,7 +432,9 @@ function Scale({
           <i className={`fa-solid ${editing ? "fa-chevron-up" : "fa-pen"}`} aria-hidden="true" />
           {editing ? "Hide band editor" : "Edit bands"}
         </button>
-        <span>{ranked.length} band{ranked.length === 1 ? "" : "s"}</span>
+        <span>
+          {ranked.length} band{ranked.length === 1 ? "" : "s"}
+        </span>
       </div>
 
       {editing ? (
@@ -323,7 +452,7 @@ function Scale({
           {ranked.map((band) => (
             <DeskForm key={band.id} action={saveBand} className="grd-form">
               <input type="hidden" name="id" value={band.id} />
-              <input type="hidden" name="section" value={band.section} />
+              <input type="hidden" name="section" value={section.value} />
               <label className="ofc-field">
                 <span>Grade</span>
                 <input name="label" defaultValue={band.label} required />
@@ -340,8 +469,12 @@ function Scale({
                 <span>Points</span>
                 <input name="points" type="number" defaultValue={band.points} required />
               </label>
-              <button className="grd-save" type="submit">Save</button>
-              <button className="grd-remove" type="submit" name="intent" value="delete">Remove</button>
+              <button className="grd-save" type="submit">
+                Save
+              </button>
+              <button className="grd-remove" type="submit" name="intent" value="delete">
+                Remove
+              </button>
             </DeskForm>
           ))}
           <DeskForm action={saveBand} className="grd-form is-new">
@@ -362,7 +495,9 @@ function Scale({
               <span>Points</span>
               <input name="points" type="number" required placeholder="1" />
             </label>
-            <button className="grd-save" type="submit">Add band</button>
+            <button className="grd-save" type="submit">
+              Add band
+            </button>
           </DeskForm>
         </div>
       ) : null}
@@ -372,34 +507,43 @@ function Scale({
 
 function DivisionScale({
   track,
+  title,
+  blurb,
+  samples,
   bands,
 }: {
-  track: (typeof DIVISION_TRACKS)[number];
+  track: DivisionTrack;
+  title: string;
+  blurb: string;
+  samples: number[];
   bands: DivisionBand[];
 }) {
   const ranked = [...bands].sort((a, b) => a.sort_order - b.sort_order || (a.max_aggregate ?? 9999) - (b.max_aggregate ?? 9999));
   const active = ranked.length
     ? ranked
-    : DEFAULT_DIVISION_BANDS[track.value].map((band, index) => ({
-        id: `default-${track.value}-${index}`,
-        track: track.value as DivisionTrack,
+    : DEFAULT_DIVISION_BANDS[track].map((band, index) => ({
+        id: `default-${track}-${index}`,
+        track,
         ...band,
       }));
   const [editing, setEditing] = useState(ranked.length === 0);
 
   return (
-    <div className="grd-body">
-      <p className="grd-note">{track.blurb}</p>
+    <div className="grd-body grd-body-tight">
+      <p className="grd-note visually-hidden">{blurb}</p>
       <span className={ranked.length ? "grd-pill is-set" : "grd-pill is-watch"}>
-        {ranked.length ? "Custom cutoffs" : "Using built-in defaults"}
+        {ranked.length ? `${title} cutoffs` : "Using built-in defaults"}
       </span>
 
-      <div className="grd-readout" aria-label="Example aggregates">
-        {track.samples.map((agg) => {
-          const grade = divisionFor(active, track.value, agg);
+      <div className="grd-readout is-agg" aria-label="Example aggregates">
+        {samples.map((agg) => {
+          const grade = divisionFor(active, track, agg);
           return (
             <div key={agg}>
-              <strong>{agg}<small> AGG</small></strong>
+              <strong>
+                {agg}
+                <small> AGG</small>
+              </strong>
               <span>Grade {grade}</span>
               <em>Ceiling match</em>
             </div>
@@ -442,12 +586,16 @@ function DivisionScale({
                 <span>Order</span>
                 <input name="sort_order" type="number" defaultValue={band.sort_order} required />
               </label>
-              <button className="grd-save" type="submit">Save</button>
-              <button className="grd-remove" type="submit" name="intent" value="delete">Remove</button>
+              <button className="grd-save" type="submit">
+                Save
+              </button>
+              <button className="grd-remove" type="submit" name="intent" value="delete">
+                Remove
+              </button>
             </DeskForm>
           ))}
           <DeskForm action={saveDivisionBand} className="grd-form is-division is-new">
-            <input type="hidden" name="track" value={track.value} />
+            <input type="hidden" name="track" value={track} />
             <label className="ofc-field">
               <span>Grade</span>
               <input name="label" required placeholder="1" />
@@ -460,7 +608,9 @@ function DivisionScale({
               <span>Order</span>
               <input name="sort_order" type="number" required placeholder={String((ranked.at(-1)?.sort_order ?? 0) + 1)} />
             </label>
-            <button className="grd-save" type="submit">Add cutoff</button>
+            <button className="grd-save" type="submit">
+              Add cutoff
+            </button>
           </DeskForm>
         </div>
       ) : null}

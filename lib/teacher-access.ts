@@ -1,5 +1,6 @@
 import { cache } from "react";
 import { classLabel, loadCurrentTerm, streamOf, type TermRow } from "@/lib/academics";
+import { operationalCampus } from "@/lib/campuses";
 import { isDesktopProcess } from "@/lib/desktop";
 import { forget, remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
@@ -116,24 +117,32 @@ async function loadTeacherSession(userId: string, authEmail: string | null, meta
   const db = service ?? supabase;
   if (term) {
     const [leadQuery, postQuery] = await Promise.all([
-      db.from("class_teachers").select("class_code, stream").eq("term_id", term.id).eq("staff_id", staffId),
-      db.from("subject_teachers").select("class_code, stream, subject_id, subjects(name)").eq("term_id", term.id).eq("staff_id", staffId),
+      db.from("class_teachers").select("class_code, stream, campus").eq("term_id", term.id).eq("staff_id", staffId),
+      db.from("subject_teachers").select("class_code, stream, campus, subject_id, subjects(name)").eq("term_id", term.id).eq("staff_id", staffId),
     ]);
     classes = (leadQuery.data || [])
-      .map((row) => ({
-        classCode: String(row.class_code),
-        stream: streamOf(row.stream as string | null),
-        label: classLabel(String(row.class_code), row.stream as string | null),
-      }))
+      .map((row) => {
+        const campus = operationalCampus(row.campus as string | null);
+        return {
+          classCode: String(row.class_code),
+          stream: streamOf(row.stream as string | null),
+          campus,
+          label: classLabel(String(row.class_code), row.stream as string | null, campus),
+        };
+      })
       .sort((a, b) => a.label.localeCompare(b.label));
     subjects = (postQuery.data || [])
-      .map((row) => ({
-        classCode: String(row.class_code),
-        stream: streamOf(row.stream as string | null),
-        subjectId: String(row.subject_id),
-        subjectName: embedName(row.subjects as SubjectEmbed),
-        label: classLabel(String(row.class_code), row.stream as string | null),
-      }))
+      .map((row) => {
+        const campus = operationalCampus(row.campus as string | null);
+        return {
+          classCode: String(row.class_code),
+          stream: streamOf(row.stream as string | null),
+          campus,
+          subjectId: String(row.subject_id),
+          subjectName: embedName(row.subjects as SubjectEmbed),
+          label: classLabel(String(row.class_code), row.stream as string | null, campus),
+        };
+      })
       .sort((a, b) => a.label.localeCompare(b.label) || a.subjectName.localeCompare(b.subjectName));
   }
 

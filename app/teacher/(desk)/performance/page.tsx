@@ -14,6 +14,8 @@ import { AcademicsGate, Empty } from "@/components/academics/ui";
 import {
   ASSESSMENT_KINDS,
   classSection,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
   gradeFor,
   kindLabel,
   mapBand,
@@ -149,6 +151,7 @@ export default async function TeacherPerformancePage({
   const selected = subjects.find((post) => postKey(post.classCode, post.stream, post.subjectId) === query.post) || subjects[0];
   const selectedKey = postKey(selected.classCode, selected.stream, selected.subjectId);
   const nursery = classSection(selected.classCode) === "nursery";
+  const markSection = gradeBandSection(selected.classCode);
   const kindFilter = ASSESSMENT_KINDS.some((entry) => entry.value === query.kind) ? String(query.kind) : "";
 
   const [pupils, allPapers, bandsQuery] = await Promise.all([
@@ -167,7 +170,7 @@ export default async function TeacherPerformancePage({
         .order("id")
         .range(from, to),
     ),
-    supabase.from("grade_bands").select("*").eq("section", nursery ? "nursery" : "primary").order("sort_order"),
+    supabase.from("grade_bands").select("*").in("section", gradeBandSectionsToLoad(selected.classCode)).order("sort_order"),
   ]);
 
   if (bandsQuery.error) {
@@ -225,7 +228,7 @@ export default async function TeacherPerformancePage({
     const percent = weightedPercent(marks);
     const gaps = marks.filter((mark) => mark.tone === "blank").length;
     const missed = marks.filter((mark) => mark.missed).length;
-    const grade = gradeFor(bands, nursery ? "nursery" : "primary", percent)?.label ?? null;
+    const grade = gradeFor(bands, markSection, percent)?.label ?? null;
     return {
       pupil,
       marks,

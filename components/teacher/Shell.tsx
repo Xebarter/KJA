@@ -155,7 +155,7 @@ export function TeacherShell({
 
         <div className="admin-side-foot">
           <div className="admin-user">
-            <span className="admin-user-avatar" aria-hidden="true">
+            <span className="admin-user-avatar tch-user-avatar" aria-hidden="true">
               {initials(name)}
             </span>
             <span className="admin-user-text">

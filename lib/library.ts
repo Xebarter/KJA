@@ -1,8 +1,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
+import type { CampusId } from "@/lib/campuses";
 import { LIBRARY_BASE, LIBRARY_LABELS, type LibraryId } from "@/lib/library-nav";
 import { cookies } from "next/headers";
-import { LIBRARY_COOKIE } from "@/lib/library-access";
+import { LIBRARY_COOKIE, LIBRARY_CAMPUS_COOKIE } from "@/lib/library-access";
 
 export type LibrarySettings = {
   library_id: LibraryId;
@@ -69,6 +70,16 @@ export async function persistActiveLibrary(id: LibraryId) {
   });
 }
 
+export async function persistActiveCampus(campus: CampusId) {
+  const jar = await cookies();
+  jar.set(LIBRARY_CAMPUS_COOKIE, campus, {
+    path: "/",
+    sameSite: "lax",
+    httpOnly: false,
+    maxAge: 60 * 60 * 24 * 180,
+  });
+}
+
 export async function loadSettings(supabase: SupabaseClient, libraryId: LibraryId): Promise<LibrarySettings> {
   const { data } = await supabase.from("library_settings").select("*").eq("library_id", libraryId).maybeSingle();
   return {
@@ -118,8 +129,10 @@ export async function openLoanCount(
   libraryId: LibraryId,
   kind: "pupil" | "teacher",
   id: string,
+  campus?: CampusId,
 ) {
   let query = supabase.from("library_loans").select("id", { count: "exact", head: true }).eq("library_id", libraryId).is("returned_at", null);
+  if (campus) query = query.eq("campus", campus);
   query = kind === "pupil" ? query.eq("student_id", id) : query.eq("teacher_id", id);
   const { count } = await query;
   return count ?? 0;

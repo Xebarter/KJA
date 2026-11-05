@@ -4,6 +4,7 @@ export const accountNav = [
   { href: "/account/reports", label: "Reports", icon: "fa-file-lines", group: "Family" },
   { href: "/account/points", label: "Points", icon: "fa-star", group: "Family" },
   { href: "/account/fees", label: "School fees", icon: "fa-receipt", group: "Family" },
+  { href: "/account/charges", label: "Other payments", icon: "fa-money-check-dollar", group: "Family" },
   { href: "/account/applications", label: "Applications", icon: "fa-clipboard-list", group: "School" },
   { href: "/account/clubs", label: "Clubs", icon: "fa-puzzle-piece", group: "School" },
   { href: "/account/calendar", label: "Calendar", icon: "fa-calendar-days", group: "School" },

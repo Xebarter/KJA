@@ -1,8 +1,16 @@
 /** Client-safe grading helpers (no next/cache). */
 
+import { SCHOOL_CLASSES } from "@/lib/students";
+
+/** Live editable subject-grade sections on the grading desk. */
+export type GradeBandSection = "nursery" | "lower" | "upper";
+
+/** Stored band section, including legacy shared primary rows. */
+export type BandSection = GradeBandSection | "primary";
+
 export type BandRow = {
   id: string;
-  section: "nursery" | "primary";
+  section: BandSection;
   label: string;
   min_score: number;
   max_score: number;
@@ -39,16 +47,84 @@ export const DEFAULT_DIVISION_BANDS: Record<DivisionTrack, { label: string; max_
   ],
 };
 
+const PRIMARY_DEFAULT = [
+  { label: "D1", min: 80, max: 100, points: 1 },
+  { label: "D2", min: 70, max: 79, points: 2 },
+  { label: "C3", min: 65, max: 69, points: 3 },
+  { label: "C4", min: 60, max: 64, points: 4 },
+  { label: "C5", min: 55, max: 59, points: 5 },
+  { label: "C6", min: 50, max: 54, points: 6 },
+  { label: "P7", min: 45, max: 49, points: 7 },
+  { label: "P8", min: 40, max: 44, points: 8 },
+  { label: "F9", min: 0, max: 39, points: 9 },
+] as const;
+
+/** Built-in subject scales when a section has no saved bands yet. */
+export const DEFAULT_SUBJECT_BANDS: Record<GradeBandSection, { label: string; min: number; max: number; points: number }[]> = {
+  nursery: [
+    { label: "Exceeding", min: 75, max: 100, points: 1 },
+    { label: "Secure", min: 50, max: 74, points: 2 },
+    { label: "Developing", min: 25, max: 49, points: 3 },
+    { label: "Beginning", min: 0, max: 24, points: 4 },
+  ],
+  lower: PRIMARY_DEFAULT.map((band) => ({ ...band })),
+  upper: PRIMARY_DEFAULT.map((band) => ({ ...band })),
+};
+
 function num(value: unknown) {
   if (value === null || value === undefined || value === "") return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-export function gradeFor(bands: BandRow[], section: "nursery" | "primary", percent: number | null) {
+export function isGradeBandSection(value: string): value is GradeBandSection {
+  return value === "nursery" || value === "lower" || value === "upper";
+}
+
+export function isBandSection(value: string): value is BandSection {
+  return isGradeBandSection(value) || value === "primary";
+}
+
+/** Nursery / Lower (P1–P3) / Upper (P4–P7) for subject grades on a class. */
+export function gradeBandSection(classCode: string | null | undefined): GradeBandSection {
+  const entry = SCHOOL_CLASSES.find((row) => row.code === classCode);
+  if (!entry || entry.section === "nursery") return "nursery";
+  const year = Number(String(entry.code).replace(/^P/i, ""));
+  return Number.isFinite(year) && year <= 3 ? "lower" : "upper";
+}
+
+/** Sections to fetch so lower/upper can fall back to legacy primary rows. */
+export function gradeBandSectionsToLoad(classCode: string | null | undefined): BandSection[] {
+  const wanted = gradeBandSection(classCode);
+  return wanted === "nursery" ? ["nursery"] : [wanted, "primary"];
+}
+
+/**
+ * Which stored rows to use for a class section.
+ * Lower/upper prefer their own rows, then fall back to legacy primary.
+ */
+export function effectiveBandSection(
+  bands: Pick<BandRow, "section">[],
+  wanted: BandSection | "nursery" | "primary",
+): BandSection {
+  if (wanted === "nursery" || wanted === "primary") return wanted;
+  if (bands.some((band) => band.section === wanted)) return wanted;
+  if (bands.some((band) => band.section === "primary")) return "primary";
+  return wanted;
+}
+
+export function bandsForSection(bands: BandRow[], wanted: BandSection | GradeBandSection) {
+  const section = effectiveBandSection(bands, wanted);
+  return bands.filter((band) => band.section === section);
+}
+
+export function gradeFor(
+  bands: BandRow[],
+  section: BandSection | GradeBandSection | "nursery" | "primary",
+  percent: number | null,
+) {
   if (percent === null) return null;
-  const match = bands
-    .filter((band) => band.section === section)
+  const match = bandsForSection(bands, section)
     .sort((a, b) => a.sort_order - b.sort_order)
     .find((band) => percent >= band.min_score && percent <= band.max_score);
   return match ?? null;
@@ -61,6 +137,11 @@ export function bandMidpoint(band: BandRow) {
 /** Four academic subjects use the upper (PLE) track; more than four use the lower track. */
 export function divisionTrack(academicSubjectCount: number): DivisionTrack {
   return academicSubjectCount > 4 ? "lower" : "upper";
+}
+
+/** Preferred AGG track for a class when subject count is unknown. */
+export function divisionTrackForClass(classCode: string | null | undefined): DivisionTrack {
+  return gradeBandSection(classCode) === "lower" ? "lower" : "upper";
 }
 
 /** Sum of subject points (AGG). Null when no graded subjects. */

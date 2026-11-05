@@ -38,12 +38,14 @@ export function teacherNav(classTeacher: boolean, locked: boolean, canAward = cl
 export type TeacherClassPost = {
   classCode: string;
   stream: string;
+  campus: string;
   label: string;
 };
 
 export type TeacherSubjectPost = {
   classCode: string;
   stream: string;
+  campus: string;
   subjectId: string;
   subjectName: string;
   label: string;
@@ -61,12 +63,22 @@ export type TeacherAccess = {
   subjects: TeacherSubjectPost[];
 };
 
-export function leadsClass(classes: TeacherClassPost[], classCode: string, stream: string) {
+export function leadsClass(classes: TeacherClassPost[], classCode: string, stream: string, campus?: string) {
   const wanted = streamOf(stream);
-  return classes.some((row) => row.classCode === classCode && row.stream === wanted);
+  const site = (campus || "").trim();
+  return classes.some(
+    (row) => row.classCode === classCode && row.stream === wanted && (!site || row.campus === site),
+  );
 }
 
-export function teachesPost(subjects: TeacherSubjectPost[], classCode: string, stream: string, subjectId: string) {
+export function teachesPost(subjects: TeacherSubjectPost[], classCode: string, stream: string, subjectId: string, campus?: string) {
   const wanted = streamOf(stream);
-  return subjects.some((row) => row.classCode === classCode && row.stream === wanted && row.subjectId === subjectId);
+  const site = (campus || "").trim();
+  return subjects.some(
+    (row) =>
+      row.classCode === classCode &&
+      row.stream === wanted &&
+      row.subjectId === subjectId &&
+      (!site || row.campus === site),
+  );
 }

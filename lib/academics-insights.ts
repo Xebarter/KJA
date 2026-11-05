@@ -1,12 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { groupOf } from "@/lib/accounts-agg";
-import { classLabel, markbookClosed, num, streamOf, type TermRow } from "@/lib/academics";
+import { classLabel, classOrder, kindLabel, markbookClosed, num, streamOf, type TermRow } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 import { remember } from "@/lib/remember";
 import { fetchAll } from "@/lib/students";
 
 type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null; campus: string | null };
-type Paper = { id: string; class_code: string; stream: string; subject_id: string; name: string; status: string };
+type Paper = { id: string; class_code: string; stream: string; subject_id: string; name: string; kind: string; held_on: string | null; status: string };
 type Score = { assessment_id: string; student_id: string; score: number | null; missed: boolean };
 type Card = { id: string; student_id: string; class_code: string | null; stream: string | null; overall_score: number | null; status: string };
 type Line = { report_card_id: string; subject_name: string; score: number | null };
@@ -27,7 +27,93 @@ export type PictureStat = { label: string; value: number | null; href?: string }
 export type PicturePerson = { id: string; name: string; note: string; href: string };
 export type PictureTeacher = { id: string; name: string; papersSubmitted: number; papersAssigned: number; lessonsTaught: number; lessonsPlanned: number };
 export type PictureScheme = { id: string; title: string; classLabel: string; subject: string; status: string; planned: number; taught: number; overdue: number; staffName: string; staffId: string | null };
-export type PicturePaper = { id: string; name: string; classLabel: string; status: string; missing: number };
+export type PicturePaper = {
+  id: string;
+  name: string;
+  kind: string;
+  kindLabel: string;
+  heldOn: string;
+  subject: string;
+  subjectOrder: number;
+  classCode: string;
+  classLabel: string;
+  classSort: number;
+  status: string;
+  missing: number;
+};
+
+const SITTING_ORDER: Record<string, number> = { bot: 1, midterm: 2, test: 3, endterm: 4 };
+
+export type MissingMarksClass = {
+  label: string;
+  classCode: string;
+  missing: number;
+  subjects: PicturePaper[];
+};
+
+export type MissingMarksSitting = {
+  key: string;
+  name: string;
+  kind: string;
+  kindLabel: string;
+  heldOn: string;
+  missing: number;
+  subjectCount: number;
+  classCount: number;
+  classes: MissingMarksClass[];
+};
+
+/** Assessment → class → subjects, matching the Assessments desk. */
+export function groupMissingMarks(gaps: PicturePaper[]): MissingMarksSitting[] {
+  const sittings = new Map<string, { name: string; kind: string; kindLabel: string; heldOn: string; papers: PicturePaper[] }>();
+  for (const paper of gaps) {
+    const key = `${paper.name}\u001f${paper.kind}\u001f${paper.heldOn}`;
+    const sitting = sittings.get(key);
+    if (sitting) sitting.papers.push(paper);
+    else sittings.set(key, { name: paper.name, kind: paper.kind, kindLabel: paper.kindLabel, heldOn: paper.heldOn, papers: [paper] });
+  }
+
+  return [...sittings.entries()]
+    .map(([key, sitting]) => {
+      const classes = new Map<string, PicturePaper[]>();
+      for (const paper of sitting.papers) {
+        const rows = classes.get(paper.classLabel) ?? [];
+        rows.push(paper);
+        classes.set(paper.classLabel, rows);
+      }
+      const classGroups: MissingMarksClass[] = [...classes.entries()]
+        .map(([label, subjects]) => ({
+          label,
+          classCode: subjects[0]?.classCode || "",
+          missing: subjects.reduce((sum, paper) => sum + paper.missing, 0),
+          subjects: [...subjects].sort(
+            (a, b) => a.subjectOrder - b.subjectOrder || a.subject.localeCompare(b.subject) || b.missing - a.missing,
+          ),
+        }))
+        .sort(
+          (a, b) =>
+            (a.subjects[0]?.classSort ?? 99) - (b.subjects[0]?.classSort ?? 99) ||
+            a.label.localeCompare(b.label),
+        );
+      return {
+        key,
+        name: sitting.name,
+        kind: sitting.kind,
+        kindLabel: sitting.kindLabel,
+        heldOn: sitting.heldOn,
+        missing: sitting.papers.reduce((sum, paper) => sum + paper.missing, 0),
+        subjectCount: sitting.papers.length,
+        classCount: classGroups.length,
+        classes: classGroups,
+      };
+    })
+    .sort(
+      (a, b) =>
+        (SITTING_ORDER[a.kind] ?? 9) - (SITTING_ORDER[b.kind] ?? 9) ||
+        a.name.localeCompare(b.name) ||
+        a.heldOn.localeCompare(b.heldOn),
+    );
+}
 export type PictureDate = { id: string; title: string; kind: string; starts_on: string; ends_on: string | null; campus: string | null };
 export type PictureActivity = { id: string; kind: string; body: string; created_at: string };
 export type PictureIntervention = { id: string; student_id: string; name: string; reason: string; note: string; follow_up_on: string | null; status: string; classLabel: string };
@@ -67,8 +153,15 @@ function lessonsOf(value: Scheme["scheme_lessons"]) {
   return Array.isArray(value) ? value : [value];
 }
 
-export function loadAcademicPicture(supabase: SupabaseClient, term: TermRow, today: string, userId: string): Promise<AcademicPicture> {
-  return remember(`academics-picture:${userId}:${term.id}:${today}`, 45_000, () => buildPicture(supabase, term, today, userId));
+export function loadAcademicPicture(
+  supabase: SupabaseClient,
+  term: TermRow,
+  today: string,
+  userId: string,
+  campuses?: readonly string[],
+): Promise<AcademicPicture> {
+  const scope = campuses?.length ? campuses.join(",") : "all";
+  return remember(`academics-picture:${userId}:${term.id}:${today}:${scope}`, 45_000, () => buildPicture(supabase, term, today, userId, campuses));
 }
 
 async function subjectMeans(supabase: SupabaseClient, termId: string) {
@@ -124,7 +217,7 @@ async function filledCounts(supabase: SupabaseClient, termId: string) {
   return counts;
 }
 
-async function buildPicture(supabase: SupabaseClient, term: TermRow, today: string, userId: string): Promise<AcademicPicture> {
+async function buildPicture(supabase: SupabaseClient, term: TermRow, today: string, userId: string, campuses?: readonly string[]): Promise<AcademicPicture> {
   const terms = await supabase.from("fee_terms").select("id, year, term").order("year", { ascending: false }).order("term", { ascending: false });
   if (terms.error) throw new Error(terms.error.message);
   const ordered = terms.data || [];
@@ -132,9 +225,9 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
   const previousId = index >= 0 ? ordered[index + 1]?.id : null;
 
   const [pupils, papers, subjects, schemes, cards, bySubject, absences, filled, interventions, dates, activity, previous, assignments] = await Promise.all([
-    loadRoll(supabase, userId),
-    supabase.from("assessments").select("id, class_code, stream, subject_id, name, status").eq("term_id", term.id),
-    supabase.from("subjects").select("id, name"),
+    loadRoll(supabase, userId, undefined, campuses),
+    supabase.from("assessments").select("id, class_code, stream, subject_id, name, kind, held_on, status").eq("term_id", term.id),
+    supabase.from("subjects").select("id, name, sort_order"),
     supabase.from("schemes").select("id, class_code, stream, subject_id, staff_id, title, status, scheme_lessons(due_on, taught_on), teaching_staff(full_name, email)").eq("term_id", term.id),
     supabase.from("report_cards").select("id, student_id, class_code, stream, overall_score, status").eq("term_id", term.id),
     subjectMeans(supabase, term.id),
@@ -151,7 +244,12 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
   const failed = [papers.error, subjects.error, schemes.error, cards.error, interventions.error, dates.error, activity.error, previous.error, assignments.error].find(Boolean);
   if (failed) throw new Error(failed.message);
 
-  const subjectName = new Map((subjects.data || []).map((row) => [String(row.id), String(row.name)]));
+  const subjectById = new Map(
+    (subjects.data || []).map((row) => [
+      String(row.id),
+      { name: String(row.name), order: Number(row.sort_order) || 0 },
+    ]),
+  );
   const names = new Map(pupils.map((pupil) => [pupil.id, pupil.full_name]));
   const pupilById = new Map(pupils.map((pupil) => [pupil.id, pupil]));
   const paperRows = (papers.data || []) as Paper[];
@@ -161,10 +259,19 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
       const stream = streamOf(paper.stream);
       const size = classSize(paper.class_code, stream);
       const filledCount = filled.get(paper.id) ?? 0;
+      const subject = subjectById.get(paper.subject_id);
+      const kind = paper.kind || "test";
       return {
         id: paper.id,
         name: paper.name,
+        kind,
+        kindLabel: kindLabel(kind),
+        heldOn: paper.held_on || "",
+        subject: subject?.name || "Subject",
+        subjectOrder: subject?.order ?? 0,
+        classCode: paper.class_code,
         classLabel: classLabel(paper.class_code, stream),
+        classSort: classOrder(paper.class_code) ?? 99,
         status: paper.status || "open",
         missing: Math.max(0, size - filledCount),
       };
@@ -179,7 +286,7 @@ async function buildPicture(supabase: SupabaseClient, term: TermRow, today: stri
       id: scheme.id,
       title: scheme.title,
       classLabel: classLabel(scheme.class_code, scheme.stream),
-      subject: subjectName.get(scheme.subject_id) || "Subject",
+      subject: subjectById.get(scheme.subject_id)?.name || "Subject",
       status: scheme.status,
       planned: lessons.length,
       taught: lessons.filter((lesson) => lesson.taught_on).length,

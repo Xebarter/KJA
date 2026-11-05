@@ -6,7 +6,7 @@ import { StudentFace } from "@/components/StudentFace";
 import { ACCOUNTS_BASE, ugx } from "@/lib/accounts-format";
 import { searchWords } from "@/lib/students";
 
-const DEBOUNCE_MS = 140;
+const DEBOUNCE_MS = 90;
 
 /** Wraps matching characters in <mark> for the live search list. */
 function Highlight({ text, words }: { text: string; words: string[] }) {
@@ -31,10 +31,12 @@ function Highlight({ text, words }: { text: string; words: string[] }) {
 }
 
 /** Search-as-you-type pupil finder. Arrow keys move, Enter picks, Escape closes. */
-export function StudentPicker({ value, onChange, autoFocus = false }: {
+export function StudentPicker({ value, onChange, autoFocus = false, debounceMs = DEBOUNCE_MS }: {
   value: PupilHit | null;
   onChange: (pupil: PupilHit | null) => void;
   autoFocus?: boolean;
+  /** Wait before hitting the search API. Lower feels snappier for short desk forms. */
+  debounceMs?: number;
 }) {
   const [query, setQuery] = useState("");
   const [rows, setRows] = useState<PupilHit[]>([]);
@@ -45,8 +47,10 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
   const [searched, setSearched] = useState(false);
   const input = useRef<HTMLInputElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const debounceRef = useRef(Math.max(0, debounceMs));
   const listId = useId();
   const words = useMemo(() => searchWords(query), [query]);
+  debounceRef.current = Math.max(0, debounceMs);
 
   useEffect(() => {
     const text = query.trim();
@@ -81,7 +85,7 @@ export function StudentPicker({ value, onChange, autoFocus = false }: {
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, DEBOUNCE_MS);
+    }, debounceRef.current);
 
     return () => {
       controller.abort();

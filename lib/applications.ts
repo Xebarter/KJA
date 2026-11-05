@@ -83,7 +83,7 @@ export const PARENT_UPDATES: Partial<Record<ApplicationStatus, { notify: boolean
 /** New applications nobody has picked up after this many days count as needing attention. */
 export const ATTENTION_DAYS = 2;
 
-export const CAMPUS_OPTIONS = ["Kitante", "Najjanankumbi", "Makindye", "Bunga"];
+export { CAMPUS_OPTIONS } from "@/lib/campuses";
 
 export const CLASS_OPTIONS = [
   "Daycare", "Baby Class", "Middle Class", "Top Class",

@@ -12,13 +12,14 @@ function cell(value: unknown) {
 export async function GET(request: Request) {
   const auth = await requireApplicationDesk();
   if ("error" in auth) return new Response(auth.error, { status: 403 });
-  const { supabase, user } = auth;
+  const { supabase, user, campuses } = auth;
   const params = new URL(request.url).searchParams;
   const filters = parseFilters(Object.fromEntries(params));
   const ids = (params.get("ids") || "").split(",").filter((id) => /^[0-9a-f-]{36}$/i.test(id)).slice(0, 500);
+  const scope = { campuses };
   const query = ids.length
-    ? applicationsQuery(supabase, { ...filters, status: "all", attention: false }, user.id, "*").in("id", ids)
-    : applicationsQuery(supabase, filters, user.id, "*");
+    ? applicationsQuery(supabase, { ...filters, status: "all", attention: false }, user.id, "*", scope).in("id", ids)
+    : applicationsQuery(supabase, filters, user.id, "*", scope);
   const { data, error } = await query.limit(5000);
   if (error) return new Response(error.message, { status: 500 });
   const rows = (data || []) as unknown as Application[];

@@ -6,6 +6,14 @@ import {
   roleForGrants,
   type Grant,
 } from "@/lib/dashboard-access";
+import {
+  CAMPUS_DASHBOARDS,
+  CAMPUS_OPTIONS,
+  filterCampuses,
+  isCampusDashboard,
+  type CampusDashboardId,
+  type CampusId,
+} from "@/lib/campuses";
 import { LIBRARY_IDS, isLibraryId, type LibraryId } from "@/lib/library-nav";
 import { EMAIL } from "@/lib/office-forms";
 import { serviceClient } from "@/lib/supabase/service";
@@ -61,6 +69,61 @@ async function replaceLibraryScope(service: Service, profileId: string, grants: 
   return error?.message ?? null;
 }
 
+function campusesFromForm(formData: FormData, dashboard: CampusDashboardId): CampusId[] {
+  return filterCampuses(formData.getAll(`campus_scope_${dashboard}`).map(String));
+}
+
+async function replaceCampusScopes(service: Service, profileId: string, grants: Grant[], formData: FormData) {
+  const granted = new Set(
+    grants.map((grant) => grant.dashboard).filter(isCampusDashboard),
+  );
+  const { error: clearError } = await service.from("desk_staff_campus_scope").delete().eq("profile_id", profileId);
+  if (clearError) return clearError.message;
+
+  if (isFullAdmin(grants)) {
+    const rows = CAMPUS_DASHBOARDS.map((dashboard) => ({
+      profile_id: profileId,
+      dashboard,
+      campuses: [...CAMPUS_OPTIONS],
+      updated_at: new Date().toISOString(),
+    }));
+    const { error } = await service.from("desk_staff_campus_scope").insert(rows);
+    return error?.message ?? null;
+  }
+
+  const rows: { profile_id: string; dashboard: CampusDashboardId; campuses: CampusId[]; updated_at: string }[] = [];
+  for (const dashboard of CAMPUS_DASHBOARDS) {
+    if (!granted.has(dashboard)) continue;
+    const campuses = campusesFromForm(formData, dashboard);
+    if (!campuses.length) {
+      const label =
+        dashboard === "admin"
+          ? "Admin"
+          : dashboard === "admissions"
+            ? "Admissions"
+            : dashboard === "accounts"
+              ? "Accounts"
+              : dashboard === "store"
+                ? "Store"
+                : dashboard === "library"
+                  ? "Library"
+                  : dashboard === "clubs"
+                    ? "Clubs"
+                    : "Academics";
+      return `Choose at least one campus for the ${label} desk.`;
+    }
+    rows.push({
+      profile_id: profileId,
+      dashboard,
+      campuses,
+      updated_at: new Date().toISOString(),
+    });
+  }
+  if (!rows.length) return null;
+  const { error } = await service.from("desk_staff_campus_scope").insert(rows);
+  return error?.message ?? null;
+}
+
 function describe(grants: Grant[]) {
   if (isFullAdmin(grants)) return "every dashboard";
   const labels = grants.map((grant) => {
@@ -75,7 +138,9 @@ function describe(grants: Grant[]) {
               ? "Library"
               : grant.dashboard === "store"
                 ? "Store"
-                : "Academics";
+                : grant.dashboard === "clubs"
+                  ? "Clubs"
+                  : "Academics";
     return grant.pages.length === 0 ? name : `${name} (${grant.pages.length} page${grant.pages.length === 1 ? "" : "s"})`;
   });
   return labels.join(", ");
@@ -164,6 +229,11 @@ export async function saveTeamLogin(formData: FormData): Promise<TeamLoginResult
     await service.auth.admin.deleteUser(userId);
     return { error: scopeError };
   }
+  const campusError = await replaceCampusScopes(service, userId, grants, formData);
+  if (campusError) {
+    await service.auth.admin.deleteUser(userId);
+    return { error: campusError };
+  }
   return {
     ok: `${name} can sign in to ${describe(grants)}. Share the password now. It will not be shown again.`,
     email,
@@ -208,6 +278,8 @@ async function updateExisting(
   if (formData) {
     const scopeError = await replaceLibraryScope(service, profileId, grants, formData);
     if (scopeError) return { error: scopeError };
+    const campusError = await replaceCampusScopes(service, profileId, grants, formData);
+    if (campusError) return { error: campusError };
   }
 
   let issued: { password: string; temporary: boolean } | null = null;
@@ -288,6 +360,7 @@ export async function removeTeamLogin(profileId: string): Promise<TeamLoginResul
   const { error: clearError } = await service.from("dashboard_access").delete().eq("profile_id", profileId);
   if (clearError) return { error: clearError.message };
   await service.from("library_staff_scope").delete().eq("profile_id", profileId);
+  await service.from("desk_staff_campus_scope").delete().eq("profile_id", profileId);
   const { error } = await service.from("profiles").update({ role: "parent" }).eq("id", profileId);
   if (error) return { error: error.message };
   return { ok: "Dashboard access removed. Their parent portal account is unchanged." };

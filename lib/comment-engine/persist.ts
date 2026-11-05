@@ -181,7 +181,7 @@ export async function applyGeneration(
   const audits: Record<string, unknown>[] = [];
   const now = new Date().toISOString();
   for (const item of result.units) {
-    if (item.commentType === "subject_teacher" && !item.text && item.status === "draft") continue;
+    if (!shouldRecordProvenance(item)) continue;
     provenance.push(provenanceRow(reportId, actorId, result, item, now));
     audits.push(auditRow(reportId, actorId, item));
     if (item.status === "failed") errors.push(`${item.commentType}: ${item.explanation}`);
@@ -324,7 +324,10 @@ export async function generateClassReportComments(
           comment: unit.text,
         });
       }
-      if (unit.commentType === "subject_teacher" && !unit.text && unit.status === "draft") continue;
+      if (!shouldRecordProvenance(unit)) {
+        if (unit.status === "failed") messages.push(`${unit.commentType}: ${unit.explanation}`);
+        continue;
+      }
       if (recordTrail) {
         provenance.push(provenanceRow(reportId, actorId, result, unit, now));
         audits.push(auditRow(reportId, actorId, unit));
@@ -395,6 +398,30 @@ export async function ensureDraftReportComments(
   if (!card || card.status !== "draft") return null;
   if (!(await draftNeedsComments(supabase, reportId, card))) return null;
   return generateAndSaveReportComments(supabase, reportId, actorId);
+}
+
+/**
+ * Card-level comments (subject_id null) are unique on (report_card_id, comment_type).
+ * Per-activity cocurricular units also have null subject_id but are stored on
+ * report_card_activities — recording them in generated_report_comments collides
+ * with generated_report_comments_card_uidx on regenerate.
+ */
+function shouldRecordProvenance(item: GenerationResult["units"][number]) {
+  if (item.commentType === "subject_teacher" && !item.text && item.status === "draft") return false;
+  if (item.commentType === "cocurricular" && item.activitySlot) return false;
+  return true;
+}
+
+function provenanceKey(row: Record<string, unknown>) {
+  const subject = row.subject_id == null || row.subject_id === "" ? "" : String(row.subject_id);
+  return `${row.report_card_id}|${row.comment_type}|${subject}`;
+}
+
+/** Keep one row per unique index key so bulk insert cannot hit card_uidx / subject_uidx. */
+function dedupeProvenance(rows: Record<string, unknown>[]) {
+  const byKey = new Map<string, Record<string, unknown>>();
+  for (const row of rows) byKey.set(provenanceKey(row), row);
+  return [...byKey.values()];
 }
 
 function provenanceRow(
@@ -517,7 +544,8 @@ async function replaceProvenance(
   audits: Record<string, unknown>[],
 ) {
   const ids = [...new Set(reportIds)];
-  if (!ids.length || !rows.length) return;
+  const uniqueRows = dedupeProvenance(rows);
+  if (!ids.length || !uniqueRows.length) return;
   const slices: string[][] = [];
   for (let index = 0; index < ids.length; index += 100) slices.push(ids.slice(index, index + 100));
   await mapPool(slices, 4, async (slice) => {
@@ -525,7 +553,7 @@ async function replaceProvenance(
     if (cleared.error) throw new Error(cleared.error.message);
   });
   await Promise.all([
-    writeRows(rows, (slice) => supabase.from("generated_report_comments").insert(slice)),
+    writeRows(uniqueRows, (slice) => supabase.from("generated_report_comments").insert(slice)),
     audits.length ? writeRows(audits, (slice) => supabase.from("comment_audit_logs").insert(slice)) : Promise.resolve(),
   ]);
 }

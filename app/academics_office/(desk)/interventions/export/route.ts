@@ -22,7 +22,7 @@ export async function GET(request: Request) {
   if (!termQuery.data) return new Response("Choose a term first.", { status: 400 });
   const term = mapTerm(termQuery.data as Record<string, unknown>);
   const [pupils, awardsPack] = await Promise.all([
-    loadRoll(auth.supabase, auth.user.id),
+    loadRoll(auth.supabase, auth.user.id, undefined, auth.campuses),
     loadTermAwards(auth.supabase, term.id),
   ]);
   if (awardsPack.error) {

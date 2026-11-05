@@ -100,6 +100,7 @@ export function AccountsShell({
     <div className={`admin-shell ofc-shell acc-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Accounts" />
       <DeskWarmup
+        eager
         hrefs={[
           ...nav.map((item) => item.href),
           `${ACCOUNTS_BASE}/payments`,

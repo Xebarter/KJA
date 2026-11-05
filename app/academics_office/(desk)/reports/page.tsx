@@ -13,12 +13,12 @@ export default async function ReportsPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Report cards" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Report cards" />;
-  const { supabase, user } = opened.auth;
+  const { supabase, user, office, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Report cards" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const [pupils, cardsQuery, sittingsPack] = await Promise.all([
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     term
       ? supabase.from("report_cards").select("id, student_id, status, class_code, stream, overall_score, report_title").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),

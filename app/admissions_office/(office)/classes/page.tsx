@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassSizeChart, ClassesBoard, ClassesHeroStats, type ClassSummary, type ClassesSection } from "@/components/office/ClassesBoard";
 import { ClassFinder, type FinderClass, type FinderPupil } from "@/components/office/ClassFinder";
 import { BirthdaysCard, MedicalCard, type CarePupil } from "@/components/office/PupilCareCards";
-import { Kpis, MigrationHint, OfficeNotice, type Kpi } from "@/components/office/ui";
+import { Kpis, LoadErrorNotice, OfficeNotice, type Kpi } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { CLASS_AGE, OFFICE, SCHOOL_CLASSES, fetchAll, pick, studentAge } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
@@ -19,6 +19,7 @@ type Row = {
   mother_name: string | null;
   class_code: string | null;
   stream: string | null;
+  campus: string | null;
   sex: string | null;
   date_of_birth: string | null;
   house: string | null;
@@ -43,14 +44,14 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
     fetchAll<Row>((from, to) =>
       supabase
         .from("student_directory")
-        .select("id, full_name, preferred_name, student_number, father_name, mother_name, class_code, stream, sex, date_of_birth, house, medical_notes, panadol_allowed, needs_review")
+        .select("id, full_name, preferred_name, student_number, father_name, mother_name, class_code, stream, campus, sex, date_of_birth, house, medical_notes, panadol_allowed, needs_review")
         .eq("status", "active")
         .order("id")
         .range(from, to)).then((data) => ({ data } as const), (error: Error) => ({ error } as const)),
   ]);
   if ("error" in auth) return <OfficeNotice title="Classes" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   if ("error" in loaded) {
-    return <OfficeNotice title="Classes" heading="Classes could not be loaded"><MigrationHint message={loaded.error.message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Classes" message={loaded.error.message} fallbackHeading="Classes could not be loaded" />;
   }
   const rows = loaded.data;
 
@@ -59,7 +60,12 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
   const classes: ClassSummary[] = SCHOOL_CLASSES.map((entry) => {
     const pupils = rows.filter((row) => row.class_code === entry.code);
     const streams = new Map<string, number>();
-    for (const pupil of pupils) streams.set(pupil.stream || "", (streams.get(pupil.stream || "") ?? 0) + 1);
+    for (const pupil of pupils) {
+      const label = pupil.campus?.trim()
+        ? `${pupil.stream || "-"} · ${pupil.campus.trim()}`
+        : pupil.stream || "";
+      streams.set(label, (streams.get(label) ?? 0) + 1);
+    }
     const ages = pupils.map((pupil) => studentAge(pupil.date_of_birth)).filter((age): age is number => age !== null);
     const averageAge = ages.length ? ages.reduce((sum, age) => sum + age, 0) / ages.length : null;
     return {
@@ -126,7 +132,7 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
         description="Every class at a glance: how many pupils, the balance of boys and girls, and how each class is split into streams. Open a class for its full list."
         actions={
           <>
-            <Link className="admin-hero-btn is-primary" href={`${OFFICE}/promotions`}><i className="fa-solid fa-stairs" aria-hidden="true" /> Year-end promotion</Link>
+            <Link className="admin-hero-btn is-primary" href={`${OFFICE}/promotions`}><i className="fa-solid fa-stairs" aria-hidden="true" /> New-year promotion</Link>
             <a className="admin-hero-btn" href={`${OFFICE}/students/export`}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export register</a>
           </>
         }

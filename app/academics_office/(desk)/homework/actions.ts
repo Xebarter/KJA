@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE } from "@/lib/academics";
+import { campusFromFormValue, DEFAULT_CAMPUS, operationalCampus, type CampusId } from "@/lib/campuses";
 import { openAcademics } from "@/lib/academics-access";
 import { buildHomeworkExamPdf } from "@/lib/homework-exam-pdf";
 import { notifyClassParents } from "@/lib/parent-notify";
@@ -102,7 +103,7 @@ function teacherLabel(profileName: string | null | undefined, email: string | nu
 
 async function assertTeachesSubject(
   auth: { office: boolean; staffId: string | null; supabase: SupabaseClient },
-  input: { termId: string; classCode: string; stream: string; subjectId: string },
+  input: { termId: string; classCode: string; stream: string; campus: string; subjectId: string },
 ) {
   if (auth.office) return null;
   if (!auth.staffId || !input.termId || !input.subjectId) return { error: "Choose a subject you teach." };
@@ -110,6 +111,7 @@ async function assertTeachesSubject(
     .from("subject_teachers")
     .select("id")
     .eq("term_id", input.termId)
+    .eq("campus", input.campus)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream)
     .eq("subject_id", input.subjectId)
@@ -122,11 +124,19 @@ async function assertTeachesSubject(
 function parseClassKey(raw: string) {
   const key = raw.trim();
   if (!key) return null;
+  const parts = key.split("|");
+  if (parts.length >= 3) {
+    const campus = parts[0]?.trim() || DEFAULT_CAMPUS;
+    const classCode = parts[1]?.trim() || "";
+    const stream = parts.slice(2).join("|");
+    if (!classCode || campusFromFormValue(campus) === null) return null;
+    return { classCode, stream, campus: campusFromFormValue(campus) ?? DEFAULT_CAMPUS };
+  }
   const cut = key.indexOf("|");
   const classCode = (cut < 0 ? key : key.slice(0, cut)).trim();
   const stream = cut < 0 ? "" : key.slice(cut + 1);
   if (!classCode) return null;
-  return { classCode, stream };
+  return { classCode, stream, campus: DEFAULT_CAMPUS };
 }
 
 export async function createHomework(formData: FormData): Promise<ActionResult> {
@@ -144,14 +154,15 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
   const fromKeys = formData
     .getAll("class_key")
     .map((value) => parseClassKey(String(value || "")))
-    .filter((row): row is { classCode: string; stream: string } => Boolean(row));
+    .filter((row): row is { classCode: string; stream: string; campus: CampusId } => Boolean(row));
+  const legacyCampus = campusFromFormValue(String(formData.get("campus") || "")) ?? DEFAULT_CAMPUS;
   const legacy = parseClassKey(
-    `${String(formData.get("class_code") || "").trim()}|${String(formData.get("stream") || "")}`,
+    `${legacyCampus}|${String(formData.get("class_code") || "").trim()}|${String(formData.get("stream") || "")}`,
   );
   const seen = new Set<string>();
-  const targets: { classCode: string; stream: string }[] = [];
+  const targets: { classCode: string; stream: string; campus: string }[] = [];
   for (const row of fromKeys.length ? fromKeys : legacy ? [legacy] : []) {
-    const id = `${row.classCode}|${row.stream}`;
+    const id = `${row.campus}|${row.classCode}|${row.stream}`;
     if (seen.has(id)) continue;
     seen.add(id);
     targets.push(row);
@@ -161,7 +172,7 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
     return { error: "At least one class, plus subject, title and due date are required." };
   }
   for (const row of targets) {
-    const blocked = await assertTeachesSubject(opened.auth, { termId, classCode: row.classCode, stream: row.stream, subjectId });
+    const blocked = await assertTeachesSubject(opened.auth, { termId, classCode: row.classCode, stream: row.stream, campus: row.campus, subjectId });
     if (blocked) return blocked;
   }
 
@@ -171,6 +182,7 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
     .insert(
       targets.map((row) => ({
         term_id: termId,
+        campus: row.campus,
         class_code: row.classCode,
         stream: row.stream,
         subject_id: subjectId,
@@ -181,7 +193,7 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
         published_at: publishedAt,
       })),
     )
-    .select("id, class_code, stream");
+    .select("id, class_code, stream, campus");
   if (error) return { error: error.message };
 
   if (instructions && data?.length) {
@@ -209,7 +221,7 @@ export async function createHomework(formData: FormData): Promise<ActionResult> 
 
   if (publish) {
     for (const row of data || []) {
-      await notifyClass(supabase, row.class_code, row.stream || "", "New homework", title, "/student/homework", "homework");
+      await notifyClass(supabase, row.class_code, row.stream || "", operationalCampus(row.campus as string | null), "New homework", title, "/student/homework", "homework");
     }
   }
 
@@ -234,7 +246,7 @@ export async function publishHomework(id: string): Promise<ActionResult> {
 
   const { data: row, error: loadError } = await supabase
     .from("homework_assignments")
-    .select("id, title, instructions, due_on, class_code, stream, subject_id, term_id, published_at, exam_pdf_path")
+    .select("id, title, instructions, due_on, class_code, stream, campus, subject_id, term_id, published_at, exam_pdf_path")
     .eq("id", id)
     .maybeSingle();
   if (loadError) return { error: loadError.message };
@@ -244,6 +256,7 @@ export async function publishHomework(id: string): Promise<ActionResult> {
     termId: String(row.term_id || ""),
     classCode: String(row.class_code),
     stream: String(row.stream || ""),
+    campus: operationalCampus(row.campus as string | null),
     subjectId: String(row.subject_id || ""),
   });
   if (blocked) return blocked;
@@ -269,7 +282,7 @@ export async function publishHomework(id: string): Promise<ActionResult> {
     .eq("id", id);
   if (error) return { error: error.message };
 
-  await notifyClass(supabase, row.class_code, row.stream || "", "New homework", row.title, "/student/homework", "homework");
+  await notifyClass(supabase, row.class_code, row.stream || "", operationalCampus(row.campus as string | null), "New homework", row.title, "/student/homework", "homework");
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
   revalidatePath("/student/homework");
@@ -285,6 +298,10 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
   const termId = String(formData.get("term_id") || "") || null;
   const classCode = String(formData.get("class_code") || "").trim();
   const stream = String(formData.get("stream") || "").trim();
+  const campusRaw = String(formData.get("campus") || "");
+  const campus = campusFromFormValue(campusRaw);
+  if (campusRaw.trim() && campus === null) return { error: "Choose a valid campus." };
+  const place = campus ?? DEFAULT_CAMPUS;
   const subjectId = String(formData.get("subject_id") || "") || null;
   const kind = String(formData.get("kind") || "note").trim();
   const title = String(formData.get("title") || "").trim().slice(0, 160);
@@ -301,6 +318,7 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
       termId: termId || "",
       classCode,
       stream,
+      campus: place,
       subjectId,
     });
     if (blocked) return blocked;
@@ -354,6 +372,7 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
     .from("class_resources")
     .insert({
       term_id: termId,
+      campus: place,
       class_code: classCode,
       stream,
       subject_id: subjectId,
@@ -383,7 +402,7 @@ export async function createClassResource(formData: FormData): Promise<ActionRes
   }
 
   if (publish && data?.id) {
-    await notifyClass(supabase, classCode, stream, "New class resource", title, "/student", "resources");
+    await notifyClass(supabase, classCode, stream, place, "New class resource", title, "/student", "resources");
   }
 
   revalidatePath(`${ACADEMICS_BASE}/homework`);
@@ -400,7 +419,7 @@ export async function publishClassResource(id: string): Promise<ActionResult> {
 
   const { data: row, error: loadError } = await supabase
     .from("class_resources")
-    .select("id, title, class_code, stream, subject_id, term_id, published_at")
+    .select("id, title, class_code, stream, campus, subject_id, term_id, published_at")
     .eq("id", id)
     .maybeSingle();
   if (loadError) return { error: loadError.message };
@@ -412,6 +431,7 @@ export async function publishClassResource(id: string): Promise<ActionResult> {
       termId: String(row.term_id || ""),
       classCode: String(row.class_code),
       stream: String(row.stream || ""),
+      campus: operationalCampus(row.campus as string | null),
       subjectId: String(row.subject_id),
     });
     if (blocked) return blocked;
@@ -423,7 +443,7 @@ export async function publishClassResource(id: string): Promise<ActionResult> {
     .eq("id", id);
   if (error) return { error: error.message };
 
-  await notifyClass(supabase, row.class_code, row.stream || "", "New class resource", row.title, "/student", "resources");
+  await notifyClass(supabase, row.class_code, row.stream || "", operationalCampus(row.campus as string | null), "New class resource", row.title, "/student", "resources");
   revalidatePath(`${ACADEMICS_BASE}/homework`);
   revalidatePath("/teacher/homework");
   revalidatePath("/account/notifications");
@@ -461,6 +481,7 @@ async function notifyClass(
   supabase: any,
   classCode: string,
   stream: string,
+  campus: string,
   title: string,
   body: string,
   href: string,
@@ -472,6 +493,7 @@ async function notifyClass(
     .eq("status", "active")
     .eq("class_code", classCode)
     .eq("stream", stream)
+    .eq("campus", campus)
     .not("profile_id", "is", null);
   for (const pupil of pupils || []) {
     if (!pupil.profile_id) continue;

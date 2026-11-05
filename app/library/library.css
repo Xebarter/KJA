@@ -110,6 +110,25 @@ body:has(.lib-shell) {
 }
 
 /* -- Lower / Upper switch -- */
+.lib-switch.is-cols-3 {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.lib-switch.is-campus {
+  grid-template-columns: repeat(2, 1fr);
+  margin-bottom: 0.35rem;
+}
+
+.lib-switch.is-campus button {
+  height: auto;
+  min-height: 34px;
+  padding: 0.35rem 0.25rem;
+  font-size: 0.62rem;
+  letter-spacing: 0.02em;
+  line-height: 1.15;
+  text-transform: none;
+}
+
 .lib-switch {
   display: grid;
   grid-template-columns: 1fr 1fr;

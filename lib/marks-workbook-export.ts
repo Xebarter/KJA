@@ -309,17 +309,32 @@ export async function prepareMarksWorkbookResponse(
     });
     const labels = [...new Set(bookPapers.map((paper) => paper.label))];
     const filename = marksWorkbookFilename(papers[0].name, labels);
-    // Fresh Buffer copy - avoids detached ArrayBuffer 500s when piping ExcelJS output.
-    const bodyBytes = Buffer.from(bytes);
-    return new Response(bodyBytes, {
-      headers: {
-        "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        "content-disposition": contentDisposition(filename),
-        "cache-control": "no-store",
-      },
-    });
+    // Copy into a standalone Uint8Array. Passing a Node Buffer / ExcelJS view into
+    // Response has caused Undici/Next HTML 500s when the body is piped on Desktop.
+    const bodyBytes = Uint8Array.from(Buffer.from(bytes));
+    try {
+      return new Response(bodyBytes, {
+        headers: {
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "content-disposition": contentDisposition(filename),
+          "cache-control": "no-store",
+        },
+      });
+    } catch (headerError) {
+      console.error("[marks-workbook-export] response headers", headerError);
+      return new Response(bodyBytes, {
+        headers: {
+          "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "content-disposition": contentDisposition("KJA marks.xlsx"),
+          "cache-control": "no-store",
+        },
+      });
+    }
   } catch (error) {
+    console.error("[marks-workbook-export]", error);
     if (error instanceof MarksBookError) return new Response(error.message, { status: 400 });
-    throw error;
+    // Never rethrow - Next turns uncaught route errors into HTML 500 pages that
+    // the Assessments UI can only show as a generic "could not be prepared" message.
+    return new Response("The workbook could not be prepared.", { status: 500 });
   }
 }

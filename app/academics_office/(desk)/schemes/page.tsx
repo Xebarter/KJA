@@ -1,7 +1,6 @@
-import { saveScheme } from "@/app/academics_office/(desk)/actions";
+import { NewSchemeForm } from "@/components/academics/SchemeForm";
 import { SchemesDesk, type SchemeCard } from "@/components/academics/SchemesDesk";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { DeskForm } from "@/components/academics/Form";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
 import { ACADEMICS_BASE, classLabel, groupPupils, kampalaToday, mapStaff, mapSubject, loadCurrentTerm, streamOf, subjectFits } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
@@ -19,6 +18,8 @@ type Scheme = {
   staff_id: string | null;
   title: string;
   status: string;
+  file_path?: string | null;
+  file_name?: string | null;
   scheme_lessons: Lesson[] | Lesson | null;
 };
 type Post = { class_code: string; stream: string; subject_id: string; staff_id?: string };
@@ -37,31 +38,43 @@ const RANK: Record<string, number> = { submitted: 0, draft: 1, approved: 2 };
 export default async function SchemesPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Schemes" state={opened} />;
-  const { supabase, office, staffId, user } = opened.auth;
+  const { supabase, office, staffId, user, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Schemes" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const today = kampalaToday();
+
+  const schemesSelectWithFiles = "id, class_code, stream, subject_id, staff_id, title, status, file_path, file_name, scheme_lessons(due_on, taught_on)";
+  const schemesSelectLegacy = "id, class_code, stream, subject_id, staff_id, title, status, scheme_lessons(due_on, taught_on)";
+
   const [schemesQuery, subjectsQuery, staffQuery, pupils, postsQuery] = await Promise.all([
     term
-      ? supabase.from("schemes").select("id, class_code, stream, subject_id, staff_id, title, status, scheme_lessons(due_on, taught_on)").eq("term_id", term.id)
+      ? supabase.from("schemes").select(schemesSelectWithFiles).eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("teaching_staff").select("*").eq("active", true).order("full_name"),
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     term
       ? supabase.from("subject_teachers").select("class_code, stream, subject_id, staff_id").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
   ]);
-  if (schemesQuery.error) return <AcademicsGate title="Schemes" state={{ notice: "schema", message: schemesQuery.error.message }} />;
+
+  let schemeRows = (schemesQuery.data || []) as Scheme[];
+  let schemesError = schemesQuery.error;
+  if (schemesError && /file_path|schema cache|does not exist/i.test(schemesError.message) && term) {
+    const legacy = await supabase.from("schemes").select(schemesSelectLegacy).eq("term_id", term.id);
+    schemesError = legacy.error;
+    schemeRows = (legacy.data || []) as Scheme[];
+  }
+  if (schemesError) return <AcademicsGate title="Schemes" state={{ notice: "schema", message: schemesError.message }} />;
+
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
   const staff = ((staffQuery.data || []) as Record<string, unknown>[]).map(mapStaff);
   const subjectName = new Map(subjects.map((subject) => [subject.id, subject.name]));
   const staffName = new Map(staff.map((member) => [member.id, member.full_name]));
   const groups = groupPupils(pupils);
   const order = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
-  const rows = (schemesQuery.data || []) as Scheme[];
-  const schemes: SchemeCard[] = rows
+  const schemes: SchemeCard[] = schemeRows
     .map((scheme) => {
       const lessons = many(scheme.scheme_lessons);
       return {
@@ -75,13 +88,15 @@ export default async function SchemesPage() {
         planned: lessons.length,
         taught: lessons.filter((lesson) => lesson.taught_on).length,
         overdue: lessons.filter((lesson) => lesson.due_on && lesson.due_on < today && !lesson.taught_on).length,
+        hasFile: Boolean(scheme.file_path),
+        fileName: scheme.file_name || null,
         code: scheme.class_code,
       };
     })
     .sort((a, b) => (RANK[a.status] ?? 9) - (RANK[b.status] ?? 9) || (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.classLabel.localeCompare(b.classLabel) || a.title.localeCompare(b.title))
     .map(({ code: _code, ...scheme }) => scheme);
 
-  const covered = new Set(rows.map((scheme) => postKey(scheme.class_code, scheme.stream, scheme.subject_id)));
+  const covered = new Set(schemeRows.map((scheme) => postKey(scheme.class_code, scheme.stream, scheme.subject_id)));
   const posts = ((postsQuery.data || []) as Post[]).filter((post) => office || post.staff_id === staffId);
   const openPosts = posts
     .filter((post) => !covered.has(postKey(post.class_code, post.stream, post.subject_id)))
@@ -99,6 +114,7 @@ export default async function SchemesPage() {
 
   const waiting = schemes.filter((scheme) => scheme.status === "submitted").length;
   const overdue = schemes.reduce((sum, scheme) => sum + scheme.overdue, 0);
+  const withFiles = schemes.filter((scheme) => scheme.hasFile).length;
   const nf = (value: number) => value.toLocaleString("en-GB");
 
   return (
@@ -107,7 +123,9 @@ export default async function SchemesPage() {
         kicker="Teaching"
         icon="fa-list-check"
         title="Schemes of work"
-        description={term ? <>{term.label} · <strong>{nf(schemes.length)}</strong> {office ? "schemes" : "of yours"}.</> : "Set a current term before writing schemes."}
+        description={term
+          ? "Plan the term for each class and subject. Add weekly lessons, attach a PDF or Word plan, then submit for approval."
+          : "Set a current term before writing schemes."}
       />
       {!term ? <Empty title="No current term" /> : (
         <>
@@ -128,9 +146,9 @@ export default async function SchemesPage() {
               <small>Past the due date</small>
             </div>
             <div className={openPosts.length ? "is-warn" : "is-ok"}>
-              <span>No scheme yet</span>
-              <strong>{nf(openPosts.length)}</strong>
-              <small>Subject posts still open</small>
+              <span>Files attached</span>
+              <strong>{nf(withFiles)}</strong>
+              <small>{nf(openPosts.length)} posts still open</small>
             </div>
           </section>
           <div className="sch-layout">
@@ -143,7 +161,7 @@ export default async function SchemesPage() {
                       <span className="sch-card-icon" aria-hidden="true"><i className="fa-solid fa-circle-exclamation" /></span>
                       <div>
                         <h2>Still to start</h2>
-                        <p>A subject is assigned, and this term has no scheme for it.</p>
+                        <p>Assigned subjects with no scheme yet this term.</p>
                       </div>
                     </div>
                   </header>
@@ -153,39 +171,31 @@ export default async function SchemesPage() {
                   {openPosts.length > 8 ? <p className="sch-quiet">{nf(openPosts.length - 8)} more posts are still open.</p> : null}
                 </section>
               ) : null}
-              <section className="sch-card" aria-label="New scheme">
+              <section className="sch-card" aria-label="New scheme" id="new">
                 <header className="sch-card-head">
                   <div className="sch-card-title">
                     <span className="sch-card-icon" aria-hidden="true"><i className="fa-solid fa-plus" /></span>
                     <div>
                       <h2>New scheme</h2>
-                      <p>It starts as a draft. Add lessons, then submit it for approval.</p>
+                      <p>Starts as a draft. Attach a file and/or add weekly lessons, then submit.</p>
                     </div>
                   </div>
                 </header>
                 {choices.length ? (
-                  <DeskForm action={saveScheme} className="sch-form">
-                    <input type="hidden" name="term_id" value={term.id} />
-                    <label className="ofc-field"><span>Class and subject</span>
-                      <select name="class_subject" required defaultValue="">
-                        <option value="" disabled>Choose</option>
-                        {choices.map(({ group, subject }) => (
-                          <option key={`${group.code}-${group.stream}-${subject.id}`} value={`${group.code}|${group.stream}|${subject.id}`}>{classLabel(group.code, group.stream)} · {subject.name}</option>
-                        ))}
-                      </select>
-                    </label>
-                    {office ? (
-                      <label className="ofc-field"><span>Teacher</span>
-                        <select name="staff_id" required defaultValue="">
-                          <option value="" disabled>Choose</option>
-                          {staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}
-                        </select>
-                      </label>
-                    ) : null}
-                    <label className="ofc-field"><span>Title</span><input name="title" required placeholder="English, term 1" /></label>
-                    <button className="sch-commit" type="submit">Start scheme</button>
-                  </DeskForm>
-                ) : <Empty title={office ? "No classes yet" : "No subjects assigned"}>{office ? "Active pupils show up here once they are on the register." : "Ask the academics office to assign your subjects for this term."}</Empty>}
+                  <NewSchemeForm
+                    termId={term.id}
+                    office={office}
+                    staff={staff.map((member) => ({ id: member.id, full_name: member.full_name }))}
+                    choices={choices.map(({ group, subject }) => ({
+                      value: `${group.code}|${group.stream}|${subject.id}`,
+                      label: `${classLabel(group.code, group.stream)} · ${subject.name}`,
+                    }))}
+                  />
+                ) : (
+                  <Empty title={office ? "No classes yet" : "No subjects assigned"}>
+                    {office ? "Active pupils show up here once they are on the register." : "Ask the academics office to assign your subjects for this term."}
+                  </Empty>
+                )}
               </section>
             </div>
           </div>

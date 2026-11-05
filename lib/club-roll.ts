@@ -1,10 +1,12 @@
 /*
  * Consented learners for the current term, grouped by club, for the printable roll.
- * A club with nobody consented is left out.
+ * A club with nobody consented (after filters) is left out.
+ * Paid and unpaid consents both appear; expected vs collected close each club sheet.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { classLabel, classOrder } from "@/lib/academics";
 import { day, kampalaToday } from "@/lib/accounts-format";
+import type { CampusId } from "@/lib/campuses";
 import { sectionLabel } from "@/lib/clubs";
 
 export type ClubRollLearner = {
@@ -32,6 +34,15 @@ export type ClubRoll = {
   clubs: ClubRollSheet[];
 };
 
+export type ClubRollFilters = {
+  /** Limit to these clubs. Omit or empty to include every club that still has members after other filters. */
+  clubIds?: readonly string[] | null;
+  classCode?: string;
+  stream?: string;
+  campus?: string;
+  q?: string;
+};
+
 type ClubRow = {
   id: string;
   title: string;
@@ -50,8 +61,18 @@ type Pupil = {
   campus: string | null;
 };
 
-/** `clubIds` limits the roll to those clubs. Omit it to include every club that has consent. */
-export async function loadClubRoll(supabase: SupabaseClient, clubIds?: readonly string[] | null): Promise<ClubRoll> {
+function asFilters(input?: ClubRollFilters | readonly string[] | null): ClubRollFilters {
+  if (Array.isArray(input) || input == null) return { clubIds: input ?? null };
+  return input;
+}
+
+/** `filters.clubIds` limits the roll to those clubs. Omit it to include every club that has consent. */
+export async function loadClubRoll(
+  supabase: SupabaseClient,
+  input?: ClubRollFilters | readonly string[] | null,
+  campuses: readonly CampusId[] = [],
+): Promise<ClubRoll> {
+  const filters = asFilters(input);
   const termQuery = await supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle();
   if (termQuery.error) throw new Error(termQuery.error.message);
   const term = termQuery.data as { id: string; label: string } | null;
@@ -87,16 +108,32 @@ export async function loadClubRoll(supabase: SupabaseClient, clubIds?: readonly 
     if (pupilsQuery.error) throw new Error(pupilsQuery.error.message);
     pupils = (pupilsQuery.data || []) as Pupil[];
   }
-  const pupilOf = new Map(pupils.map((pupil) => [pupil.id, pupil]));
+  const campusSet = new Set(campuses);
+  const needle = (filters.q || "").trim().toLowerCase();
+  const pupilOf = new Map(
+    pupils
+      .filter((pupil) => !campusSet.size || !pupil.campus || campusSet.has(pupil.campus as CampusId))
+      .map((pupil) => [pupil.id, pupil]),
+  );
 
-  const wanted = clubIds ? new Set(clubIds) : null;
+  const matchesPupil = (pupil: Pupil, clubTitle: string) => {
+    if (filters.classCode === "none" && pupil.class_code) return false;
+    if (filters.classCode && filters.classCode !== "none" && pupil.class_code !== filters.classCode) return false;
+    if (filters.stream && (pupil.stream || "").trim() !== filters.stream) return false;
+    if (filters.campus && (pupil.campus || "").trim() !== filters.campus) return false;
+    if (!needle) return true;
+    const hay = `${pupil.full_name} ${pupil.student_number || ""} ${clubTitle} ${pupil.class_code || ""} ${pupil.stream || ""} ${pupil.campus || ""}`.toLowerCase();
+    return hay.includes(needle);
+  };
+
+  const wanted = filters.clubIds?.length ? new Set(filters.clubIds) : null;
   const sheets = clubs.flatMap((club) => {
     if (wanted && !wanted.has(club.id)) return [];
     const fee = Number(club.fee_amount) || 0;
     const ids = learnersOf.get(club.id) || [];
     const learners = ids.flatMap((studentId) => {
       const pupil = pupilOf.get(studentId);
-      if (!pupil) return [];
+      if (!pupil || !matchesPupil(pupil, club.title)) return [];
       return [{
         name: pupil.full_name,
         number: pupil.student_number || "",

@@ -15,6 +15,7 @@ export type OpenRegister = {
   pupils: number;
   classCode: string;
   stream: string;
+  campus: string;
 };
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -139,6 +140,7 @@ export function OpenRegisters({
                           <input type="hidden" name="term_id" value={termId} />
                           <input type="hidden" name="class_code" value={row.classCode} />
                           <input type="hidden" name="stream" value={row.stream} />
+                          <input type="hidden" name="campus" value={row.campus} />
                           <div
                             className="reg-cancel-ask"
                             role="group"
@@ -171,6 +173,7 @@ export function RegisterClosure({
   termId,
   classCode,
   stream,
+  campus,
   name,
   restoring,
 }: {
@@ -179,6 +182,7 @@ export function RegisterClosure({
   termId: string;
   classCode: string;
   stream: string;
+  campus: string;
   name: string;
   restoring?: boolean;
 }) {
@@ -190,6 +194,7 @@ export function RegisterClosure({
       <input type="hidden" name="term_id" value={termId} />
       <input type="hidden" name="class_code" value={classCode} />
       <input type="hidden" name="stream" value={stream} />
+      <input type="hidden" name="campus" value={campus} />
       {restoring ? <input type="hidden" name="intent" value="restore" /> : null}
       {confirming ? (
         <div className="reg-cancel-ask" role="group" aria-label={restoring ? "Restore register" : "Cancel register"}>

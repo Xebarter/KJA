@@ -342,6 +342,7 @@ export type StudentFilters = {
   section: string;
   class: string;
   stream: string;
+  campus: string;
   house: string;
   sex: string;
   staff: boolean;
@@ -371,6 +372,7 @@ export function parseStudentFilters(params: Params): StudentFilters {
     section: SECTIONS.some((entry) => entry.value === section) ? section : "",
     class: isClassCode(cls) ? cls : "",
     stream: pick(params, "stream").slice(0, 20),
+    campus: pick(params, "campus").slice(0, 40),
     house: pick(params, "house").slice(0, 30),
     sex: sex === "M" || sex === "F" ? sex : "",
     staff: pick(params, "staff") === "1",
@@ -390,6 +392,7 @@ export function studentFilterHref(filters: StudentFilters, changes: Partial<Stud
   if (next.section) params.set("section", next.section);
   if (next.class) params.set("class", next.class);
   if (next.stream) params.set("stream", next.stream);
+  if (next.campus) params.set("campus", next.campus);
   if (next.house) params.set("house", next.house);
   if (next.sex) params.set("sex", next.sex);
   if (next.staff) params.set("staff", "1");
@@ -452,13 +455,16 @@ export function studentsQuery(
   supabase: SupabaseClient,
   filters: StudentFilters,
   columns = "*",
-  options: { count?: "exact"; head?: boolean } = {},
+  options: { count?: "exact"; head?: boolean; campuses?: readonly string[] } = {},
 ) {
   let query = supabase.from("student_directory").select(columns, options.count ? { count: options.count, head: options.head } : {});
   if (filters.status !== "all") query = query.eq("status", filters.status);
   if (filters.section) query = query.eq("section", filters.section);
   if (filters.class) query = query.eq("class_code", filters.class);
   if (filters.stream) query = query.eq("stream", filters.stream);
+  const allowed = options.campuses;
+  if (filters.campus && (!allowed || allowed.includes(filters.campus))) query = query.eq("campus", filters.campus);
+  else if (allowed?.length) query = query.in("campus", allowed);
   if (filters.house) query = filters.house === "none" ? query.is("house", null) : query.eq("house", filters.house);
   if (filters.sex) query = query.eq("sex", filters.sex);
   if (filters.staff) query = query.eq("staff_child", true);

@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/office/client";
 import { ContactEditor, FamilyDetailsForm, GuardianEditor } from "@/components/office/FamilyEditors";
 import { StudentPhoto } from "@/components/office/StudentPhoto";
-import { Card, MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { Card, LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, timeAgo } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
@@ -57,7 +57,7 @@ export default async function FamilyPage({ params }: { params: Promise<{ id: str
   const [auth, first] = await Promise.all([requireOffice(), load(`${CHILD_COLUMNS}, photo_path`)]);
   if ("error" in auth) return <OfficeNotice title="Family" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   const result = first.error?.message.includes("photo_path") ? await load(CHILD_COLUMNS) : first;
-  if (result.error) return <OfficeNotice title="Family" heading="This family could not be loaded"><MigrationHint message={result.error.message} /></OfficeNotice>;
+  if (result.error) return <LoadErrorNotice title="Family" message={result.error.message} fallbackHeading="This family could not be loaded" />;
   if (!result.data) notFound();
 
   const { guardians: guardianRows, family_contacts: contactRows, students: childRows, ...familyRow } = result.data as unknown as FamilyRow;

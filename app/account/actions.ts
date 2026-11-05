@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSessionUser } from "@/lib/portal";
+import { logPortal } from "@/lib/system-logs";
 
 function clean(value: FormDataEntryValue | null) {
   const text = String(value ?? "").trim();
@@ -31,6 +32,12 @@ export async function updateParentProfile(formData: FormData) {
     address: clean(formData.get("address")),
   });
   if (error) throw new Error(error.message);
+  await logPortal(supabase, user.id, {
+    kind: "edit",
+    body: "Parent updated their profile.",
+    entityType: "profile",
+    entityId: user.id,
+  });
   refresh();
 }
 
@@ -50,6 +57,12 @@ export async function saveChild(formData: FormData) {
     : supabase.from("children").insert(payload);
   const { error } = await query;
   if (error) throw new Error(error.message);
+  await logPortal(supabase, user.id, {
+    kind: id ? "edit" : "create",
+    body: id ? "Parent updated a child profile." : "Parent added a child profile.",
+    entityType: "child",
+    entityId: id,
+  });
   refresh();
 }
 

@@ -7,8 +7,8 @@ import "../../academics_office/academics.css";
 import "../../academics_office/(desk)/overview.css";
 import "../../academics_office/(desk)/classes/classes.css";
 
-function row(partial: ClassRow): ClassRow {
-  return partial;
+function row(partial: Omit<ClassRow, "campus"> & { campus?: string }): ClassRow {
+  return { campus: "Kitante", ...partial };
 }
 
 const rows: ClassRow[] = [

@@ -151,6 +151,7 @@ export async function middleware(request: NextRequest) {
       dest.startsWith("/academics_office") ||
       dest.startsWith("/library") ||
       dest.startsWith("/store") ||
+      dest.startsWith("/clubs") ||
       dest.startsWith("/teacher")
     );
   }
@@ -301,6 +302,8 @@ export const config = {
     "/library/:path*",
     "/store",
     "/store/:path*",
+    "/clubs",
+    "/clubs/:path*",
     "/teacher",
     "/teacher/:path*",
     "/choose-dashboard",

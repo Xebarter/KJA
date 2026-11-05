@@ -4,7 +4,8 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { OpenRegisters } from "@/components/academics/OpenRegisters";
 import { RegisterDesk } from "@/components/academics/RegisterDesk";
 import { AcademicsGate } from "@/components/academics/ui";
-import { ACADEMICS_BASE, classLabel, groupPupils, kampalaToday, loadCurrentTerm, streamFromQuery, streamQuery, streamOf, type AttendanceStatus } from "@/lib/academics";
+import { ACADEMICS_BASE, classGroupKey, classLabel, groupPupils, kampalaToday, loadCurrentTerm, campusFromQuery, campusQuery, streamFromQuery, streamQuery, streamOf, type AttendanceStatus } from "@/lib/academics";
+import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
 import { openAcademics } from "@/lib/academics-access";
 import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
 
@@ -20,18 +21,20 @@ function shift(iso: string, days: number) {
   return date.toISOString().slice(0, 10);
 }
 
-export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ date?: string; class?: string; stream?: string }> }) {
+export default async function AttendancePage({ searchParams }: { searchParams: Promise<{ date?: string; class?: string; stream?: string; campus?: string }> }) {
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Attendance" state={opened} />;
-  const { supabase, office, staffId, user } = opened.auth;
+  const { supabase, office, staffId, user, campuses } = opened.auth;
   const today = kampalaToday();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : today;
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
+  const campusRaw = campusFromQuery(query.campus);
+  const campus = campusRaw && CAMPUS_OPTIONS.includes(campusRaw as (typeof CAMPUS_OPTIONS)[number]) ? campusRaw : operationalCampus(null);
 
   const [pupils, termPack, marks, closures] = await Promise.all([
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     loadCurrentTerm(supabase),
     loadDayMarks(supabase, user.id, date),
     loadClosures(supabase, date),
@@ -39,27 +42,36 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   if (termPack.error) return <AcademicsGate title="Attendance" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
   const marked = new Map(marks.map((mark) => [mark.student_id, mark]));
-  const closed = new Set(closures.map((row) => `${row.class_code}|${streamOf(row.stream)}`));
+  const closed = new Set(closures.map((row) => classGroupKey(row.campus, row.class_code, row.stream)));
   const groups = groupPupils(pupils).map((group) => ({
-    key: `${group.code}-${group.stream}`,
+    key: classGroupKey(group.campus, group.code, group.stream),
     code: group.code,
-    name: classLabel(group.code, group.stream),
+    name: classLabel(group.code, group.stream, group.campus),
     section: group.section,
-    href: `${ACADEMICS_BASE}/attendance?date=${date}&class=${group.code}&stream=${streamQuery(group.stream)}`,
+    href: `${ACADEMICS_BASE}/attendance?date=${date}&class=${group.code}&stream=${streamQuery(group.stream)}&campus=${campusQuery(group.campus)}`,
     done: group.pupils.filter((pupil) => marked.has(pupil.id)).length,
     absent: group.pupils.filter((pupil) => marked.get(pupil.id)?.status === "absent").length,
     pupils: group.pupils.length,
     stream: group.stream,
-    closed: closed.has(`${group.code}|${streamOf(group.stream)}`),
+    campus: group.campus,
+    closed: closed.has(classGroupKey(group.campus, group.code, group.stream)),
     rows: group.pupils,
   }));
   const openGroups = date === today
     ? groups.filter((group) => group.pupils > 0 && group.done < group.pupils && !group.closed)
     : [];
-  const current = groups.find((group) => group.code === classCode && (stream === null || group.stream === stream)) || null;
+  const wantedCampus =
+    campusRaw && CAMPUS_OPTIONS.includes(campusRaw as (typeof CAMPUS_OPTIONS)[number]) ? campusRaw : null;
+  const current =
+    groups.find(
+      (group) =>
+        group.code === classCode &&
+        (stream === null || group.stream === stream) &&
+        (!wantedCampus || group.campus === wantedCampus),
+    ) || null;
   let classTeacherId = "";
   if (term && current) {
-    const teacher = await supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("class_code", current.code).eq("stream", current.stream).maybeSingle();
+    const teacher = await supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("campus", current.campus).eq("class_code", current.code).eq("stream", current.stream).maybeSingle();
     classTeacherId = teacher.data?.staff_id || "";
   }
   const canMark = office || (Boolean(staffId) && staffId === classTeacherId);
@@ -104,6 +116,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
             pupils: group.pupils,
             classCode: group.code,
             stream: group.stream,
+            campus: group.campus,
           }))}
           cancel={cancelRegister}
         />
@@ -116,11 +129,13 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         path={`${ACADEMICS_BASE}/attendance`}
         classCode={current?.code || ""}
         streamValue={current ? streamQuery(current.stream) : null}
+        campusValue={current?.campus ?? null}
         groups={groups}
         current={current ? {
           name: current.name,
           code: current.code,
           stream: current.stream,
+          campus: current.campus,
           termId: term?.id || "",
           canMark,
           nextHref: next?.href ?? null,

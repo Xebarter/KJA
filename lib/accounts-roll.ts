@@ -47,7 +47,13 @@ export function forgetAccountsRoll() {
  * Every pupil with fees rolled up from the term-balance view.
  * Pages that open together share one download instead of each scanning student_balances.
  */
-export function loadFeeBook(supabase: SupabaseClient): Promise<FeePupil[]> {
+export async function loadFeeBook(supabase: SupabaseClient, campuses?: readonly string[]): Promise<FeePupil[]> {
+  const pupils = await loadFeeBookAll(supabase);
+  if (!campuses?.length) return pupils;
+  return pupils.filter((pupil) => pupil.campus && campuses.includes(pupil.campus));
+}
+
+function loadFeeBookAll(supabase: SupabaseClient): Promise<FeePupil[]> {
   if (book && Date.now() - book.at < FRESH_MS) return Promise.resolve(book.pupils);
   if (loading) return loading;
   loading = readBook(supabase)

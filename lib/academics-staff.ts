@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE, classLabel, kampalaToday, loadCurrentTerm, mapStaff, mapSubject, markbookClosed, missingAcademicsSchema, streamOf, streamQuery, type StaffRow, type SubjectRow } from "@/lib/academics";
+import { operationalCampus } from "@/lib/campuses";
 import { loadRoll } from "@/lib/academics-roll";
 import { SCHOOL_CLASSES } from "@/lib/students";
 import { remember } from "@/lib/remember";
@@ -36,7 +37,7 @@ export type StaffPeriod = {
   room: string | null;
 };
 
-export type StaffClass = { label: string; href: string; code: string; stream: string };
+export type StaffClass = { label: string; href: string; code: string; stream: string; campus: string };
 
 export type StaffMember = StaffRow & {
   classes: StaffClass[];
@@ -49,11 +50,12 @@ export type StaffMember = StaffRow & {
 
 export type StaffGap = { label: string; href: string };
 
-export type StaffGroup = { code: string; stream: string; label: string; pupils: number };
+export type StaffGroup = { code: string; stream: string; campus: string; label: string; pupils: number };
 
 export type StaffPost = {
   classCode: string;
   stream: string;
+  campus: string;
   subjectId: string;
   subject: string;
   staffId: string;
@@ -63,6 +65,7 @@ export type StaffPost = {
 export type StaffLead = {
   classCode: string;
   stream: string;
+  campus: string;
   staffId: string;
   staffName: string;
 };
@@ -92,12 +95,15 @@ function many<T>(value: T[] | T | null | undefined): T[] {
   return Array.isArray(value) ? value : [value];
 }
 
-function classHref(code: string, stream: string) {
-  return `${ACADEMICS_BASE}/classes/${encodeURIComponent(code)}?stream=${encodeURIComponent(streamQuery(stream))}`;
+function classHref(code: string, stream: string, campus = "") {
+  const params = new URLSearchParams();
+  params.set("stream", streamQuery(stream));
+  if (campus) params.set("campus", campus);
+  return `${ACADEMICS_BASE}/classes/${encodeURIComponent(code)}?${params.toString()}`;
 }
 
-function keyOf(code: string, stream: string, subjectId = "") {
-  return `${code}|${streamOf(stream)}|${subjectId}`;
+function keyOf(code: string, stream: string, subjectId = "", campus = "") {
+  return `${campus}|${code}|${streamOf(stream)}|${subjectId}`;
 }
 
 async function rowsOf<T>(run: PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<T[]> {
@@ -109,8 +115,9 @@ async function rowsOf<T>(run: PromiseLike<{ data: T[] | null; error: { message: 
   return data || [];
 }
 
-export function loadStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
-  return remember(`academics-staff:v4:${userId}`, 45_000, () => buildStaffDesk(supabase, userId));
+export function loadStaffDesk(supabase: SupabaseClient, userId: string, campuses?: readonly string[]): Promise<StaffDeskData> {
+  const scope = campuses?.length ? campuses.join(",") : "all";
+  return remember(`academics-staff:v4:${userId}:${scope}`, 45_000, () => buildStaffDesk(supabase, userId, campuses));
 }
 
 async function loadTeachingStaff(supabase: SupabaseClient) {
@@ -122,7 +129,7 @@ async function loadTeachingStaff(supabase: SupabaseClient) {
   return archived;
 }
 
-async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise<StaffDeskData> {
+async function buildStaffDesk(supabase: SupabaseClient, userId: string, campuses?: readonly string[]): Promise<StaffDeskData> {
   const [staffQuery, termPack, subjectQuery] = await Promise.all([
     loadTeachingStaff(supabase),
     loadCurrentTerm(supabase),
@@ -148,42 +155,42 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
 
   const today = kampalaToday();
   const [classRows, subjectRows, schemeRows, paperRows, slotRows, pupils] = await Promise.all([
-    rowsOf<{ staff_id: string; class_code: string; stream: string }>(
-      supabase.from("class_teachers").select("staff_id, class_code, stream").eq("term_id", term.id),
+    rowsOf<{ staff_id: string; class_code: string; stream: string; campus: string }>(
+      supabase.from("class_teachers").select("staff_id, class_code, stream, campus").eq("term_id", term.id),
     ),
-    rowsOf<{ staff_id: string; class_code: string; stream: string; subject_id: string; subjects: Named }>(
-      supabase.from("subject_teachers").select("staff_id, class_code, stream, subject_id, subjects(name)").eq("term_id", term.id),
+    rowsOf<{ staff_id: string; class_code: string; stream: string; campus: string; subject_id: string; subjects: Named }>(
+      supabase.from("subject_teachers").select("staff_id, class_code, stream, campus, subject_id, subjects(name)").eq("term_id", term.id),
     ),
-    rowsOf<{ id: string; staff_id: string | null; title: string; status: string; class_code: string; stream: string; subject_id: string; subjects: Named; scheme_lessons: Lesson[] | Lesson | null }>(
-      supabase.from("schemes").select("id, staff_id, title, status, class_code, stream, subject_id, subjects(name), scheme_lessons(due_on, taught_on)").eq("term_id", term.id),
+    rowsOf<{ id: string; staff_id: string | null; title: string; status: string; class_code: string; stream: string; campus: string; subject_id: string; subjects: Named; scheme_lessons: Lesson[] | Lesson | null }>(
+      supabase.from("schemes").select("id, staff_id, title, status, class_code, stream, campus, subject_id, subjects(name), scheme_lessons(due_on, taught_on)").eq("term_id", term.id),
     ),
-    rowsOf<{ class_code: string; stream: string; subject_id: string; status: string }>(
-      supabase.from("assessments").select("class_code, stream, subject_id, status").eq("term_id", term.id),
+    rowsOf<{ class_code: string; stream: string; campus: string; subject_id: string; status: string }>(
+      supabase.from("assessments").select("class_code, stream, campus, subject_id, status").eq("term_id", term.id),
     ),
-    rowsOf<{ id: string; staff_id: string | null; weekday: number; period: number; room: string | null; class_code: string; stream: string; subjects: Named }>(
-      supabase.from("timetable_slots").select("id, staff_id, weekday, period, room, class_code, stream, subjects(name)").eq("term_id", term.id),
+    rowsOf<{ id: string; staff_id: string | null; weekday: number; period: number; room: string | null; class_code: string; stream: string; campus: string; subjects: Named }>(
+      supabase.from("timetable_slots").select("id, staff_id, weekday, period, room, class_code, stream, campus, subjects(name)").eq("term_id", term.id),
     ),
-    loadRoll(supabase, userId).catch((error: unknown) => {
+    loadRoll(supabase, userId, undefined, campuses).catch((error: unknown) => {
       const message = error instanceof Error ? error.message : "";
       if (missingAcademicsSchema(message) || /students/i.test(message)) return [];
       throw error;
     }),
   ]);
 
-  const led = new Set(classRows.map((row) => keyOf(row.class_code, row.stream)));
+  const led = new Set(classRows.map((row) => keyOf(row.class_code, row.stream, "", operationalCampus(row.campus))));
   const order = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
-  const gaps = [...new Set(pupils.filter((row) => row.class_code).map((row) => keyOf(row.class_code || "", row.stream || "")))]
+  const gaps = [...new Set(pupils.filter((row) => row.class_code).map((row) => keyOf(row.class_code || "", row.stream || "", "", operationalCampus(row.campus))))]
     .filter((key) => !led.has(key))
     .map((key) => {
-      const [code, stream] = key.split("|");
-      return { code, stream, label: classLabel(code, stream), href: classHref(code, stream) };
+      const [campus, code, stream] = key.split("|");
+      return { code, stream, label: classLabel(code, stream, campus), href: classHref(code, stream, campus) };
     })
     .sort((a, b) => (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.label.localeCompare(b.label))
     .map(({ label, href }) => ({ label, href }));
 
   const papers = new Map<string, { papers: number; submitted: number }>();
   for (const paper of paperRows) {
-    const key = keyOf(paper.class_code, paper.stream, paper.subject_id);
+    const key = keyOf(paper.class_code, paper.stream, paper.subject_id, operationalCampus(paper.campus));
     const current = papers.get(key) || { papers: 0, submitted: 0 };
     current.papers += 1;
     if (markbookClosed(paper.status)) current.submitted += 1;
@@ -195,7 +202,8 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
     const lessons = many(scheme.scheme_lessons);
     const subject = one(scheme.subjects)?.name || "Subject";
     const stream = streamOf(scheme.stream);
-    schemes.set(keyOf(scheme.class_code, stream, scheme.subject_id), {
+    const campus = operationalCampus(scheme.campus);
+    schemes.set(keyOf(scheme.class_code, stream, scheme.subject_id, campus), {
       href: `${ACADEMICS_BASE}/schemes/${scheme.id}`,
       title: scheme.title,
       status: scheme.status,
@@ -207,8 +215,8 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
       classCode: scheme.class_code,
       stream,
       subject,
-      label: classLabel(scheme.class_code, stream),
-      classHref: classHref(scheme.class_code, stream),
+      label: classLabel(scheme.class_code, stream, campus),
+      classHref: classHref(scheme.class_code, stream, campus),
     });
   }
 
@@ -216,6 +224,7 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
   const posts: StaffPost[] = subjectRows.map((row) => ({
     classCode: row.class_code,
     stream: streamOf(row.stream),
+    campus: operationalCampus(row.campus),
     subjectId: row.subject_id,
     subject: one(row.subjects)?.name || "Subject",
     staffId: row.staff_id,
@@ -224,6 +233,7 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
   const leads: StaffLead[] = classRows.map((row) => ({
     classCode: row.class_code,
     stream: streamOf(row.stream),
+    campus: operationalCampus(row.campus),
     staffId: row.staff_id,
     staffName: nameOf.get(row.staff_id) || "Teacher",
   }));
@@ -231,23 +241,28 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
   for (const pupil of pupils) {
     if (!pupil.class_code) continue;
     const stream = streamOf(pupil.stream);
-    const key = keyOf(pupil.class_code, stream);
+    const campus = operationalCampus(pupil.campus);
+    const key = keyOf(pupil.class_code, stream, "", campus);
     const current = groups.get(key);
     if (current) current.pupils += 1;
-    else groups.set(key, { code: pupil.class_code, stream, label: classLabel(pupil.class_code, stream), pupils: 1 });
+    else groups.set(key, { code: pupil.class_code, stream, campus, label: classLabel(pupil.class_code, stream, campus), pupils: 1 });
   }
   const groupList = [...groups.values()].sort((a, b) => (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.label.localeCompare(b.label));
 
   const members: StaffMember[] = people.map((person) => {
     const classes = classRows
       .filter((row) => row.staff_id === person.id)
-      .map((row) => ({ code: row.class_code, stream: streamOf(row.stream), label: classLabel(row.class_code, row.stream), href: classHref(row.class_code, row.stream) }))
+      .map((row) => {
+        const campus = operationalCampus(row.campus);
+        return { code: row.class_code, stream: streamOf(row.stream), campus, label: classLabel(row.class_code, row.stream, campus), href: classHref(row.class_code, row.stream, campus) };
+      })
       .sort((a, b) => (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.label.localeCompare(b.label));
     const owned = new Set<string>();
     const subjects = subjectRows
       .filter((row) => row.staff_id === person.id)
       .map((row) => {
-        const match = keyOf(row.class_code, row.stream, row.subject_id);
+        const campus = operationalCampus(row.campus);
+        const match = keyOf(row.class_code, row.stream, row.subject_id, campus);
         owned.add(match);
         const scheme = schemes.get(match) || null;
         const mark = papers.get(match) || { papers: 0, submitted: 0 };
@@ -257,8 +272,8 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
           classCode: row.class_code,
           stream: streamOf(row.stream),
           subject: one(row.subjects)?.name || "Subject",
-          label: classLabel(row.class_code, row.stream),
-          href: classHref(row.class_code, row.stream),
+          label: classLabel(row.class_code, row.stream, campus),
+          href: classHref(row.class_code, row.stream, campus),
           papers: mark.papers,
           submitted: mark.submitted,
           scheme: scheme ? { href: scheme.href, title: scheme.title, status: scheme.status, planned: scheme.planned, taught: scheme.taught, overdue: scheme.overdue } : null,
@@ -288,7 +303,7 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string): Promise
         day: DAYS[row.weekday] || "Day",
         period: row.period,
         subject: one(row.subjects)?.name || "Subject",
-        label: classLabel(row.class_code, row.stream),
+        label: classLabel(row.class_code, row.stream, operationalCampus(row.campus)),
         room: row.room,
       }))
       .sort((a, b) => a.weekday - b.weekday || a.period - b.period);

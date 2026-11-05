@@ -27,7 +27,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
   if (!supabaseConfigured()) return notReady("Budgeting", { kind: "config" });
   const auth = await requireAccounts();
   if ("error" in auth) return notReady("Budgeting", { kind: "auth", message: auth.error });
-  const { supabase } = auth;
+  const { supabase, campuses } = auth;
   const params = await searchParams;
   const today = kampalaToday();
   const month = parseBudgetMonth(pick(params, "month"), today);
@@ -45,7 +45,7 @@ export default async function BudgetingPage({ searchParams }: { searchParams: Pr
     ).catch(() => null),
     groupOf(supabase.from("payments").select("paid_on, amount.sum()").is("voided_at", null).gte("paid_on", yearStart).lte("paid_on", yearEnd), "paid_on"),
     groupOf(supabase.from("invoices").select("issued_on, total.sum()").eq("status", "issued").gte("issued_on", yearStart).lte("issued_on", yearEnd), "issued_on"),
-    loadFeeBook(supabase).catch(() => []),
+    loadFeeBook(supabase, campuses).catch(() => []),
   ]);
   if (categoryResult.error) return notReady("Budgeting", { kind: "schema", message: categoryResult.error.message });
   if (!expenses) return notReady("Budgeting", { kind: "schema", message: "Expenses could not be loaded." });

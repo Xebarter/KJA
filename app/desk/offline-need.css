@@ -1,0 +1,155 @@
+/* Premium offline cut card shared by Admissions, Accounts, Academics and Teacher desks. */
+
+.kja-offline-need {
+  min-height: min(60vh, 34rem);
+}
+
+.kja-offline-slot {
+  display: grid;
+  place-items: center;
+  margin-top: 1.25rem;
+  padding: .5rem 0 1.5rem;
+}
+
+.kja-offline-cut {
+  --cut: 1.55rem;
+  position: relative;
+  width: min(26.5rem, 100%);
+  padding: 1.55rem 1.55rem 1.35rem;
+  color: #f4f7fa;
+  background: linear-gradient(155deg, #24333e 0%, #19232b 48%, #121920 100%);
+  clip-path: polygon(0 0, calc(100% - var(--cut)) 0, 100% var(--cut), 100% 100%, 0 100%);
+  box-shadow:
+    0 22px 48px rgba(18, 25, 32, .28),
+    0 0 0 1px rgba(255, 255, 255, .06) inset;
+  animation: kja-offline-cut-in .55s cubic-bezier(.2, .8, .2, 1) both;
+}
+
+.kja-offline-cut-edge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: var(--cut);
+  height: var(--cut);
+  background: linear-gradient(135deg, transparent 49%, rgba(253, 163, 27, .95) 50%);
+  pointer-events: none;
+}
+
+.kja-offline-cut-mark {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 3.15rem;
+  height: 3.15rem;
+  margin-bottom: 1rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .07);
+  border: 1px solid rgba(255, 255, 255, .1);
+  color: #fda31b;
+  font-size: 1.15rem;
+}
+
+.kja-offline-cut-slash {
+  position: absolute;
+  width: 2.05rem;
+  height: 2px;
+  border-radius: 2px;
+  background: #fda31b;
+  transform: rotate(-42deg);
+  box-shadow: 0 0 0 2px rgba(25, 35, 43, .55);
+}
+
+.kja-offline-cut-kicker {
+  margin: 0;
+  color: rgba(253, 163, 27, .92);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+}
+
+.kja-offline-cut h2 {
+  margin: .35rem 0 0;
+  color: #fff;
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: clamp(1.35rem, 2.4vw, 1.65rem);
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -.01em;
+}
+
+.kja-offline-cut-body {
+  margin: .7rem 0 0;
+  color: rgba(244, 247, 250, .72);
+  font-size: .92rem;
+  line-height: 1.5;
+}
+
+.kja-offline-cut-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .65rem;
+  margin-top: 1.2rem;
+}
+
+.kja-offline-cut-refresh {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  min-height: 2.45rem;
+  padding: 0 .95rem;
+  border: 0;
+  border-radius: 10px;
+  background: #fda31b;
+  color: #19232b;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s ease, transform .15s ease;
+}
+
+.kja-offline-cut-refresh:hover:not(:disabled) {
+  background: #ffb84a;
+}
+
+.kja-offline-cut-refresh:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.kja-offline-cut-refresh:disabled {
+  opacity: .72;
+  cursor: wait;
+}
+
+.kja-offline-cut-refresh > i {
+  font-size: .85rem;
+}
+
+@keyframes kja-offline-cut-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .kja-offline-cut {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .kja-offline-slot {
+    margin-top: .85rem;
+    padding: .25rem 0 1rem;
+  }
+  .kja-offline-cut {
+    --cut: 1.2rem;
+    padding: 1.3rem 1.2rem 1.2rem;
+  }
+}

@@ -72,22 +72,37 @@ export default async function AccountHomePage() {
     : "Everything is up to date. Here's what's happening at school.";
 
   const stats = [
-    { label: "Children", value: String(portal.pupils.length), note: portal.pupils.length ? "Enrolled on your family" : "None enrolled yet", href: "/account/children", icon: "fa-children" },
+    { label: "Children", value: String(portal.pupils.length), note: portal.pupils.length ? "Enrolled on your family" : "None enrolled yet", href: "/account/children", icon: "fa-children", tone: "kids" },
     { label: "School fees", value: outstanding ? ugx(outstanding) : "Cleared", note: outstanding ? (nextDue ? `Next due ${shortDate(nextDue)}` : "Outstanding balance") : "All paid up", href: "/account/fees", icon: "fa-receipt", tone: outstanding ? "due" : "ok" },
-    { label: "Reports", value: String(portal.cards.length), note: latestReport ? `Latest ${shortDate(latestReport.published_at) || latestReport.term}` : "None published yet", href: "/account/reports", icon: "fa-file-lines" },
-    { label: "Applications", value: String(portal.applications.length), note: openApplications.length ? `${openApplications.length} in progress` : "None in progress", href: "/account/applications", icon: "fa-clipboard-list" },
-    { label: "Clubs", value: String(portal.clubConsents), note: portal.clubConsents ? "Children consented" : "Choose clubs", href: "/account/clubs", icon: "fa-puzzle-piece" },
-    { label: "Notices", value: String(portal.unread), note: portal.unread ? "Unread" : "You're up to date", href: "/account/notifications", icon: "fa-bell", tone: portal.unread ? "alert" : undefined },
+    { label: "Reports", value: String(portal.cards.length), note: latestReport ? `Latest ${shortDate(latestReport.published_at) || latestReport.term}` : "None published yet", href: "/account/reports", icon: "fa-file-lines", tone: "reports" },
+    { label: "Applications", value: String(portal.applications.length), note: openApplications.length ? `${openApplications.length} in progress` : "None in progress", href: "/account/applications", icon: "fa-clipboard-list", tone: "apps" },
+    { label: "Clubs", value: String(portal.clubConsents), note: portal.clubConsents ? "Children consented" : "Choose clubs", href: "/account/clubs", icon: "fa-puzzle-piece", tone: "clubs" },
+    { label: "Notices", value: String(portal.unread), note: portal.unread ? "Unread" : "You're up to date", href: "/account/notifications", icon: "fa-bell", tone: portal.unread ? "alert" : "notices" },
+  ];
+
+  const shortcuts = [
+    { href: "/account/children", label: "Children", icon: "fa-children", tone: "mint" },
+    { href: "/account/fees", label: "Fees", icon: "fa-receipt", tone: "rose" },
+    { href: "/account/communications", label: "Messages", icon: "fa-comments", tone: "sky", badge: unreadMessages },
+    { href: "/account/calendar", label: "Calendar", icon: "fa-calendar-days", tone: "sun" },
   ];
 
   return (
-    <div className="ov">
+    <div className="ov pa-home">
       <section className="ov-hero">
         <div className="ov-hero-copy">
           <p className="ov-hero-date">
+            <i className="fa-solid fa-sun" aria-hidden="true" />
             {new Date().toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long", year: "numeric", timeZone: ZONE })}
           </p>
-          <h1>{greeting()}{first ? `, ${first}` : ""}</h1>
+          <h1>
+            {greeting()}
+            {first ? (
+              <>
+                , <span>{first}</span>
+              </>
+            ) : null}
+          </h1>
           <p className="ov-hero-summary">{summary}</p>
           <div className="ov-hero-actions">
             <Link className="ov-btn ov-btn-gold" href="/account/communications">
@@ -131,12 +146,27 @@ export default async function AccountHomePage() {
         ))}
       </div>
 
+      <section className="pa-shortcuts" aria-label="Quick links">
+        {shortcuts.map((item) => (
+          <Link key={item.href} href={item.href} className={`pa-shortcut pa-shortcut--${item.tone}`}>
+            <span className="pa-shortcut-icon" aria-hidden="true">
+              <i className={`fa-solid ${item.icon}`} />
+            </span>
+            <span>{item.label}</span>
+            {item.badge ? <em>{item.badge > 99 ? "99+" : item.badge}</em> : null}
+          </Link>
+        ))}
+      </section>
+
       <div className="ov-grid">
         <div className="ov-col">
           <section className="ov-panel">
             <header className="ov-panel-head">
-              <h2>My children</h2>
-              <Link href="/account/children">View</Link>
+              <h2>
+                <span className="pa-panel-icon" aria-hidden="true"><i className="fa-solid fa-children" /></span>
+                My children
+              </h2>
+              <Link href="/account/children">View all</Link>
             </header>
             {portal.pupils.length ? (
               <div className="ov-children">
@@ -165,7 +195,10 @@ export default async function AccountHomePage() {
 
           <section className="ov-panel">
             <header className="ov-panel-head">
-              <h2>Upcoming events</h2>
+              <h2>
+                <span className="pa-panel-icon" aria-hidden="true"><i className="fa-solid fa-calendar-days" /></span>
+                Upcoming events
+              </h2>
               <Link href="/account/calendar">Calendar</Link>
             </header>
             {upcoming.length ? (
@@ -204,7 +237,10 @@ export default async function AccountHomePage() {
         <div className="ov-col">
           <section className="ov-panel ov-fees">
             <header className="ov-panel-head">
-              <h2>School fees</h2>
+              <h2>
+                <span className="pa-panel-icon" aria-hidden="true"><i className="fa-solid fa-receipt" /></span>
+                School fees
+              </h2>
               <Link href="/account/fees">Statement</Link>
             </header>
             {portal.fees.length ? (
@@ -229,7 +265,10 @@ export default async function AccountHomePage() {
 
           <section className="ov-panel">
             <header className="ov-panel-head">
-              <h2>Notices</h2>
+              <h2>
+                <span className="pa-panel-icon" aria-hidden="true"><i className="fa-solid fa-bell" /></span>
+                Notices
+              </h2>
               <Link href="/account/notifications">View all</Link>
             </header>
             {portal.notifications.length ? (
@@ -259,7 +298,10 @@ export default async function AccountHomePage() {
 
           <section className="ov-panel">
             <header className="ov-panel-head">
-              <h2>Applications</h2>
+              <h2>
+                <span className="pa-panel-icon" aria-hidden="true"><i className="fa-solid fa-clipboard-list" /></span>
+                Applications
+              </h2>
               <Link href="/account/applications">{portal.applications.length ? "View all" : "Apply"}</Link>
             </header>
             {portal.applications.length ? (

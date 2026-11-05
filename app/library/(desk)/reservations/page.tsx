@@ -13,6 +13,7 @@ export default async function ReservationsPage() {
   const auth = await requireLibrary("reservations");
   if ("error" in auth) return null;
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
 
   const rowsPack = await auth.supabase
     .from("library_reservations")
@@ -20,6 +21,7 @@ export default async function ReservationsPage() {
       "id, status, queued_at, ready_at, borrower_kind, note, library_titles(title), students(id, full_name, student_number, photo_path), teaching_staff(id, full_name, photo_path)",
     )
     .eq("library_id", libraryId)
+    .eq("campus", campus)
     .in("status", ["queued", "ready"])
     .order("queued_at")
     .limit(100);

@@ -24,7 +24,7 @@ function shift(iso: string, days: number) {
 export default async function TeacherAttendancePage({
   searchParams,
 }: {
-  searchParams: Promise<{ date?: string; class?: string; stream?: string }>;
+  searchParams: Promise<{ date?: string; class?: string; stream?: string; campus?: string }>;
 }) {
   const query = await searchParams;
   const teacher = await requireTeacher();
@@ -47,7 +47,7 @@ export default async function TeacherAttendancePage({
   // One class → open the register immediately.
   if (!classCode && classes.length === 1) {
     const only = classes[0];
-    redirect(`${PATH}?date=${date}&class=${only.classCode}&stream=${streamQuery(only.stream)}`);
+    redirect(`${PATH}?date=${date}&class=${only.classCode}&stream=${streamQuery(only.stream)}&campus=${encodeURIComponent(only.campus)}`);
   }
 
   const [pupils, marks, closures] = await Promise.all([
@@ -60,27 +60,39 @@ export default async function TeacherAttendancePage({
     loadClosures(supabase, date),
   ]);
   const marked = new Map(marks.map((mark) => [mark.student_id, mark as { student_id: string; status: AttendanceStatus; note: string | null }]));
-  const closed = new Set(closures.map((row) => `${row.class_code}|${streamOf(row.stream)}`));
+  const closed = new Set(closures.map((row) => `${row.campus}|${row.class_code}|${streamOf(row.stream)}`));
   const groups = classes.map((post) => {
-    const rows = pupils.filter((pupil) => pupil.class_code === post.classCode && streamOf(pupil.stream) === post.stream);
+    const rows = pupils.filter(
+      (pupil) =>
+        pupil.class_code === post.classCode &&
+        streamOf(pupil.stream) === post.stream &&
+        (String(pupil.campus || "").trim() || post.campus) === post.campus,
+    );
     return {
-      key: `${post.classCode}-${post.stream}`,
+      key: `${post.campus}-${post.classCode}-${post.stream}`,
       code: post.classCode,
       name: post.label,
       section: classSection(post.classCode),
-      href: `${PATH}?date=${date}&class=${post.classCode}&stream=${streamQuery(post.stream)}`,
+      href: `${PATH}?date=${date}&class=${post.classCode}&stream=${streamQuery(post.stream)}&campus=${encodeURIComponent(post.campus)}`,
       done: rows.filter((pupil) => marked.has(pupil.id)).length,
       absent: rows.filter((pupil) => marked.get(pupil.id)?.status === "absent").length,
       pupils: rows.length,
       stream: post.stream,
-      closed: closed.has(`${post.classCode}|${post.stream}`),
+      campus: post.campus,
+      closed: closed.has(`${post.campus}|${post.classCode}|${post.stream}`),
       rows,
     };
   });
   const openGroups = date === today ? groups.filter((group) => group.pupils > 0 && group.done < group.pupils && !group.closed) : [];
+  const wantedCampus = query.campus || "";
   const current =
-    groups.find((group) => group.code === classCode && (stream === null || group.stream === stream) && leadsClass(classes, group.code, group.stream)) ||
-    null;
+    groups.find(
+      (group) =>
+        group.code === classCode &&
+        (stream === null || group.stream === stream) &&
+        (!wantedCampus || group.campus === wantedCampus) &&
+        leadsClass(classes, group.code, group.stream, group.campus),
+    ) || null;
   const index = current ? groups.findIndex((group) => group.key === current.key) : -1;
   const stillOpen = (group: (typeof groups)[number]) => group.pupils > 0 && group.done < group.pupils && !group.closed;
   const next = current ? groups.slice(index + 1).find(stillOpen) || groups.slice(0, index).find(stillOpen) || null : null;
@@ -142,6 +154,7 @@ export default async function TeacherAttendancePage({
             pupils: group.pupils,
             classCode: group.code,
             stream: group.stream,
+            campus: group.campus,
           }))}
           cancel={cancelRegister}
         />
@@ -163,6 +176,7 @@ export default async function TeacherAttendancePage({
                 name: current.name,
                 code: current.code,
                 stream: current.stream,
+                campus: current.campus,
                 termId: term?.id || "",
                 canMark: true,
                 nextHref: next?.href ?? null,

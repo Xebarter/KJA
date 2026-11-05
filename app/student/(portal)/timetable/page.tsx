@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { bellsFromLessons, loadClubTimeOverlays } from "@/lib/club-timetable-overlay";
 import { getStudentPortal, getStudentSession } from "@/lib/student-portal";
 
 export const metadata = { title: "Timetable" };
@@ -100,14 +101,54 @@ export default async function StudentTimetablePage({
         room: string | null;
       }> };
 
-  const byDay = new Map<number, NonNullable<typeof slots.data>>();
+  type DayItem = {
+    id: string;
+    weekday: number;
+    period: number;
+    starts_at: string | null;
+    ends_at: string | null;
+    subject_id: string;
+    room: string | null;
+    clubLabel?: string;
+  };
+
+  const clubOverlays = supabase
+    ? await loadClubTimeOverlays(supabase, {
+        classCode: student.class_code,
+        campus: student.campus,
+        bells: bellsFromLessons(
+          (slots.data || []).map((slot) => ({
+            period: slot.period,
+            starts: slot.starts_at,
+            ends: slot.ends_at,
+          })),
+        ),
+      })
+    : [];
+
+  const byDay = new Map<number, DayItem[]>();
   for (const slot of slots.data || []) {
     const list = byDay.get(slot.weekday) || [];
     list.push(slot);
     byDay.set(slot.weekday, list);
   }
+  for (const club of clubOverlays) {
+    const list = byDay.get(club.weekday) || [];
+    list.push({
+      id: `club-${club.id}`,
+      weekday: club.weekday,
+      period: club.period,
+      starts_at: club.starts,
+      ends_at: club.ends,
+      subject_id: "",
+      room: club.venue || null,
+      clubLabel: club.label,
+    });
+    list.sort((a, b) => a.period - b.period || String(a.starts_at || "").localeCompare(String(b.starts_at || "")));
+    byDay.set(club.weekday, list);
+  }
 
-  const weekTotal = (slots.data || []).length;
+  const weekTotal = (slots.data || []).length + clubOverlays.length;
   const todayLessons = byDay.get(today >= 1 && today <= 5 ? today : -1) || [];
   const focus = DAYS.find((d) => d.num === focusDay) || DAYS[0];
   const focusLessons = byDay.get(focus.num) || [];
@@ -198,9 +239,9 @@ export default async function StudentTimetablePage({
         {focusLessons.length ? (
           <ol className="tt-lesson-list">
             {focusLessons.map((lesson, index) => {
-              const name = nameById.get(lesson.subject_id) || "Lesson";
-              const tone = subjectTone(name);
-              const icon = subjectIcon(name);
+              const name = lesson.clubLabel || nameById.get(lesson.subject_id) || "Lesson";
+              const tone = lesson.clubLabel ? "mint" : subjectTone(name);
+              const icon = lesson.clubLabel ? "fa-puzzle-piece" : subjectIcon(name);
               const start = formatTime(lesson.starts_at);
               const end = formatTime(lesson.ends_at);
               const time = start && end ? `${start}–${end}` : start || end || "";
@@ -219,7 +260,7 @@ export default async function StudentTimetablePage({
                   <div className="tt-lesson-body">
                     <strong>{name}</strong>
                     <small>
-                      {[time, lesson.room].filter(Boolean).join(" · ") || "Lesson time to be confirmed"}
+                      {[time, lesson.room].filter(Boolean).join(" · ") || (lesson.clubLabel ? "Club time" : "Lesson time to be confirmed")}
                     </small>
                   </div>
                 </li>
@@ -255,7 +296,7 @@ export default async function StudentTimetablePage({
                 {lessons.length ? (
                   <ul>
                     {lessons.map((lesson) => {
-                      const name = nameById.get(lesson.subject_id) || "Lesson";
+                      const name = lesson.clubLabel || nameById.get(lesson.subject_id) || "Lesson";
                       return (
                         <li key={lesson.id}>
                           <span>{lesson.period}</span>

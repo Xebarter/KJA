@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { refreshPayment, type PaymentRow } from "@/lib/payments/admission";
+import { loadChargeCollection, settleChargeCollection } from "@/lib/payments/charges";
 import { loadClubCollection, settleClubCollection } from "@/lib/payments/clubs";
 import { loadFeeCollection, settleFeeCollection } from "@/lib/payments/school-fees";
 import { serviceClient } from "@/lib/supabase/service";
@@ -57,6 +58,17 @@ export async function POST(request: Request) {
   if (fee.data && typeof fee.data.id === "string") {
     const row = await loadFeeCollection(fee.data.id);
     if (row) await settleFeeCollection(row);
+    return NextResponse.json({ ok: true });
+  }
+
+  const charge = providerRef
+    ? await db.from("charge_collections").select("id").eq("provider_ref", providerRef).maybeSingle()
+    : reference
+      ? await db.from("charge_collections").select("id").eq("id", reference).maybeSingle()
+      : { data: null };
+  if (charge.data && typeof charge.data.id === "string") {
+    const row = await loadChargeCollection(charge.data.id);
+    if (row) await settleChargeCollection(row);
   }
   return NextResponse.json({ ok: true });
 }

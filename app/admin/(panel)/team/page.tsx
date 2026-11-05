@@ -4,6 +4,7 @@ import { emailAlertStatus } from "@/lib/admin-alerts";
 import { requireFullAdmin } from "@/lib/admin-applications";
 import { OPEN_STATUSES, initials } from "@/lib/applications";
 import { ACADEMICS_BASE } from "@/lib/academics";
+import { CAMPUS_DASHBOARDS, CAMPUS_OPTIONS, filterCampuses, isCampusDashboard, type CampusDashboardId, type CampusId } from "@/lib/campuses";
 import { isDashboardId, isFullAdmin, legacyGrants, type Grant } from "@/lib/dashboard-access";
 import { LIBRARY_IDS, type LibraryId } from "@/lib/library-nav";
 import { serviceClient } from "@/lib/supabase/service";
@@ -32,11 +33,11 @@ export default async function TeamPage() {
   // Read teachers with the service role - admin session RLS on teaching_staff is academics-only
   // and was silently returning an empty list on /admin/team.
   const db = serviceClient() ?? supabase;
-  const [profileQuery, accessQuery, openQuery, teacherQuery, scopeQuery] = await Promise.all([
+  const [profileQuery, accessQuery, openQuery, teacherQuery, scopeQuery, campusQuery] = await Promise.all([
     supabase
       .from("profiles")
       .select("id, full_name, email, role")
-      .in("role", ["admin", "admissions", "accounts", "academics", "library", "store", "officer"])
+      .in("role", ["admin", "admissions", "accounts", "academics", "library", "store", "clubs", "officer"])
       .order("full_name"),
     supabase.from("dashboard_access").select("profile_id, dashboard, pages"),
     supabase.from("applications").select("assigned_to").in("status", OPEN_STATUSES),
@@ -46,6 +47,7 @@ export default async function TeamPage() {
       .eq("active", true)
       .order("full_name"),
     db.from("library_staff_scope").select("profile_id, libraries"),
+    db.from("desk_staff_campus_scope").select("profile_id, dashboard, campuses"),
   ]);
 
   const stored = new Map<string, Grant[]>();
@@ -75,6 +77,18 @@ export default async function TeamPage() {
     if (libs.length) scopes.set(row.profile_id as string, libs);
   }
 
+  const campusScopes = new Map<string, Partial<Record<CampusDashboardId, CampusId[]>>>();
+  for (const row of campusQuery.data || []) {
+    const dashboard = String(row.dashboard || "");
+    if (!isCampusDashboard(dashboard)) continue;
+    const campuses = filterCampuses(Array.isArray(row.campuses) ? row.campuses.map(String) : []);
+    if (!campuses.length) continue;
+    const profileId = row.profile_id as string;
+    const current = campusScopes.get(profileId) ?? {};
+    current[dashboard] = campuses;
+    campusScopes.set(profileId, current);
+  }
+
   const people: TeamPerson[] = (profileQuery.data || []).flatMap((row) => {
     const role = String(row.role || "");
     const grants = stored.get(row.id as string) ?? (accessQuery.error ? legacyGrants(role) : legacyGrants(role === "officer" ? null : role));
@@ -84,6 +98,16 @@ export default async function TeamPage() {
     const libraries = fullAdmin
       ? [...LIBRARY_IDS]
       : scopes.get(row.id as string) ?? (grants.some((grant) => grant.dashboard === "library") ? (["lower"] as LibraryId[]) : []);
+    const storedCampuses = campusScopes.get(row.id as string) ?? {};
+    const campuses: Partial<Record<CampusDashboardId, CampusId[]>> = {};
+    for (const dashboard of CAMPUS_DASHBOARDS) {
+      if (fullAdmin) {
+        campuses[dashboard] = [...CAMPUS_OPTIONS];
+        continue;
+      }
+      if (!grants.some((grant) => grant.dashboard === dashboard)) continue;
+      campuses[dashboard] = storedCampuses[dashboard]?.length ? storedCampuses[dashboard] : [...CAMPUS_OPTIONS];
+    }
     return [{
       id: row.id as string,
       name,
@@ -93,6 +117,7 @@ export default async function TeamPage() {
       fullAdmin,
       grants,
       libraries,
+      campuses,
     }];
   }).sort((a, b) => Number(b.isYou) - Number(a.isYou) || a.name.localeCompare(b.name));
 

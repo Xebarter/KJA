@@ -30,7 +30,7 @@ export default async function GradingPage() {
         kicker="Setup"
         icon="fa-sliders"
         title="Grading"
-        description="Three short jobs: subject grades, the report card grade from AGG, and the next-term date printed on reports."
+        description="Separate grading for Nursery, Lower section (P1–P3) and Upper section (P4–P7), plus the next-term date printed on every report."
       />
       <GradingDesk
         bands={bands}

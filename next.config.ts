@@ -13,9 +13,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
     serverActions: { bodySizeLimit: "21mb" },
-    // Website: 30s. Desktop shell: longer so sidebar hops reuse the RSC payload
-    // (Teacher desk soft-nav especially benefits - layouts stay force-dynamic).
-    staleTimes: { dynamic: isDesktop ? 300 : 30 },
+    // Website: 30s. Desktop shell: long window so sidebar hops keep working offline
+    // after a warm session (layouts stay force-dynamic; proxy SQLite covers data).
+    staleTimes: { dynamic: isDesktop ? 3_600 : 30 },
   },
   images: {
     formats: ["image/avif", "image/webp"],

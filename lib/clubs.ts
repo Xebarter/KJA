@@ -1,4 +1,4 @@
-import { ACCOUNTS_BASE } from "@/lib/accounts-nav";
+import { CLUBS_BASE } from "@/lib/clubs-nav";
 import { SCHOOL_CLASSES } from "@/lib/students";
 
 export const CLUB_CATEGORIES = [
@@ -33,6 +33,7 @@ export type ClubListFilters = {
   classCode: string;
   stream: string;
   campus: string;
+  withdrawn?: string;
 };
 
 /** Search link for the clubs register. Safe to call from the server page. */
@@ -44,8 +45,9 @@ export function clubListHref(filters: Partial<ClubListFilters>) {
   if (filters.classCode) params.set("class", filters.classCode);
   if (filters.stream) params.set("stream", filters.stream);
   if (filters.campus) params.set("campus", filters.campus);
+  if (filters.withdrawn) params.set("withdrawn", filters.withdrawn);
   const query = params.toString();
-  const base = `${ACCOUNTS_BASE}/clubs`;
+  const base = `${CLUBS_BASE}/register`;
   return query ? `${base}?${query}` : base;
 }
 

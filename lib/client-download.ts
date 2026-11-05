@@ -9,7 +9,10 @@ type DesktopSaveResult =
   | { ok: false; canceled?: false; error?: string };
 
 type DesktopDownloadApi = {
-  saveDownload?: (payload: { data: ArrayBuffer; filename: string }) => Promise<DesktopSaveResult>;
+  saveDownload?: (payload: {
+    data: ArrayBuffer | Uint8Array;
+    filename: string;
+  }) => Promise<DesktopSaveResult>;
 };
 
 function desktopApi(): DesktopDownloadApi | undefined {
@@ -44,23 +47,39 @@ function browserSave(blob: Blob, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
 
+function copyArrayBuffer(view: ArrayBufferView): ArrayBuffer {
+  const copy = new Uint8Array(view.byteLength);
+  copy.set(new Uint8Array(view.buffer, view.byteOffset, view.byteLength));
+  return copy.buffer;
+}
+
+function toArrayBuffer(data: Blob | ArrayBuffer | Uint8Array): Promise<ArrayBuffer> | ArrayBuffer {
+  if (data instanceof ArrayBuffer) {
+    return data.slice(0);
+  }
+  if (ArrayBuffer.isView(data)) {
+    return copyArrayBuffer(data);
+  }
+  return data.arrayBuffer().then((buffer) => buffer.slice(0));
+}
+
 /**
  * Persist bytes as a download. Returns `"canceled"` when the desktop Save dialog is dismissed.
  */
 export async function saveClientDownload(
-  data: Blob | ArrayBuffer,
+  data: Blob | ArrayBuffer | Uint8Array,
   filename: string,
 ): Promise<"saved" | "canceled"> {
   const name = filename.trim() || "download";
   const api = desktopApi();
   if (api?.saveDownload) {
-    const buffer = data instanceof Blob ? await data.arrayBuffer() : data;
+    const buffer = await toArrayBuffer(data);
     const result = await api.saveDownload({ data: buffer, filename: name });
     if (result.ok) return "saved";
     if (result.canceled) return "canceled";
     throw new Error(result.error || "Could not save the file.");
   }
-  const blob = data instanceof Blob ? data : new Blob([data]);
+  const blob = data instanceof Blob ? data : new Blob([new Uint8Array(await toArrayBuffer(data))]);
   browserSave(blob, name);
   return "saved";
 }

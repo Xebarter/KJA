@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ATTENTION_DAYS, OPEN_STATUSES, personName, type ApplicationFilters, type TeamMember } from "@/lib/applications";
+import { loadCampusScope } from "@/lib/campus-access";
+import { CAMPUS_OPTIONS, type CampusId } from "@/lib/campuses";
 import { isFullAdmin, loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { requireOffice } from "@/lib/office";
@@ -13,7 +15,8 @@ async function adminSession() {
   const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
   if (!profile) return { error: "This account is not an admin." } as const;
   const grants = await loadGrants(supabase, user.id, profile.role);
-  return { supabase, user, profile, grants } as const;
+  const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "admin");
+  return { supabase, user, profile, grants, campuses } as const;
 }
 
 export async function requireAdmin(...pages: string[]) {
@@ -38,12 +41,20 @@ export async function requireFullAdmin() {
   return session;
 }
 
+type ApplicationDeskSession = {
+  supabase: NonNullable<Awaited<ReturnType<typeof createClient>>>;
+  user: { id: string; email?: string };
+  profile: { id: string; role: string; full_name: string | null; email: string | null };
+  grants: Awaited<ReturnType<typeof loadGrants>>;
+  campuses: CampusId[];
+};
+
 /** The admin applications desk and the admissions office share these screens. */
-export async function requireApplicationDesk(...admissionsPages: string[]) {
+export async function requireApplicationDesk(...admissionsPages: string[]): Promise<ApplicationDeskSession | { error: string }> {
   const pages = admissionsPages.length ? admissionsPages : ["applications"];
   const [admin, office] = await Promise.all([requireAdmin("applications"), requireOffice(...pages)]);
-  if (!("error" in admin)) return admin;
-  if (!("error" in office)) return office;
+  if (!("error" in admin)) return { ...admin, campuses: admin.campuses };
+  if (!("error" in office)) return { ...office, campuses: office.campuses };
   return { error: "This account doesn't have access to applications." } as const;
 }
 
@@ -52,7 +63,7 @@ export function applicationsQuery(
   filters: ApplicationFilters,
   userId: string,
   columns: string,
-  options: { count?: "exact"; statuses?: readonly string[] } = {},
+  options: { count?: "exact"; statuses?: readonly string[]; campuses?: readonly string[] } = {},
 ) {
   let query = supabase.from("applications").select(columns, options.count ? { count: options.count } : {});
   if (options.statuses) query = query.in("status", options.statuses);
@@ -73,7 +84,9 @@ export function applicationsQuery(
     const like = `%${needle}%`;
     query = query.or(`child_name.ilike.${like},parent_name.ilike.${like},email.ilike.${like},phone.ilike.${like}`);
   }
-  if (filters.campus) query = query.eq("campus", filters.campus);
+  const allowed = options.campuses?.length ? options.campuses : CAMPUS_OPTIONS;
+  if (filters.campus && allowed.includes(filters.campus)) query = query.eq("campus", filters.campus);
+  else if (allowed.length < CAMPUS_OPTIONS.length) query = query.in("campus", allowed);
   if (filters.grade) query = query.eq("grade", filters.grade);
   if (filters.owner === "me") query = query.eq("assigned_to", userId);
   else if (filters.owner === "none") query = query.is("assigned_to", null);

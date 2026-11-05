@@ -276,10 +276,12 @@ export async function saveClassDate(formData: FormData): Promise<Result> {
 
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
+  const campusRaw = text(formData, "campus", 40);
   const title = text(formData, "title", 160);
   const kind = text(formData, "kind", 20);
   const starts = text(formData, "starts_on", 10);
-  if (!leadsClass(teacher.classes, classCode, stream)) return { error: "You can only add dates for a class you lead." };
+  const post = teacher.classes.find((row) => row.classCode === classCode && row.stream === stream && (!campusRaw || row.campus === campusRaw));
+  if (!post || !leadsClass(teacher.classes, classCode, stream, post.campus)) return { error: "You can only add dates for a class you lead." };
   if (title.length < 2) return { error: "Name this date." };
   if (!DATE_KINDS.some((entry) => entry.value === kind)) return { error: "Choose what kind of date this is." };
   if (!/^\d{4}-\d{2}-\d{2}$/.test(starts)) return { error: "Choose the date." };
@@ -290,7 +292,7 @@ export async function saveClassDate(formData: FormData): Promise<Result> {
     kind,
     starts_on: starts,
     ends_on: ends || null,
-    campus: null,
+    campus: post.campus,
     note: text(formData, "note", 500) || null,
     class_code: classCode,
     stream,

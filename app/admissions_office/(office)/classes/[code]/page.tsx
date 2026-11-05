@@ -4,7 +4,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { ClassRoster, type RosterRow } from "@/components/office/ClassRoster";
 import { PrintButton } from "@/components/office/client";
 import { BirthdaysCard, MedicalCard, type CarePupil } from "@/components/office/PupilCareCards";
-import { Card, Empty, MigrationHint, OfficeNotice } from "@/components/office/ui";
+import { Card, Empty, LoadErrorNotice, OfficeNotice } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { studentPhotoUrl } from "@/lib/student-photos";
 import { CLASS_AGE, HOUSES, OFFICE, SCHOOL_CLASSES, ageOutlier, daysToBirthday, fetchAll, isClassCode, pick } from "@/lib/students";
@@ -60,7 +60,7 @@ export default async function ClassPage({
     else if (first.error.message.includes("photo_path")) all = await load(COLUMNS);
     else throw first.error;
   } catch (error) {
-    return <OfficeNotice title={entry.name} heading="This class could not be loaded"><MigrationHint message={(error as Error).message} /></OfficeNotice>;
+    return <LoadErrorNotice title={entry.name} message={(error as Error).message} fallbackHeading="This class could not be loaded" />;
   }
 
   const streams = [...new Set(all.map((row) => row.stream).filter(Boolean) as string[])].sort();

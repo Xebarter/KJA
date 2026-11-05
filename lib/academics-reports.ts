@@ -4,6 +4,7 @@ import {
   classSection,
   divisionFor,
   divisionTrack,
+  gradeBandSection,
   gradeFor,
   isAcademicSubject,
   isCocurricularSubject,
@@ -98,23 +99,25 @@ export function sittingsFromPapers(papers: { name: string; kind: string; weight:
   }));
 }
 
-/** Stable key for one class + stream's report sittings. */
-export function reportSittingKey(classCode: string, stream: string) {
-  return `${classCode}|${streamOf(stream)}`;
+/** Stable key for one campus + class + stream's report sittings. */
+export function reportSittingKey(classCode: string, stream: string, campus = "") {
+  return `${campus}|${classCode}|${streamOf(stream)}`;
 }
 
-/** Load the assessment sittings already set for one class and stream. */
+/** Load the assessment sittings already set for one campus + class + stream. */
 export async function loadReportSittings(
   supabase: SupabaseClient,
-  input: { termId: string; classCode: string; stream: string },
+  input: { termId: string; classCode: string; stream: string; campus?: string },
 ): Promise<ReportSitting[]> {
   const stream = streamOf(input.stream);
-  const { data, error } = await supabase
+  let query = supabase
     .from("assessments")
     .select("name, kind, weight")
     .eq("term_id", input.termId)
     .eq("class_code", input.classCode)
     .eq("stream", stream);
+  if (input.campus) query = query.eq("campus", input.campus);
+  const { data, error } = await query;
   if (error) throw new Error(error.message);
   return sittingsFromPapers(
     ((data || []) as Record<string, unknown>[]).map((row) => ({
@@ -132,14 +135,14 @@ export async function loadTermReportSittings(
 ): Promise<Record<string, ReportSitting[]>> {
   const { data, error } = await supabase
     .from("assessments")
-    .select("name, kind, weight, class_code, stream")
+    .select("name, kind, weight, class_code, stream, campus")
     .eq("term_id", termId);
   if (error) throw new Error(error.message);
   const papers = new Map<string, { name: string; kind: string; weight: number }[]>();
   for (const row of (data || []) as Record<string, unknown>[]) {
     const classCode = String(row.class_code || "");
     if (!classCode) continue;
-    const key = reportSittingKey(classCode, String(row.stream || ""));
+    const key = reportSittingKey(classCode, String(row.stream || ""), String(row.campus || ""));
     const list = papers.get(key) || [];
     list.push({
       name: String(row.name || "Assessment"),
@@ -183,6 +186,7 @@ export async function prepareClassReports(
 ) {
   const stream = streamOf(input.stream);
   const section = classSection(input.classCode);
+  const markSection = gradeBandSection(input.classCode);
 
   const [pupils, subjects, bands, divisions, assessments, teacher, cards] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
@@ -333,7 +337,7 @@ export async function prepareClassReports(
         return [{ key: set.key, label: set.label, share: set.share, score, sort: set.sort, weight: set.weight }];
       });
       const percent = weightedPercent(parts.map((part) => ({ score: part.score, max: 100, weight: part.weight, missed: false })));
-      const grade = gradeFor(bandRows, section, percent);
+      const grade = gradeFor(bandRows, markSection, percent);
       return { subject, percent, grade, parts };
     }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null; parts: { key: string; label: string; share: number; score: number | null; sort: number; weight: number }[] } => Boolean(line));
 

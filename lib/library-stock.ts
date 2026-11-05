@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CampusId } from "@/lib/campuses";
 import { todayKampala } from "@/lib/library";
 import { LIBRARY_BASE, type LibraryId } from "@/lib/library-nav";
 
@@ -92,34 +93,44 @@ function whereFor(
   };
 }
 
-export async function loadStockBoard(supabase: SupabaseClient, libraryId: LibraryId, q = ""): Promise<StockBoard> {
+export async function loadStockBoard(
+  supabase: SupabaseClient,
+  libraryId: LibraryId,
+  q = "",
+  campus?: CampusId,
+): Promise<StockBoard> {
   const today = todayKampala();
   const needle = q.trim();
 
+  let itemsQuery = supabase
+    .from("library_items")
+    .select("id, title_id, accession, barcode, status, location_note, library_titles(id, title, authors, category)")
+    .eq("library_id", libraryId)
+    .neq("status", "withdrawn");
+  let loansQuery = supabase
+    .from("library_loans")
+    .select(
+      "id, item_id, due_at, borrower_kind, students(full_name, class_code, stream), teaching_staff(full_name)",
+    )
+    .eq("library_id", libraryId)
+    .is("returned_at", null);
+  let reservationsQuery = supabase
+    .from("library_reservations")
+    .select(
+      "id, title_id, item_id, status, borrower_kind, students(full_name, class_code, stream), teaching_staff(full_name)",
+    )
+    .eq("library_id", libraryId)
+    .in("status", ["queued", "ready"]);
+  if (campus) {
+    itemsQuery = itemsQuery.eq("campus", campus);
+    loansQuery = loansQuery.eq("campus", campus);
+    reservationsQuery = reservationsQuery.eq("campus", campus);
+  }
+
   const [itemsPack, loansPack, reservationsPack] = await Promise.all([
-    supabase
-      .from("library_items")
-      .select("id, title_id, accession, barcode, status, location_note, library_titles(id, title, authors, category)")
-      .eq("library_id", libraryId)
-      .neq("status", "withdrawn")
-      .order("accession")
-      .limit(800),
-    supabase
-      .from("library_loans")
-      .select(
-        "id, item_id, due_at, borrower_kind, students(full_name, class_code, stream), teaching_staff(full_name)",
-      )
-      .eq("library_id", libraryId)
-      .is("returned_at", null)
-      .limit(500),
-    supabase
-      .from("library_reservations")
-      .select(
-        "id, title_id, item_id, status, borrower_kind, students(full_name, class_code, stream), teaching_staff(full_name)",
-      )
-      .eq("library_id", libraryId)
-      .in("status", ["queued", "ready"])
-      .limit(300),
+    itemsQuery.order("accession").limit(800),
+    loansQuery.limit(500),
+    reservationsQuery.limit(300),
   ]);
 
   const loanByItem = new Map<

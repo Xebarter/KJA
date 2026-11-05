@@ -6,11 +6,21 @@ import { PaymentsRecordButton, PaymentsRecordPanel } from "@/components/accounts
 import { Chips, MethodTag, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
 import type { PupilHit } from "./actions";
-import { PAYMENT_RANGES, parsePaymentFilters, paymentDates, paymentsQuery } from "./filters";
+import {
+  PAYMENT_CATEGORIES,
+  PAYMENT_RANGES,
+  PAYMENT_SOURCES,
+  categoryIcon,
+  categoryLabel,
+  detailHref,
+  parsePaymentFilters,
+  paymentDates,
+  registerQuery,
+  type RegisterRow,
+} from "./filters";
 import { aggRows, num } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, requireAccounts } from "@/lib/accounts";
-import { PAYMENT_METHODS, amount, dateTime, day, hrefWith, ugx, ugxShort, type Payment } from "@/lib/accounts-format";
-import { loadPeople } from "@/lib/admin-applications";
+import { PAYMENT_METHODS, amount, dateTime, day, hrefWith, ugx, ugxShort } from "@/lib/accounts-format";
 import { fetchAll, isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./payments.css";
@@ -19,8 +29,6 @@ export const metadata = { title: "Payments" };
 
 const BASE = `${ACCOUNTS_BASE}/payments`;
 const SIZE = 50;
-
-type Row = Payment & { students: { full_name: string; student_number: string; class_code: string | null; campus: string | null } | null };
 
 export default async function PaymentsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   if (!supabaseConfigured()) return notReady("Payments", { kind: "config" });
@@ -31,12 +39,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const { terms, current, error } = await loadTerms(supabase);
   if (error) return notReady("Payments", { kind: "schema", message: error });
 
-  const online = pick(params, "tab") === "online";
   const filters = parsePaymentFilters(params);
   const dates = paymentDates(filters, current);
   const termLabels = new Map(terms.map((term) => [term.id, term.label]));
   const state: Record<string, string> = {
-    tab: online ? "online" : "",
     range: filters.range === "term" ? "" : filters.range,
     from: filters.from,
     to: filters.to,
@@ -44,6 +50,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     campus: filters.campus,
     q: filters.q,
     show: filters.show === "valid" ? "" : filters.show,
+    category: filters.category,
+    source: filters.source,
   };
   const href = (changes: Record<string, string | number | null>) => hrefWith(BASE, state, changes);
   const exportHref = hrefWith(`${BASE}/export`, state);
@@ -67,6 +75,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   const recordTermId = terms.find((term) => term.id === termParam)?.id ?? current?.id ?? "";
   const familyMode = isUuid(familyId);
   const termOptions = terms.map((term) => ({ id: term.id, label: term.label }));
+  const recordKind = pick(params, "kind");
   const recordPanel = (
     <Suspense fallback={null}>
       <PaymentsRecordPanel
@@ -75,6 +84,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
         pupil={pupil}
         familyId={familyMode ? familyId : ""}
         mode={familyMode ? "family" : "pupil"}
+        initialKind={recordKind}
       />
     </Suspense>
   );
@@ -92,6 +102,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     active.push({ key: "method", label: method?.label ?? "Method", href: href({ method: "" }) });
   }
   if (filters.campus) active.push({ key: "campus", label: filters.campus, href: href({ campus: "" }) });
+  if (filters.category) active.push({ key: "category", label: categoryLabel(filters.category), href: href({ category: "" }) });
+  if (filters.source) active.push({ key: "source", label: filters.source === "online" ? "Online" : "Desk", href: href({ source: "" }) });
   if (filters.show !== "valid") {
     active.push({
       key: "show",
@@ -99,11 +111,81 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
       href: href({ show: "" }),
     });
   }
-  const clearHref = href({ q: "", range: "", from: "", to: "", method: "", campus: "", show: "", page: 1 });
+  const clearHref = href({ q: "", range: "", from: "", to: "", method: "", campus: "", show: "", category: "", source: "", page: 1 });
+
+  const [list, categoryRows] = await Promise.all([
+    registerQuery(supabase, filters, dates, "*", true).order("paid_on", { ascending: false }).order("created_at", { ascending: false }).range(from, from + SIZE - 1),
+    aggRows(registerQuery(supabase, { ...filters, category: "" }, dates, "category, amount.sum(), id.count()")),
+  ]);
+
+  if (list.error) {
+    const message = list.error.message || "";
+    if (/accounts_payment_register|schema cache|does not exist/i.test(message)) {
+      return notReady("Payments", {
+        kind: "schema",
+        message: "Run supabase/0066_accounts_payment_register.sql to enable the unified payments register.",
+      });
+    }
+    return notReady("Payments", { kind: "schema", message: list.error.message });
+  }
+
+  const rows = (list.data || []) as unknown as RegisterRow[];
+  const total = list.count ?? 0;
+
+  let collected = 0;
+  let receipts = 0;
+  let byCategory: { value: string; label: string; icon: string; total: number; count: number }[] = [];
+
+  if (categoryRows) {
+    byCategory = PAYMENT_CATEGORIES.filter((entry) => entry.value).flatMap((entry) => {
+      const row = categoryRows.find((item) => item.category === entry.value);
+      if (!row) return [];
+      return [{ value: entry.value, label: entry.label, icon: entry.icon, total: num(row, "sum"), count: num(row, "count") }];
+    }).filter((entry) => entry.count || entry.total);
+    collected = byCategory.reduce((sum, entry) => sum + entry.total, 0);
+    receipts = byCategory.reduce((sum, entry) => sum + entry.count, 0);
+  } else {
+    const totals = await fetchAll<{ amount: number; category: string; voided_at: string | null }>((a, b) =>
+      registerQuery(supabase, { ...filters, category: "" }, dates, "entry_id, amount, category, voided_at").order("entry_id").range(a, b),
+    ).catch(() => [] as { amount: number; category: string; voided_at: string | null }[]);
+    const valid = filters.show === "void" ? totals.filter((row) => row.voided_at) : filters.show === "all" ? totals : totals.filter((row) => !row.voided_at);
+    receipts = valid.length;
+    collected = valid.reduce((sum, row) => sum + Number(row.amount), 0);
+    const grouped = new Map<string, { total: number; count: number }>();
+    for (const row of valid) {
+      const current = grouped.get(row.category) || { total: 0, count: 0 };
+      current.total += Number(row.amount) || 0;
+      current.count += 1;
+      grouped.set(row.category, current);
+    }
+    byCategory = PAYMENT_CATEGORIES.filter((entry) => entry.value).flatMap((entry) => {
+      const row = grouped.get(entry.value);
+      if (!row) return [];
+      return [{ value: entry.value, label: entry.label, icon: entry.icon, total: row.total, count: row.count }];
+    });
+  }
+  if (!receipts) receipts = total;
+  const average = receipts ? collected / receipts : 0;
+  const moneyParts = ugx(collected).match(/^(UGX)\s*(.+)$/i);
+  const narrowed = Boolean(
+    filters.q || filters.method || filters.campus || filters.category || filters.source
+    || filters.show !== "valid" || (filters.range && filters.range !== "term"),
+  );
+
+  const categoryTabs = (
+    <Chips
+      label="Payment category"
+      items={PAYMENT_CATEGORIES.map((entry) => ({
+        href: href({ category: entry.value, page: 1 }),
+        label: entry.label,
+        on: filters.category === entry.value,
+      }))}
+    />
+  );
 
   const finder = (
     <AutoSubmit className="ofc-finder" action={BASE} label="Filter payments">
-      {online ? <input type="hidden" name="tab" value="online" /> : null}
+      {filters.category ? <input type="hidden" name="category" value={filters.category} /> : null}
       <div className="ofc-finder-top">
         <label className="ofc-finder-search">
           <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
@@ -112,7 +194,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             type="search"
             name="q"
             defaultValue={filters.q}
-            placeholder={online ? "Child, payer or receipt number" : "Pupil, receipt or reference"}
+            placeholder="Pupil, receipt, club, payer or reference"
             autoComplete="off"
           />
         </label>
@@ -123,15 +205,19 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             <option value="custom">Custom dates</option>
           </select>
         </label>
-        {!online ? (
-          <label className="ofc-finder-field is-inline">
-            <span>Method</span>
-            <select name="method" defaultValue={filters.method}>
-              <option value="">All methods</option>
-              {PAYMENT_METHODS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-            </select>
-          </label>
-        ) : null}
+        <label className="ofc-finder-field is-inline">
+          <span>Source</span>
+          <select name="source" defaultValue={filters.source}>
+            {PAYMENT_SOURCES.map((entry) => <option key={entry.value || "all"} value={entry.value}>{entry.label}</option>)}
+          </select>
+        </label>
+        <label className="ofc-finder-field is-inline">
+          <span>Method</span>
+          <select name="method" defaultValue={filters.method}>
+            <option value="">Any method</option>
+            {PAYMENT_METHODS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
+          </select>
+        </label>
         {campuses.length > 1 ? (
           <label className="ofc-finder-field is-inline">
             <span>Campus</span>
@@ -141,231 +227,59 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             </select>
           </label>
         ) : null}
-        <button className="pay-search" type="submit">Search</button>
+        <button type="submit" className="pay-search admin-btn admin-btn-gold">Search</button>
       </div>
-
       <details className="acc-more-filters" open={filters.range === "custom" || filters.show !== "valid"}>
         <summary>Dates and more</summary>
-        <div className="acc-more-row">
-          <label className="ofc-finder-field is-inline">
+        <div className="acc-more-panel">
+          <label className="ofc-finder-field">
             <span>From</span>
-            <input type="date" name="from" defaultValue={filters.from} />
+            <input type="date" name="from" defaultValue={filters.from || dates.from} />
           </label>
-          <label className="ofc-finder-field is-inline">
+          <label className="ofc-finder-field">
             <span>To</span>
-            <input type="date" name="to" defaultValue={filters.to} />
+            <input type="date" name="to" defaultValue={filters.to || dates.to} />
           </label>
-          {!online ? (
-            <label className="ofc-finder-field is-inline">
-              <span>Show</span>
-              <select name="show" defaultValue={filters.show === "valid" ? "" : filters.show}>
-                <option value="">Valid payments</option>
-                <option value="void">Voided only</option>
-                <option value="all">Valid and voided</option>
-              </select>
-            </label>
-          ) : null}
-          {filters.range === "custom" ? (
-            <Link className="pay-clear-dates" href={href({ range: "", from: "", to: "" })}>Clear dates</Link>
-          ) : null}
+          <label className="ofc-finder-field">
+            <span>Show</span>
+            <select name="show" defaultValue={filters.show}>
+              <option value="valid">Valid only</option>
+              <option value="void">Voided only</option>
+              <option value="all">All</option>
+            </select>
+          </label>
         </div>
       </details>
-
       {active.length ? (
-        <div className="ofc-finder-active" aria-label="Active filters">
-          <span>Filtered by</span>
-          <ul>
-            {active.map((entry) => (
-              <li key={entry.key}>
-                <Link href={entry.href} scroll={false} aria-label={`Remove filter ${entry.label}`}>
-                  {entry.label} <i className="fa-solid fa-xmark" aria-hidden="true" />
-                </Link>
-              </li>
-            ))}
-          </ul>
-          {active.length > 1 ? <Link className="ofc-finder-clear" href={clearHref} scroll={false}>Clear all</Link> : null}
+        <div className="ofc-finder-chips">
+          {active.map((chip) => (
+            <Link key={chip.key} href={chip.href} className="ofc-chip is-on" scroll={false}>
+              {chip.label}
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
+            </Link>
+          ))}
+          <Link href={clearHref} className="ofc-chip-clear" scroll={false}>Clear all</Link>
         </div>
       ) : null}
     </AutoSubmit>
   );
 
-  const typeTabs = (
-    <Chips
-      label="Payment type"
-      items={[
-        { href: href({ tab: "", show: "" }), label: "Fee payments", on: !online },
-        { href: href({ tab: "online", method: "", show: "" }), label: "Online admission", on: online },
-      ]}
-    />
-  );
-
   const actions = (
     <>
       {recordButton}
-      {!online ? (
-        <a className="aov-btn" href={exportHref}>
-          <i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV
-        </a>
-      ) : null}
+      <a className="aov-btn" href={exportHref}>
+        <i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV
+      </a>
     </>
   );
 
-  if (online) {
-    let query = supabase
-      .from("admission_payments")
-      .select("id, receipt_no, campus, amount, network, phone, payer_name, child_name, status, paid_at, created_at", { count: "exact" })
-      .eq("status", "paid");
-    if (dates.from) query = query.gte("paid_at", `${dates.from}T00:00:00+03:00`);
-    if (dates.to) query = query.lte("paid_at", `${dates.to}T23:59:59+03:00`);
-    if (filters.campus) query = query.eq("campus", filters.campus);
-    if (filters.q) query = query.or(`child_name.ilike.%${filters.q}%,payer_name.ilike.%${filters.q}%,receipt_no.ilike.%${filters.q}%`);
-    const { data, count, error: listError } = await query.order("paid_at", { ascending: false }).range(from, from + SIZE - 1);
-    const rows = (data || []) as {
-      id: string;
-      receipt_no: string | null;
-      campus: string;
-      amount: number;
-      network: string | null;
-      phone: string;
-      payer_name: string | null;
-      child_name: string | null;
-      paid_at: string | null;
-    }[];
-    const total = count ?? 0;
-    const collected = rows.reduce((sum, row) => sum + Number(row.amount), 0);
-
-    return (
-      <div className="app-page ofc-page acc-page pay-page">
-        <AccountsPageHeader
-          kicker="Billing"
-          icon="fa-money-bill-wave"
-          title="Payments"
-          description="Admission fees paid online when families applied. Shown for reference. They aren’t part of term balances."
-          actions={actions}
-        />
-
-        {recordPanel}
-
-        <section className="pay-board" aria-label="Online payment summary">
-          <div className="pay-board-main">
-            <div className="pay-collect">
-              <span className="pay-mark" aria-hidden="true"><i className="fa-solid fa-mobile-screen-button" /></span>
-              <div>
-                <span>On this page</span>
-                <strong><small>UGX</small>{ugxShort(collected)}</strong>
-                <p>{total.toLocaleString("en-GB")} online payment{total === 1 ? "" : "s"} {dates.label}</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <section className="ofc-register">
-          {finder}
-          <header className="pay-results">
-            <div>
-              <h2>{total.toLocaleString("en-GB")} online payment{total === 1 ? "" : "s"}</h2>
-              <p>{dates.label.charAt(0).toUpperCase() + dates.label.slice(1)}</p>
-            </div>
-            {typeTabs}
-          </header>
-          {listError ? <p className="app-feedback is-error">{listError.message}</p> : null}
-          {rows.length ? (
-            <div className="ofc-table-scroll">
-              <table className="app-table acc-table pay-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Receipt</th>
-                    <th scope="col">Child</th>
-                    <th scope="col">Paid by</th>
-                    <th scope="col">Campus</th>
-                    <th scope="col" className="is-num">Amount</th>
-                    <th scope="col" className="ofc-col-go"><span className="visually-hidden">Open</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.id}>
-                      <td data-label="Receipt" className="pay-doc">
-                        <a className="pay-no" href={`/apply/receipt/${row.id}`} target="_blank" rel="noreferrer">
-                          {row.receipt_no ?? "Receipt"}
-                        </a>
-                        <small>{dateTime(row.paid_at)}</small>
-                      </td>
-                      <td data-label="Child" className="pay-who">
-                        <span>
-                          <span className="pay-name">{row.child_name ?? "–"}</span>
-                        </span>
-                      </td>
-                      <td data-label="Paid by" className="pay-by">
-                        {row.payer_name ?? "–"}
-                        <small>{[row.network?.toUpperCase(), row.phone].filter(Boolean).join(" · ")}</small>
-                      </td>
-                      <td data-label="Campus">{row.campus}</td>
-                      <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
-                      <td className="ofc-col-go" aria-hidden="true">
-                        <a href={`/apply/receipt/${row.id}`} target="_blank" rel="noreferrer">
-                          <i className="fa-solid fa-arrow-up-right-from-square" />
-                        </a>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <Empty icon="fa-mobile-screen-button" title="No online payments">
-              Admission fees paid on the website appear here.
-            </Empty>
-          )}
-          <Pager page={filters.page} pages={Math.max(1, Math.ceil(total / SIZE))} total={total} from={from} size={SIZE} href={(n) => href({ page: n })} />
-        </section>
-      </div>
-    );
-  }
-
-  const [list, methodRows] = await Promise.all([
-    paymentsQuery(supabase, filters, dates, "*", true).order("paid_on", { ascending: false }).order("created_at", { ascending: false }).range(from, from + SIZE - 1),
-    aggRows(paymentsQuery(supabase, filters, dates, "method, amount.sum(), id.count()")),
-  ]);
-  if (list.error) return notReady("Payments", { kind: "schema", message: list.error.message });
-  const rows = (list.data || []) as unknown as Row[];
-  const total = list.count ?? 0;
-  const people = await loadPeople(supabase, rows.map((row) => row.received_by));
-  let collected = 0;
-  let receipts = 0;
-  let byMethod: { value: string; label: string; icon: string; total: number; count: number }[];
-  if (!methodRows) {
-    const totals = await fetchAll<{ amount: number; method: string; voided_at: string | null }>((a, b) =>
-      paymentsQuery(supabase, filters, dates, "id, amount, method, voided_at").order("id").range(a, b),
-    ).catch(() => [] as { amount: number; method: string; voided_at: string | null }[]);
-    const valid = totals.filter((row) => !row.voided_at);
-    receipts = valid.length;
-    collected = valid.reduce((sum, row) => sum + Number(row.amount), 0);
-    byMethod = PAYMENT_METHODS.map((method) => ({
-      ...method,
-      total: valid.filter((row) => row.method === method.value).reduce((sum, row) => sum + Number(row.amount), 0),
-      count: valid.filter((row) => row.method === method.value).length,
-    })).filter((method) => method.count);
-  } else {
-    byMethod = PAYMENT_METHODS.flatMap((method) => {
-      const row = methodRows.find((entry) => entry.method === method.value);
-      if (!row) return [];
-      return [{ ...method, total: num(row, "sum"), count: num(row, "count") }];
-    }).filter((method) => method.count || method.total);
-    collected = byMethod.reduce((sum, method) => sum + method.total, 0);
-    receipts = byMethod.reduce((sum, method) => sum + method.count, 0);
-  }
-  const average = receipts ? collected / receipts : 0;
-  const narrowed = Boolean(filters.q || filters.method || filters.campus || filters.show !== "valid" || (filters.range && filters.range !== "term"));
-  const moneyParts = ugx(collected).match(/^(UGX)\s*(.+)$/i);
-
   return (
-    <div className="app-page ofc-page acc-page pay-page">
+    <div className="app-page ofc-page acc-page pay-page is-unified">
       <AccountsPageHeader
         kicker="Billing"
         icon="fa-money-bill-wave"
         title="Payments"
-        description="Record a payment here, then browse every receipt below. Void a payment if it was recorded in error. It stays on record."
+        description="Every payment to the school in one place: school fees, admission, clubs, PLE, tours and more. Record at the desk or review what came in online."
         actions={actions}
       />
 
@@ -380,21 +294,21 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
               <strong>
                 {moneyParts ? <><small>{moneyParts[1]}</small>{moneyParts[2]}</> : ugx(collected)}
               </strong>
-              <p>{receipts.toLocaleString("en-GB")} receipt{receipts === 1 ? "" : "s"} in this view</p>
+              <p>{receipts.toLocaleString("en-GB")} payment{receipts === 1 ? "" : "s"} in this view</p>
             </div>
           </div>
-          {byMethod.length ? (
-            <ul className="pay-figs" aria-label="Collected by method">
-              {byMethod.map((method) => (
-                <li key={method.value}>
+          {byCategory.length ? (
+            <ul className="pay-figs" aria-label="Collected by category">
+              {byCategory.map((entry) => (
+                <li key={entry.value}>
                   <Link
-                    href={href({ method: filters.method === method.value ? "" : method.value })}
-                    className={filters.method === method.value ? "is-on" : ""}
+                    href={href({ category: filters.category === entry.value ? "" : entry.value, page: 1 })}
+                    className={filters.category === entry.value ? "is-on" : ""}
                     scroll={false}
                   >
-                    <span><i className={`fa-solid ${method.icon}`} aria-hidden="true" /> {method.label}</span>
-                    <strong>{ugxShort(method.total)}</strong>
-                    <small>{method.count} receipt{method.count === 1 ? "" : "s"}</small>
+                    <span><i className={`fa-solid ${entry.icon}`} aria-hidden="true" /> {entry.label}</span>
+                    <strong>{ugxShort(entry.total)}</strong>
+                    <small>{entry.count} payment{entry.count === 1 ? "" : "s"}</small>
                   </Link>
                 </li>
               ))}
@@ -406,7 +320,8 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             <i className="fa-solid fa-calculator" aria-hidden="true" />
             <p>
               Average payment <strong>{ugx(average)}</strong>
-              {filters.method ? ` · filtered to ${PAYMENT_METHODS.find((entry) => entry.value === filters.method)?.label ?? "one method"}` : null}
+              {filters.category ? ` · ${categoryLabel(filters.category)}` : null}
+              {filters.source ? ` · ${filters.source === "online" ? "online" : "desk"}` : null}
             </p>
           </div>
         ) : null}
@@ -419,7 +334,7 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
             <h2>{total.toLocaleString("en-GB")} {narrowed ? `match${total === 1 ? "" : "es"}` : `payment${total === 1 ? "" : "s"}`}</h2>
             <p>{dates.label.charAt(0).toUpperCase() + dates.label.slice(1)}</p>
           </div>
-          {typeTabs}
+          {categoryTabs}
         </header>
 
         {rows.length ? (
@@ -428,45 +343,119 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
               <thead>
                 <tr>
                   <th scope="col">Receipt</th>
-                  <th scope="col">Pupil</th>
+                  <th scope="col">Who</th>
+                  <th scope="col">Category</th>
                   <th scope="col">Method</th>
-                  <th scope="col">Term</th>
                   <th scope="col" className="is-num">Amount</th>
-                  <th scope="col" className="pay-by">Received by</th>
+                  <th scope="col">Source</th>
                   <th scope="col" className="ofc-col-go"><span className="visually-hidden">Open</span></th>
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row) => (
-                  <ClickRow key={row.id} href={`${BASE}/${row.id}`} className={row.voided_at ? "is-void" : undefined}>
-                    <td data-label="Receipt" className="pay-doc">
-                      <Link className="pay-no" href={`${BASE}/${row.id}`}>{row.receipt_no}</Link>
-                      <small>
-                        {day(row.paid_on)}
-                        {row.voided_at ? <span className="pay-void-tag">Void</span> : null}
-                      </small>
-                    </td>
-                    <td data-label="Pupil" className="pay-who">
-                      <span>
-                        <Link className="pay-name" href={`${ACCOUNTS_BASE}/students/${row.student_id}`}>
-                          {row.students?.full_name ?? "Unknown pupil"}
-                        </Link>
-                        <small>{row.students?.class_code ?? "No class"} · {row.students?.student_number}</small>
-                      </span>
-                    </td>
-                    <td data-label="Method" className="pay-method-cell">
-                      <MethodTag method={row.method} />
-                      {row.reference ? <span className="pay-ref" title={row.reference}>{row.reference}</span> : null}
-                    </td>
-                    <td data-label="Term"><span className="pay-term">{termLabels.get(row.term_id) ?? "–"}</span></td>
-                    <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
-                    <td data-label="Received by" className="pay-by">
-                      {row.source === "online" ? "Online" : row.received_by ? people.get(row.received_by) ?? "Teammate" : "–"}
-                      <small>{row.payer_name ? `From ${row.payer_name}` : dateTime(row.created_at)}</small>
-                    </td>
-                    <td className="ofc-col-go" aria-hidden="true"><i className="fa-solid fa-chevron-right" /></td>
-                  </ClickRow>
-                ))}
+                {rows.map((row) => {
+                  const path = detailHref(row, BASE);
+                  const external = row.detail_kind === "admission";
+                  const net = String(row.network || "").trim();
+                  const netKey = /airtel/i.test(net) ? "airtel" : /mtn/i.test(net) ? "mtn" : "other";
+                  const body = (
+                    <>
+                      <td data-label="Receipt" className="pay-doc">
+                        {external ? (
+                          <a className="pay-no" href={path} target="_blank" rel="noreferrer">{row.receipt_no}</a>
+                        ) : (
+                          <Link className="pay-no" href={path}>{row.receipt_no}</Link>
+                        )}
+                        <small>
+                          {day(row.paid_on)}
+                          {row.voided_at ? <span className="pay-void-tag">Void</span> : null}
+                        </small>
+                      </td>
+                      <td data-label="Who" className="pay-who">
+                        <span>
+                          {row.student_id ? (
+                            <Link className="pay-name" href={`${ACCOUNTS_BASE}/students/${row.student_id}`}>{row.party_name}</Link>
+                          ) : (
+                            <span className="pay-name">{row.party_name}</span>
+                          )}
+                          <small>
+                            {row.subtitle || row.class_code || "—"}
+                            {row.party_ref ? ` · ${row.party_ref}` : ""}
+                          </small>
+                        </span>
+                      </td>
+                      <td data-label="Category">
+                        <span className={`pay-cat is-${row.category}`}>
+                          <i className={`fa-solid ${categoryIcon(row.category)}`} aria-hidden="true" />
+                          {categoryLabel(row.category)}
+                        </span>
+                      </td>
+                      <td data-label="Method" className="pay-method-cell">
+                        {row.method ? <MethodTag method={row.method} /> : null}
+                        {net && !row.method ? (
+                          <span className={`pay-net is-${netKey}`}>
+                            <i className={`fa-solid ${netKey === "airtel" ? "fa-signal" : "fa-mobile-screen"}`} aria-hidden="true" />
+                            {net.replace(/\b\w/g, (ch) => ch.toUpperCase())}
+                          </span>
+                        ) : null}
+                        {row.reference ? <span className="pay-ref" title={row.reference}>{row.reference}</span> : null}
+                      </td>
+                      <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
+                      <td data-label="Source" className="pay-by">
+                        {row.source === "online" ? "Online" : "Desk"}
+                        <small>{row.payer_name ? `From ${row.payer_name}` : dateTime(row.created_at)}</small>
+                      </td>
+                      <td className="ofc-col-go" aria-hidden="true">
+                        <i className={`fa-solid ${external ? "fa-arrow-up-right-from-square" : "fa-chevron-right"}`} />
+                      </td>
+                    </>
+                  );
+                  if (external) {
+                    return (
+                      <tr key={`${row.detail_kind}-${row.entry_id}`} className={row.voided_at ? "is-void" : undefined}>
+                        <td data-label="Receipt" className="pay-doc">
+                          <a className="pay-no" href={path} target="_blank" rel="noreferrer">{row.receipt_no}</a>
+                          <small>{day(row.paid_on)}</small>
+                        </td>
+                        <td data-label="Who" className="pay-who">
+                          <span>
+                            <span className="pay-name">{row.party_name}</span>
+                            <small>{row.subtitle || "Admission"}</small>
+                          </span>
+                        </td>
+                        <td data-label="Category">
+                          <span className={`pay-cat is-${row.category}`}>
+                            <i className={`fa-solid ${categoryIcon(row.category)}`} aria-hidden="true" />
+                            {categoryLabel(row.category)}
+                          </span>
+                        </td>
+                        <td data-label="Method" className="pay-method-cell">
+                          {row.method ? <MethodTag method={row.method} /> : null}
+                          {net ? (
+                            <span className={`pay-net is-${netKey}`}>
+                              <i className={`fa-solid ${netKey === "airtel" ? "fa-signal" : "fa-mobile-screen"}`} aria-hidden="true" />
+                              {net.replace(/\b\w/g, (ch) => ch.toUpperCase())}
+                            </span>
+                          ) : null}
+                        </td>
+                        <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
+                        <td data-label="Source" className="pay-by">
+                          {row.source === "online" ? "Online" : "Desk"}
+                          <small>{row.payer_name ? `From ${row.payer_name}` : dateTime(row.created_at)}</small>
+                        </td>
+                        <td className="ofc-col-go">
+                          <a href={path} target="_blank" rel="noreferrer" title="Open receipt" aria-label="Open receipt">
+                            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+                          </a>
+                        </td>
+                      </tr>
+                    );
+                  }
+                  return (
+                    <ClickRow key={`${row.detail_kind}-${row.entry_id}`} href={path} className={row.voided_at ? "is-void" : undefined}>
+                      {body}
+                    </ClickRow>
+                  );
+                })}
               </tbody>
             </table>
           </div>

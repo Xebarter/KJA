@@ -40,11 +40,13 @@ export type RegisterDeskProps = {
   path: string;
   classCode: string;
   streamValue: string | null;
+  campusValue?: string | null;
   groups: RegisterClass[];
   current: {
     name: string;
     code: string;
     stream: string;
+    campus: string;
     termId: string;
     canMark: boolean;
     pupils: RegisterPupil[];
@@ -87,6 +89,7 @@ export function RegisterDesk({
   path,
   classCode,
   streamValue,
+  campusValue,
   groups,
   current,
   save,
@@ -107,6 +110,7 @@ export function RegisterDesk({
     if (classCode) {
       params.set("class", classCode);
       if (streamValue !== null) params.set("stream", streamValue);
+      if (campusValue) params.set("campus", campusValue);
     }
     router.push(`${path}?${params}`);
   }
@@ -376,6 +380,7 @@ export function RegisterDesk({
                     termId={current.termId}
                     classCode={current.code}
                     stream={current.stream}
+                    campus={current.campus}
                     name={current.name}
                     restoring={current.cancelled}
                   />
@@ -388,6 +393,7 @@ export function RegisterDesk({
               <input type="hidden" name="term_id" value={current.termId} />
               <input type="hidden" name="class_code" value={current.code} />
               <input type="hidden" name="stream" value={current.stream} />
+              <input type="hidden" name="campus" value={current.campus} />
 
               <div className="reg-tools">
                 <div className="reg-tools-row">

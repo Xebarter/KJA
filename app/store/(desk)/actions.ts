@@ -13,6 +13,7 @@ import {
 import { requireStore } from "@/lib/store-access";
 import { STORE_BASE } from "@/lib/store-nav";
 import { refreshStore } from "@/lib/store-refresh";
+import { logStore } from "@/lib/system-logs";
 
 function text(form: FormData, key: string, max = 200) {
   return String(form.get(key) || "")
@@ -44,6 +45,12 @@ export async function saveCategory(formData: FormData) {
     ? await auth.supabase.from("store_categories").update(row).eq("id", id)
     : await auth.supabase.from("store_categories").insert(row);
   if (error) return { error: error.message };
+  await logStore(auth.supabase, auth.user.id, {
+    kind: id ? "edit" : "create",
+    body: id ? `Updated store category “${name}”.` : `Added store category “${name}”.`,
+    entityType: "store_category",
+    entityId: id || null,
+  });
   refreshStore(`${STORE_BASE}/settings`, `${STORE_BASE}/items`);
   return { ok: id ? "Category updated." : "Category added." };
 }
@@ -87,6 +94,12 @@ export async function saveItem(formData: FormData) {
       const stock = await applyStock(auth.supabase, id, delta, "adjust", "store_items", id, "Units present updated");
       if (stock.error) return { error: stock.error };
     }
+    await logStore(auth.supabase, auth.user.id, {
+      kind: "edit",
+      body: `Updated catalogue item “${name}”.`,
+      entityType: "store_item",
+      entityId: id,
+    });
     refreshStore(`${STORE_BASE}/items`, `${STORE_BASE}/stock`, STORE_BASE);
     return { ok: "Item updated.", href: `${STORE_BASE}/items` };
   }
@@ -123,6 +136,12 @@ export async function saveItem(formData: FormData) {
     );
     if (stock.error) return { error: stock.error };
   }
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "create",
+    body: `Added catalogue item “${name}”.`,
+    entityType: "store_item",
+    entityId: created.id,
+  });
   refreshStore(`${STORE_BASE}/items`, `${STORE_BASE}/stock`, STORE_BASE);
   return { ok: "Item added." };
 }
@@ -180,6 +199,12 @@ export async function saveAdjustment(formData: FormData) {
     await auth.supabase.from("store_adjustments").delete().eq("id", adj.id);
     return { error: stock.error };
   }
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "adjust",
+    body: `Adjusted stock (${reason}${notes ? `: ${notes}` : ""}, Δ ${qty_delta}).`,
+    entityType: "store_adjustment",
+    entityId: adj.id,
+  });
   refreshStore(`${STORE_BASE}/adjustments`, `${STORE_BASE}/stock`, `${STORE_BASE}/items`, STORE_BASE);
   return { ok: "Stock adjusted.", href: `${STORE_BASE}/adjustments` };
 }
@@ -260,6 +285,12 @@ export async function createIssue(formData: FormData) {
     }
   }
 
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "issue",
+    body: `Issued ${issue.number} to ${kind} (${lines.length} line${lines.length === 1 ? "" : "s"}).`,
+    entityType: "store_issue",
+    entityId: issue.id,
+  });
   refreshStore(`${STORE_BASE}/issues`, `${STORE_BASE}/stock`, `${STORE_BASE}/items`, STORE_BASE);
   return { ok: `Issued ${issue.number}.`, href: `${STORE_BASE}/issues` };
 }
@@ -287,6 +318,13 @@ export async function voidIssue(formData: FormData) {
   }
   const { error } = await auth.supabase.from("store_issues").update({ voided_at: new Date().toISOString() }).eq("id", id);
   if (error) return { error: error.message };
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "void",
+    body: `Voided store issue ${issue.number}.`,
+    entityType: "store_issue",
+    entityId: id,
+    severity: "sensitive",
+  });
   refreshStore(`${STORE_BASE}/issues`, `${STORE_BASE}/stock`, `${STORE_BASE}/items`, STORE_BASE);
   return { ok: `Voided ${issue.number}.` };
 }
@@ -362,6 +400,12 @@ export async function createPurchase(formData: FormData) {
       .eq("id", line.item_id);
   }
 
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "purchase",
+    body: `Received purchase ${purchase.number} (${lines.length} line${lines.length === 1 ? "" : "s"}).`,
+    entityType: "store_purchase",
+    entityId: purchase.id,
+  });
   refreshStore(`${STORE_BASE}/purchases`, `${STORE_BASE}/stock`, `${STORE_BASE}/items`, `${STORE_BASE}/requisitions`, STORE_BASE);
   return { ok: `Received ${purchase.number}.`, href: `${STORE_BASE}/purchases` };
 }
@@ -556,6 +600,12 @@ export async function updateRequisitionStatus(formData: FormData) {
   if (status === "draft") patch.submitted_at = null;
   const { error } = await auth.supabase.from("store_requisitions").update(patch).eq("id", id);
   if (error) return { error: error.message };
+  await logStore(auth.supabase, auth.user.id, {
+    kind: "status",
+    body: status === "submitted" ? "Submitted a store requisition." : "Returned a store requisition to draft.",
+    entityType: "store_requisition",
+    entityId: id,
+  });
   refreshStore(`${STORE_BASE}/requisitions`, STORE_BASE);
   return {
     ok: status === "submitted" ? "Requisition submitted." : "Returned to draft.",

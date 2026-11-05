@@ -25,6 +25,7 @@ const ADMIN_PLACES: SidebarHit[] = [
   { id: "/admin", href: "/admin", title: "Dashboard", meta: "Admin", icon: "fa-gauge-high" },
   { id: "/admin/applications", href: "/admin/applications", title: "Applications", meta: "Admissions", icon: "fa-file-signature" },
   { id: "/admin/team", href: "/admin/team", title: "Team", meta: "Admin", icon: "fa-user-shield" },
+  { id: "/admin/logs", href: "/admin/logs", title: "Logs", meta: "Admin", icon: "fa-clock-rotate-left" },
   { id: "/admin/students", href: "/admin/students", title: "Students", meta: "Portal", icon: "fa-user-graduate" },
   { id: "/admin/communications", href: "/admin/communications", title: "Communications", meta: "Inbox", icon: "fa-comments" },
   { id: "/admin/inbox/enquiries", href: "/admin/inbox/enquiries", title: "Enquiries", meta: "Inbox", icon: "fa-envelope" },
@@ -122,6 +123,7 @@ export function AdminShell({
   const officeHrefs = new Set(officeNav.map((item) => item.href));
   function allowed(href: string) {
     if (href === "/admin/team" || href.startsWith("/admin/team/")) return fullAdmin;
+    if (href === "/admin/logs" || href.startsWith("/admin/logs/")) return fullAdmin;
     if (pages === null) return true;
     const id = pageIdForPath("admin", href);
     return Boolean(id && pages.includes(id));
@@ -137,6 +139,7 @@ export function AdminShell({
     { href: "/admin", label: "Dashboard" },
     { href: "/admin/applications", label: "Applications" },
     { href: "/admin/team", label: "Team" },
+    { href: "/admin/logs", label: "Logs" },
     { href: "/admin/students", label: "Students" },
     { href: "/admin/communications", label: "Communications" },
     { href: "/admin/inbox/enquiries", label: "Enquiries" },
@@ -152,7 +155,7 @@ export function AdminShell({
   return (
     <div className={`admin-shell${open ? " is-nav-open" : ""}`}>
       <DesktopChrome desk="Admin" />
-      <DeskWarmup hrefs={sections.map((section) => section.href)} />
+      <DeskWarmup eager hrefs={sections.map((section) => section.href)} />
       <header className="admin-topbar">
         <Link href={home} prefetch={false} className="admin-topbar-brand">
           <Seal />
@@ -202,6 +205,7 @@ export function AdminShell({
           <hr className="admin-nav-rule" />
           {allowed("/admin/applications") ? <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink> : null}
           {fullAdmin ? <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink> : null}
+          {fullAdmin ? <NavLink href="/admin/logs" icon="fa-clock-rotate-left">Logs</NavLink> : null}
           {allowed("/admin/students") ? <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink> : null}
           {allowed("/admin/communications") ? <NavLink href="/admin/communications" icon="fa-comments" badge={unreadCommunications}>Communications</NavLink> : null}
           {allowed("/admin/inbox/enquiries") ? <NavLink href="/admin/inbox/enquiries" icon="fa-envelope" badge={unreadEnquiries}>Enquiries</NavLink> : null}

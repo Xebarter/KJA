@@ -348,8 +348,16 @@ function headerEscape(value: string) {
 
 export function marksWorkbookFilename(name: string, labels: string[]) {
   const scope = labels.length === 1 ? labels[0] : `${labels.length} classes`;
-  const raw = `KJA marks - ${name} - ${scope}`.replace(/[<>:"/\\|?*\u0000-\u001f]/g, "").replace(/\s+/g, " ").trim();
-  return `${raw.slice(0, 140)}.xlsx`;
+  // Keep the download name ASCII-safe so Content-Disposition never trips Undici
+  // ByteString checks on Desktop/Next (en-dashes and smart punctuation are common).
+  const raw = `KJA marks - ${name} - ${scope}`
+    .normalize("NFC")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .replace(/[^\x20-\x7E]+/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/-+/g, "-")
+    .trim();
+  return `${(raw || "KJA marks").slice(0, 140)}.xlsx`;
 }
 
 function groupPapers(input: MarksBookInput) {

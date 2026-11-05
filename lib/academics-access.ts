@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isAcademicsRole } from "@/lib/academics-nav";
+import { loadCampusScope } from "@/lib/campus-access";
+import type { CampusId } from "@/lib/campuses";
 import { hasDashboard, loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
 import { remember } from "@/lib/remember";
@@ -69,8 +71,11 @@ export async function requireAcademics(...pages: string[]) {
   const email = access.profile.email || authEmail || "";
   const user = { id: userId, email };
   const profile = { ...access.profile, email: email || access.profile.email };
-  if (access.office) return { supabase, user, profile, office: true as const, staffId: null as string | null };
-  return { supabase, user, profile, office: false as const, staffId: access.staffId };
+  const campuses: CampusId[] = access.office
+    ? await loadCampusScope(supabase, userId, access.profile.role, "academics")
+    : [];
+  if (access.office) return { supabase, user, profile, office: true as const, staffId: null as string | null, campuses };
+  return { supabase, user, profile, office: false as const, staffId: access.staffId, campuses };
 }
 
 export async function openAcademics(page?: string): Promise<

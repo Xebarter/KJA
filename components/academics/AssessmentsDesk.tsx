@@ -3,7 +3,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { deleteAssessmentSet, setAssessmentShare } from "@/app/academics_office/(desk)/actions";
-import { MARKS_SHEET_EVENT } from "@/components/academics/UploadMarks";
+import { MARKS_SHEET_EVENT, marksSittingKey } from "@/components/academics/UploadMarks";
 import { DeskForm } from "@/components/academics/Form";
 import { marksheetHref } from "@/lib/marksheet";
 
@@ -68,7 +68,7 @@ function groupSittings(papers: PaperCard[]) {
   const sittings: Sitting[] = [];
   const byKey = new Map<string, Sitting>();
   for (const paper of papers) {
-    const key = `${paper.name}\u0000${paper.kindLabel}\u0000${paper.heldOn}`;
+    const key = marksSittingKey(paper.name, paper.kindLabel, paper.heldOn);
     let sitting = byKey.get(key);
     if (!sitting) {
       sitting = { key, name: paper.name, kindLabel: paper.kindLabel, heldOn: paper.heldOn, papers: [], classes: [] };

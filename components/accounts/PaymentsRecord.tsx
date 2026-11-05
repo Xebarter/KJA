@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { PaymentForm } from "@/components/accounts/PaymentForm";
+import { MultiKindPaymentForm } from "@/components/accounts/MultiKindPaymentForm";
 import type { PupilHit } from "@/app/accounts/(desk)/payments/actions";
 import { ACCOUNTS_BASE } from "@/lib/accounts-format";
 
@@ -25,6 +25,7 @@ function clearRecordHref(base: string, current: URLSearchParams) {
   params.delete("student");
   params.delete("family");
   params.delete("term");
+  params.delete("kind");
   const query = params.toString();
   return query ? `${base}?${query}` : base;
 }
@@ -58,18 +59,21 @@ export function PaymentsRecordPanel({
   pupil = null,
   familyId = "",
   mode = "pupil",
+  initialKind = "",
 }: {
   terms: { id: string; label: string }[];
   termId: string;
   pupil?: PupilHit | null;
   familyId?: string;
   mode?: Mode;
+  initialKind?: string;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const open = searchParams.get("record") === "1" || Boolean(pupil) || Boolean(familyId);
   const [mounted, setMounted] = useState(false);
+  const kind = initialKind || searchParams.get("kind") || "";
 
   useEffect(() => {
     if (open) setMounted(true);
@@ -85,29 +89,32 @@ export function PaymentsRecordPanel({
   return (
     <section className="pay-record-panel admin-card is-open" aria-label="Record a payment">
       <header className="pay-record-head">
-        <div>
-          <p className="pay-record-kicker">Payments</p>
+        <div className="pay-record-copy">
+          <p className="pay-record-kicker">
+            <i className="fa-solid fa-pen-to-square" aria-hidden="true" /> New receipt
+          </p>
           <h2>Record a payment</h2>
-          <p>For one pupil, or for a whole family. Family amounts can be shared automatically or divided by hand.</p>
+          <p>Choose the type, fill in the details, and save. Every receipt lands in the register below.</p>
         </div>
-        <button type="button" className="admin-btn admin-btn-ghost" onClick={close}>
+        <button type="button" className="aov-btn pay-record-close" onClick={close}>
           <i className="fa-solid fa-xmark" aria-hidden="true" /> Close
         </button>
       </header>
-      {terms.length ? (
-        <PaymentForm
-          key={`${pupil?.student_id || "none"}-${familyId || "none"}-${mode}-${termId}`}
+      {terms.length || kind !== "fees" ? (
+        <MultiKindPaymentForm
+          key={`${pupil?.student_id || "none"}-${familyId || "none"}-${mode}-${termId}-${kind}`}
           terms={terms}
           termId={termId}
           pupil={pupil}
           familyId={familyId}
           mode={mode}
+          initialKind={kind}
           onDone={close}
         />
       ) : (
         <div className="acc-banner is-warn">
           <i className="fa-solid fa-calendar-plus" aria-hidden="true" />
-          <p>Add a term in Fee setup before recording payments.</p>
+          <p>Add a term in Fee setup before recording school-fee payments.</p>
         </div>
       )}
     </section>

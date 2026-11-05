@@ -60,7 +60,7 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   if (!supabaseConfigured()) return notReady("Debtors", { kind: "config" });
   const auth = await requireAccounts();
   if ("error" in auth) return notReady("Debtors", { kind: "auth", message: auth.error });
-  const { supabase } = auth;
+  const { supabase, campuses: allowedCampuses } = auth;
   const filters = parseDebtorFilters(await searchParams);
   const state = filterState(filters);
   const href = (changes: Record<string, string | number | null>) => hrefWith(BASE, state, changes);
@@ -72,7 +72,7 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   let everyone: { balance: number; oldest_due: string | null; family_id: string | null }[];
   if (!filters.q) {
     try {
-      book = await loadFeeBook(supabase);
+      book = await loadFeeBook(supabase, allowedCampuses);
     } catch (error) {
       return notReady("Debtors", { kind: "schema", message: error instanceof Error ? error.message : "Couldn't load balances." });
     }
@@ -92,7 +92,7 @@ export default async function DebtorsPage({ searchParams }: { searchParams: Prom
   }
   const owed = everyone.reduce((sum, row) => sum + Number(row.balance), 0);
   const familyCount = new Set(everyone.map((row) => row.family_id ?? "")).size;
-  const campuses = await loadCampuses(supabase);
+  const campuses = await loadCampuses(supabase, allowedCampuses);
   const narrowed = Boolean(filters.q || filters.class || filters.campus || filters.aging || filters.min || filters.pupils);
 
   const tiles = (

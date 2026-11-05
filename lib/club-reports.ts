@@ -1,18 +1,19 @@
 /*
- * Club income for Kitante and Najjanankumbi. Other campuses are left out.
+ * Club income at Kitante and Najjanankumbi only.
  * A receipt keeps the amount that was paid. An open consent with no receipt
  * is expected at the current catalogue fee.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { kampalaToday, methodInfo, percent, ugx, type Term } from "@/lib/accounts-format";
+import { CLUB_CAMPUSES, type ClubCampusId } from "@/lib/campuses";
 import { CLUB_CATEGORIES } from "@/lib/clubs";
 import { SCHOOL_CLASSES } from "@/lib/students";
 
-export const CLUB_BRANCHES = ["Kitante", "Najjanankumbi"] as const;
-export type ClubBranch = (typeof CLUB_BRANCHES)[number];
+export const CLUB_BRANCHES = CLUB_CAMPUSES;
+export type ClubBranch = ClubCampusId;
 
 export const CLUB_REPORT_BASIS =
-  "Expected income is the current catalogue fee for each consent that was open during the term, for pupils at Kitante and Najjanankumbi. When a receipt exists, that consent is counted at the amount on the receipt, even if the fee changed later. Pupils at other campuses are not included.";
+  "Expected income is the current catalogue fee for each consent that was open during the term, for pupils at Kitante and Najjanankumbi. Makindye and Bunga do not run clubs and are not counted. When a receipt exists, that consent is counted at the amount on the receipt, even if the fee changed later.";
 
 export type ClubFigure = {
   key: string;
@@ -29,6 +30,8 @@ export type ClubFigure = {
 export type TermFigure = ClubFigure & {
   isCurrent: boolean;
   chart: string;
+  byCampus: Record<ClubBranch, number>;
+  /** @deprecated Prefer byCampus — kept for charts/PDF that still plot two series. */
   kitante: number;
   najja: number;
 };
@@ -38,6 +41,7 @@ export type MonthFigure = {
   label: string;
   sub: string;
   total: number;
+  byCampus: Record<ClubBranch, number>;
   kitante: number;
   najja: number;
 };
@@ -54,6 +58,7 @@ export type ClubReport = {
   clubs: ClubFigure[];
   categories: ClubFigure[];
   sections: ClubFigure[];
+  classes: ClubFigure[];
   methods: MethodFigure[];
   terms: TermFigure[];
   months: MonthFigure[];
@@ -67,11 +72,17 @@ type PaymentRow = { student_id: string; club_id: string; term_id: string; amount
 type ClubRow = { id: string; title: string; category: string | null; fee_amount: number | null; sort_order: number | null };
 type PupilRow = { campus: string | null; class_code: string | null };
 
+function emptyCampusMoney(): Record<ClubBranch, number> {
+  return Object.fromEntries(CLUB_BRANCHES.map((branch) => [branch, 0])) as Record<ClubBranch, number>;
+}
+
 export function clubBranch(campus: string | null | undefined): ClubBranch | null {
   const value = String(campus ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  if (!value) return null;
+  // Blank / unset campus: count with Kitante (same default as operationalCampus elsewhere).
+  if (!value) return "Kitante";
   if (value.includes("najjanankumbi") || value === "najja" || value.startsWith("najja")) return "Najjanankumbi";
   if (value.includes("kitante")) return "Kitante";
+  // Makindye and Bunga do not run clubs — exclude from club tallies.
   return null;
 }
 
@@ -158,22 +169,20 @@ function chartTerm(term: Term) {
 
 function insights(report: Omit<ClubReport, "insights">): string[] {
   const lines: string[] = [];
-  const [kitante, najja] = report.campuses;
-  if (kitante && najja) {
-    if (kitante.collected === najja.collected) {
-      lines.push("Kitante and Najjanankumbi have collected the same amount this term.");
+  const ranked = [...report.campuses].sort((a, b) => b.collected - a.collected);
+  const [lead, second] = ranked;
+  if (lead && second && lead.collected + second.collected > 0) {
+    if (lead.collected === second.collected) {
+      lines.push(`${lead.label} and ${second.label} have collected the same amount this term.`);
     } else {
-      const lead = kitante.collected > najja.collected ? kitante : najja;
-      const other = lead === kitante ? najja : kitante;
-      lines.push(`${lead.label} has collected ${ugx(lead.collected - other.collected)} more than ${other.label}.`);
+      lines.push(`${lead.label} has collected ${ugx(lead.collected - second.collected)} more than ${second.label}.`);
     }
-    if (kitante.rate !== najja.rate && (kitante.expected > 0 || najja.expected > 0)) {
-      const lead = kitante.rate >= najja.rate ? kitante : najja;
-      lines.push(`${lead.label} is collecting a higher share of what was expected, at ${lead.rate}%.`);
+    if (lead.rate !== second.rate && (lead.expected > 0 || second.expected > 0)) {
+      const better = lead.rate >= second.rate ? lead : second;
+      lines.push(`${better.label} is collecting a higher share of what was expected, at ${better.rate}%.`);
     }
-    const whole = kitante.collected + najja.collected;
+    const whole = report.campuses.reduce((sum, row) => sum + row.collected, 0);
     if (whole > 0) {
-      const lead = kitante.collected >= najja.collected ? kitante : najja;
       lines.push(`${lead.label} accounts for ${percent(lead.collected, whole)}% of club income collected this term.`);
     }
   }
@@ -189,8 +198,16 @@ function insights(report: Omit<ClubReport, "insights">): string[] {
     else if (diff > 0) lines.push(`Collections are ${ugx(diff)} ahead of ${previous.label}.`);
     else lines.push(`Collections are ${ugx(-diff)} behind ${previous.label}.`);
   }
+  if (report.methods[0] && report.summary.collected > 0) {
+    lines.push(`${report.methods[0].label} is the leading payment method at ${report.methods[0].share}% of receipts.`);
+  }
+  if (report.online || report.desk) {
+    const channel = report.online >= report.desk ? "online" : "at the desk";
+    const amount = report.online >= report.desk ? report.online : report.desk;
+    lines.push(`${ugx(amount)} was paid ${channel} this term.`);
+  }
   if (report.summary.consents > 0 && report.summary.due === 0) lines.push("Every consent counted for this term has been paid.");
-  return lines.slice(0, 5);
+  return lines.slice(0, 6);
 }
 
 export function assembleClubReport(input: {
@@ -211,13 +228,18 @@ export function assembleClubReport(input: {
 
   const branchOf = (studentId: string) => clubBranch(input.students.get(studentId)?.campus);
 
-  const termTallies = new Map<string, { all: Tally; kitante: Tally; najja: Tally }>();
+  type TermBucket = { all: Tally; byCampus: Record<ClubBranch, Tally> };
+  const termTallies = new Map<string, TermBucket>();
   for (const term of chronological) {
-    termTallies.set(term.id, { all: new Tally(), kitante: new Tally(), najja: new Tally() });
+    termTallies.set(term.id, {
+      all: new Tally(),
+      byCampus: Object.fromEntries(CLUB_BRANCHES.map((branch) => [branch, new Tally()])) as Record<ClubBranch, Tally>,
+    });
   }
   const selectedClubs = new Map<string, Tally>();
   const selectedCategories = new Map<string, Tally>();
   const selectedSections = new Map<string, Tally>();
+  const selectedClasses = new Map<string, Tally>();
   const selectedCampuses = new Map<ClubBranch, Tally>(CLUB_BRANCHES.map((branch) => [branch, new Tally()]));
   const selectedAll = new Tally();
   const counted = new Set<string>();
@@ -228,7 +250,7 @@ export function assembleClubReport(input: {
     const bucket = termTallies.get(term.id);
     if (!bucket) return;
     bucket.all.add(studentId, expected, collected);
-    bucket[branch === "Kitante" ? "kitante" : "najja"].add(studentId, expected, collected);
+    bucket.byCampus[branch].add(studentId, expected, collected);
     if (!selected || term.id !== selected.id) return;
     selectedAll.add(studentId, expected, collected);
     selectedCampuses.get(branch)?.add(studentId, expected, collected);
@@ -240,10 +262,15 @@ export function assembleClubReport(input: {
     const categoryTally = selectedCategories.get(category) ?? new Tally();
     categoryTally.add(studentId, expected, collected);
     selectedCategories.set(category, categoryTally);
-    const level = pupilLevel(input.students.get(studentId)?.class_code ?? null);
+    const pupil = input.students.get(studentId);
+    const level = pupilLevel(pupil?.class_code ?? null);
     const sectionTally = selectedSections.get(level) ?? new Tally();
     sectionTally.add(studentId, expected, collected);
     selectedSections.set(level, sectionTally);
+    const classCode = String(pupil?.class_code || "").trim() || "unset";
+    const classTally = selectedClasses.get(classCode) ?? new Tally();
+    classTally.add(studentId, expected, collected);
+    selectedClasses.set(classCode, classTally);
   };
 
   for (const term of chronological) {
@@ -280,6 +307,18 @@ export function assembleClubReport(input: {
   const sections = ["Nursery", "Primary", "Class not set"]
     .filter((level) => selectedSections.has(level))
     .map((level) => selectedSections.get(level)!.freeze(level, level));
+  const classOrder = new Map<string, number>(SCHOOL_CLASSES.map((entry, index) => [entry.code, index]));
+  const classes = [...selectedClasses.entries()]
+    .map(([code, tally]) => {
+      const label = SCHOOL_CLASSES.find((entry) => entry.code === code)?.name || (code === "unset" ? "Class not set" : code);
+      return tally.freeze(code, label);
+    })
+    .sort(
+      (a, b) =>
+        (classOrder.get(a.key) ?? 999) - (classOrder.get(b.key) ?? 999) ||
+        b.collected - a.collected ||
+        a.label.localeCompare(b.label),
+    );
 
   const methodTotals = new Map<string, { count: number; total: number }>();
   let online = 0;
@@ -303,30 +342,40 @@ export function assembleClubReport(input: {
 
   const terms: TermFigure[] = chronological.map((term) => {
     const bucket = termTallies.get(term.id)!;
+    const byCampus = emptyCampusMoney();
+    for (const branch of CLUB_BRANCHES) byCampus[branch] = bucket.byCampus[branch].collected;
     return {
       ...bucket.all.freeze(term.id, term.label),
       isCurrent: Boolean(term.is_current),
       chart: chartTerm(term),
-      kitante: bucket.kitante.collected,
-      najja: bucket.najja.collected,
+      byCampus,
+      kitante: byCampus.Kitante,
+      najja: byCampus.Najjanankumbi,
     };
   });
 
   const spanYears = new Set(monthKeys(12, today).map((key) => key.slice(0, 4))).size > 1;
-  const monthMap = new Map(monthKeys(12, today).map((key) => [key, { total: 0, kitante: 0, najja: 0 }]));
+  const monthMap = new Map(monthKeys(12, today).map((key) => [key, { total: 0, byCampus: emptyCampusMoney() }]));
   for (const payment of input.payments) {
     const branch = branchOf(payment.student_id);
     const key = dayOf(payment.paid_on).slice(0, 7);
     const slot = branch ? monthMap.get(key) : undefined;
-    if (!slot) continue;
+    if (!slot || !branch) continue;
     const amount = Number(payment.amount) || 0;
     slot.total += amount;
-    if (branch === "Kitante") slot.kitante += amount;
-    else slot.najja += amount;
+    slot.byCampus[branch] += amount;
   }
   const months: MonthFigure[] = [...monthMap.entries()].map(([key, row]) => {
     const parts = monthParts(key);
-    return { key, label: parts.label, sub: spanYears ? parts.sub : "", total: row.total, kitante: row.kitante, najja: row.najja };
+    return {
+      key,
+      label: parts.label,
+      sub: spanYears ? parts.sub : "",
+      total: row.total,
+      byCampus: row.byCampus,
+      kitante: row.byCampus.Kitante,
+      najja: row.byCampus.Najjanankumbi,
+    };
   });
 
   const base = {
@@ -339,6 +388,7 @@ export function assembleClubReport(input: {
     clubs,
     categories,
     sections,
+    classes,
     methods,
     terms,
     months,

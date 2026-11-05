@@ -5,7 +5,7 @@ import { ProfileTabs, TabLink, TabNav, TabPanel } from "@/components/office/Prof
 import { StudentForm } from "@/components/office/StudentForm";
 import { ChangeFamily, DeleteStudentNote, StudentNoteForm, StudentStatusActions } from "@/components/office/StudentProfile";
 import { StudentLoginPanel } from "@/components/office/StudentLoginPanel";
-import { Card, Detail, MigrationHint, OfficeNotice, Sex, StudentStatus } from "@/components/office/ui";
+import { Card, Detail, LoadErrorNotice, OfficeNotice, Sex, StudentStatus } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { formatDate, formatDateTime, initials, statusInfo, timeAgo, whatsappLink } from "@/lib/applications";
 import { requireOffice } from "@/lib/office";
@@ -93,7 +93,7 @@ export default async function StudentPage({
   ]);
   if ("error" in auth) return <OfficeNotice title="Student" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   const { user } = auth;
-  if (error) return <OfficeNotice title="Student" heading="This student could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
+  if (error) return <LoadErrorNotice title="Student" message={error.message} fallbackHeading="This student could not be loaded" />;
   if (!data) notFound();
 
   const { family: familyRow, ...studentRow } = data as Student & { profile_id?: string | null; family: FamilyRow | null };

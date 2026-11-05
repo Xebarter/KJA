@@ -1,5 +1,13 @@
 import type { SheetActivity, SheetCard } from "@/components/academics/ReportSheet";
-import { classLabel, classSection, num, scaleBands, type ReportSet } from "@/lib/academics";
+import {
+  classLabel,
+  classSection,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
+  num,
+  scaleBands,
+  type ReportSet,
+} from "@/lib/academics";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
 import {
   activeAwards,
@@ -236,6 +244,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
   if (!card) return null;
 
   const nursery = classSection(card.class_code) === "nursery";
+  const markSection = gradeBandSection(card.class_code);
   const termMeta = asTerm(card.fee_terms as FeeTerm | FeeTerm[] | null);
   const termLabel = termMeta?.label || "Term";
   const termId = String(card.term_id);
@@ -264,8 +273,8 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
       : Promise.resolve(new Map<string, string>()),
     supabase
       .from("grade_bands")
-      .select("label, min_score, max_score, sort_order")
-      .eq("section", nursery ? "nursery" : "primary")
+      .select("label, min_score, max_score, sort_order, section")
+      .in("section", gradeBandSectionsToLoad(card.class_code))
       .order("sort_order"),
     supabase
       .from("report_card_activities")
@@ -404,7 +413,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         parts: parts.get(`${id}:${line.subject_id}`) ?? [],
       }))
       .sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
-    scale: scaleBands(nursery ? "nursery" : "primary", card.grade_rules, bands.error ? null : bands.data),
+    scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
   };
 
   const closing = await loadReportClosing(supabase, {

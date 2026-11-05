@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintButton } from "@/components/academics/Form";
 import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet";
-import { classSection, num, scaleBands } from "@/lib/academics";
+import { classSection, gradeBandSection, gradeBandSectionsToLoad, num, scaleBands } from "@/lib/academics";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
 import { loadReportClosing } from "@/lib/report-closing";
 import { getSessionUser } from "@/lib/portal";
@@ -29,6 +29,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
   );
   if (!allowed.has(card.student_id)) notFound();
   const nursery = classSection(card.class_code) === "nursery";
+  const markSection = gradeBandSection(card.class_code);
   const [{ data: pupilRow, error: pupilError }, { data: lines }, parts, initials, bands, { data: activityRows }] = await Promise.all([
     supabase.from("students").select("full_name, student_number, photo_path, campus").eq("id", card.student_id).maybeSingle(),
     supabase.from("report_lines").select("*").eq("report_card_id", id),
@@ -36,7 +37,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     card.class_code
       ? loadSubjectInitials(supabase, { termId: card.term_id, classCode: card.class_code, stream: card.stream || "" })
       : Promise.resolve(new Map<string, string>()),
-    supabase.from("grade_bands").select("label, min_score, max_score, sort_order").eq("section", nursery ? "nursery" : "primary").order("sort_order"),
+    supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
     supabase.from("report_card_activities").select("slot, activity_name, level, comment").eq("report_card_id", id).order("slot"),
   ]);
   let pupil = pupilRow;
@@ -89,7 +90,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
       teacher_initials: initials.get(String(line.subject_id)) || null,
       parts: parts.get(`${id}:${line.subject_id}`) ?? [],
     })).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
-    scale: scaleBands(nursery ? "nursery" : "primary", card.grade_rules, bands.error ? null : bands.data),
+    scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
   };
   const closing = await loadReportClosing(supabase, { termId: card.term_id, classCode: card.class_code, campus: pupil.campus });
   sheet.fees = closing.fees;

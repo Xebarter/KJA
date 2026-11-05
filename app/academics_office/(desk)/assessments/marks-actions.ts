@@ -92,7 +92,7 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
 
   const nursery = papers.some((paper) => classSection(paper.class_code) === "nursery");
   const [roll, bandsQuery] = await Promise.all([
-    loadRoll(auth.supabase, auth.user.id),
+    loadRoll(auth.supabase, auth.user.id, undefined, auth.office ? auth.campuses : undefined),
     nursery
       ? auth.supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order")
       : Promise.resolve({ data: [], error: null }),

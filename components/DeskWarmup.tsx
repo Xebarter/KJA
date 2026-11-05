@@ -23,9 +23,10 @@ export function DeskWarmup({ hrefs, eager = false }: { hrefs: string[]; eager?: 
     let cancelled = false;
     let idleId = 0;
     let gapTimer = 0;
-    const gapMs = eager ? 90 : 350;
-    const idleTimeoutMs = eager ? 900 : 5_000;
-    const fallbackDelayMs = eager ? 350 : 1_800;
+    // Warm every desk nav promptly so SQLite fills while online.
+    const gapMs = eager ? 80 : 180;
+    const idleTimeoutMs = eager ? 700 : 2_000;
+    const fallbackDelayMs = eager ? 250 : 700;
 
     const prefetchOne = (href: string) =>
       new Promise<void>((resolve) => {

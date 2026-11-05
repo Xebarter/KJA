@@ -8,6 +8,13 @@ import { filenameFromDisposition, saveClientDownload } from "@/lib/client-downlo
 
 export const MARKS_SHEET_EVENT = "kja-marks-sheet";
 
+/** Assessment identity for <select> values and board → sheet events.
+ *  Must not use U+0000 — HTML option values truncate at null bytes, which
+ *  made the Marks workbook Assessment dropdown unable to change sitting. */
+export function marksSittingKey(name: string, kindLabel: string, heldOn: string) {
+  return `${name}\u001f${kindLabel}\u001f${heldOn}`;
+}
+
 type Paper = {
   id: string;
   name: string;
@@ -46,7 +53,7 @@ type ClassGroup = {
 const nf = (value: number) => value.toLocaleString("en-GB");
 
 function sittingKey(paper: Paper) {
-  return `${paper.name}\u0000${paper.kindLabel}\u0000${paper.heldOn}`;
+  return marksSittingKey(paper.name, paper.kindLabel, paper.heldOn);
 }
 
 function groupSittings(papers: Paper[]) {
@@ -287,15 +294,41 @@ export function UploadMarks({
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ papers: chosen.map((paper) => paper.id) }),
       });
+      const type = (response.headers.get("content-type") || "").toLowerCase();
       if (!response.ok) {
         setError(errorMessage(await response.text()));
         return;
       }
+      // Login redirects and Next HTML 500s must not be saved as .xlsx.
+      if (type.includes("text/html")) {
+        setError(errorMessage(await response.text()));
+        return;
+      }
+      if (type.includes("text/plain") && !type.includes("sheet")) {
+        setError(errorMessage(await response.text()));
+        return;
+      }
       const blob = await response.blob();
+      if (!blob.size) {
+        setError("The workbook came back empty. Try again.");
+        return;
+      }
+      if ((blob.type || "").includes("text/html")) {
+        setError("Your session may have expired. Sign in again, then download the workbook.");
+        return;
+      }
       const filename = filenameFromDisposition(response.headers.get("content-disposition"), "KJA marks.xlsx");
-      await saveClientDownload(blob, filename);
-    } catch {
-      setError("The workbook could not be downloaded. Try again.");
+      const outcome = await saveClientDownload(blob, filename);
+      if (outcome === "canceled") {
+        setOk("Save cancelled — choose Download workbook again when you want the file.");
+        return;
+      }
+      setOk(`Workbook saved as ${filename}.`);
+    } catch (err) {
+      const message = err instanceof Error && err.message ? err.message : "";
+      setError(message && !/^<!DOCTYPE html|<html[\s>]/i.test(message)
+        ? message
+        : "The workbook could not be downloaded. Try again.");
     } finally {
       setBusy("");
     }

@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { OfflineNeed } from "@/components/desk/OfflineNeed";
+import { isOfflineError } from "@/lib/offline";
 import { studentStatusInfo } from "@/lib/students";
 
 export function StudentStatus({ status }: { status: string | null | undefined }) {
@@ -42,6 +44,25 @@ export function MigrationHint({ message }: { message: string }) {
         the Supabase SQL editor.
       </p>
     </>
+  );
+}
+
+/** Full-page load failure — premium offline cut popup when the proxy has no snapshot. */
+export function LoadErrorNotice({ title, message, fallbackHeading }: { title: string; message: string; fallbackHeading: string }) {
+  if (isOfflineError(message)) {
+    return (
+      <OfflineNeed
+        title={title}
+        kicker="Admissions office"
+        icon="fa-building-user"
+        description="Kampala Junior Academy admissions and student register."
+      />
+    );
+  }
+  return (
+    <OfficeNotice title={title} icon="fa-plug-circle-exclamation" heading={fallbackHeading}>
+      <MigrationHint message={message} />
+    </OfficeNotice>
   );
 }
 

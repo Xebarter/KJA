@@ -4,10 +4,11 @@ import { ACADEMICS_BASE, academicsNav } from "@/lib/academics-nav";
 import { ACCOUNTS_BASE, accountsNav } from "@/lib/accounts-nav";
 import { LIBRARY_BASE, libraryNav } from "@/lib/library-nav";
 import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
+import { CLUBS_BASE, clubsNav } from "@/lib/clubs-nav";
 import { STORE_BASE, storeNav } from "@/lib/store-nav";
 import { safeNext } from "@/lib/safe-next";
 
-export const DASHBOARDS = ["admin", "admissions", "accounts", "academics", "library", "store"] as const;
+export const DASHBOARDS = ["admin", "admissions", "accounts", "academics", "library", "store", "clubs"] as const;
 export type DashboardId = (typeof DASHBOARDS)[number];
 
 export type Grant = { dashboard: DashboardId; pages: string[] };
@@ -58,6 +59,12 @@ export const DASHBOARD_META: Record<DashboardId, { label: string; description: s
     description: "Catalogue, stock, issues, suppliers, and requisitions.",
     href: STORE_BASE,
     icon: "fa-store",
+  },
+  clubs: {
+    label: "Clubs",
+    description: "Club catalogue, consents, timetable, attendance, and club reports.",
+    href: CLUBS_BASE,
+    icon: "fa-puzzle-piece",
   },
 };
 
@@ -141,6 +148,12 @@ export const DASHBOARD_PAGES: Record<DashboardId, DashboardPage[]> = {
   academics: navPages(ACADEMICS_BASE, academicsNav, { classes: [`${ACADEMICS_BASE}/students`] }),
   library: navPages(LIBRARY_BASE, libraryNav),
   store: navPages(STORE_BASE, storeNav),
+  clubs: navPages(CLUBS_BASE, clubsNav, {
+    catalogue: [`${CLUBS_BASE}/catalogue`],
+    register: [`${CLUBS_BASE}/register`],
+    timetable: [`${CLUBS_BASE}/sessions`],
+    reports: [`${CLUBS_BASE}/reports`, `${CLUBS_BASE}/roll`],
+  }),
 };
 
 export function isDashboardId(value: string): value is DashboardId {
@@ -160,7 +173,14 @@ export function visibleContentKeys(pages: string[] | null) {
 
 export function legacyGrants(role: string | null | undefined): Grant[] {
   if (role === "admin") return DASHBOARDS.map((dashboard) => ({ dashboard, pages: [] }));
-  if (role === "admissions" || role === "accounts" || role === "academics" || role === "library" || role === "store") {
+  if (
+    role === "admissions" ||
+    role === "accounts" ||
+    role === "academics" ||
+    role === "library" ||
+    role === "store" ||
+    role === "clubs"
+  ) {
     return [{ dashboard: role, pages: [] }];
   }
   return [];
@@ -170,7 +190,9 @@ export function isFullAdmin(grants: Grant[]) {
   return DASHBOARDS.every((dashboard) => grants.some((grant) => grant.dashboard === dashboard && grant.pages.length === 0));
 }
 
-export function roleForGrants(grants: Grant[]): "admin" | "admissions" | "accounts" | "academics" | "library" | "store" | "officer" {
+export function roleForGrants(
+  grants: Grant[],
+): "admin" | "admissions" | "accounts" | "academics" | "library" | "store" | "clubs" | "officer" {
   if (isFullAdmin(grants)) return "admin";
   const ids = [...new Set(grants.map((grant) => grant.dashboard))];
   if (ids.length === 1 && ids[0] !== "admin") return ids[0];
@@ -197,6 +219,7 @@ export function dashboardForPath(pathname: string): DashboardId | null {
   if (path === ACADEMICS_BASE || path.startsWith(`${ACADEMICS_BASE}/`)) return "academics";
   if (path === LIBRARY_BASE || path.startsWith(`${LIBRARY_BASE}/`)) return "library";
   if (path === STORE_BASE || path.startsWith(`${STORE_BASE}/`)) return "store";
+  if (path === CLUBS_BASE || path.startsWith(`${CLUBS_BASE}/`)) return "clubs";
   return null;
 }
 
@@ -216,6 +239,7 @@ export function pageIdForPath(dashboard: DashboardId, pathname: string) {
 export function pathAllowed(grants: Grant[], dashboard: DashboardId, pathname: string) {
   const path = pathname.split("?")[0];
   if (dashboard === "admin" && (path === "/admin/team" || path.startsWith("/admin/team/"))) return isFullAdmin(grants);
+  if (dashboard === "admin" && (path === "/admin/logs" || path.startsWith("/admin/logs/"))) return isFullAdmin(grants);
   if (path.includes("/api/")) return hasDashboard(grants, dashboard);
   const grant = grants.find((row) => row.dashboard === dashboard);
   if (!grant) return false;
@@ -293,6 +317,8 @@ export async function loadGrants(supabase: SupabaseClient, userId: string, role:
                 if (id === "messages") return "enquiries";
                 // Library Catalogue + Stock merged into Books.
                 if (id === "catalogue" || id === "stock") return "books";
+                // Clubs Sessions renamed to TimeTable.
+                if (dashboard === "clubs" && id === "sessions") return "timetable";
                 return id;
               })
               .filter(Boolean),
@@ -311,6 +337,7 @@ const PAGE_IDS: Record<DashboardId, Set<string>> = {
   academics: new Set(DASHBOARD_PAGES.academics.map((page) => page.id)),
   library: new Set(DASHBOARD_PAGES.library.map((page) => page.id)),
   store: new Set(DASHBOARD_PAGES.store.map((page) => page.id)),
+  clubs: new Set(DASHBOARD_PAGES.clubs.map((page) => page.id)),
 };
 
 /** Form fields: `full=1`, or `grant=accounts:*` / `grant=accounts:invoices`. */

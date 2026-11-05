@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StudentFinder, StudentTable, type RegisterRow } from "@/components/office/StudentRegister";
-import { Empty, MigrationHint, OfficeNotice, Pager } from "@/components/office/ui";
+import { Empty, LoadErrorNotice, OfficeNotice, Pager } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { studentPhotoUrl } from "@/lib/student-photos";
 import { OFFICE, className, parseStudentFilters, studentFilterHref, studentStatusInfo, studentsQuery, type StudentFilters } from "@/lib/students";
@@ -28,20 +28,22 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   if (!supabase || !supabaseConfigured()) {
     return <OfficeNotice title="Students" heading="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code>.</p></OfficeNotice>;
   }
+  const auth = await requireOffice();
+  if ("error" in auth) return <OfficeNotice title="Students" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
+
   const filters = parseStudentFilters(await searchParams);
   const from = (filters.page - 1) * filters.size;
+  const campusScope = { campuses: auth.campuses };
 
   // Summary tiles break down the current class/status scope. They ignore the search box and the
   // quick filters they toggle, so typing in the finder does not re-count every tile.
   const scopeOnly: StudentFilters = { ...filters, q: "", sex: "", staff: false, medical: false, review: false };
   const tally = (changes: Partial<StudentFilters>) =>
-    studentsQuery(supabase, { ...scopeOnly, ...changes }, "id", { count: "exact", head: true });
+    studentsQuery(supabase, { ...scopeOnly, ...changes }, "id", { count: "exact", head: true, ...campusScope });
 
-  // The access check runs alongside the queries rather than before them; row-level security already
-  // limits the register to office staff, and nothing is shown unless the check passes.
-  const page = (columns: string) => studentsQuery(supabase, filters, columns, { count: "exact" }).range(from, from + filters.size - 1);
-  const [auth, first, { data: streamRows }, inScope, boys, girls, medical, staff, review] = await Promise.all([
-    requireOffice(),
+  const page = (columns: string) =>
+    studentsQuery(supabase, filters, columns, { count: "exact", ...campusScope }).range(from, from + filters.size - 1);
+  const [first, { data: streamRows }, inScope, boys, girls, medical, staff, review] = await Promise.all([
     page(`${COLUMNS}, photo_path`),
     supabase.from("students").select("stream").not("stream", "is", null).eq("status", "active").limit(2000),
     tally({}),
@@ -51,11 +53,10 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     tally({ staff: true }),
     tally({ review: true }),
   ]);
-  if ("error" in auth) return <OfficeNotice title="Students" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
   // Until 0013_student_photos.sql has run there is no photo column; show the register without photos.
   const { data, count, error } = first.error && /photo_path/.test(first.error.message) ? await page(COLUMNS) : first;
   if (error) {
-    return <OfficeNotice title="Students" heading="The student register could not be loaded"><MigrationHint message={error.message} /></OfficeNotice>;
+    return <LoadErrorNotice title="Students" message={error.message} fallbackHeading="The student register could not be loaded" />;
   }
   const rows = (data || []) as unknown as RegisterRow[];
   for (const row of rows) row.photo_url = studentPhotoUrl(row.id, row.photo_path ?? null);

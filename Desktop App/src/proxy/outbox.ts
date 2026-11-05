@@ -55,6 +55,30 @@ export function isPlainTableWrite(method: string, pathname: string): boolean {
   return Boolean(parseRestTable(pathname));
 }
 
+/** Stable synthetic id for composite-key upserts (attendance, assessment_scores). */
+export function compositeRowId(parts: (string | null | undefined)[]) {
+  return parts.map((part) => String(part ?? "")).join("::");
+}
+
+/** Stamp composite ids before ensureIds so upserts do not get random UUIDs. */
+export function assignCompositeIds(table: string, body: unknown): unknown {
+  const stamp = (row: Record<string, unknown>) => {
+    if (row.id != null && row.id !== "") return row;
+    if (table === "attendance" && row.student_id != null && row.attended_on != null) {
+      return { ...row, id: compositeRowId([String(row.student_id), String(row.attended_on)]) };
+    }
+    if (table === "assessment_scores" && row.assessment_id != null && row.student_id != null) {
+      return { ...row, id: compositeRowId([String(row.assessment_id), String(row.student_id)]) };
+    }
+    return row;
+  };
+  if (Array.isArray(body)) {
+    return body.map((item) => (item && typeof item === "object" && !Array.isArray(item) ? stamp(item as Record<string, unknown>) : item));
+  }
+  if (body && typeof body === "object") return stamp(body as Record<string, unknown>);
+  return body;
+}
+
 function applyFreshAccessToken(
   store: ProxyStore,
   userId: string,
@@ -65,6 +89,25 @@ function applyFreshAccessToken(
   // Prefer a still-valid token captured from a later request over the frozen outbox JWT.
   headers.authorization = `Bearer ${token}`;
   headers.Authorization = `Bearer ${token}`;
+}
+
+function rememberRows(store: ProxyStore, userId: string, table: string, rows: Record<string, unknown>[]) {
+  for (const row of rows) {
+    if (!row || typeof row !== "object") continue;
+    let id = row.id == null ? "" : String(row.id);
+    if (!id) {
+      if (table === "attendance" && row.student_id != null && row.attended_on != null) {
+        id = compositeRowId([String(row.student_id), String(row.attended_on)]);
+        row.id = id;
+      } else if (table === "assessment_scores" && row.assessment_id != null && row.student_id != null) {
+        id = compositeRowId([String(row.assessment_id), String(row.student_id)]);
+        row.id = id;
+      }
+    }
+    if (!id) continue;
+    store.upsertEntity(userId, table, id, row);
+    store.patchTableCaches(userId, table, "upsert", { ...row, id });
+  }
 }
 
 export async function flushOutbox(
@@ -87,6 +130,7 @@ export async function flushOutbox(
       if (result.ok || (result.status >= 200 && result.status < 300)) {
         store.markOutbox(row.id, "done", null, row.attempts + 1);
         const table = parseRestTable(new URL(row.url).pathname);
+        // After a successful sync, drop stale list bodies so the next online GET refreshes.
         if (table) store.invalidateTableAllUsers(table);
         flushed += 1;
       } else {
@@ -142,14 +186,10 @@ export function applyOptimisticWrite(
   const m = method.toUpperCase();
 
   if (m === "POST") {
-    const { body: withIds } = ensureIds(parsed);
-    const rows = Array.isArray(withIds) ? withIds : withIds ? [withIds] : [];
-    for (const row of rows) {
-      if (row && typeof row === "object" && "id" in row) {
-        store.upsertEntity(userId, table, String((row as { id: unknown }).id), row as object);
-      }
-    }
-    store.invalidateTableAllUsers(table);
+    const prepared = assignCompositeIds(table, parsed);
+    const { body: withIds } = ensureIds(prepared);
+    const rows = (Array.isArray(withIds) ? withIds : withIds ? [withIds] : []) as Record<string, unknown>[];
+    rememberRows(store, userId, table, rows);
     if (prefer === "minimal") {
       return { status: 201, body: Buffer.alloc(0), contentType: "application/json" };
     }
@@ -163,13 +203,13 @@ export function applyOptimisticWrite(
 
   if (m === "PATCH" || m === "PUT") {
     const idMatch = /(?:^|[?&])id=eq\.([^&]+)/.exec(search);
-    const patch = parsed && typeof parsed === "object" ? (parsed as Record<string, unknown>) : {};
+    const patch = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : {};
     if (idMatch) {
       const id = decodeURIComponent(idMatch[1]);
       const existing = store.getEntity(userId, table, id) ?? { id };
       const next = { ...existing, ...patch, id };
       store.upsertEntity(userId, table, id, next);
-      store.invalidateTableAllUsers(table);
+      store.patchTableCaches(userId, table, "upsert", next);
       if (prefer === "minimal") {
         return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
       }
@@ -179,7 +219,63 @@ export function applyOptimisticWrite(
         contentType: "application/json",
       };
     }
-    // Broad patch offline is unsupported without filters we understand.
+
+    // Upsert arrays (attendance / assessment_scores) - PostgREST POST with Prefer: resolution=merge-duplicates
+    // also lands here as POST; PATCH with multi-row body is uncommon. Handle array body on POST above.
+    // Broad filter patch without id: try composite filters we know.
+    const studentMatch = /(?:^|[?&])student_id=eq\.([^&]+)/.exec(search);
+    const attendedMatch = /(?:^|[?&])attended_on=eq\.([^&]+)/.exec(search);
+    const assessmentMatch = /(?:^|[?&])assessment_id=eq\.([^&]+)/.exec(search);
+    if (table === "attendance" && studentMatch && attendedMatch) {
+      const id = compositeRowId([decodeURIComponent(studentMatch[1]), decodeURIComponent(attendedMatch[1])]);
+      const existing = store.getEntity(userId, table, id) ?? {
+        id,
+        student_id: decodeURIComponent(studentMatch[1]),
+        attended_on: decodeURIComponent(attendedMatch[1]),
+      };
+      const next = { ...existing, ...patch, id };
+      rememberRows(store, userId, table, [next]);
+      if (prefer === "minimal") {
+        return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
+      }
+      return {
+        status: 200,
+        body: Buffer.from(JSON.stringify([next])),
+        contentType: "application/json",
+      };
+    }
+    if (table === "assessment_scores" && assessmentMatch && studentMatch) {
+      const id = compositeRowId([decodeURIComponent(assessmentMatch[1]), decodeURIComponent(studentMatch[1])]);
+      const existing = store.getEntity(userId, table, id) ?? {
+        id,
+        assessment_id: decodeURIComponent(assessmentMatch[1]),
+        student_id: decodeURIComponent(studentMatch[1]),
+      };
+      const next = { ...existing, ...patch, id };
+      rememberRows(store, userId, table, [next]);
+      if (prefer === "minimal") {
+        return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
+      }
+      return {
+        status: 200,
+        body: Buffer.from(JSON.stringify([next])),
+        contentType: "application/json",
+      };
+    }
+
+    // Array upsert body (PostgREST upsert via POST is handled above; some clients send arrays on PATCH)
+    if (Array.isArray(parsed)) {
+      rememberRows(store, userId, table, parsed as Record<string, unknown>[]);
+      if (prefer === "minimal") {
+        return { status: 201, body: Buffer.alloc(0), contentType: "application/json" };
+      }
+      return {
+        status: 200,
+        body: Buffer.from(JSON.stringify(parsed)),
+        contentType: "application/json",
+      };
+    }
+
     return {
       status: 503,
       body: Buffer.from(
@@ -195,7 +291,7 @@ export function applyOptimisticWrite(
       const id = decodeURIComponent(idMatch[1]);
       const existing = store.getEntity(userId, table, id);
       store.deleteEntity(userId, table, id);
-      store.invalidateTableAllUsers(table);
+      store.patchTableCaches(userId, table, "delete", { id });
       if (prefer === "minimal") {
         return { status: 204, body: Buffer.alloc(0), contentType: "application/json" };
       }

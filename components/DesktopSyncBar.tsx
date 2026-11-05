@@ -132,7 +132,9 @@ export function DesktopSyncBar() {
   }
 
   const label = offline
-    ? "You’re offline. Desks stay available from the last sync"
+    ? status.pending > 0
+      ? `You’re offline. Desks keep working from the last sync · ${status.pending} change${status.pending === 1 ? "" : "s"} waiting`
+      : "You’re offline. Desks keep working from the last sync"
     : status.flushing
       ? "Sending saved changes…"
       : status.pending === 1

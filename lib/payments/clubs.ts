@@ -7,6 +7,7 @@ import { serviceClient } from "@/lib/supabase/service";
 import { createCollection, fetchCollection, paymentsConfigured, requestPinPrompt } from "@/lib/payments/gateway";
 import { displayMsisdn, networkOf, normalizeMsisdn } from "@/lib/payments/mobile";
 import { paymentsCallbackUrl } from "@/lib/payments/public-url";
+import { logPortal } from "@/lib/system-logs";
 
 export type ClubPaymentLine = {
   id: string;
@@ -230,15 +231,27 @@ async function finishLedger(row: ClubCollection, paymentId: string, paidAt: stri
     .eq("id", row.id)
     .select("*")
     .single();
+  const body = `Parent paid ${ugx(row.amount)} online for ${row.club_title}, ${row.child_name}, ${row.term_label}.`;
   await db.from("account_activity").insert({
     actor_id: row.user_id,
     kind: "payment",
     student_id: row.student_id,
-    body: `Parent paid ${ugx(row.amount)} online for ${row.club_title}, ${row.child_name}, ${row.term_label}.`,
+    body,
+  });
+  await logPortal(db, row.user_id, {
+    kind: "payment",
+    body,
+    entityType: "club_payment",
+    entityId: paymentId,
+    studentId: row.student_id,
+    meta: { amount: row.amount },
   });
   revalidatePath("/account/clubs");
   revalidatePath("/account");
-  revalidatePath("/accounts/clubs");
+  revalidatePath("/clubs");
+  revalidatePath("/clubs/register");
+  revalidatePath("/clubs/receipts");
+  revalidatePath("/accounts/payments");
   return (data as ClubCollection) ?? { ...row, status: "paid", payment_id: paymentId, paid_at: paidAt, transaction_ref: transactionRef };
 }
 

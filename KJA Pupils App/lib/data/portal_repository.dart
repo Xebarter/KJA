@@ -480,6 +480,7 @@ class PortalRepository {
             .eq('term_id', termId)
             .eq('class_code', pupil.classCode!)
             .eq('stream', pupil.stream ?? '')
+            .eq('campus', pupil.campus ?? 'Kitante')
             .order('due_on'),
       );
       final completions = await _rows(
@@ -582,6 +583,7 @@ class PortalRepository {
           .eq('term_id', termId)
           .eq('class_code', pupil.classCode!)
           .eq('stream', pupil.stream ?? '')
+          .eq('campus', pupil.campus ?? 'Kitante')
           .order('weekday')
           .order('period'),
     );

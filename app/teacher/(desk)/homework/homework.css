@@ -25,12 +25,20 @@
 
 .tch-hw-page .ahw-strip {
   border-radius: 12px;
+  background:
+    radial-gradient(70% 80% at 0% 0%, rgba(11, 118, 108, 0.07), transparent 55%),
+    #fff;
   box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
 }
 
 .tch-hw-page .ahw-card {
   border-radius: 14px;
   box-shadow: var(--tch-shadow, 0 1px 2px rgba(25, 35, 43, 0.04));
+}
+
+.tch-hw-page .ahw-stat:not(:first-child):not(.is-ok):not(.is-warn) .ahw-stat-icon {
+  background: var(--tch-teal-wash, #e2f4f1);
+  color: var(--tch-teal, #0b766c);
 }
 
 .tch-hw-page .ahw-toolbar {

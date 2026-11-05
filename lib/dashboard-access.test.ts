@@ -35,6 +35,8 @@ describe("dashboard access", () => {
     expect(pathAllowed(grants, "accounts", "/accounts/expenses")).toBe(false);
     expect(pathAllowed(grants, "admin", "/admin/team")).toBe(false);
     expect(pathAllowed(legacyGrants("admin"), "admin", "/admin/team")).toBe(true);
+    expect(pathAllowed(grants, "admin", "/admin/logs")).toBe(false);
+    expect(pathAllowed(legacyGrants("admin"), "admin", "/admin/logs")).toBe(true);
   });
 
   it("maps nested routes onto the page that owns them", () => {

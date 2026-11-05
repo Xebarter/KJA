@@ -10,7 +10,10 @@
   background: rgba(25, 35, 43, .22);
   animation: proc-in .32s cubic-bezier(.2, .8, .2, 1) both;
 }
-.proc-veil.is-leave { animation: proc-out .28s cubic-bezier(.4, 0, .2, 1) both; }
+.proc-veil.is-leave {
+  pointer-events: none;
+  animation: proc-out .28s cubic-bezier(.4, 0, .2, 1) both;
+}
 .proc-card {
   display: grid;
   justify-items: center;

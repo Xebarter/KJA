@@ -6,15 +6,18 @@ import { Empty } from "@/components/academics/ui";
 import { ACADEMICS_BASE } from "@/lib/academics-nav";
 import { className } from "@/lib/students";
 
-function classLabel(code: string, stream?: string | null) {
+function classLabel(code: string, stream?: string | null, campus?: string | null) {
   const extra = (stream || "").trim();
-  return extra ? `${className(code)} ${extra}` : className(code);
+  const base = extra ? `${className(code)} ${extra}` : className(code);
+  const site = (campus || "").trim();
+  return site ? `${base} · ${site}` : base;
 }
 
 export type ClassRow = {
   code: string;
   name: string;
   stream: string;
+  campus: string;
   section: "nursery" | "primary";
   pupils: number;
   boys: number;
@@ -197,8 +200,8 @@ export function ClassesDesk({
                 href={row.href}
                 className={`acl-size${row.teacher ? "" : " is-open"}`}
                 style={{ "--h": `${Math.max(8, (row.pupils / largest) * 100)}%` } as CSSProperties}
-                aria-label={`${classLabel(row.code, row.stream)}, ${row.pupils} pupils${row.teacher ? `, ${row.teacher}` : ", no class teacher"}`}
-                title={`${classLabel(row.code, row.stream)}: ${row.pupils} pupils${row.teacher ? ` · ${row.teacher}` : " · no class teacher"}`}
+                aria-label={`${classLabel(row.code, row.stream, row.campus)}, ${row.pupils} pupils${row.teacher ? `, ${row.teacher}` : ", no class teacher"}`}
+                title={`${classLabel(row.code, row.stream, row.campus)}: ${row.pupils} pupils${row.teacher ? ` · ${row.teacher}` : " · no class teacher"}`}
               >
                 <span className="acl-size-bar" />
                 <span className="acl-size-code">{row.stream ? `${row.code}${row.stream}` : row.code}</span>
@@ -287,7 +290,7 @@ export function ClassesDesk({
                     <Link href={row.href} className={`acl-row${row.teacher ? "" : " is-open"}`}>
                       <span className="acl-code">{row.code}</span>
                       <span className="acl-who">
-                        <strong>{classLabel(row.code, row.stream)}</strong>
+                        <strong>{classLabel(row.code, row.stream, row.campus)}</strong>
                         <small>{row.section === "nursery" ? "Nursery" : "Primary"}{row.stream ? ` · Stream ${row.stream}` : ""}</small>
                       </span>
                       <span className="acl-roll">

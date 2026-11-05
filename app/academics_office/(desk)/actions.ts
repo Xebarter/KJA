@@ -1,7 +1,34 @@
 "use server";
 
-import { ACADEMICS_BASE, ATTENDANCE_STATUSES, CONDUCT, DATE_KINDS, INTERVENTION_REASONS, WEEKDAYS, bandMidpoint, classLabel, classSection, groupPupils, kindWeight, kampalaToday, logAcademics, markbookClosed, mapBand, mapSubject, num, streamOf, streamQuery, subjectFits, type AssessmentKind, type AttendanceStatus } from "@/lib/academics";
+import {
+  ACADEMICS_BASE,
+  ATTENDANCE_STATUSES,
+  CONDUCT,
+  DATE_KINDS,
+  INTERVENTION_REASONS,
+  WEEKDAYS,
+  bandMidpoint,
+  bandsForSection,
+  classLabel,
+  classSection,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
+  groupPupils,
+  kindWeight,
+  kampalaToday,
+  logAcademics,
+  markbookClosed,
+  mapBand,
+  mapSubject,
+  num,
+  streamOf,
+  streamQuery,
+  subjectFits,
+  type AssessmentKind,
+  type AttendanceStatus,
+} from "@/lib/academics";
 import { requireAcademics } from "@/lib/academics-access";
+import { campusFromFormValue, DEFAULT_CAMPUS, operationalCampus, type CampusId } from "@/lib/campuses";
 import { refreshAcademics, refreshSubjectCatalogue } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
 import { classMarkbooksReady, prepareClassReports } from "@/lib/academics-reports";
@@ -52,20 +79,48 @@ function text(formData: FormData, key: string, max = 200) {
   return String(formData.get(key) || "").trim().slice(0, max);
 }
 
+function formCampus(formData: FormData): CampusId | null {
+  return campusFromFormValue(text(formData, "campus", 80));
+}
+
+function campusFormError(formData: FormData): Result | null {
+  if (text(formData, "campus", 80) && formCampus(formData) === null) return { error: "Choose a valid campus." };
+  return null;
+}
+
 function group(formData: FormData) {
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
   const termId = text(formData, "term_id", 40);
-  return { classCode, stream, termId };
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
+  return { classCode, stream, termId, campus };
 }
 
-async function teachesSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>, input: { termId: string; classCode: string; stream: string; subjectId: string }) {
+function pupilOnClassRoll(
+  pupil: { class_code: string | null; stream: string | null; campus?: string | null },
+  classCode: string,
+  stream: string,
+  campus: string,
+  combine?: boolean,
+) {
+  return (
+    pupil.class_code === classCode &&
+    operationalCampus(pupil.campus) === campus &&
+    (combine || streamOf(pupil.stream) === stream)
+  );
+}
+
+async function teachesSubject(
+  auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
+  input: { termId: string; classCode: string; stream: string; campus: string; subjectId: string },
+) {
   if (auth.office) return true;
   if (!auth.staffId) return false;
   const { data } = await auth.supabase
     .from("subject_teachers")
     .select("id")
     .eq("term_id", input.termId)
+    .eq("campus", input.campus)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream)
     .eq("subject_id", input.subjectId)
@@ -74,13 +129,17 @@ async function teachesSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>
   return Boolean(data);
 }
 
-async function teachesClass(auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>, input: { termId: string; classCode: string; stream: string }) {
+async function teachesClass(
+  auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
+  input: { termId: string; classCode: string; stream: string; campus: string },
+) {
   if (auth.office) return true;
   if (!auth.staffId || !input.termId) return false;
   const { data } = await auth.supabase
     .from("class_teachers")
     .select("id")
     .eq("term_id", input.termId)
+    .eq("campus", input.campus)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream)
     .eq("staff_id", auth.staffId)
@@ -379,8 +438,10 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
   const staffId = text(formData, "staff_id", 40);
-  const { classCode, stream, termId } = group(formData);
+  const { classCode, stream, termId, campus } = group(formData);
   const replace = formData.get("replace") === "1";
   const lead = formData.get("class_teacher") === "1";
   const wanted = [...new Set(formData.getAll("subject_id").map(String))].filter(isUuid);
@@ -392,9 +453,9 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     supabase.from("teaching_staff").select("id, full_name, email, profile_id, active").eq("id", staffId).maybeSingle(),
     supabase.from("fee_terms").select("id").eq("id", termId).eq("is_current", true).maybeSingle(),
     supabase.from("subjects").select("*").eq("active", true),
-    supabase.from("students").select("stream").eq("class_code", classCode).eq("status", "active").limit(2000),
-    supabase.from("subject_teachers").select("subject_id, staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("class_code", classCode).eq("stream", stream),
-    supabase.from("class_teachers").select("staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).maybeSingle(),
+    supabase.from("students").select("stream, campus").eq("class_code", classCode).eq("status", "active").limit(2000),
+    supabase.from("subject_teachers").select("subject_id, staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream),
+    supabase.from("class_teachers").select("staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).maybeSingle(),
   ]);
   if (staffQuery.error || termQuery.error || subjectQuery.error || pupilQuery.error || heldQuery.error || leadQuery.error) {
     return { error: "The assignment could not be checked." };
@@ -402,7 +463,9 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   const staff = staffQuery.data;
   if (!staff?.active) return { error: "That teacher is not on the roll." };
   if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
-  if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream)) return { error: "That stream has no pupils." };
+  if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream && operationalCampus(row.campus as string | null) === campus)) {
+    return { error: "That stream has no pupils at this campus." };
+  }
 
   // Class/subject posts only help if they can open /teacher - ensure Auth + profiles.role=staff + link.
   const portal = await ensureTeacherPortalAccess({
@@ -443,7 +506,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     clashes.push(`${subject.name} is already taught by ${current.name}.`);
   }
   if (lead && classHolder && classHolder.staffId !== staffId && !replace) {
-    clashes.push(`${classLabel(classCode, stream)} already has ${classHolder.name} as class teacher.`);
+    clashes.push(`${classLabel(classCode, stream, campus)} already has ${classHolder.name} as class teacher.`);
   }
   if (clashes.length === 1) return { error: clashes[0] };
   if (clashes.length > 1) return { error: `${clashes[0]} ${clashes.length - 1} more ${clashes.length === 2 ? "post is" : "posts are"} already filled. Tick replace to take them over.` };
@@ -459,12 +522,12 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     if (picked.has(subject.id)) {
       if (current?.staffId === staffId) continue;
       const { error } = await supabase.from("subject_teachers").upsert(
-        { term_id: termId, class_code: classCode, stream, subject_id: subject.id, staff_id: staffId },
-        { onConflict: "term_id,class_code,stream,subject_id" },
+        { term_id: termId, campus, class_code: classCode, stream, subject_id: subject.id, staff_id: staffId },
+        { onConflict: "term_id,campus,class_code,stream,subject_id" },
       );
       if (error) return { error: "The subjects could not be saved." };
     } else if (current?.staffId === staffId) {
-      const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subject.id).eq("staff_id", staffId);
+      const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subject.id).eq("staff_id", staffId);
       if (error) return { error: "A subject could not be removed." };
     }
   }
@@ -472,26 +535,26 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   if (lead) {
     if (classHolder?.staffId !== staffId) {
       const { error } = await supabase.from("class_teachers").upsert(
-        { term_id: termId, class_code: classCode, stream, staff_id: staffId },
-        { onConflict: "term_id,class_code,stream" },
+        { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId },
+        { onConflict: "term_id,campus,class_code,stream" },
       );
       if (error) return { error: "The class teacher could not be saved." };
     }
   } else if (classHolder?.staffId === staffId) {
-    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
+    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
     if (error) return { error: "The class teacher role could not be removed." };
   }
 
   refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
   if (portal.created && portal.password && portal.email) {
     return {
-      ok: `${staff.full_name} assigned to ${classLabel(classCode, stream)}. Teacher desk sign-in was created. Share the password now.`,
+      ok: `${staff.full_name} assigned to ${classLabel(classCode, stream, campus)}. Teacher desk sign-in was created. Share the password now.`,
       email: portal.email,
       password: portal.password,
       temporary: portal.temporary,
     };
   }
-  return { ok: `${staff.full_name} assigned to ${classLabel(classCode, stream)}.` };
+  return { ok: `${staff.full_name} assigned to ${classLabel(classCode, stream, campus)}.` };
 }
 
 export async function releaseTeacherPost(formData: FormData): Promise<Result> {
@@ -499,17 +562,19 @@ export async function releaseTeacherPost(formData: FormData): Promise<Result> {
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
   const staffId = text(formData, "staff_id", 40);
-  const { classCode, stream, termId } = group(formData);
+  const { classCode, stream, termId, campus } = group(formData);
   const kind = text(formData, "kind", 20);
   const subjectId = text(formData, "subject_id", 40);
   if (!isUuid(staffId) || !isUuid(termId) || !isClassCode(classCode)) return { error: "Choose the post to remove." };
   const { supabase } = opened.auth;
   if (kind === "class") {
-    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
+    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
     if (error) return { error: "The class teacher role could not be removed." };
   } else if (kind === "subject" && isUuid(subjectId)) {
-    const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subjectId).eq("staff_id", staffId);
+    const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subjectId).eq("staff_id", staffId);
     if (error) return { error: "The subject could not be removed." };
   } else {
     return { error: "Choose the post to remove." };
@@ -610,11 +675,13 @@ export async function saveClassTeacher(formData: FormData): Promise<Result> {
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
-  const { classCode, stream, termId } = group(formData);
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const { classCode, stream, termId, campus } = group(formData);
   const staffId = text(formData, "staff_id", 40);
   if (!termId || !classCode) return { error: "Choose a term and a class." };
   if (!staffId) {
-    const { error } = await opened.auth.supabase.from("class_teachers").delete().eq("term_id", termId).eq("class_code", classCode).eq("stream", stream);
+    const { error } = await opened.auth.supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream);
     if (error) return { error: error.message };
     refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
     return { ok: "Class teacher saved." };
@@ -622,8 +689,8 @@ export async function saveClassTeacher(formData: FormData): Promise<Result> {
   const portal = await ensurePortalForStaffId(opened.auth.supabase, staffId);
   if (portal.error) return { error: portal.error };
   const { error } = await opened.auth.supabase.from("class_teachers").upsert(
-    { term_id: termId, class_code: classCode, stream, staff_id: staffId },
-    { onConflict: "term_id,class_code,stream" },
+    { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId },
+    { onConflict: "term_id,campus,class_code,stream" },
   );
   if (error) return { error: error.message };
   refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
@@ -643,7 +710,9 @@ export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
-  const { classCode, stream, termId } = group(formData);
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const { classCode, stream, termId, campus } = group(formData);
   const subjectId = text(formData, "subject_id", 40);
   const staffId = text(formData, "staff_id", 40);
   if (!termId || !classCode || !subjectId) return { error: "Choose a class and a subject." };
@@ -652,6 +721,7 @@ export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
       .from("subject_teachers")
       .delete()
       .eq("term_id", termId)
+      .eq("campus", campus)
       .eq("class_code", classCode)
       .eq("stream", stream)
       .eq("subject_id", subjectId);
@@ -662,8 +732,8 @@ export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
   const portal = await ensurePortalForStaffId(opened.auth.supabase, staffId);
   if (portal.error) return { error: portal.error };
   const { error } = await opened.auth.supabase.from("subject_teachers").upsert(
-    { term_id: termId, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId },
-    { onConflict: "term_id,class_code,stream,subject_id" },
+    { term_id: termId, campus, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId },
+    { onConflict: "term_id,campus,class_code,stream,subject_id" },
   );
   if (error) return { error: error.message };
   refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
@@ -698,10 +768,13 @@ export async function saveAttendance(formData: FormData): Promise<Result> {
   const termId = text(formData, "term_id", 40) || null;
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Choose the date of the register." };
   if (!opened.auth.office) {
     if (!termId || !classCode) return { error: "Choose a class before saving the register." };
-    const allowed = await teachesClass(opened.auth, { termId, classCode, stream });
+    const allowed = await teachesClass(opened.auth, { termId, classCode, stream, campus });
     if (!allowed) return { error: "Only the class teacher can mark this register." };
   }
   const rows: { student_id: string; attended_on: string; term_id: string | null; status: AttendanceStatus; note: string | null; marked_by: string }[] = [];
@@ -734,18 +807,21 @@ export async function cancelRegister(formData: FormData): Promise<Result> {
   const termId = text(formData, "term_id", 40);
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return { error: "Choose the date of the register." };
   if (!classCode) return { error: "Choose a class." };
   if (!opened.auth.office) {
-    const allowed = await teachesClass(opened.auth, { termId, classCode, stream });
+    const allowed = await teachesClass(opened.auth, { termId, classCode, stream, campus });
     if (!allowed) return { error: "Only the class teacher can cancel this register." };
   }
   const restoring = formData.get("intent") === "restore";
   const query = restoring
-    ? opened.auth.supabase.from("attendance_closures").delete().eq("attended_on", date).eq("class_code", classCode).eq("stream", stream)
+    ? opened.auth.supabase.from("attendance_closures").delete().eq("attended_on", date).eq("campus", campus).eq("class_code", classCode).eq("stream", stream)
     : opened.auth.supabase.from("attendance_closures").upsert(
-        { attended_on: date, class_code: classCode, stream, closed_by: opened.auth.user.id, closed_at: new Date().toISOString() },
-        { onConflict: "attended_on,class_code,stream" },
+        { attended_on: date, campus, class_code: classCode, stream, closed_by: opened.auth.user.id, closed_at: new Date().toISOString() },
+        { onConflict: "attended_on,campus,class_code,stream" },
       );
   const { error } = await query;
   if (error) {
@@ -753,10 +829,10 @@ export async function cancelRegister(formData: FormData): Promise<Result> {
   }
   await logAcademics(opened.auth.supabase, opened.auth.user.id, {
     kind: "setup",
-    body: restoring ? `Restored the register for ${classLabel(classCode, stream)}.` : `Cancelled the register for ${classLabel(classCode, stream)}.`,
+    body: restoring ? `Restored the register for ${classLabel(classCode, stream, campus)}.` : `Cancelled the register for ${classLabel(classCode, stream, campus)}.`,
   });
   refreshAcademics(`${ACADEMICS_BASE}/attendance`);
-  return { ok: restoring ? `${classLabel(classCode, stream)} is on the open list again.` : `${classLabel(classCode, stream)} is off today's Attendance count. Marks already saved stay.` };
+  return { ok: restoring ? `${classLabel(classCode, stream, campus)} is on the open list again.` : `${classLabel(classCode, stream, campus)} is off today's Attendance count. Marks already saved stay.` };
 }
 
 export async function setAssessments(formData: FormData): Promise<Result> {
@@ -775,7 +851,7 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   if (name.length < 2) return { error: "Name this assessment." };
   if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Enter a valid date." };
 
-  const pupils = await loadRoll(opened.auth.supabase, opened.auth.user.id);
+  const pupils = await loadRoll(opened.auth.supabase, opened.auth.user.id, undefined, opened.auth.office ? opened.auth.campuses : undefined);
   let groups = groupPupils(pupils);
   if (scope === "one") {
     const classCode = text(formData, "class_code", 10);
@@ -799,6 +875,7 @@ export async function setAssessments(formData: FormData): Promise<Result> {
     const maxScore = entry.section === "nursery" ? 100 : primaryMax;
     return subjects.filter((subject) => subjectFits(subject, entry.code)).map((subject) => ({
       term_id: termId,
+      campus: entry.campus,
       class_code: entry.code,
       stream: entry.stream,
       subject_id: subject.id,
@@ -812,12 +889,12 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   });
   if (!rows.length) return { error: "No subjects apply to the chosen classes." };
 
-  let existing: { class_code: string; stream: string | null; subject_id: string; name: string }[];
+  let existing: { class_code: string; stream: string | null; campus: string; subject_id: string; name: string }[];
   try {
-    existing = await fetchAll<{ class_code: string; stream: string | null; subject_id: string; name: string }>((from, to) =>
+    existing = await fetchAll<{ class_code: string; stream: string | null; campus: string; subject_id: string; name: string }>((from, to) =>
       opened.auth.supabase
         .from("assessments")
-        .select("class_code, stream, subject_id, name")
+        .select("class_code, stream, campus, subject_id, name")
         .eq("term_id", termId)
         .order("id")
         .range(from, to),
@@ -825,8 +902,10 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   } catch (error) {
     return { error: error instanceof Error ? error.message : "The existing papers could not be checked." };
   }
-  const taken = new Set(existing.map((row) => `${row.class_code}|${streamOf(row.stream)}|${row.subject_id}|${row.name.trim().toLowerCase()}`));
-  const fresh = rows.filter((row) => !taken.has(`${row.class_code}|${row.stream}|${row.subject_id}|${name.toLowerCase()}`));
+  const taken = new Set(
+    existing.map((row) => `${operationalCampus(row.campus)}|${row.class_code}|${streamOf(row.stream)}|${row.subject_id}|${row.name.trim().toLowerCase()}`),
+  );
+  const fresh = rows.filter((row) => !taken.has(`${row.campus}|${row.class_code}|${row.stream}|${row.subject_id}|${name.toLowerCase()}`));
   if (fresh.length) {
     const { error } = await opened.auth.supabase.from("assessments").insert(fresh);
     if (error) return { error: error.message };
@@ -928,16 +1007,18 @@ export async function saveScores(formData: FormData): Promise<Result> {
   if (!assessmentId) return { error: "This markbook could not be found." };
   const { data: paper, error: paperError } = await opened.auth.supabase
     .from("assessments")
-    .select("id, term_id, class_code, stream, subject_id, name, status")
+    .select("id, term_id, class_code, stream, campus, subject_id, name, status")
     .eq("id", assessmentId)
     .maybeSingle();
   if (paperError) return { error: paperError.message };
   if (!paper) return { error: "This markbook could not be found." };
   if (markbookClosed(paper.status)) return { error: "This markbook is locked. Unlock it on the class marksheet before marks change." };
+  const paperCampus = operationalCampus(paper.campus as string | null);
   const allowed = await teachesSubject(opened.auth, {
     termId: String(paper.term_id),
     classCode: String(paper.class_code),
     stream: streamOf(paper.stream as string | null),
+    campus: paperCampus,
     subjectId: String(paper.subject_id),
   });
   if (!allowed) return { error: "This markbook is assigned to another teacher." };
@@ -1031,6 +1112,9 @@ export async function saveMarksheetScores(formData: FormData): Promise<Result> {
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
   const combine = text(formData, "combine", 1) === "1";
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
   if (!isUuid(termId) || name.length < 2 || !KINDS.has(kind) || !isClassCode(classCode)) return { error: "This marksheet could not be found." };
   if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "This marksheet could not be found." };
 
@@ -1040,7 +1124,8 @@ export async function saveMarksheetScores(formData: FormData): Promise<Result> {
     .eq("term_id", termId)
     .eq("name", name)
     .eq("kind", kind)
-    .eq("class_code", classCode);
+    .eq("class_code", classCode)
+    .eq("campus", campus);
   if (!combine) query = query.eq("stream", stream);
   query = heldOn ? query.eq("held_on", heldOn) : query.is("held_on", null);
   const { data, error } = await query;
@@ -1062,7 +1147,9 @@ export async function saveMarksheetScores(formData: FormData): Promise<Result> {
   if (bandError) return { error: bandError.message };
   const nurseryBands = ((bandRows || []) as Record<string, unknown>[]).map(mapBand);
 
-  const roster = (await loadRoll(opened.auth.supabase, opened.auth.user.id)).filter((pupil) => pupil.class_code === classCode && (combine || streamOf(pupil.stream) === stream));
+  const roster = (await loadRoll(opened.auth.supabase, opened.auth.user.id, undefined, opened.auth.office ? opened.auth.campuses : undefined)).filter((pupil) =>
+    pupilOnClassRoll(pupil, classCode, stream, campus, combine),
+  );
   const pupils = new Map(roster.map((pupil) => [pupil.id, pupil]));
   if (!pupils.size) return { error: "No pupils are on this class roll." };
 
@@ -1095,7 +1182,7 @@ export async function saveMarksheetScores(formData: FormData): Promise<Result> {
     const paper = byId.get(assessmentId);
     if (!paper) return { error: "A subject on this marksheet could not be found." };
     if (markbookClosed(paper.status)) continue;
-    const allowed = await teachesSubject(opened.auth, { termId, classCode, stream: paper.stream, subjectId: paper.subjectId });
+    const allowed = await teachesSubject(opened.auth, { termId, classCode, campus, stream: paper.stream, subjectId: paper.subjectId });
     if (!allowed) return { error: `${paper.subject} is assigned to another teacher.` };
     for (const [studentId, mark] of marks) {
       const pupilRow = pupils.get(studentId);
@@ -1129,7 +1216,7 @@ export async function saveMarksheetScores(formData: FormData): Promise<Result> {
   if (saveError) return { error: saveError.message };
   await logAcademics(opened.auth.supabase, opened.auth.user.id, {
     kind: "marks",
-    body: `Saved marks on ${name} for ${combine ? `${classLabel(classCode)} (all streams)` : classLabel(classCode, stream)}.`,
+    body: `Saved marks on ${name} for ${combine ? `${classLabel(classCode, undefined, campus)} (all streams)` : classLabel(classCode, stream, campus)}.`,
   });
   refreshAcademics(`${ACADEMICS_BASE}/assessments/marksheet`);
   return { ok: "Marks saved." };
@@ -1154,6 +1241,9 @@ export async function setMarksheetLocks(formData: FormData): Promise<Result> {
   const classCode = text(formData, "class_code", 10);
   const stream = streamOf(text(formData, "stream", 20));
   const combine = text(formData, "combine", 1) === "1";
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
   const intent = text(formData, "intent", 80);
   const parts = intent.split(":");
   const action = parts[0];
@@ -1165,7 +1255,14 @@ export async function setMarksheetLocks(formData: FormData): Promise<Result> {
   if (target !== "all" && !subjectTarget && !isUuid(target)) return { error: "Choose a subject on this marksheet." };
   if (subjectTarget && (!combine || !isUuid(subjectTarget))) return { error: "Choose a subject on this marksheet." };
 
-  let query = opened.auth.supabase.from("assessments").select("id, status, subject_id, stream, subjects(name)").eq("term_id", termId).eq("name", name).eq("kind", kind).eq("class_code", classCode);
+  let query = opened.auth.supabase
+    .from("assessments")
+    .select("id, status, subject_id, stream, subjects(name)")
+    .eq("term_id", termId)
+    .eq("name", name)
+    .eq("kind", kind)
+    .eq("class_code", classCode)
+    .eq("campus", campus);
   if (!combine) query = query.eq("stream", stream);
   query = heldOn ? query.eq("held_on", heldOn) : query.is("held_on", null);
   const { data, error } = await query;
@@ -1180,7 +1277,7 @@ export async function setMarksheetLocks(formData: FormData): Promise<Result> {
   if (subjectTarget) papers = papers.filter((paper) => paper.subjectId === subjectTarget);
   else if (target !== "all") papers = papers.filter((paper) => paper.id === target);
   if (!papers.length) return { error: "That subject is no longer on this marksheet." };
-  const where = `${name} for ${combine ? `${classLabel(classCode)} (all streams)` : classLabel(classCode, stream)}`;
+  const where = `${name} for ${combine ? `${classLabel(classCode, undefined, campus)} (all streams)` : classLabel(classCode, stream, campus)}`;
   const paperLabel = (paper: { subject: string; stream: string }) => combine && paper.stream ? `${paper.subject} ${paper.stream}` : paper.subject;
 
   if (action === "unlock") {
@@ -1197,7 +1294,9 @@ export async function setMarksheetLocks(formData: FormData): Promise<Result> {
     return { ok: `${lead} Marks can be edited again. Approved report cards stay as they are until you return them to draft and prepare again.` };
   }
 
-  const roster = (await loadRoll(opened.auth.supabase, opened.auth.user.id)).filter((pupil) => pupil.class_code === classCode && (combine || streamOf(pupil.stream) === stream));
+  const roster = (await loadRoll(opened.auth.supabase, opened.auth.user.id, undefined, opened.auth.office ? opened.auth.campuses : undefined)).filter((pupil) =>
+    pupilOnClassRoll(pupil, classCode, stream, campus, combine),
+  );
   if (!roster.length) return { error: "No pupils are on this class roll." };
   const scores = await fetchAll<{ assessment_id: string; student_id: string; score: number | string | null; missed: boolean }>((from, to) =>
     opened.auth.supabase.from("assessment_scores").select("assessment_id, student_id, score, missed").in("assessment_id", papers.map((paper) => paper.id)).order("assessment_id").range(from, to),
@@ -1260,15 +1359,19 @@ async function approveDraftCards(
   if (waiting) return { error: waiting };
   await prepareClassReports(auth.supabase, input);
   await fillDraftComments(auth, input, { onlyBlank: true, skipTrail: true });
-  const section = classSection(input.classCode);
-  const { data: bands, error: bandError } = await auth.supabase.from("grade_bands").select("label, min_score, max_score, points, sort_order, section").eq("section", section).order("sort_order");
+  const markSection = gradeBandSection(input.classCode);
+  const { data: bands, error: bandError } = await auth.supabase
+    .from("grade_bands")
+    .select("label, min_score, max_score, points, sort_order, section")
+    .in("section", gradeBandSectionsToLoad(input.classCode))
+    .order("sort_order");
   if (bandError) return { error: bandError.message };
-  const rules = (bands || []).map((band) => ({
+  const rules = bandsForSection(((bands || []) as Record<string, unknown>[]).map(mapBand), markSection).map((band) => ({
     label: band.label,
-    min_score: num(band.min_score) ?? 0,
-    max_score: num(band.max_score) ?? 0,
-    points: num(band.points) ?? 0,
-    sort_order: num(band.sort_order) ?? 0,
+    min_score: band.min_score,
+    max_score: band.max_score,
+    points: band.points,
+    sort_order: band.sort_order,
   }));
   const { error } = await auth.supabase
     .from("report_cards")
@@ -1709,35 +1812,114 @@ export async function previewCommentEngine(_formData?: FormData): Promise<Result
   }
 }
 
+async function ensureSectionGradeBands(
+  supabase: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>["supabase"],
+  section: "lower" | "upper",
+) {
+  const { data: own, error: ownError } = await supabase.from("grade_bands").select("id").eq("section", section).limit(1);
+  if (ownError) {
+    if (/grade_bands_section_check|invalid input|check constraint/i.test(ownError.message)) {
+      return "Run supabase/0061_grade_band_sections.sql so Lower and Upper can keep their own grade scales.";
+    }
+    return ownError.message;
+  }
+  if (own?.length) return null;
+  const { data: primary, error: primaryError } = await supabase
+    .from("grade_bands")
+    .select("label, min_score, max_score, points, sort_order")
+    .eq("section", "primary");
+  if (primaryError) return primaryError.message;
+  if (!primary?.length) return null;
+  const { error } = await supabase.from("grade_bands").insert(
+    primary.map((band) => ({
+      section,
+      label: band.label,
+      min_score: band.min_score,
+      max_score: band.max_score,
+      points: band.points,
+      sort_order: band.sort_order,
+    })),
+  );
+  if (error) {
+    if (/grade_bands_section_check|invalid input|check constraint/i.test(error.message)) {
+      return "Run supabase/0061_grade_band_sections.sql so Lower and Upper can keep their own grade scales.";
+    }
+    return error.message;
+  }
+  return null;
+}
+
 export async function saveBand(formData: FormData): Promise<Result> {
   const opened = await gate("settings");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
   const id = text(formData, "id", 40);
+  const section = text(formData, "section", 20);
+  if (section !== "nursery" && section !== "lower" && section !== "upper" && section !== "primary") {
+    return { error: "Choose nursery, lower, or upper section." };
+  }
+  if ((section === "lower" || section === "upper")) {
+    const seeded = await ensureSectionGradeBands(opened.auth.supabase, section);
+    if (seeded) return { error: seeded };
+  }
+
   if (formData.get("intent") === "delete" && id) {
-    const { error } = await opened.auth.supabase.from("grade_bands").delete().eq("id", id);
+    let targetId = id;
+    if (section === "lower" || section === "upper") {
+      const { data: existing } = await opened.auth.supabase.from("grade_bands").select("id, section, label").eq("id", id).maybeSingle();
+      if (existing && existing.section !== section) {
+        const { data: twin } = await opened.auth.supabase
+          .from("grade_bands")
+          .select("id")
+          .eq("section", section)
+          .eq("label", existing.label)
+          .maybeSingle();
+        if (!twin?.id) return { error: "That grade is only on the shared primary scale." };
+        targetId = twin.id;
+      }
+    }
+    const { error } = await opened.auth.supabase.from("grade_bands").delete().eq("id", targetId);
     if (error) return { error: error.message };
     refreshAcademics(`${ACADEMICS_BASE}/settings`);
     return { ok: "Grade band removed." };
   }
-  const section = text(formData, "section", 20);
+
   const label = text(formData, "label", 20);
   const minScore = num(text(formData, "min_score", 8));
   const maxScore = num(text(formData, "max_score", 8));
   const points = num(text(formData, "points", 4));
-  if (section !== "nursery" && section !== "primary") return { error: "Choose nursery or primary." };
   if (!label) return { error: "Enter the grade label." };
   if (minScore === null || maxScore === null || minScore > maxScore) return { error: "Enter a lowest and highest mark, with the lowest first." };
   if (points === null) return { error: "Enter the points for this grade." };
   const row = { section, label, min_score: minScore, max_score: maxScore, points, sort_order: points };
-  const query = id
-    ? opened.auth.supabase.from("grade_bands").update(row).eq("id", id)
+
+  let targetId = id;
+  if (id && (section === "lower" || section === "upper")) {
+    const { data: existing } = await opened.auth.supabase.from("grade_bands").select("id, section, label").eq("id", id).maybeSingle();
+    if (existing && existing.section !== section) {
+      const { data: twin } = await opened.auth.supabase
+        .from("grade_bands")
+        .select("id")
+        .eq("section", section)
+        .eq("label", existing.label)
+        .maybeSingle();
+      targetId = twin?.id || "";
+    }
+  }
+
+  const query = targetId
+    ? opened.auth.supabase.from("grade_bands").update(row).eq("id", targetId)
     : opened.auth.supabase.from("grade_bands").insert(row);
   const { error } = await query;
-  if (error) return { error: error.message.includes("duplicate") ? "That grade already exists for this section." : error.message };
+  if (error) {
+    if (/grade_bands_section_check|invalid input|check constraint/i.test(error.message)) {
+      return { error: "Run supabase/0061_grade_band_sections.sql so Lower and Upper can keep their own grade scales." };
+    }
+    return { error: error.message.includes("duplicate") ? "That grade already exists for this section." : error.message };
+  }
   refreshAcademics(`${ACADEMICS_BASE}/settings`);
-  return { ok: id ? "Grade band updated." : "Grade band added." };
+  return { ok: targetId ? "Grade band updated." : "Grade band added." };
 }
 
 export async function saveDivisionBand(formData: FormData): Promise<Result> {
@@ -1789,7 +1971,9 @@ export async function saveSlot(formData: FormData): Promise<Result> {
     refreshAcademics(`${ACADEMICS_BASE}/timetable`);
     return { ok: "Slot removed." };
   }
-  const { classCode, stream, termId } = group(formData);
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const { classCode, stream, termId, campus } = group(formData);
   const weekday = num(text(formData, "weekday", 2));
   const period = num(text(formData, "period", 2));
   const subjectId = text(formData, "subject_id", 40);
@@ -1802,16 +1986,19 @@ export async function saveSlot(formData: FormData): Promise<Result> {
   if (staffId) {
     const { data: clash } = await opened.auth.supabase
       .from("timetable_slots")
-      .select("id, class_code, stream")
+      .select("id, class_code, stream, campus")
       .eq("term_id", termId)
       .eq("staff_id", staffId)
       .eq("weekday", weekday)
       .eq("period", period);
-    const other = (clash || []).find((row) => row.id !== id && !(row.class_code === classCode && streamOf(row.stream as string | null) === stream));
+    const other = (clash || []).find(
+      (row) => row.id !== id && !(row.class_code === classCode && streamOf(row.stream as string | null) === stream && operationalCampus(row.campus as string | null) === campus),
+    );
     if (other) return { error: `That teacher is already teaching ${classLabel(other.class_code as string, other.stream as string)} in this period.` };
   }
   const row = {
     term_id: termId,
+    campus,
     class_code: classCode,
     stream,
     weekday,
@@ -1827,9 +2014,44 @@ export async function saveSlot(formData: FormData): Promise<Result> {
     : opened.auth.supabase.from("timetable_slots").insert(row);
   const { error } = await query;
   if (error) return { error: error.message.includes("duplicate") ? "That class already has a lesson in this period." : error.message };
-  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "timetable", body: `Saved a timetable slot for ${classLabel(classCode, stream)}.` });
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "timetable", body: `Saved a timetable slot for ${classLabel(classCode, stream, campus)}.` });
   refreshAcademics(`${ACADEMICS_BASE}/timetable`);
   return { ok: "Timetable slot saved." };
+}
+
+const SCHEME_FILE_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+};
+
+const SCHEME_FILE_HINT = "Run supabase/0062_scheme_files.sql in Supabase to turn on scheme file uploads.";
+
+async function storeSchemeFile(
+  supabase: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>["supabase"],
+  schemeId: string,
+  file: File,
+): Promise<{ error: string } | { file_path: string; file_name: string; file_mime: string; file_size: number }> {
+  if (file.size > 15 * 1024 * 1024) return { error: "That file is too large (max 15 MB)." };
+  const extension = SCHEME_FILE_TYPES[file.type];
+  if (!extension) return { error: "Upload a PDF or Word document (.pdf, .doc, .docx)." };
+  const safeName = (file.name || `scheme.${extension}`).replace(/[^\w.\-()+ ]+/g, "_").slice(0, 120);
+  const filePath = `${schemeId}/${crypto.randomUUID()}-${safeName}`;
+  const { error: uploadError } = await supabase.storage.from("schemes").upload(filePath, file, {
+    contentType: file.type,
+    upsert: false,
+  });
+  if (uploadError) {
+    return {
+      error: /bucket not found/i.test(uploadError.message) ? SCHEME_FILE_HINT : uploadError.message,
+    };
+  }
+  return {
+    file_path: filePath,
+    file_name: safeName,
+    file_mime: file.type,
+    file_size: file.size,
+  };
 }
 
 export async function saveScheme(formData: FormData): Promise<Result> {
@@ -1847,30 +2069,167 @@ export async function saveScheme(formData: FormData): Promise<Result> {
     subjectId = subject.slice(0, 40);
   }
   const termId = posted.termId;
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const campus = formCampus(formData) ?? DEFAULT_CAMPUS;
   const title = text(formData, "title", 160);
   const staffId = opened.auth.office ? text(formData, "staff_id", 40) : opened.auth.staffId || "";
   if (!termId || !classCode || !subjectId) return { error: "Choose a term, class and subject." };
   if (title.length < 2) return { error: "Name the scheme of work." };
   if (!staffId) return { error: "Choose the teacher who owns this scheme." };
-  const allowed = await teachesSubject(opened.auth, { termId, classCode, stream, subjectId });
+  const allowed = await teachesSubject(opened.auth, { termId, classCode, stream, campus, subjectId });
   if (!allowed) return { error: "You can only write a scheme for a subject you teach." };
+
+  const file = formData.get("file");
   const { data, error } = await opened.auth.supabase
     .from("schemes")
-    .insert({ term_id: termId, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId, title, status: "draft" })
+    .insert({ term_id: termId, campus, class_code: classCode, stream, subject_id: subjectId, staff_id: staffId, title, status: "draft" })
     .select("id")
     .single();
   if (error || !data) return { error: error?.message.includes("duplicate") ? "This class already has a scheme for that subject." : error?.message || "The scheme could not be created." };
+
+  if (file instanceof File && file.size) {
+    const stored = await storeSchemeFile(opened.auth.supabase, data.id, file);
+    if ("error" in stored) {
+      await opened.auth.supabase.from("schemes").delete().eq("id", data.id);
+      return { error: stored.error };
+    }
+    const { error: fileError } = await opened.auth.supabase.from("schemes").update({
+      file_path: stored.file_path,
+      file_name: stored.file_name,
+      file_mime: stored.file_mime,
+      file_size: stored.file_size,
+      updated_at: new Date().toISOString(),
+    }).eq("id", data.id);
+    if (fileError) {
+      await opened.auth.supabase.storage.from("schemes").remove([stored.file_path]);
+      await opened.auth.supabase.from("schemes").delete().eq("id", data.id);
+      return {
+        error: /file_path|schema cache|does not exist/i.test(fileError.message)
+          ? SCHEME_FILE_HINT
+          : fileError.message,
+      };
+    }
+  }
+
   await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "scheme", body: `Started a scheme for ${classLabel(classCode, stream)}.` });
   refreshAcademics(`${ACADEMICS_BASE}/schemes`);
   return { ok: "Scheme started.", href: `${ACADEMICS_BASE}/schemes/${data.id}` };
 }
 
 async function loadScheme(auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>, id: string) {
-  const { data, error } = await auth.supabase.from("schemes").select("id, term_id, class_code, stream, subject_id, staff_id, title, status").eq("id", id).maybeSingle();
-  if (error) return { error: error.message, scheme: null };
+  const { data, error } = await auth.supabase
+    .from("schemes")
+    .select("id, term_id, class_code, stream, subject_id, staff_id, title, status, file_path, file_name, file_mime, file_size")
+    .eq("id", id)
+    .maybeSingle();
+  if (error) {
+    if (/file_path|schema cache|does not exist/i.test(error.message)) {
+      const legacy = await auth.supabase.from("schemes").select("id, term_id, class_code, stream, subject_id, staff_id, title, status").eq("id", id).maybeSingle();
+      if (legacy.error) return { error: legacy.error.message, scheme: null };
+      if (!legacy.data) return { error: "This scheme could not be found.", scheme: null };
+      if (!auth.office && legacy.data.staff_id !== auth.staffId) return { error: "This scheme belongs to another teacher.", scheme: null };
+      return { error: null, scheme: { ...legacy.data, file_path: null, file_name: null, file_mime: null, file_size: null } };
+    }
+    return { error: error.message, scheme: null };
+  }
   if (!data) return { error: "This scheme could not be found.", scheme: null };
   if (!auth.office && data.staff_id !== auth.staffId) return { error: "This scheme belongs to another teacher.", scheme: null };
   return { error: null, scheme: data };
+}
+
+export async function updateScheme(formData: FormData): Promise<Result> {
+  const opened = await gate("schemes");
+  if (!opened.auth) return { error: opened.error };
+  const schemeId = text(formData, "scheme_id", 40);
+  const loaded = await loadScheme(opened.auth, schemeId);
+  if (!loaded.scheme) return { error: loaded.error };
+  if (loaded.scheme.status !== "draft" && !opened.auth.office) return { error: "Only a draft scheme can be edited." };
+  const title = text(formData, "title", 160);
+  if (title.length < 2) return { error: "Name the scheme of work." };
+  const patch: Record<string, string | null> = { title, updated_at: new Date().toISOString() };
+  if (opened.auth.office) {
+    const staffId = text(formData, "staff_id", 40);
+    if (!staffId) return { error: "Choose the teacher who owns this scheme." };
+    patch.staff_id = staffId;
+  }
+  const { error } = await opened.auth.supabase.from("schemes").update(patch).eq("id", schemeId);
+  if (error) return { error: error.message };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "scheme", body: `Updated “${title}”.` });
+  refreshAcademics(`${ACADEMICS_BASE}/schemes`, `${ACADEMICS_BASE}/schemes/${schemeId}`);
+  return { ok: "Scheme updated." };
+}
+
+export async function deleteScheme(formData: FormData): Promise<Result> {
+  const opened = await gate("schemes");
+  if (!opened.auth) return { error: opened.error };
+  const schemeId = text(formData, "scheme_id", 40);
+  const loaded = await loadScheme(opened.auth, schemeId);
+  if (!loaded.scheme) return { error: loaded.error };
+  if (loaded.scheme.status === "approved" && !opened.auth.office) {
+    return { error: "Ask the academics office to delete an approved scheme." };
+  }
+  if (loaded.scheme.status === "submitted" && !opened.auth.office) {
+    return { error: "Return the scheme to draft before deleting it, or ask the office." };
+  }
+  const filePath = loaded.scheme.file_path;
+  const { error } = await opened.auth.supabase.from("schemes").delete().eq("id", schemeId);
+  if (error) return { error: error.message };
+  if (filePath) await opened.auth.supabase.storage.from("schemes").remove([filePath]);
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "scheme", body: `Deleted “${loaded.scheme.title}”.` });
+  refreshAcademics(`${ACADEMICS_BASE}/schemes`);
+  return { ok: "Scheme deleted.", href: `${ACADEMICS_BASE}/schemes` };
+}
+
+export async function saveSchemeFile(formData: FormData): Promise<Result> {
+  const opened = await gate("schemes");
+  if (!opened.auth) return { error: opened.error };
+  const schemeId = text(formData, "scheme_id", 40);
+  const loaded = await loadScheme(opened.auth, schemeId);
+  if (!loaded.scheme) return { error: loaded.error };
+  if (loaded.scheme.status !== "draft" && !opened.auth.office) return { error: "Files can only be changed while the scheme is a draft." };
+
+  if (formData.get("intent") === "remove") {
+    const previous = loaded.scheme.file_path;
+    const { error } = await opened.auth.supabase.from("schemes").update({
+      file_path: null,
+      file_name: null,
+      file_mime: null,
+      file_size: null,
+      updated_at: new Date().toISOString(),
+    }).eq("id", schemeId);
+    if (error) {
+      return {
+        error: /file_path|schema cache|does not exist/i.test(error.message) ? SCHEME_FILE_HINT : error.message,
+      };
+    }
+    if (previous) await opened.auth.supabase.storage.from("schemes").remove([previous]);
+    refreshAcademics(`${ACADEMICS_BASE}/schemes/${schemeId}`);
+    return { ok: "File removed." };
+  }
+
+  const file = formData.get("file");
+  if (!(file instanceof File) || !file.size) return { error: "Choose a PDF or Word file to upload." };
+  const stored = await storeSchemeFile(opened.auth.supabase, schemeId, file);
+  if ("error" in stored) return { error: stored.error };
+
+  const previous = loaded.scheme.file_path;
+  const { error } = await opened.auth.supabase.from("schemes").update({
+    file_path: stored.file_path,
+    file_name: stored.file_name,
+    file_mime: stored.file_mime,
+    file_size: stored.file_size,
+    updated_at: new Date().toISOString(),
+  }).eq("id", schemeId);
+  if (error) {
+    await opened.auth.supabase.storage.from("schemes").remove([stored.file_path]);
+    return {
+      error: /file_path|schema cache|does not exist/i.test(error.message) ? SCHEME_FILE_HINT : error.message,
+    };
+  }
+  if (previous && previous !== stored.file_path) await opened.auth.supabase.storage.from("schemes").remove([previous]);
+  refreshAcademics(`${ACADEMICS_BASE}/schemes/${schemeId}`);
+  return { ok: "File uploaded." };
 }
 
 export async function saveLesson(formData: FormData): Promise<Result> {
@@ -1934,7 +2293,7 @@ export async function setSchemeStatus(formData: FormData): Promise<Result> {
   if (intent === "submit") {
     if (scheme.status !== "draft") return { error: "Only a draft scheme can be submitted." };
     const { count } = await opened.auth.supabase.from("scheme_lessons").select("id", { count: "exact", head: true }).eq("scheme_id", schemeId);
-    if (!count) return { error: "Add at least one lesson before submitting." };
+    if (!count && !scheme.file_path) return { error: "Add weekly lessons or upload a PDF/Word scheme before submitting." };
     const { error } = await opened.auth.supabase.from("schemes").update({ status: "submitted", submitted_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", schemeId);
     if (error) return { error: error.message };
     await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "scheme", body: `Submitted “${scheme.title}” for approval.` });

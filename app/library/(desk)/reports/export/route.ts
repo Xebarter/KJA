@@ -6,6 +6,7 @@ export async function GET() {
   const auth = await requireLibrary("reports");
   if ("error" in auth) return NextResponse.json({ error: auth.error }, { status: 403 });
   const libraryId = auth.activeLibrary;
+  const campus = auth.activeCampus;
   const today = todayKampala();
 
   const { data: loans } = await auth.supabase
@@ -14,6 +15,7 @@ export async function GET() {
       "id, due_at, issued_at, returned_at, borrower_kind, students(full_name, student_number), teaching_staff(full_name), library_items(accession, barcode, library_titles(title))",
     )
     .eq("library_id", libraryId)
+    .eq("campus", campus)
     .order("issued_at", { ascending: false })
     .limit(2000);
 

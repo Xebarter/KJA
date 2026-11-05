@@ -25,7 +25,7 @@ function toCard(row: DateRow): CalendarDate {
   return { id: row.id, title: row.title, kind: row.kind, startsOn: row.starts_on, endsOn: row.ends_on, campus: row.campus, note: row.note };
 }
 
-export default async function TeacherCalendarPage({ searchParams }: { searchParams: Promise<{ class?: string; stream?: string }> }) {
+export default async function TeacherCalendarPage({ searchParams }: { searchParams: Promise<{ class?: string; stream?: string; campus?: string }> }) {
   const query = await searchParams;
   const teacher = await requireTeacher();
   if ("error" in teacher) return <AcademicsGate title="Calendar" state={{ notice: "auth", message: teacher.error }} />;
@@ -35,7 +35,13 @@ export default async function TeacherCalendarPage({ searchParams }: { searchPara
   if (!term) return <Empty icon="fa-calendar" title="No current term" />;
 
   const stream = streamFromQuery(query.stream);
-  const selected = classes.find((post) => post.classCode === query.class && (stream === null || post.stream === stream)) || classes[0];
+  const selected =
+    classes.find(
+      (post) =>
+        post.classCode === query.class &&
+        (stream === null || post.stream === stream) &&
+        (!query.campus || post.campus === query.campus),
+    ) || classes[0];
   const datesQuery = await supabase.from("academic_dates").select("id, title, kind, starts_on, ends_on, campus, note, class_code, stream").eq("term_id", term.id).order("starts_on");
   if (datesQuery.error) {
     const message = /class_code|schema cache/i.test(datesQuery.error.message)
@@ -46,14 +52,20 @@ export default async function TeacherCalendarPage({ searchParams }: { searchPara
   const rows = (datesQuery.data || []) as DateRow[];
   const school = rows.filter((row) => !row.class_code).map(toCard);
   const mine = rows
-    .filter((row) => row.class_code && leadsClass(classes, row.class_code, streamOf(row.stream)))
-    .filter((row) => row.class_code === selected.classCode && streamOf(row.stream) === selected.stream)
+    .filter((row) => row.class_code && leadsClass(classes, row.class_code, streamOf(row.stream), selected.campus))
+    .filter(
+      (row) =>
+        row.class_code === selected.classCode &&
+        streamOf(row.stream) === selected.stream &&
+        (!row.campus || row.campus === selected.campus),
+    )
     .map(toCard);
   const today = kampalaToday();
   const kinds = DATE_KINDS.map((kind) => ({ value: kind.value, label: kind.label }));
+  const campusOptions = [...new Set(classes.map((post) => post.campus))].sort((a, b) => a.localeCompare(b));
 
   return (
-    <div className="app-page ofc-page cal-page">
+    <div className="app-page ofc-page cal-page tch-cal-page">
       <PageHeader
         kicker="My class"
         icon="fa-calendar-days"
@@ -62,27 +74,55 @@ export default async function TeacherCalendarPage({ searchParams }: { searchPara
       />
       <div className="tch-switch" aria-label="Class">
         {classes.map((post) => {
-          const on = post.classCode === selected.classCode && post.stream === selected.stream;
-          return <Link key={`${post.classCode}-${post.stream}`} className={on ? "is-on" : ""} href={`${TEACHER_BASE}/calendar?class=${post.classCode}&stream=${streamQuery(post.stream)}`}>{post.label}</Link>;
+          const on = post.classCode === selected.classCode && post.stream === selected.stream && post.campus === selected.campus;
+          return (
+            <Link
+              key={`${post.campus}-${post.classCode}-${post.stream}`}
+              className={on ? "is-on" : ""}
+              href={`${TEACHER_BASE}/calendar?class=${post.classCode}&stream=${streamQuery(post.stream)}&campus=${encodeURIComponent(post.campus)}`}
+            >
+              {post.label}
+            </Link>
+          );
         })}
       </div>
-      <h2>School dates</h2>
-      <CalendarDesk dates={school} kinds={kinds} campuses={[]} office={false} today={today} termId={term.id} termStart={term.starts_on} termEnd={term.ends_on} save={saveClassDate} />
-      <h2>{selected.label}</h2>
-      <CalendarDesk
-        key={`${selected.classCode}-${selected.stream}`}
-        dates={mine}
-        kinds={kinds}
-        campuses={[]}
-        office
-        showCampus={false}
-        scope={{ classCode: selected.classCode, stream: selected.stream }}
-        today={today}
-        termId={term.id}
-        termStart={term.starts_on}
-        termEnd={term.ends_on}
-        save={saveClassDate}
-      />
+      <section className="tch-cal-block is-school" aria-labelledby="tch-cal-school">
+        <header className="tch-cal-block-head">
+          <span className="tch-cal-block-icon" aria-hidden="true">
+            <i className="fa-solid fa-school" />
+          </span>
+          <div>
+            <h2 id="tch-cal-school">School dates</h2>
+            <p>Read-only · set by the academics office</p>
+          </div>
+        </header>
+        <CalendarDesk dates={school} kinds={kinds} campuses={campusOptions} office={false} today={today} termId={term.id} termStart={term.starts_on} termEnd={term.ends_on} save={saveClassDate} />
+      </section>
+      <section className="tch-cal-block is-class" aria-labelledby="tch-cal-class">
+        <header className="tch-cal-block-head">
+          <span className="tch-cal-block-icon" aria-hidden="true">
+            <i className="fa-solid fa-chalkboard" />
+          </span>
+          <div>
+            <h2 id="tch-cal-class">{selected.label}</h2>
+            <p>Dates you add appear on the Pupils App calendar</p>
+          </div>
+        </header>
+        <CalendarDesk
+          key={`${selected.campus}-${selected.classCode}-${selected.stream}`}
+          dates={mine}
+          kinds={kinds}
+          campuses={campusOptions}
+          office
+          showCampus={campusOptions.length > 1}
+          scope={{ classCode: selected.classCode, stream: selected.stream, campus: selected.campus }}
+          today={today}
+          termId={term.id}
+          termStart={term.starts_on}
+          termEnd={term.ends_on}
+          save={saveClassDate}
+        />
+      </section>
     </div>
   );
 }

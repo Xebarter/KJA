@@ -53,13 +53,15 @@ npm run dev
 
 - Sign in with a staff / officer / admin / teacher account (same as the website).
 - Sidebar pages prefetch inside the desktop cookie (`kja-desktop=1`) so switches feel instant.
-- Offline: last-synced REST reads stay available; plain table writes go to a local outbox and flush when the network returns.
-- Online-only (not queued): RPCs, storage uploads, service-role calls, mail, and `/api/desktop/team`.
+- After login the proxy warms critical desk data (register, subjects, fee setup, calendar, clubs, CMS lists, and recently visited URLs) into SQLite.
+- Offline for a long stretch: cached REST reads keep working; the last auth user is reused for up to 14 days without renewing the JWT; plain table writes go to a local outbox and flush when the network returns. Offline edits patch cached list bodies so pages do not go blank.
+- Online-only (not queued): RPCs, storage uploads, service-role calls, mail, payment gateways, PDF generation that needs live data, and `/api/desktop/team`.
+- Collaborative Applications / admission-payments prefer live Supabase while online, and still keep a last snapshot for offline reading.
 - Public-site links open in the system browser. Only `127.0.0.1:47322` stays in the desk window.
 
 ## Packaging notes
 
-1. `npm run pack` builds the website with `KJA_DESKTOP=1` and `KJA_DESKTOP_PACK=1` (`distDir: .next-desktop`, `output: 'standalone'`, longer router `staleTimes`).
+1. `npm run pack` builds the website with `KJA_DESKTOP=1` and `KJA_DESKTOP_PACK=1` (`distDir: .next-desktop`, `output: 'standalone'`, router `staleTimes.dynamic` ≈ 1 hour).
 2. The pack build bakes `NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:47321` into the client so login uses the loopback proxy; `KJA_UPSTREAM_SUPABASE_URL` keeps the real project URL for the proxy.
 3. `pack:next` also writes `resources/desktop.env` (upstream URL + anon key) so the installed app can start without a developer `.env` on the machine.
 4. electron-builder copies `.next-desktop/standalone`, `public`, and `desktop.env` into the app resources.
@@ -72,7 +74,7 @@ npm run dev
 
 These only activate when `KJA_DESKTOP=1` and/or the `kja-desktop=1` cookie is present:
 
-- [`next.config.ts`](../next.config.ts) — standalone + 120s dynamic stale time
-- [`components/DeskWarmup.tsx`](../components/DeskWarmup.tsx) — nav prefetch
-- [`components/DesktopSyncBar.tsx`](../components/DesktopSyncBar.tsx) — offline / outbox strip
-- Desk shells under `components/admin`, `office`, `accounts`, `academics`, `teacher`
+- [`next.config.ts`](../next.config.ts) — standalone + long dynamic stale time for offline soft-nav
+- [`components/DeskWarmup.tsx`](../components/DeskWarmup.tsx) — eager nav prefetch into the client router + proxy cache
+- [`components/DesktopSyncBar.tsx`](../components/DesktopSyncBar.tsx) — offline / outbox / hydrate strip
+- Desk shells under `components/admin`, `office`, `accounts`, `academics`, `teacher`, `library`, `store`

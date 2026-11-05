@@ -21,7 +21,7 @@ const grace: StaffMember = {
   profile_id: "linked",
   photo_path: null,
   active: true,
-  classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A" }],
+  classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A", campus: "Kitante" }],
   subjects: [{
     key: "math",
     subjectId: "math",
@@ -75,7 +75,7 @@ export default function StaffPreview() {
       <StaffDesk
         members={[grace, peter]}
         gaps={[{ label: "Baby Class A", href: "#" }]}
-        groups={[{ code: "RC", stream: "A", label: "Reception A", pupils: 18 }]}
+        groups={[{ code: "RC", stream: "A", campus: "Kitante", label: "Reception A", pupils: 18 }]}
         subjects={[{
           id: "math",
           code: "MATH",
@@ -91,6 +91,7 @@ export default function StaffPreview() {
         posts={[{
           classCode: "RC",
           stream: "A",
+          campus: "Kitante",
           subjectId: "math",
           subject: "Mathematics",
           staffId: "grace",
@@ -99,6 +100,7 @@ export default function StaffPreview() {
         leads={[{
           classCode: "RC",
           stream: "A",
+          campus: "Kitante",
           staffId: "grace",
           staffName: "Grace Namukasa",
         }]}

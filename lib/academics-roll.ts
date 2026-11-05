@@ -19,9 +19,12 @@ export type RollPupil = {
 
 export type DayMark = { student_id: string; status: AttendanceStatus; note: string | null };
 
-export function loadRoll(supabase: SupabaseClient, userId: string, classCodes?: string[]) {
+export function loadRoll(supabase: SupabaseClient, userId: string, classCodes?: string[], campuses?: readonly string[]) {
   const codes = [...new Set((classCodes || []).map((code) => String(code || "").trim()).filter(Boolean))].sort();
-  const key = codes.length ? `academics-roll:${userId}:${codes.join(",")}` : `academics-roll:${userId}`;
+  const campusKey = campuses?.length ? campuses.slice().sort().join(",") : "all";
+  const key = codes.length
+    ? `academics-roll:${userId}:${codes.join(",")}:${campusKey}`
+    : `academics-roll:${userId}:${campusKey}`;
   return remember(key, ROLL_MS, async () => {
     const rows = await fetchAll<RollPupil>((from, to) => {
       let query = supabase
@@ -31,18 +34,19 @@ export function loadRoll(supabase: SupabaseClient, userId: string, classCodes?: 
         .order("id")
         .range(from, to);
       if (codes.length) query = query.in("class_code", codes);
+      if (campuses?.length) query = query.in("campus", campuses);
       return query;
     });
     return rows.sort((a, b) => a.full_name.localeCompare(b.full_name));
   });
 }
 
-export type RegisterClosure = { class_code: string; stream: string };
+export type RegisterClosure = { class_code: string; stream: string; campus: string };
 
 /** Classes taken off the open-register count for one day. Missing table counts as none. */
 export function loadClosures(supabase: SupabaseClient, date: string) {
   return remember(`academics-closures:${date}`, 20_000, async () => {
-    const { data, error } = await supabase.from("attendance_closures").select("class_code, stream").eq("attended_on", date);
+    const { data, error } = await supabase.from("attendance_closures").select("class_code, stream, campus").eq("attended_on", date);
     if (error) return [] as RegisterClosure[];
     return (data || []) as RegisterClosure[];
   });

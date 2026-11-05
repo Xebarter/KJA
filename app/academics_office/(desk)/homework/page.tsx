@@ -3,7 +3,7 @@ import { AcademicsGate } from "@/components/academics/ui";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { HomeworkDesk } from "@/components/academics/HomeworkDesk";
 import "./homework.css";
-import { classLabel, classSection, groupPupils, loadCurrentTerm, mapSubject, subjectFits } from "@/lib/academics";
+import { classGroupKey, classLabel, classSection, groupPupils, loadCurrentTerm, mapSubject, subjectFits } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 
@@ -12,7 +12,7 @@ export const metadata = { title: "Homework & resources" };
 export default async function HomeworkPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Homework & resources" state={opened} />;
-  const { supabase, user } = opened.auth;
+  const { supabase, user, office, campuses } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Homework & resources" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -21,17 +21,17 @@ export default async function HomeworkPage() {
     term
       ? supabase
           .from("homework_assignments")
-          .select("id, class_code, stream, subject_id, title, instructions, due_on, published_at, created_at")
+          .select("id, class_code, stream, campus, subject_id, title, instructions, due_on, published_at, created_at")
           .eq("term_id", term.id)
           .order("due_on", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     supabase
       .from("class_resources")
-      .select("id, class_code, stream, subject_id, kind, title, body, link_url, file_path, file_name, teacher_name, published_at, created_at")
+      .select("id, class_code, stream, campus, subject_id, kind, title, body, link_url, file_path, file_name, teacher_name, published_at, created_at")
       .order("created_at", { ascending: false })
       .limit(200),
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     term
       ? supabase.from("homework_completions").select("assignment_id, student_id")
       : Promise.resolve({ data: [], error: null }),
@@ -61,10 +61,11 @@ export default async function HomeworkPage() {
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
   const groups = groupPupils(pupils);
   const classOptions = groups.map((g) => ({
-    value: `${g.code}|${g.stream}`,
-    label: classLabel(g.code, g.stream),
+    value: classGroupKey(g.campus, g.code, g.stream),
+    label: classLabel(g.code, g.stream, g.campus),
     classCode: g.code,
     stream: g.stream,
+    campus: g.campus,
     section: classSection(g.code),
     count: g.pupils.length,
   }));
@@ -84,7 +85,7 @@ export default async function HomeworkPage() {
   const subjectName = new Map(subjects.map((s) => [s.id, s.name]));
   const classSize = new Map(classOptions.map((option) => [option.value, option.count]));
   const rows = (assignmentsQuery.data || []).map((row) => {
-    const classKey = `${row.class_code}|${row.stream || ""}`;
+    const classKey = classGroupKey(row.campus as string, row.class_code, row.stream);
     return {
       id: row.id,
       title: row.title,
@@ -92,7 +93,7 @@ export default async function HomeworkPage() {
       due_on: row.due_on,
       published_at: row.published_at,
       subject_name: subjectName.get(row.subject_id) || "Subject",
-      class_label: classLabel(row.class_code, row.stream),
+      class_label: classLabel(row.class_code, row.stream, row.campus as string),
       class_key: classKey,
       done: doneCounts.get(row.id) || 0,
       class_size: classSize.get(classKey) || 0,
@@ -102,7 +103,7 @@ export default async function HomeworkPage() {
   const resources = resourcesMissing
     ? []
     : (resourcesQuery.data || []).map((row) => {
-        const classKey = `${row.class_code}|${row.stream || ""}`;
+        const classKey = classGroupKey(row.campus as string, row.class_code, row.stream);
         const kind = (["note", "file", "image", "link"].includes(row.kind) ? row.kind : "note") as
           | "note"
           | "file"
@@ -119,7 +120,7 @@ export default async function HomeworkPage() {
           published_at: row.published_at,
           created_at: row.created_at,
           subject_name: row.subject_id ? subjectName.get(row.subject_id) || null : null,
-          class_label: classLabel(row.class_code, row.stream),
+          class_label: classLabel(row.class_code, row.stream, row.campus as string),
           class_key: classKey,
           teacher_name: row.teacher_name,
         };

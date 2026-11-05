@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { CampusId } from "@/lib/campuses";
 import { todayKampala } from "@/lib/library";
 import type { LibraryId } from "@/lib/library-nav";
 
@@ -145,9 +146,10 @@ export function parsePersonParam(raw: string | undefined): { kind: "pupil" | "te
 export async function loadLibraryReport(
   supabase: SupabaseClient,
   libraryId: LibraryId,
-  options: { range?: ReportRange; person?: string | null } = {},
+  options: { range?: ReportRange; person?: string | null; campus?: CampusId } = {},
 ): Promise<LibraryReport> {
   const range = options.range || "90";
+  const campus = options.campus;
   const today = todayKampala();
   const since = rangeStart(range, today);
   const personRef = parsePersonParam(options.person || undefined);
@@ -161,41 +163,65 @@ export async function loadLibraryReport(
     .eq("library_id", libraryId)
     .order("issued_at", { ascending: false })
     .limit(4000);
+  if (campus) loansQuery = loansQuery.eq("campus", campus);
   if (since) loansQuery = loansQuery.gte("issued_at", `${since}T00:00:00+03:00`);
+
+  let openQuery = supabase.from("library_loans").select("id", { count: "exact", head: true }).eq("library_id", libraryId).is("returned_at", null);
+  let overdueCountQuery = supabase
+    .from("library_loans")
+    .select("id", { count: "exact", head: true })
+    .eq("library_id", libraryId)
+    .is("returned_at", null)
+    .lt("due_at", today);
+  let overdueListQuery = supabase
+    .from("library_loans")
+    .select("id, due_at, borrower_kind, students(full_name), teaching_staff(full_name), library_items(library_titles(title))")
+    .eq("library_id", libraryId)
+    .is("returned_at", null)
+    .lt("due_at", today)
+    .order("due_at")
+    .limit(20);
+  let itemsQuery = supabase
+    .from("library_items")
+    .select("id, status, accession, barcode, library_titles(title, authors)")
+    .eq("library_id", libraryId)
+    .limit(2000);
+  let unpaidQuery = supabase.from("library_fines").select("amount").eq("library_id", libraryId).is("paid_at", null).is("waived_at", null);
+  let readyQuery = supabase
+    .from("library_reservations")
+    .select("id", { count: "exact", head: true })
+    .eq("library_id", libraryId)
+    .eq("status", "ready");
+  let personLoansQuery = personRef
+    ? supabase
+        .from("library_loans")
+        .select(loanSelect)
+        .eq("library_id", libraryId)
+        .eq(personRef.kind === "pupil" ? "student_id" : "teacher_id", personRef.id)
+        .order("issued_at", { ascending: false })
+        .limit(80)
+    : null;
+  if (campus) {
+    openQuery = openQuery.eq("campus", campus);
+    overdueCountQuery = overdueCountQuery.eq("campus", campus);
+    overdueListQuery = overdueListQuery.eq("campus", campus);
+    itemsQuery = itemsQuery.eq("campus", campus);
+    unpaidQuery = unpaidQuery.eq("campus", campus);
+    readyQuery = readyQuery.eq("campus", campus);
+    if (personLoansQuery) personLoansQuery = personLoansQuery.eq("campus", campus);
+  }
 
   const [loansPack, openPack, overduePack, overdueListPack, itemsPack, unpaidPack, readyPack, titlesPack, personLoansPack, personRowPack] =
     await Promise.all([
       loansQuery,
-      supabase.from("library_loans").select("id", { count: "exact", head: true }).eq("library_id", libraryId).is("returned_at", null),
-      supabase
-        .from("library_loans")
-        .select("id", { count: "exact", head: true })
-        .eq("library_id", libraryId)
-        .is("returned_at", null)
-        .lt("due_at", today),
-      supabase
-        .from("library_loans")
-        .select(
-          "id, due_at, borrower_kind, students(full_name), teaching_staff(full_name), library_items(library_titles(title))",
-        )
-        .eq("library_id", libraryId)
-        .is("returned_at", null)
-        .lt("due_at", today)
-        .order("due_at")
-        .limit(20),
-      supabase.from("library_items").select("id, status, accession, barcode, library_titles(title, authors)").eq("library_id", libraryId).limit(2000),
-      supabase.from("library_fines").select("amount").eq("library_id", libraryId).is("paid_at", null).is("waived_at", null),
-      supabase.from("library_reservations").select("id", { count: "exact", head: true }).eq("library_id", libraryId).eq("status", "ready"),
+      openQuery,
+      overdueCountQuery,
+      overdueListQuery,
+      itemsQuery,
+      unpaidQuery,
+      readyQuery,
       supabase.from("library_titles").select("id", { count: "exact", head: true }),
-      personRef
-        ? supabase
-            .from("library_loans")
-            .select(loanSelect)
-            .eq("library_id", libraryId)
-            .eq(personRef.kind === "pupil" ? "student_id" : "teacher_id", personRef.id)
-            .order("issued_at", { ascending: false })
-            .limit(80)
-        : Promise.resolve({ data: [] as never[], error: null }),
+      personLoansQuery ?? Promise.resolve({ data: [] as never[], error: null }),
       personRef
         ? personRef.kind === "pupil"
           ? supabase.from("students").select("id, full_name, class_code, stream, photo_path, student_number").eq("id", personRef.id).maybeSingle()

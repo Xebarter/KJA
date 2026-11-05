@@ -10,6 +10,7 @@ import {
   LIVE_REST_TABLES,
   MAX_CACHE_BYTES,
   NEXT_PORT,
+  OFFLINE_AUTH_GRACE_MS,
   PROXY_PORT,
 } from "../shared/ports";
 import type { SyncStatus } from "../shared/status";
@@ -306,13 +307,8 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (result.ok && result.body.length > 0 && result.body.length <= MAX_CACHE_BYTES) {
           const path = new URL(u).pathname;
           const table = parseRestTable(path);
-          // Applications desks must not be warmed into SQLite - stale lists look like failed CRUD.
-          if (table && LIVE_REST_TABLES.has(table)) {
-            warmed += 1;
-            config.onTableChange?.(userId, table);
-            return;
-          }
           const ct = result.headers["content-type"] || "";
+          // LIVE desks still get an offline snapshot; online traffic prefers Supabase.
           if (!(ct.includes("json") && isEmptyJsonBody(result.body))) {
             store.putCache({
               user_id: userId,
@@ -463,14 +459,19 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       if (pathname === "/auth/v1/user" && method === "GET" && userId) {
         const exp = accessExpFromAuthHeader(auth);
         const cached = store.getAuthUser(userId);
-        const stillValid = Boolean(cached && exp != null && exp * 1000 > Date.now());
+        const tokenFresh = Boolean(cached && exp != null && exp * 1000 > Date.now());
+        const offlineGrace =
+          Boolean(cached) &&
+          !online &&
+          Date.now() - (cached?.fetched_at ?? 0) < OFFLINE_AUTH_GRACE_MS;
+        const stillValid = tokenFresh || offlineGrace;
 
         if (stillValid && cached) {
           store.setMeta("last_user_id", userId);
           const stale = Date.now() - cached.fetched_at >= CACHE_FRESH_MS;
           reply(200, Buffer.from(cached.body), {
             "content-type": "application/json",
-            "x-kja-cache": stale ? "stale" : "fresh",
+            "x-kja-cache": offlineGrace && !tokenFresh ? "offline-grace" : stale ? "stale" : "fresh",
           });
           if (online && stale) {
             void forward({ method, url: upstreamUrl, headers, body: null })
@@ -492,7 +493,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (!online) {
           reply(
             503,
-            Buffer.from(JSON.stringify({ message: "Offline. Session expired." })),
+            Buffer.from(JSON.stringify({ message: "Offline. Sign in again when you are back online." })),
             { "content-type": "application/json" },
           );
           return;
@@ -578,15 +579,9 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         const result = await forward({ method, url: upstreamUrl, headers, body });
         const table = parseRestTable(pathname);
         if (table) {
-          // Drop every user's cached list/detail for this table so desks re-read Supabase.
+          // Online writes: drop list caches so the next GET refreshes from Supabase.
           store.invalidateTableAllUsers(table);
-          if (
-            userId &&
-            result.ok &&
-            result.body.length &&
-            result.body.length < MAX_CACHE_BYTES &&
-            !LIVE_REST_TABLES.has(table)
-          ) {
+          if (userId && result.ok && result.body.length && result.body.length < MAX_CACHE_BYTES) {
             try {
               const json = JSON.parse(result.body.toString("utf8"));
               store.ingestJsonArray(userId, table, json);
@@ -611,36 +606,42 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         return;
       }
 
-      // GET cache (REST + storage objects)
+      // GET/HEAD cache (REST + storage). HEAD carries Prefer: count=exact for desk KPIs.
       const getTable = parseRestTable(pathname);
       const liveDeskTable = Boolean(getTable && LIVE_REST_TABLES.has(getTable));
-      const cacheableGet =
-        method === "GET" &&
+      // LIVE desks always round-trip while online; successful reads are still snapshotted for offline.
+      const preferLive = online && liveDeskTable;
+      const cacheableRead =
+        (method === "GET" || method === "HEAD") &&
         (pathname.startsWith("/rest/v1/") || pathname.startsWith("/storage/v1/object/")) &&
         !pathname.startsWith("/rest/v1/rpc/") &&
         userId &&
-        !serviceRole &&
-        // Online Applications / payments must always round-trip to Supabase.
-        !(online && liveDeskTable);
+        !serviceRole;
+      const preferHeader = headers.prefer || headers.Prefer;
+      const rangeHeader = headers.range || headers.Range;
 
-      if (cacheableGet && userId) {
+      if (cacheableRead && userId) {
         store.touchGetLog(userId, upstreamUrl);
         let cached = store.getCache(userId, upstreamUrl, "GET");
         // Drop previously poisoned empty payloads (e.g. anon boot replay).
-        if (cached && online && isEmptyJsonBody(cached.body)) {
+        // Keep empty HEAD count snapshots that carry Content-Range.
+        if (cached && online && isEmptyJsonBody(cached.body) && !cachedHasContentRange(cached.headers)) {
           store.invalidateUrl(userId, upstreamUrl);
           cached = undefined;
         }
         const fresh = cached && Date.now() - cached.fetched_at < CACHE_FRESH_MS;
 
-        if (cached) {
+        // Serve cache when offline, or when online for non-LIVE desks.
+        if (cached && !preferLive) {
           const replay = replayCacheHeaders(cached.headers, cached.status);
-          reply(replay.status, cached.body, {
+          attachCountFromBodyIfNeeded(replay.headers, cached.body, preferHeader);
+          const outBody = method === "HEAD" ? Buffer.alloc(0) : cached.body;
+          reply(replay.status, outBody, {
             ...replay.headers,
-            "x-kja-cache": fresh ? "fresh" : "stale",
+            "x-kja-cache": !online ? "offline" : fresh ? "fresh" : "stale",
           });
 
-          if (online && !fresh) {
+          if (online && !fresh && method === "GET") {
             void refreshGet(store, forward, userId, upstreamUrl, headers, pathname).then(
               (changed) => {
                 if (changed) {
@@ -654,12 +655,18 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         }
 
         if (!online) {
-          // Try entity store for simple table GETs without filters we cannot satisfy
-          const table = parseRestTable(pathname);
-          if (table && !url.search) {
-            const rows = store.listEntities(userId, table);
-            reply(200, Buffer.from(JSON.stringify(rows)), {
-              "content-type": "application/json",
+          const synthesized = offlineRestResponse(
+            store,
+            userId,
+            method,
+            pathname,
+            url.search,
+            preferHeader,
+            rangeHeader,
+          );
+          if (synthesized) {
+            reply(synthesized.status, synthesized.body, {
+              ...synthesized.headers,
               "x-kja-cache": "entities",
             });
             return;
@@ -673,12 +680,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         }
       }
 
-      // Live desks online but not signed in (or no user id): still forward, never cache.
-      if (method === "GET" && online && liveDeskTable && userId) {
-        store.touchGetLog(userId, upstreamUrl);
-      }
-
-      if (!online && method === "GET") {
+      if (!online && (method === "GET" || method === "HEAD")) {
         reply(
           503,
           Buffer.from(JSON.stringify({ message: "Offline. No cached copy of this data." })),
@@ -689,18 +691,17 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
 
       const result = await forward({ method, url: upstreamUrl, headers, body });
 
-      if (
-        cacheableGet &&
-        userId &&
-        result.ok &&
-        result.body.length > 0 &&
-        result.body.length <= MAX_CACHE_BYTES
-      ) {
+      if (cacheableRead && userId && result.ok && result.body.length <= MAX_CACHE_BYTES) {
         const table = parseRestTable(pathname);
         const ct = result.headers["content-type"] || "";
+        const headCount =
+          method === "HEAD" &&
+          Boolean(result.headers["content-range"] || result.headers["Content-Range"]);
         // Never cache empty JSON lists - they poison desks with "no term" flashes.
-        const skipEmptyJson = ct.includes("json") && isEmptyJsonBody(result.body);
+        // Empty HEAD bodies with Content-Range are count snapshots and must be kept.
+        const skipEmptyJson = !headCount && ct.includes("json") && isEmptyJsonBody(result.body);
         if (
+          (result.body.length > 0 || headCount) &&
           !skipEmptyJson &&
           (!ct.includes("octet-stream") || pathname.startsWith("/storage/v1/object/"))
         ) {
@@ -714,7 +715,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
             fetched_at: Date.now(),
             table_name: table,
           });
-          if (table && ct.includes("json")) {
+          if (table && ct.includes("json") && result.body.length > 0) {
             try {
               store.ingestJsonArray(userId, table, JSON.parse(result.body.toString("utf8")));
             } catch {
@@ -724,9 +725,6 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         } else if (skipEmptyJson && table) {
           store.invalidateUrl(userId, upstreamUrl);
         }
-      } else if (online && liveDeskTable && userId && getTable) {
-        // Ensure any older SQLite copy cannot win after a live round-trip.
-        store.invalidateTable(userId, getTable);
       }
 
       reply(result.status, result.body, pickResponseHeaders(result.headers));
@@ -933,10 +931,6 @@ async function refreshGet(
     const result = await forward({ method: "GET", url: upstreamUrl, headers, body: null });
     if (!result.ok || result.body.length > MAX_CACHE_BYTES) return false;
     const table = parseRestTable(pathname);
-    if (table && LIVE_REST_TABLES.has(table)) {
-      store.invalidateTableAllUsers(table);
-      return true;
-    }
     const ct = result.headers["content-type"] || "";
     if (ct.includes("json") && isEmptyJsonBody(result.body)) {
       const had = Boolean(store.getCache(userId, upstreamUrl, "GET"));
@@ -945,6 +939,7 @@ async function refreshGet(
     }
     const prev = store.getCache(userId, upstreamUrl, "GET");
     const changed = !prev || !prev.body.equals(result.body);
+    // Snapshot LIVE desks too so they remain readable offline after an online visit.
     store.putCache({
       user_id: userId,
       url: upstreamUrl,
@@ -966,6 +961,260 @@ async function refreshGet(
   } catch {
     return false;
   }
+}
+
+function wantsExactCount(prefer: string | undefined | null) {
+  return /count=(exact|planned|estimated)/i.test(prefer || "");
+}
+
+function cachedHasContentRange(raw: string | null) {
+  try {
+    const parsed = JSON.parse(raw || "{}") as Record<string, string>;
+    return Boolean(parsed["content-range"]);
+  } catch {
+    return false;
+  }
+}
+
+function attachCountFromBodyIfNeeded(
+  headers: Record<string, string>,
+  body: Buffer,
+  prefer: string | undefined | null,
+) {
+  if (!wantsExactCount(prefer) || headers["content-range"]) return;
+  try {
+    const rows = JSON.parse(body.toString("utf8"));
+    if (Array.isArray(rows)) {
+      headers["content-range"] = `*/${rows.length}`;
+      headers["preference-applied"] = "count=exact";
+    }
+  } catch {
+    /* ignore */
+  }
+}
+
+type LocalFilter =
+  | { op: "eq" | "neq" | "gte" | "lte" | "gt" | "lt" | "ilike"; key: string; value: string }
+  | { op: "is" | "not.is"; key: string; value: string }
+  | { op: "in"; key: string; values: string[] };
+
+function parseRangeHeader(range: string | undefined | null): { from: number; to: number } | null {
+  if (!range) return null;
+  const match = /^(\d+)-(\d+)$/.exec(range.trim());
+  if (!match) return null;
+  return { from: Number(match[1]), to: Number(match[2]) };
+}
+
+function cellText(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "true" : "false";
+  return String(value);
+}
+
+function parseFilterClause(key: string, rawVal: string): LocalFilter | null {
+  const inMatch = /^in\.\((.*)\)$/i.exec(rawVal);
+  if (inMatch) {
+    const values = inMatch[1]
+      .split(",")
+      .map((bit) => bit.trim().replace(/^"|"$/g, ""))
+      .filter(Boolean);
+    return { op: "in", key, values };
+  }
+  const opMatch = /^(eq|neq|gte|lte|gt|lt|is|not\.is|ilike)\.(.*)$/i.exec(rawVal);
+  if (!opMatch) return null;
+  const op = opMatch[1].toLowerCase() as LocalFilter["op"];
+  if (op === "in") return null;
+  return { op, key, value: opMatch[2] } as LocalFilter;
+}
+
+function rowMatchesFilter(row: Record<string, unknown>, filter: LocalFilter): boolean {
+  const raw = row[filter.key];
+  if (filter.op === "in") {
+    const left = cellText(raw);
+    return filter.values.some((value) => value === left);
+  }
+  if (filter.op === "is") {
+    if (filter.value === "null") return raw === null || raw === undefined;
+    if (filter.value === "true") return raw === true || raw === "true";
+    if (filter.value === "false") return raw === false || raw === "false";
+    return cellText(raw) === filter.value;
+  }
+  if (filter.op === "not.is") {
+    if (filter.value === "null") return raw !== null && raw !== undefined;
+    return !rowMatchesFilter(row, { op: "is", key: filter.key, value: filter.value });
+  }
+  const left = cellText(raw);
+  const right = filter.value;
+  if (filter.op === "eq") return left === right;
+  if (filter.op === "neq") return left !== right;
+  if (filter.op === "ilike") {
+    const needle = right.replace(/^%/, "").replace(/%$/, "").toLowerCase();
+    if (!needle) return true;
+    return left.toLowerCase().includes(needle);
+  }
+  if (raw === null || raw === undefined || left === "") return false;
+  if (filter.op === "gte") return left >= right;
+  if (filter.op === "lte") return left <= right;
+  if (filter.op === "gt") return left > right;
+  if (filter.op === "lt") return left < right;
+  return false;
+}
+
+function parseLocalQuery(search: string): {
+  filters: LocalFilter[];
+  orGroups: LocalFilter[][];
+  order: { key: string; asc: boolean }[];
+  limit: number | null;
+  offset: number | null;
+  aggregate: boolean;
+  unsupported: boolean;
+} {
+  const filters: LocalFilter[] = [];
+  const orGroups: LocalFilter[][] = [];
+  const order: { key: string; asc: boolean }[] = [];
+  let limit: number | null = null;
+  let offset: number | null = null;
+  let aggregate = false;
+  let unsupported = false;
+  const q = search.startsWith("?") ? search.slice(1) : search;
+  if (!q) return { filters, orGroups, order, limit, offset, aggregate, unsupported };
+
+  for (const part of q.split("&")) {
+    if (!part) continue;
+    const eq = part.indexOf("=");
+    if (eq < 0) continue;
+    let key = part.slice(0, eq);
+    let rawVal = part.slice(eq + 1);
+    try {
+      key = decodeURIComponent(key);
+      rawVal = decodeURIComponent(rawVal);
+    } catch {
+      /* keep raw if the query is malformed */
+    }
+    if (key === "select") {
+      if (/\.(sum|count|avg|min|max)\s*\(/i.test(rawVal) || /\w+\.sum\(\)|\w+\.count\(\)/i.test(rawVal)) {
+        aggregate = true;
+      }
+      continue;
+    }
+    if (key === "limit") {
+      const n = Number(rawVal);
+      if (Number.isFinite(n)) limit = n;
+      continue;
+    }
+    if (key === "offset") {
+      const n = Number(rawVal);
+      if (Number.isFinite(n)) offset = n;
+      continue;
+    }
+    if (key === "order") {
+      for (const bit of rawVal.split(",")) {
+        const [col, dir] = bit.split(".");
+        if (!col) continue;
+        order.push({ key: col, asc: dir !== "desc" && dir !== "desc.nullslast" && !String(dir || "").startsWith("desc") });
+      }
+      continue;
+    }
+    if (key === "or") {
+      const inner = rawVal.replace(/^\(/, "").replace(/\)$/, "");
+      const group: LocalFilter[] = [];
+      for (const clause of inner.split(",")) {
+        const m = /^([A-Za-z0-9_]+)\.(eq|neq|gte|lte|gt|lt|is|not\.is|ilike)\.(.*)$/i.exec(clause);
+        if (!m) continue;
+        const parsed = parseFilterClause(m[1], `${m[2]}.${m[3]}`);
+        if (parsed) group.push(parsed);
+      }
+      if (group.length) orGroups.push(group);
+      // Unparsed or-search: ignore rather than fail the whole page offline.
+      continue;
+    }
+    if (key === "and") {
+      // Nested and() is rare on desks; skip rather than hard-fail offline.
+      continue;
+    }
+    const parsed = parseFilterClause(key, rawVal);
+    if (!parsed) {
+      unsupported = true;
+      continue;
+    }
+    filters.push(parsed);
+  }
+  return { filters, orGroups, order, limit, offset, aggregate, unsupported };
+}
+
+/** Answer offline GET/HEAD from the entity store when http_cache missed. */
+function offlineRestResponse(
+  store: ProxyStore,
+  userId: string,
+  method: string,
+  pathname: string,
+  search: string,
+  prefer: string | undefined | null,
+  rangeHeader: string | undefined | null,
+): { status: number; body: Buffer; headers: Record<string, string> } | null {
+  const table = parseRestTable(pathname);
+  if (!table) return null;
+
+  const parsed = parseLocalQuery(search || "");
+  if (parsed.unsupported || parsed.aggregate) return null;
+
+  let rows = store.listEntities(userId, table);
+  if (!rows.length) {
+    // Distinguish "never synced" from a genuinely empty table.
+    if (!store.listCachesForTable(userId, table).length) return null;
+  }
+
+  if (parsed.filters.length) {
+    rows = rows.filter((row) => parsed.filters.every((filter) => rowMatchesFilter(row, filter)));
+  }
+  if (parsed.orGroups.length) {
+    rows = rows.filter((row) =>
+      parsed.orGroups.every((group) => group.some((filter) => rowMatchesFilter(row, filter))),
+    );
+  }
+
+  if (parsed.order.length) {
+    rows = [...rows].sort((a, b) => {
+      for (const rule of parsed.order) {
+        const av = cellText(a[rule.key]);
+        const bv = cellText(b[rule.key]);
+        if (av === bv) continue;
+        const cmp = av < bv ? -1 : 1;
+        return rule.asc ? cmp : -cmp;
+      }
+      return 0;
+    });
+  }
+
+  const total = rows.length;
+  const range = parseRangeHeader(rangeHeader);
+  let from = parsed.offset ?? (range ? range.from : 0);
+  let toExclusive: number | null = null;
+  if (range) toExclusive = range.to + 1;
+  if (parsed.limit != null) toExclusive = from + parsed.limit;
+  if (toExclusive == null && method === "GET" && !wantsExactCount(prefer)) {
+    // No paging — return the full filtered set.
+    toExclusive = total;
+  } else if (toExclusive == null) {
+    toExclusive = total;
+  }
+  from = Math.max(0, from);
+  const page = rows.slice(from, Math.max(from, toExclusive));
+  const count = wantsExactCount(prefer);
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  if (count) {
+    if (method === "HEAD" || page.length === 0) headers["content-range"] = `*/${total}`;
+    else headers["content-range"] = `${from}-${from + page.length - 1}/${total}`;
+    headers["preference-applied"] = "count=exact";
+  } else if (range || parsed.limit != null || parsed.offset != null) {
+    if (page.length === 0) headers["content-range"] = `*/${total}`;
+    else headers["content-range"] = `${from}-${from + page.length - 1}/${total}`;
+  }
+
+  if (method === "HEAD") {
+    return { status: 200, body: Buffer.alloc(0), headers };
+  }
+  return { status: 200, body: Buffer.from(JSON.stringify(page)), headers };
 }
 
 function tryInvalidateFromRealtime(

@@ -51,6 +51,7 @@ export async function GET(request: Request) {
   if (kind === "copy") {
     const like = `%${needle}%`;
     const libraryId = auth.activeLibrary;
+    const campus = auth.activeCampus;
     // Match titles by name/author/category, and also via accession/barcode on any copy.
     const [{ data: titleHits, error: titleError }, { data: codeHits, error: codeError }] = await Promise.all([
       auth.supabase
@@ -63,6 +64,7 @@ export async function GET(request: Request) {
         .from("library_items")
         .select("id, title_id, status, library_titles(id, title, authors, category)")
         .eq("library_id", libraryId)
+        .eq("campus", campus)
         .neq("status", "withdrawn")
         .or(`accession.ilike.${like},barcode.ilike.${like},location_note.ilike.${like}`)
         .limit(24),
@@ -99,6 +101,7 @@ export async function GET(request: Request) {
       .from("library_items")
       .select("id, title_id, status, accession")
       .eq("library_id", libraryId)
+      .eq("campus", campus)
       .in("title_id", titleIds)
       .neq("status", "withdrawn")
       .order("accession")

@@ -5,7 +5,17 @@
 import { PDFDocument, StandardFonts, clip, endPath, popGraphicsState, pushGraphicsState, rectangle, rgb, type PDFFont, type PDFPage } from "pdf-lib";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
-import { classLabel, classSection, formatShare, num, scaleBands, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
+import {
+  classLabel,
+  formatShare,
+  gradeBandSection,
+  gradeBandSectionsToLoad,
+  num,
+  scaleBands,
+  type ReportPart,
+  type ReportSet,
+  type ScaleBand,
+} from "@/lib/academics";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
 import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
@@ -210,7 +220,7 @@ export async function loadStreamReportCards(
   if (!cards.length) return [];
   const cardIds = cards.map((card) => card.id);
   const pupilIds = [...new Set(cards.map((card) => card.student_id))];
-  const section = classSection(input.classCode);
+  const markSection = gradeBandSection(input.classCode);
   const [pupils, lines, parts, initials, bands, closing, activities] = await Promise.all([
     rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null; campus: string | null }>(pupilIds, (slice, from, to) =>
       supabase.from("students").select("id, full_name, student_number, photo_path, campus").in("id", slice).range(from, to),
@@ -220,7 +230,7 @@ export async function loadStreamReportCards(
     ),
     loadReportParts(supabase, cardIds),
     loadSubjectInitials(supabase, input),
-    supabase.from("grade_bands").select("label, min_score, max_score, sort_order").eq("section", section).order("sort_order"),
+    supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(input.classCode)).order("sort_order"),
     loadClassClosing(supabase, { termId: input.termId, classCode: input.classCode }),
     rowsIn<{ report_card_id: string; slot: number; activity_name: string | null; level: string | null; comment?: string | null }>(cardIds, (slice, from, to) =>
       supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level, comment").in("report_card_id", slice).range(from, to),
@@ -285,7 +295,7 @@ export async function loadStreamReportCards(
         lines: (byCard.get(card.id) || []).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
         activities: (activitiesByCard.get(card.id) || []).sort((a, b) => a.slot - b.slot),
         sets: cardSets(card.id, byCard.get(card.id) || [], parts),
-        scale: scaleBands(section, card.grade_rules, bands.error ? null : bands.data),
+        scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
         fees: closing.feesFor(pupil?.campus ?? null),
         next_starts_on: closing.nextStartsOn,
       };

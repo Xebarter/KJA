@@ -74,7 +74,7 @@ export default async function MarksheetPage({ searchParams }: { searchParams: Pr
   const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Marksheet" state={opened} />;
-  const { supabase, office, user, staffId } = opened.auth;
+  const { supabase, office, user, staffId, campuses } = opened.auth;
   const parsed = readMarksheetQuery({ name: query.name, kind: query.kind, held: query.held, classCode: query.class, stream: query.stream, combine: query.combine });
   const name = parsed?.name || "";
   const kind = parsed?.kind || "";
@@ -114,7 +114,7 @@ export default async function MarksheetPage({ searchParams }: { searchParams: Pr
   papersRequest = held ? papersRequest.eq("held_on", held) : papersRequest.is("held_on", null);
   const [papersQuery, roll, bandsQuery, taughtQuery] = await Promise.all([
     papersRequest,
-    loadRoll(supabase, user.id),
+    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     nursery ? supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order") : Promise.resolve({ data: [], error: null }),
     !office && staffId
       ? supabase.from("subject_teachers").select("subject_id, stream").eq("term_id", term.id).eq("class_code", classCode).eq("staff_id", staffId)
