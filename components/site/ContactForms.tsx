@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useEffect, useRef, useState, type FocusEvent, type FormEvent, type ReactNode } from "react";
 import { submitEnquiry, submitVisitRequest } from "@/app/actions";
@@ -304,7 +306,7 @@ export function VisitForm({ campuses, phoneNumber, emailAddress }: { campuses: V
         <legend><span>2</span> Pick a day</legend>
         <div className="kja-ct-grid">
           <Field label="Preferred date" name="date" error={form.errors.date} hint="We'll confirm the exact time with you.">
-            <input id="date" type="date" min={minDate || undefined} {...form.control("date")} />
+            <DateField id="date" min={minDate || undefined} {...form.control("date")} />
           </Field>
           <div className="kja-ct-field">
             <span className="kja-ct-label" id="time-label">Time of day</span>

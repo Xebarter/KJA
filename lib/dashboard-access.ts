@@ -151,6 +151,7 @@ export const DASHBOARD_PAGES: Record<DashboardId, DashboardPage[]> = {
   clubs: navPages(CLUBS_BASE, clubsNav, {
     catalogue: [`${CLUBS_BASE}/catalogue`],
     register: [`${CLUBS_BASE}/register`],
+    accounts: [`${CLUBS_BASE}/receipts`],
     timetable: [`${CLUBS_BASE}/sessions`],
     reports: [`${CLUBS_BASE}/reports`, `${CLUBS_BASE}/roll`],
   }),
@@ -319,6 +320,8 @@ export async function loadGrants(supabase: SupabaseClient, userId: string, role:
                 if (id === "catalogue" || id === "stock") return "books";
                 // Clubs Sessions renamed to TimeTable.
                 if (dashboard === "clubs" && id === "sessions") return "timetable";
+                // Clubs Receipts renamed to Accounts.
+                if (dashboard === "clubs" && id === "receipts") return "accounts";
                 return id;
               })
               .filter(Boolean),

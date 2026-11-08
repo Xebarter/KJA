@@ -143,7 +143,7 @@ export function ColumnChart({ columns, label, legend, format = ugxShort }: {
           {legend[1] ? <span><i className="acc-swatch is-second" aria-hidden="true" /> {legend[1]}</span> : null}
         </figcaption>
       ) : null}
-      <ol style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(0, 1fr))` }}>
+      <ol style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(3.25rem, 1fr))` }}>
         {columns.map((column) => {
           const title = `${column.label}${column.sub ? ` ${column.sub}` : ""}: ${ugx(column.value)}${column.secondary !== undefined ? ` · ${ugx(column.secondary)}` : ""}`;
           const bars = (

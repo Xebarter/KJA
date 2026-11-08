@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { DeskForm } from "@/components/academics/Form";
@@ -380,7 +382,7 @@ function Support({
           </label>
           <label className="pup-field">
             <span>Follow-up date</span>
-            <input name="follow_up_on" type="date" />
+            <DateField name="follow_up_on" />
           </label>
           <button className="pup-commit" type="submit">Open intervention</button>
         </DeskForm>

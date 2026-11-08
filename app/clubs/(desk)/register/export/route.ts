@@ -22,8 +22,9 @@ export async function GET(request: Request) {
     withdrawn: url.searchParams.get("withdrawn") || "",
   });
   const unpaidOnly = url.searchParams.get("unpaid") === "1" || filters.pay === "unpaid";
+  if (!auth.activeCampus) return new Response("Choose a campus first.", { status: 400 });
   const { current } = await loadTerms(auth.supabase);
-  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, auth.campuses, true);
+  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, [auth.activeCampus], true);
   if (pack.error) return new Response(pack.error, { status: 500 });
 
   let rows = pack.rows;
@@ -35,7 +36,6 @@ export async function GET(request: Request) {
   if (filters.classCode === "none") rows = rows.filter((row) => !row.classCode);
   else if (filters.classCode) rows = rows.filter((row) => row.classCode === filters.classCode);
   if (filters.stream) rows = rows.filter((row) => row.stream === filters.stream);
-  if (filters.campus) rows = rows.filter((row) => (row.campus || "") === filters.campus);
   if (filters.q) {
     const needle = filters.q.toLowerCase();
     rows = rows.filter((row) =>

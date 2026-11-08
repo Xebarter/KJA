@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useEffect, useRef, useState } from "react";
 import { DeskForm } from "@/components/academics/Form";
 
@@ -218,10 +220,10 @@ export function CalendarDesk({
                   </label>
                 ) : null}
                 <label className="ofc-field"><span>Starts</span>
-                  <input name="starts_on" type="date" required value={draft.startsOn} onChange={(event) => patch({ startsOn: event.target.value })} />
+                  <DateField name="starts_on" required value={draft.startsOn} onChange={(event) => patch({ startsOn: event.target.value })} />
                 </label>
                 <label className="ofc-field"><span>Ends <em>optional</em></span>
-                  <input name="ends_on" type="date" value={draft.endsOn} onChange={(event) => patch({ endsOn: event.target.value })} />
+                  <DateField name="ends_on" value={draft.endsOn} onChange={(event) => patch({ endsOn: event.target.value })} />
                 </label>
                 <label className="ofc-field cal-span"><span>Note <em>optional</em></span>
                   <input name="note" placeholder="Who it is for, or where it happens" value={draft.note} onChange={(event) => patch({ note: event.target.value })} />

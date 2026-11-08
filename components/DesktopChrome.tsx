@@ -28,8 +28,8 @@ function desktopBridge() {
 }
 
 /**
- * Electron-only chrome: premium title strip (replaces File/Edit menus)
- * plus the offline / sync bar when needed.
+ * Electron-only chrome: premium title strip (replaces File/Edit menus).
+ * Online/offline lives in the titlebar chip; DesktopSyncBar only covers hydrate / outbox.
  */
 export function DesktopChrome({
   desk = "Staff Desktop",

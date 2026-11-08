@@ -269,9 +269,12 @@ async function waitForDeskContent(win: BrowserWindow): Promise<void> {
             const body = document.body;
             if (!body) return false;
             const text = (body.innerText || "").replace(/\\s+/g, " ").trim();
+            // Do not treat Next 404/500 chrome as a ready desk (black screen).
+            if (/this page could not be found/i.test(text)) return false;
+            if (/\\b500\\b/.test(text) && /internal server error/i.test(text)) return false;
             // Login gate, choose-dashboard, or any staff desk shell.
-            if (text.length >= 24) return true;
             if (document.querySelector("form, input[type='email'], .admin-login, main")) return true;
+            if (text.length >= 24) return true;
             return false;
           })()`,
         )

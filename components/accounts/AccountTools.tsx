@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { AmountInput, Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
@@ -142,7 +144,7 @@ export function ExtraInvoiceButton({ studentId, terms, termId, className = "admi
             </label>
             <label className="ofc-field">
               <span>Due date (optional)</span>
-              <input type="date" name="due_on" />
+              <DateField name="due_on" />
             </label>
           </div>
           <div className="acc-extra-lines">

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateField } from "@/components/ui/DateField";
 import { notFound } from "next/navigation";
 import { markLessonTaught, saveLesson, setSchemeStatus } from "@/app/academics_office/(desk)/actions";
 import { DeleteSchemeButton, EditSchemeForm, SchemeFilePanel } from "@/components/academics/SchemeForm";
@@ -206,7 +207,7 @@ export default async function SchemePage({ params }: { params: Promise<{ id: str
                 </label>
                 <label className="ofc-field">
                   <span>Due</span>
-                  <input name="due_on" type="date" />
+                  <DateField name="due_on" />
                 </label>
                 <button className="sch-commit" type="submit">Add lesson</button>
               </DeskForm>

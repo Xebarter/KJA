@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
@@ -151,7 +153,7 @@ export function AlumniEventEditor({ record }: { record: AlumniEventRow }) {
             <div className="alx-when">
               <label className="alx-when-field">
                 <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Date</span>
-                <input type="date" value={form.starts_on} onChange={(event) => set("starts_on", event.target.value)} />
+                <DateField value={form.starts_on} onChange={(event) => set("starts_on", event.target.value)} />
               </label>
               <label className="alx-when-field">
                 <span><i className="fa-solid fa-location-dot" aria-hidden="true" /> Venue</span>

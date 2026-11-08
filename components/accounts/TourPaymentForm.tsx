@@ -1,8 +1,10 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { AmountInput, Feedback, useOfficeAction } from "@/components/accounts/client";
+import { AmountInput, Feedback, useOfficeAction, useScrollTopWhen } from "@/components/accounts/client";
 import { StudentPicker } from "@/components/accounts/StudentPicker";
 import {
   loadChargeProducts,
@@ -43,6 +45,7 @@ export function TourPaymentForm({
   const [saved, setSaved] = useState<(ActionResult & { productName?: string; amount?: number }) | null>(null);
   const [formKey, setFormKey] = useState(0);
   const { result, setResult, pending, run } = useOfficeAction();
+  useScrollTopWhen(Boolean(saved?.id));
 
   const selected = products.find((row) => row.id === productId) || null;
   const info = methodInfo(method);
@@ -76,22 +79,29 @@ export function TourPaymentForm({
   }, [defaultAmount, productId]);
 
   if (saved?.id) {
-    const receiptHref = `${ACCOUNTS_BASE}/payments/charge/${saved.id}`;
+    const receiptNo = String(saved.ok || "").match(/receipt\s+(\S+)\s+saved/i)?.[1] || "Receipt";
+    const printHref = `${ACCOUNTS_BASE}/payments/charge/${saved.id}/receipt`;
+    const detailHref = `${ACCOUNTS_BASE}/payments/charge/${saved.id}`;
     return (
       <div className="acc-done">
         <span className="acc-done-icon"><i className="fa-solid fa-check" aria-hidden="true" /></span>
-        <h2>{saved.ok}</h2>
-        <p>
-          {ugx(saved.amount || amount)} for {saved.productName || selected?.name || "tour"}
-          {pupil ? ` · ${pupil.full_name}` : ""} by {info.label.toLowerCase()}.
+        <p className="acc-done-kicker">Payment complete</p>
+        <h2>Receipt saved</h2>
+        <p className="acc-done-no">{receiptNo}</p>
+        <p className="acc-done-meta">
+          {ugx(saved.amount || amount)} · {saved.productName || selected?.name || "Tour"}
+          {pupil ? ` · ${pupil.full_name}` : ""} · {info.label}
         </p>
         <div className="acc-wizard-foot is-center">
-          <Link className="admin-btn" href={receiptHref}>
-            <i className="fa-solid fa-receipt" aria-hidden="true" /> Open receipt
+          <a className="acc-done-btn is-primary" href={printHref} target="_blank" rel="noreferrer">
+            <i className="fa-solid fa-print" aria-hidden="true" /> Print receipt
+          </a>
+          <Link className="acc-done-btn is-secondary" href={detailHref}>
+            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> Details
           </Link>
           <button
             type="button"
-            className="admin-btn admin-btn-ghost"
+            className="acc-done-btn is-quiet"
             onClick={() => {
               setSaved(null);
               setResult(null);
@@ -102,7 +112,7 @@ export function TourPaymentForm({
           >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Record another
           </button>
-          {onDone ? <button type="button" className="admin-btn admin-btn-ghost" onClick={onDone}>Close</button> : null}
+          {onDone ? <button type="button" className="acc-done-btn is-quiet" onClick={onDone}>Close</button> : null}
         </div>
       </div>
     );
@@ -217,7 +227,7 @@ export function TourPaymentForm({
         <div className="ofc-fields">
           <label className="ofc-field">
             <span>Date paid</span>
-            <input type="date" name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
+            <DateField name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
           </label>
           <div className="ofc-field is-wide">
             <span>Amount received</span>

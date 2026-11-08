@@ -14,7 +14,7 @@ export const clubsNav: ClubsNavItem[] = [
   { href: CLUBS_BASE, label: "Overview", icon: "fa-gauge-high", group: "Desk" },
   { href: `${CLUBS_BASE}/catalogue`, label: "Clubs", icon: "fa-puzzle-piece", group: "Catalogue" },
   { href: `${CLUBS_BASE}/register`, label: "Register", icon: "fa-clipboard-list", group: "Membership", badge: "unpaid" },
-  { href: `${CLUBS_BASE}/receipts`, label: "Receipts", icon: "fa-receipt", group: "Finance" },
+  { href: `${CLUBS_BASE}/accounts`, label: "Accounts", icon: "fa-wallet", group: "Finance" },
   { href: `${CLUBS_BASE}/timetable`, label: "TimeTable", icon: "fa-calendar-week", group: "Operations" },
   { href: `${CLUBS_BASE}/reports`, label: "Reports", icon: "fa-chart-column", group: "Insights" },
   { href: `${CLUBS_BASE}/settings`, label: "Settings", icon: "fa-gear", group: "Setup" },

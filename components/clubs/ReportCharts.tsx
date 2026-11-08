@@ -102,7 +102,7 @@ export function StackedMonths({
           </span>
         ))}
       </figcaption>
-      <ol style={{ gridTemplateColumns: `repeat(${months.length}, minmax(0, 1fr))` }}>
+      <ol style={{ gridTemplateColumns: `repeat(${months.length}, minmax(3.25rem, 1fr))` }}>
         {months.map((month) => (
           <li key={month.key} title={`${month.label} ${month.sub}: ${ugxShort(month.total)}`}>
             <span className="cbr-stack-value">{month.total ? ugxShort(month.total) : ""}</span>

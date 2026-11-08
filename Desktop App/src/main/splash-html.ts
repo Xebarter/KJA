@@ -193,7 +193,7 @@ export function splashHtml(logoSrc: string): string {
     <div class="seal" aria-hidden="true">${logo}</div>
     <p class="kicker">Kampala Junior Academy</p>
     <h1>Staff Desktop</h1>
-    <p class="sub">Your offices, ready offline</p>
+    <p class="sub">Your Desk</p>
     <div class="panel" id="panel" role="status" aria-live="polite">
       <div class="row">
         <span class="dot" id="dot" aria-hidden="true"></span>

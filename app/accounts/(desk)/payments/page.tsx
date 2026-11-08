@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { AccountsPageHeader } from "@/components/accounts/AccountsPageHeader";
-import { AutoSubmit, ClickRow } from "@/components/accounts/client";
+import { ClickRow } from "@/components/accounts/client";
+import { PaymentsFinder } from "@/components/accounts/PaymentsFinder";
 import { PaymentsRecordButton, PaymentsRecordPanel } from "@/components/accounts/PaymentsRecord";
 import { Chips, MethodTag, notReady } from "@/components/accounts/ui";
 import { Empty, Pager } from "@/components/office/ui";
@@ -9,7 +10,6 @@ import type { PupilHit } from "./actions";
 import {
   PAYMENT_CATEGORIES,
   PAYMENT_RANGES,
-  PAYMENT_SOURCES,
   categoryIcon,
   categoryLabel,
   detailHref,
@@ -20,7 +20,7 @@ import {
 } from "./filters";
 import { aggRows, num } from "@/lib/accounts-agg";
 import { ACCOUNTS_BASE, loadCampuses, loadTerms, requireAccounts } from "@/lib/accounts";
-import { PAYMENT_METHODS, amount, dateTime, day, hrefWith, ugx, ugxShort } from "@/lib/accounts-format";
+import { amount, dateTime, day, hrefWith, ugx, ugxShort } from "@/lib/accounts-format";
 import { fetchAll, isUuid, pick } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import "./payments.css";
@@ -41,7 +41,6 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
 
   const filters = parsePaymentFilters(params);
   const dates = paymentDates(filters, current);
-  const termLabels = new Map(terms.map((term) => [term.id, term.label]));
   const state: Record<string, string> = {
     range: filters.range === "term" ? "" : filters.range,
     from: filters.from,
@@ -94,23 +93,6 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
     </Suspense>
   );
 
-  const active: { key: string; label: string; href: string }[] = [];
-  if (filters.q) active.push({ key: "q", label: `Search: “${filters.q}”`, href: href({ q: "" }) });
-  if (filters.range && filters.range !== "term") active.push({ key: "range", label: rangeLabel, href: href({ range: "", from: "", to: "" }) });
-  if (filters.method) {
-    const method = PAYMENT_METHODS.find((entry) => entry.value === filters.method);
-    active.push({ key: "method", label: method?.label ?? "Method", href: href({ method: "" }) });
-  }
-  if (filters.campus) active.push({ key: "campus", label: filters.campus, href: href({ campus: "" }) });
-  if (filters.category) active.push({ key: "category", label: categoryLabel(filters.category), href: href({ category: "" }) });
-  if (filters.source) active.push({ key: "source", label: filters.source === "online" ? "Online" : "Desk", href: href({ source: "" }) });
-  if (filters.show !== "valid") {
-    active.push({
-      key: "show",
-      label: filters.show === "void" ? "Voided only" : "Including voided",
-      href: href({ show: "" }),
-    });
-  }
   const clearHref = href({ q: "", range: "", from: "", to: "", method: "", campus: "", show: "", category: "", source: "", page: 1 });
 
   const [list, categoryRows] = await Promise.all([
@@ -184,84 +166,13 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
   );
 
   const finder = (
-    <AutoSubmit className="ofc-finder" action={BASE} label="Filter payments">
-      {filters.category ? <input type="hidden" name="category" value={filters.category} /> : null}
-      <div className="ofc-finder-top">
-        <label className="ofc-finder-search">
-          <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
-          <span className="visually-hidden">Search payments</span>
-          <input
-            type="search"
-            name="q"
-            defaultValue={filters.q}
-            placeholder="Pupil, receipt, club, payer or reference"
-            autoComplete="off"
-          />
-        </label>
-        <label className="ofc-finder-field is-inline">
-          <span>When</span>
-          <select name="range" defaultValue={filters.range || "term"}>
-            {PAYMENT_RANGES.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-            <option value="custom">Custom dates</option>
-          </select>
-        </label>
-        <label className="ofc-finder-field is-inline">
-          <span>Source</span>
-          <select name="source" defaultValue={filters.source}>
-            {PAYMENT_SOURCES.map((entry) => <option key={entry.value || "all"} value={entry.value}>{entry.label}</option>)}
-          </select>
-        </label>
-        <label className="ofc-finder-field is-inline">
-          <span>Method</span>
-          <select name="method" defaultValue={filters.method}>
-            <option value="">Any method</option>
-            {PAYMENT_METHODS.map((entry) => <option key={entry.value} value={entry.value}>{entry.label}</option>)}
-          </select>
-        </label>
-        {campuses.length > 1 ? (
-          <label className="ofc-finder-field is-inline">
-            <span>Campus</span>
-            <select name="campus" defaultValue={filters.campus}>
-              <option value="">All campuses</option>
-              {campuses.map((campus) => <option key={campus} value={campus}>{campus}</option>)}
-            </select>
-          </label>
-        ) : null}
-        <button type="submit" className="pay-search admin-btn admin-btn-gold">Search</button>
-      </div>
-      <details className="acc-more-filters" open={filters.range === "custom" || filters.show !== "valid"}>
-        <summary>Dates and more</summary>
-        <div className="acc-more-panel">
-          <label className="ofc-finder-field">
-            <span>From</span>
-            <input type="date" name="from" defaultValue={filters.from || dates.from} />
-          </label>
-          <label className="ofc-finder-field">
-            <span>To</span>
-            <input type="date" name="to" defaultValue={filters.to || dates.to} />
-          </label>
-          <label className="ofc-finder-field">
-            <span>Show</span>
-            <select name="show" defaultValue={filters.show}>
-              <option value="valid">Valid only</option>
-              <option value="void">Voided only</option>
-              <option value="all">All</option>
-            </select>
-          </label>
-        </div>
-      </details>
-      {active.length ? (
-        <div className="ofc-finder-chips">
-          {active.map((chip) => (
-            <Link key={chip.key} href={chip.href} className="ofc-chip is-on" scroll={false}>
-              {chip.label}
-              <i className="fa-solid fa-xmark" aria-hidden="true" />
-            </Link>
-          ))}
-          <Link href={clearHref} className="ofc-chip-clear" scroll={false}>Clear all</Link>
-        </div>
-      ) : null}
-    </AutoSubmit>
+    <PaymentsFinder
+      filters={filters}
+      campuses={campuses}
+      rangeLabel={rangeLabel}
+      defaultFrom={dates.from}
+      defaultTo={dates.to}
+    />
   );
 
   const actions = (
@@ -401,7 +312,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                       </td>
                       <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
                       <td data-label="Source" className="pay-by">
-                        {row.source === "online" ? "Online" : "Desk"}
+                        <span className={`pay-source is-${row.source === "online" ? "online" : "desk"}`}>
+                          <i className={`fa-solid ${row.source === "online" ? "fa-globe" : "fa-building"}`} aria-hidden="true" />
+                          {row.source === "online" ? "Online" : "Desk"}
+                        </span>
                         <small>{row.payer_name ? `From ${row.payer_name}` : dateTime(row.created_at)}</small>
                       </td>
                       <td className="ofc-col-go" aria-hidden="true">
@@ -439,7 +353,10 @@ export default async function PaymentsPage({ searchParams }: { searchParams: Pro
                         </td>
                         <td data-label="Amount" className="is-num"><strong>{amount(row.amount)}</strong></td>
                         <td data-label="Source" className="pay-by">
-                          {row.source === "online" ? "Online" : "Desk"}
+                          <span className={`pay-source is-${row.source === "online" ? "online" : "desk"}`}>
+                            <i className={`fa-solid ${row.source === "online" ? "fa-globe" : "fa-building"}`} aria-hidden="true" />
+                            {row.source === "online" ? "Online" : "Desk"}
+                          </span>
                           <small>{row.payer_name ? `From ${row.payer_name}` : dateTime(row.created_at)}</small>
                         </td>
                         <td className="ofc-col-go">

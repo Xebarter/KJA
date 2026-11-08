@@ -137,7 +137,7 @@
   gap: .65rem 1.1rem;
   padding: .85rem 1.4rem;
   border-top: 1px solid #f1ece2;
-  background: linear-gradient(180deg, #fbf9f5, #fff);
+  background: #faf8f4;
 }
 .pay-avg > i { color: var(--admin-gold); }
 .pay-avg p { margin: 0; color: var(--admin-muted); font-size: .86rem; }
@@ -149,34 +149,161 @@
   overflow: hidden;
   min-width: 0;
   max-width: 100%;
+  border: 1px solid rgba(25, 35, 43, .06);
   border-radius: 22px;
   background: #fff;
   box-shadow: 0 18px 40px -28px rgba(25, 35, 43, .35);
 }
-.pay-page .ofc-finder {
-  gap: .85rem;
+.pay-page .ofc-finder,
+.pay-page .pay-finder {
+  gap: .8rem;
   min-width: 0;
+  padding: 1.05rem 1.2rem .95rem;
   border-bottom: 1px solid #f1ece2;
   background: #fff;
 }
 .pay-page .ofc-finder-top { align-items: flex-end; gap: .65rem .75rem; }
 .pay-page .ofc-finder-search {
-  flex: 1 1 16rem;
+  position: relative;
+  flex: 1 1 18rem;
   min-width: 0;
+  height: 46px;
+  border: 1px solid #e4ddd1;
+  border-radius: 14px;
+  background: #fffcf8;
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }
+.pay-page .ofc-finder-search:focus-within {
+  border-color: rgba(25, 35, 43, .28);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(253, 163, 27, .16);
+}
+.pay-page .ofc-finder-search.is-searching > i { color: var(--admin-gold); }
+.pay-page .ofc-finder-search input {
+  min-width: 0;
+  height: 100%;
+  padding-right: 2.4rem;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.pay-page .ofc-finder-search input:focus { outline: none; box-shadow: none; }
+.pay-page .ofc-finder-search input::-webkit-search-cancel-button { appearance: none; }
+.pay-finder-clear {
+  position: absolute;
+  top: 50%;
+  right: .55rem;
+  display: grid;
+  place-items: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: #efe8da;
+  color: #7a7166;
+  font-size: .72rem;
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition: background-color .14s ease, color .14s ease;
+}
+.pay-finder-clear:hover { background: #e4dccb; color: var(--admin-navy); }
 .pay-page .ofc-finder-field.is-inline {
   flex: 1 1 8.5rem;
   min-width: 0;
   max-width: 14rem;
 }
+.pay-page .ofc-finder-field.is-inline > span {
+  margin-bottom: .2rem;
+  color: #7a7166;
+  font-size: .66rem;
+  letter-spacing: .1em;
+}
 .pay-page .ofc-finder-field.is-inline select {
   width: 100%;
   min-width: 0;
+  height: 46px;
+  border: 1px solid #e4ddd1;
+  border-radius: 14px;
+  background: #fff;
+  transition: border-color .16s ease, box-shadow .16s ease;
+}
+.pay-page .ofc-finder-field.is-inline select:hover { border-color: rgba(25, 35, 43, .18); }
+.pay-page .ofc-finder-field.is-inline select:focus {
+  outline: none;
+  border-color: rgba(25, 35, 43, .28);
+  box-shadow: 0 0 0 3px rgba(253, 163, 27, .16);
 }
 .pay-page .ofc-finder-search input,
 .pay-page .ofc-finder-field.is-inline select,
 .pay-page .acc-more-row input[type="date"] {
   transition: border-color .16s ease, box-shadow .16s ease;
+}
+.pay-page .ofc-finder-active,
+.pay-page .pay-finder-active {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .5rem .75rem;
+  padding-top: .75rem;
+  border-top: 1px dashed #ebe4d8;
+}
+.pay-page .ofc-finder-active > span {
+  color: var(--admin-muted);
+  font-size: .78rem;
+  font-weight: 650;
+}
+.pay-page .ofc-finder-active ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.pay-page .ofc-finder-active li a {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  min-height: 30px;
+  padding: 0 .7rem 0 .75rem;
+  border-radius: 999px;
+  background: var(--admin-navy);
+  color: #fff;
+  font-size: .78rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background-color .14s ease;
+}
+.pay-page .ofc-finder-active li a i {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .16);
+  font-size: .62rem;
+}
+.pay-page .ofc-finder-active li a:hover { background: var(--admin-red); }
+.pay-page .ofc-finder-clear {
+  margin-left: .1rem;
+  color: var(--admin-muted);
+  font-size: .8rem;
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: color .14s ease, text-decoration-color .14s ease;
+}
+.pay-page .ofc-finder-clear:hover {
+  color: var(--admin-red);
+  text-decoration-color: currentColor;
+}
+.pay-page .ofc-finder.is-pending :is(.pay-table, .pay-results, .apl-empty),
+.kja-accounts .pay-page .ofc-register:has(.ofc-finder.is-pending) :is(.pay-table, .pay-results, .apl-empty, .ofc-table-scroll) {
+  opacity: .55;
+  transition: opacity .15s ease;
+  pointer-events: none;
 }
 .pay-page .ofc-table-scroll {
   max-width: 100%;
@@ -185,10 +312,10 @@
   overscroll-behavior-x: contain;
 }
 .pay-search {
-  height: 44px;
+  height: 46px;
   padding: 0 1.15rem;
   border: 0;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--admin-navy);
   color: #fff;
   font: inherit;
@@ -267,9 +394,7 @@
   min-width: 0;
   border: 1px solid rgba(25, 35, 43, .08);
   border-radius: 16px;
-  background:
-    radial-gradient(120% 140% at 0% 0%, rgba(25, 35, 43, .035), transparent 55%),
-    linear-gradient(180deg, #fffcf7 0%, #fff 100%);
+  background: #fffcf8;
   box-shadow: 0 1px 2px rgba(25, 35, 43, .03);
   animation: pay-more-in .22s cubic-bezier(.2, .7, .2, 1) both;
 }
@@ -393,19 +518,20 @@
   align-items: flex-end;
   justify-content: space-between;
   gap: .75rem 1.5rem;
-  padding: 1rem 1.25rem 0;
+  padding: 1.05rem 1.3rem 0;
   border-bottom: 1px solid #f1ece2;
+  background: #fff;
 }
 .pay-results h2 {
   margin: 0;
   color: var(--admin-navy);
   font-family: Yantramanav, Roboto, sans-serif;
-  font-size: 1.2rem;
+  font-size: 1.22rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -.01em;
+  letter-spacing: -.015em;
 }
-.pay-results p { margin: .15rem 0 0; color: var(--admin-muted); font-size: .82rem; }
+.pay-results p { margin: .18rem 0 0; color: var(--admin-muted); font-size: .82rem; font-weight: 550; }
 .pay-results .ofc-chips {
   gap: 0 1.15rem;
   margin: 0;
@@ -414,12 +540,13 @@
 }
 .pay-results .ofc-chips a {
   margin-bottom: -1px;
-  padding: .35rem 0 .55rem;
+  padding: .4rem 0 .6rem;
   border: 0;
   border-bottom: 2px solid transparent;
   border-radius: 0;
   background: transparent;
   color: var(--admin-muted);
+  font-size: .86rem;
   font-weight: 700;
   box-shadow: none;
   transition: color .16s ease, border-color .16s ease;
@@ -435,37 +562,40 @@
 /* ---------------------------------------------------------------- table */
 
 .pay-table { font-size: .92rem; }
+.pay-table thead { background: #faf8f4; }
 .pay-table th {
-  padding: .55rem .85rem;
+  padding: .65rem .85rem;
   border-top: 0;
-  border-bottom: 1px solid #e7e0d4;
+  border-bottom: 1px solid #ebe4d8;
   background: transparent;
   color: #8a8174;
   font-size: .68rem;
-  font-weight: 700;
+  font-weight: 750;
   letter-spacing: .08em;
   text-transform: uppercase;
   white-space: nowrap;
 }
 .pay-table th:first-child,
-.pay-table td:first-child { padding-left: 1.25rem; }
+.pay-table td:first-child { padding-left: 1.3rem; }
 .pay-table th:last-child,
-.pay-table td:last-child { padding-right: 1.15rem; }
-.pay-table td { padding: .8rem .85rem; vertical-align: middle; border-bottom-color: #f3eee6; }
+.pay-table td:last-child { padding-right: 1.2rem; }
+.pay-table td { padding: .88rem .85rem; vertical-align: middle; border-bottom-color: #f3eee6; }
 .pay-table tbody tr {
   cursor: pointer;
   background: transparent;
-  transition: background-color .16s ease;
+  transition: background-color .14s ease;
 }
-.pay-table tbody tr:hover { background: #faf7f1; }
-.pay-table tbody tr.is-void { opacity: .62; }
+.pay-table tbody tr:hover { background: #fbf8f2; }
+.pay-table tbody tr:focus-within { background: #f7f3ea; }
+.pay-table tbody tr.is-void { opacity: .58; }
 .pay-table td.is-num { text-align: right; white-space: nowrap; }
 .pay-table td.is-num strong {
   color: var(--admin-navy);
   font-family: Yantramanav, Roboto, sans-serif;
-  font-size: 1.02rem;
+  font-size: 1.05rem;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
+  letter-spacing: -.02em;
 }
 .pay-table .ofc-col-go {
   width: 2rem;
@@ -617,11 +747,33 @@
 .pay-term { color: var(--admin-navy); font-weight: 600; white-space: nowrap; }
 .pay-by {
   min-width: 0;
-  max-width: 10rem;
+  max-width: 11rem;
   overflow: hidden;
   color: var(--admin-navy);
   text-overflow: ellipsis;
 }
+.pay-source {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
+  padding: .16rem .5rem;
+  border-radius: 999px;
+  background: #f1ece2;
+  color: #5c5348;
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.pay-source.is-online {
+  background: #e8f0fc;
+  color: #1d56b0;
+}
+.pay-source.is-desk {
+  background: #e5f5ea;
+  color: #127238;
+}
+.pay-source i { font-size: .66rem; }
 
 /* ---------------------------------------------------------------- form / detail */
 
@@ -650,31 +802,100 @@
   background: #fff;
 }
 
-/* Club recorder — same desk language as school fees */
+/* Club recorder — compact desk collection */
+.pay-page .acc-pay-form.is-club,
+.pay-form-page .acc-pay-form.is-club {
+  gap: .7rem;
+}
+.pay-page .acc-pay-form.is-club .ofc-fieldset,
+.pay-form-page .acc-pay-form.is-club .ofc-fieldset {
+  padding: .7rem .8rem .8rem;
+  border-radius: 12px;
+}
+.pay-page .acc-pay-form.is-club .ofc-fieldset + .ofc-fieldset,
+.pay-form-page .acc-pay-form.is-club .ofc-fieldset + .ofc-fieldset {
+  margin-top: .55rem;
+}
+.pay-page .acc-pay-form.is-club legend,
+.pay-form-page .acc-pay-form.is-club legend {
+  display: inline-flex;
+  align-items: baseline;
+  gap: .45rem;
+  margin-bottom: .45rem;
+  font-size: .78rem;
+}
+.pay-page .acc-club-legend-meta,
+.pay-form-page .acc-club-legend-meta {
+  color: var(--admin-muted);
+  font-size: .72rem;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.pay-page .acc-club-lead,
+.pay-form-page .acc-club-lead {
+  margin: 0 0 .55rem;
+  color: var(--admin-muted);
+  font-size: .78rem;
+  line-height: 1.35;
+}
 .pay-page .acc-pay-form.is-club .acc-club-choices,
 .pay-form-page .acc-pay-form.is-club .acc-club-choices {
   display: grid;
-  gap: .55rem;
+  gap: .65rem;
+  max-height: min(22rem, 50vh);
   margin: 0;
   padding: 0;
+  overflow: auto;
   list-style: none;
+  scrollbar-gutter: stable;
+}
+.pay-page .acc-club-group,
+.pay-form-page .acc-club-group {
+  display: grid;
+  gap: .35rem;
+}
+.pay-page .acc-club-group-label,
+.pay-form-page .acc-club-group-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  margin: .15rem 0 0;
+  color: #17803d;
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.pay-page .acc-club-group-label span,
+.pay-form-page .acc-club-group-label span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.15rem;
+  height: 1.15rem;
+  padding: 0 .28rem;
+  border-radius: 999px;
+  background: rgba(23, 128, 61, .12);
+  color: #146c34;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
 }
 .pay-page .acc-club-choices.is-loading li,
 .pay-form-page .acc-club-choices.is-loading li {
   display: grid;
-  grid-template-columns: 2.5rem minmax(0, 1fr) 5rem;
-  gap: .75rem;
+  grid-template-columns: 1.85rem minmax(0, 1fr) 4.5rem;
+  gap: .55rem;
   align-items: center;
-  min-height: 64px;
-  padding: .75rem .85rem;
-  border: 1px solid #f1ece2;
-  border-radius: 14px;
-  background: #faf7f1;
+  min-height: 44px;
+  padding: .5rem .65rem;
+  border: 1px solid #efe9df;
+  border-radius: 10px;
+  background: #faf8f4;
 }
 .pay-page .acc-club-choices.is-loading li span,
 .pay-form-page .acc-club-choices.is-loading li span {
   display: block;
-  height: .7rem;
+  height: .55rem;
   border-radius: 999px;
   background: linear-gradient(90deg, #efe9df, #f7f3ea, #efe9df);
   background-size: 200% 100%;
@@ -682,18 +903,19 @@
 }
 .pay-page .acc-club-choices.is-loading li span:first-child,
 .pay-form-page .acc-club-choices.is-loading li span:first-child {
-  width: 2.5rem;
-  height: 2.5rem;
-  border-radius: 12px;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
 }
 .pay-page .acc-club-choice,
 .pay-form-page .acc-club-choice {
   position: relative;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: .8rem;
+  grid-template-columns: 1.85rem minmax(0, 1fr) auto;
+  gap: .55rem;
   align-items: center;
   margin: 0;
+  padding: .5rem .65rem;
   cursor: pointer;
 }
 .pay-page .acc-club-choice input,
@@ -706,119 +928,211 @@
 .pay-form-page .acc-club-choice-mark {
   display: grid;
   place-items: center;
-  width: 2.55rem;
-  height: 2.55rem;
-  border-radius: 12px;
-  background: #f3e9fb;
+  width: 1.85rem;
+  height: 1.85rem;
+  border-radius: 8px;
+  background: #f4eef9;
   color: #6b3fa0;
-  font-size: 1rem;
-  transition: background .16s ease, color .16s ease;
+  font-size: .78rem;
+  transition: background .14s ease, color .14s ease, box-shadow .14s ease;
 }
 .pay-page .acc-club-choice-copy,
 .pay-form-page .acc-club-choice-copy {
   display: grid;
-  gap: .15rem;
+  gap: .08rem;
+  min-width: 0;
+}
+.pay-page .acc-club-choice-title,
+.pay-form-page .acc-club-choice-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem .45rem;
   min-width: 0;
 }
 .pay-page .acc-club-choice-copy strong,
 .pay-form-page .acc-club-choice-copy strong {
   color: var(--admin-navy);
-  font-size: .95rem;
-  font-weight: 750;
+  font-size: .88rem;
+  font-weight: 700;
+  line-height: 1.2;
 }
 .pay-page .acc-club-choice-copy small,
 .pay-form-page .acc-club-choice-copy small {
   color: var(--admin-muted);
-  font-size: .78rem;
+  font-size: .72rem;
+  line-height: 1.2;
+}
+.pay-page .acc-club-badge,
+.pay-form-page .acc-club-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: .08rem .38rem;
+  border-radius: 999px;
+  background: rgba(107, 63, 160, .08);
+  color: #6b3fa0;
+  font-size: .62rem;
+  font-style: normal;
+  font-weight: 750;
+  letter-spacing: .03em;
+  line-height: 1.2;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.pay-page .acc-club-badge.is-consent,
+.pay-form-page .acc-club-badge.is-consent {
+  background: rgba(154, 79, 10, .1);
+  color: #8a4709;
+}
+.pay-page .acc-club-badge.is-paid,
+.pay-form-page .acc-club-badge.is-paid {
+  background: rgba(23, 128, 61, .12);
+  color: #146c34;
 }
 .pay-page .acc-club-choice-fee,
 .pay-form-page .acc-club-choice-fee {
   color: var(--admin-navy);
   font-family: Yantramanav, Roboto, sans-serif;
-  font-size: 1.05rem;
+  font-size: .95rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
   white-space: nowrap;
+}
+.pay-page .acc-club-choice-side,
+.pay-form-page .acc-club-choice-side {
+  display: grid;
+  justify-items: end;
+  gap: .12rem;
+}
+.pay-page .acc-club-receipt-link,
+.pay-form-page .acc-club-receipt-link {
+  color: #146c34;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-decoration: none;
+}
+.pay-page .acc-club-receipt-link:hover,
+.pay-form-page .acc-club-receipt-link:hover {
+  text-decoration: underline;
 }
 .pay-page .acc-club-choice::after,
 .pay-form-page .acc-club-choice::after {
   content: "";
   position: absolute;
   inset: 0;
-  border: 1px solid #e7e0d4;
-  border-radius: 14px;
+  border: 1px solid #ebe4d8;
+  border-radius: 10px;
   background: #fff;
   z-index: -1;
-  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease, background .16s ease;
+  transition: border-color .14s ease, background .14s ease, box-shadow .14s ease;
 }
-.pay-page .acc-club-choice {
-  padding: .8rem .9rem;
-}
-.pay-form-page .acc-club-choice { padding: .8rem .9rem; }
 .pay-page .acc-club-choice:hover::after,
 .pay-form-page .acc-club-choice:hover::after {
   border-color: rgba(107, 63, 160, .28);
-  box-shadow: 0 12px 24px -18px rgba(107, 63, 160, .4);
-  transform: translateY(-1px);
+  background: #fcfaff;
 }
 .pay-page .acc-club-choice.is-on::after,
 .pay-form-page .acc-club-choice.is-on::after {
-  border-color: rgba(107, 63, 160, .45);
-  box-shadow: 0 0 0 1px rgba(107, 63, 160, .16), 0 14px 28px -18px rgba(107, 63, 160, .4);
-  background: linear-gradient(180deg, #fff, #faf5ff);
+  border-color: rgba(107, 63, 160, .42);
+  background: #faf6ff;
+  box-shadow: inset 0 0 0 1px rgba(107, 63, 160, .08);
 }
 .pay-page .acc-club-choice.is-on .acc-club-choice-mark,
 .pay-form-page .acc-club-choice.is-on .acc-club-choice-mark {
   background: #6b3fa0;
   color: #fff;
+  box-shadow: 0 0 0 1px rgba(107, 63, 160, .12);
+}
+.pay-page .acc-club-choice.is-paid,
+.pay-form-page .acc-club-choice.is-paid {
+  cursor: default;
+}
+.pay-page .acc-club-choice.is-paid::after,
+.pay-form-page .acc-club-choice.is-paid::after {
+  border-color: rgba(23, 128, 61, .22);
+  background: linear-gradient(180deg, #f4fbf6, #eef8f1);
+  box-shadow: inset 0 0 0 1px rgba(23, 128, 61, .04);
+}
+.pay-page .acc-club-choice.is-paid:hover::after,
+.pay-form-page .acc-club-choice.is-paid:hover::after {
+  border-color: rgba(23, 128, 61, .28);
+  background: linear-gradient(180deg, #f4fbf6, #eef8f1);
+}
+.pay-page .acc-club-choice.is-paid .acc-club-choice-mark,
+.pay-form-page .acc-club-choice.is-paid .acc-club-choice-mark {
+  background: #17803d;
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(23, 128, 61, .12);
+}
+.pay-page .acc-club-choice.is-paid .acc-club-choice-copy strong,
+.pay-form-page .acc-club-choice.is-paid .acc-club-choice-copy strong {
+  color: #145a2f;
+}
+.pay-page .acc-club-choice.is-paid .acc-club-choice-copy small,
+.pay-form-page .acc-club-choice.is-paid .acc-club-choice-copy small {
+  color: #4d6a58;
+}
+.pay-page .acc-club-choice.is-paid .acc-club-choice-fee,
+.pay-form-page .acc-club-choice.is-paid .acc-club-choice-fee {
+  color: #146c34;
 }
 .pay-page .acc-club-summary,
 .pay-form-page .acc-club-summary {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: .15rem .85rem;
+  gap: .1rem .7rem;
   align-items: baseline;
-  margin-top: .85rem;
-  padding: .85rem .95rem;
-  border-radius: 14px;
-  background: linear-gradient(180deg, #faf5ff, #f7f1fc);
-  border: 1px solid rgba(107, 63, 160, .12);
+  margin-top: .55rem;
+  padding: .55rem .7rem;
+  border: 1px solid #ebe4d8;
+  border-radius: 10px;
+  background: #faf8f4;
+}
+.pay-page .acc-club-summary.is-ready,
+.pay-form-page .acc-club-summary.is-ready {
+  border-color: rgba(107, 63, 160, .18);
+  background: #f8f4fc;
 }
 .pay-page .acc-club-summary > span,
 .pay-form-page .acc-club-summary > span {
   grid-column: 1;
   color: var(--admin-muted);
-  font-size: .72rem;
+  font-size: .68rem;
   font-weight: 750;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-transform: uppercase;
 }
 .pay-page .acc-club-summary > strong,
 .pay-form-page .acc-club-summary > strong {
   grid-column: 2;
   justify-self: end;
-  color: #6b3fa0;
+  color: var(--admin-navy);
   font-family: Yantramanav, Roboto, sans-serif;
-  font-size: 1.45rem;
+  font-size: 1.15rem;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
+}
+.pay-page .acc-club-summary.is-ready > strong,
+.pay-form-page .acc-club-summary.is-ready > strong {
+  color: #6b3fa0;
 }
 .pay-page .acc-club-summary > small,
 .pay-form-page .acc-club-summary > small {
   grid-column: 1 / -1;
   color: var(--admin-muted);
-  font-size: .8rem;
+  font-size: .72rem;
 }
 .pay-page .acc-club-empty,
 .pay-form-page .acc-club-empty {
   display: flex;
-  gap: .85rem;
+  gap: .7rem;
   align-items: flex-start;
-  padding: 1rem 1.05rem;
-  border-radius: 14px;
-  background: #faf7f1;
+  padding: .75rem .8rem;
+  border-radius: 10px;
+  background: #faf8f4;
   border: 1px dashed #e4ddd1;
 }
 .pay-page .acc-club-empty > i,
@@ -826,29 +1140,75 @@
   display: grid;
   place-items: center;
   flex: none;
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 12px;
-  background: #f3e9fb;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 8px;
+  background: #f4eef9;
   color: #6b3fa0;
+  font-size: .85rem;
 }
 .pay-page .acc-club-empty strong,
 .pay-form-page .acc-club-empty strong {
   display: block;
   color: var(--admin-navy);
-  font-size: .95rem;
+  font-size: .88rem;
 }
 .pay-page .acc-club-empty p,
 .pay-form-page .acc-club-empty p {
-  margin: .25rem 0 0;
+  margin: .15rem 0 0;
   color: var(--admin-muted);
-  font-size: .86rem;
-  line-height: 1.4;
+  font-size: .78rem;
+  line-height: 1.35;
 }
 .pay-page .acc-club-empty a,
 .pay-form-page .acc-club-empty a {
   color: var(--admin-navy);
   font-weight: 650;
+}
+.pay-page .acc-club-settle,
+.pay-form-page .acc-club-settle {
+  margin-bottom: .55rem;
+}
+.pay-page .acc-pay-form.is-club .acc-methods,
+.pay-form-page .acc-pay-form.is-club .acc-methods {
+  margin: 0 0 .55rem;
+}
+.pay-page .acc-club-foot,
+.pay-form-page .acc-club-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+  margin-top: .35rem;
+}
+.pay-page .acc-club-foot-total,
+.pay-form-page .acc-club-foot-total {
+  display: grid;
+  gap: .05rem;
+}
+.pay-page .acc-club-foot-total span,
+.pay-form-page .acc-club-foot-total span {
+  color: var(--admin-muted);
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.pay-page .acc-club-foot-total strong,
+.pay-form-page .acc-club-foot-total strong {
+  color: var(--admin-navy);
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: 1.05rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.pay-page .acc-club-foot-actions,
+.pay-form-page .acc-club-foot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .45rem;
+  margin-left: auto;
 }
 .pay-page .acc-amount-input.is-locked,
 .pay-form-page .acc-amount-input.is-locked {
@@ -1541,10 +1901,28 @@
 }
 .pay-page .ofc-form-foot .admin-btn-ghost:hover,
 .pay-form-page .ofc-form-foot .admin-btn-ghost:hover,
-.pay-page .acc-wizard-foot .admin-btn-ghost:hover,
-.pay-form-page .acc-wizard-foot .admin-btn-ghost:hover {
+.pay-page .acc-wizard-foot:not(.is-center) .admin-btn-ghost:hover,
+.pay-form-page .acc-wizard-foot:not(.is-center) .admin-btn-ghost:hover {
   background: #f3eee5;
   border-color: #d9d3c6;
+}
+.pay-page .acc-done .acc-done-btn.is-primary,
+.pay-form-page .acc-done .acc-done-btn.is-primary {
+  border-color: #146c34;
+  background: #17803d;
+  color: #fff;
+}
+.pay-page .acc-done .acc-done-btn.is-secondary,
+.pay-form-page .acc-done .acc-done-btn.is-secondary {
+  border-color: #b7dfc4;
+  background: #fff;
+  color: #146c34;
+}
+.pay-page .acc-done .acc-done-btn.is-quiet,
+.pay-form-page .acc-done .acc-done-btn.is-quiet {
+  border-color: transparent;
+  background: transparent;
+  color: #4d6a58;
 }
 .pay-page .acc-amount-input,
 .pay-form-page .acc-amount-input {
@@ -1560,16 +1938,7 @@
   box-shadow: 0 0 0 4px rgba(253, 163, 27, .18);
 }
 
-.pay-detail-page .acc-panel-actions .admin-btn {
-  min-height: 42px;
-  font-weight: 700;
-  transition: background-color .16s ease, border-color .16s ease, transform .16s ease;
-}
-.pay-detail-page .acc-panel-actions .admin-btn:hover { transform: translateY(-1px); }
-.pay-detail-page .acc-btn-danger:hover {
-  background: #fff4f5;
-  border-color: #f3c6cb;
-}
+/* Void / panel action sizing lives with the receipt-detail block below. */
 
 @media (max-width: 1100px) {
   .pay-board-main { grid-template-columns: 1fr; gap: 1rem; }
@@ -1981,6 +2350,7 @@
   background: #fff;
   box-shadow: 0 14px 32px -26px rgba(25, 35, 43, 0.45);
   animation: acc-in 0.3s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+  scroll-margin-top: 1rem;
 }
 .pay-record-head {
   display: flex;
@@ -2132,7 +2502,7 @@
 /* ---------------------------------------------------------------- unified register */
 
 .pay-page.is-unified .pay-mark {
-  background: linear-gradient(145deg, #e8f5ec, #f7f3ea);
+  background: #e5f5ea;
   color: #127238;
 }
 .pay-cat {
@@ -2462,125 +2832,350 @@
 
 /* ---------------------------------------------------------------- receipt detail */
 
+.pay-detail-page {
+  --pay-accent: #17803d;
+  --pay-tint: #e8f6ec;
+  --pay-ink: #0f5f2e;
+  --pay-soft: #f3faf5;
+  --pay-chip: #d8f0e0;
+  gap: 0.75rem;
+}
+.pay-detail-page.is-clubs {
+  --pay-accent: #6b3fa0;
+  --pay-tint: #f3e9fb;
+  --pay-ink: #4c2878;
+  --pay-soft: #faf5ff;
+  --pay-chip: #e9d7f7;
+}
+.pay-detail-page.is-ple {
+  --pay-accent: #c2410c;
+  --pay-tint: #ffedd5;
+  --pay-ink: #9a3412;
+  --pay-soft: #fff7ed;
+  --pay-chip: #fed7aa;
+}
+.pay-detail-page.is-tour {
+  --pay-accent: #0f766e;
+  --pay-tint: #ccfbf1;
+  --pay-ink: #115e59;
+  --pay-soft: #f0fdfa;
+  --pay-chip: #99f6e4;
+}
+.pay-detail-page.is-admission {
+  --pay-accent: #1d4ed8;
+  --pay-tint: #dbeafe;
+  --pay-ink: #1e3a8a;
+  --pay-soft: #eff6ff;
+  --pay-chip: #bfdbfe;
+}
+.pay-detail-page.is-other {
+  --pay-accent: #57534e;
+  --pay-tint: #f5f5f4;
+  --pay-ink: #44403c;
+  --pay-soft: #fafaf9;
+  --pay-chip: #e7e5e4;
+}
+
+.pay-detail-page .acc-crumbs a {
+  color: var(--pay-ink);
+  font-weight: 750;
+}
+.pay-detail-page .acc-crumbs a:hover {
+  color: var(--pay-accent);
+}
+.pay-detail-page .aov-kicker {
+  color: color-mix(in srgb, var(--pay-accent) 55%, #fff);
+}
+.pay-detail-page .aov-kicker i {
+  color: var(--admin-gold);
+}
+
 .pay-receipt-hero {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 1rem 1.5rem;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: 0.95rem 1.15rem;
   align-items: center;
-  padding: 1.2rem 1.25rem;
-  border: 1px solid rgba(25, 35, 43, .06);
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: 0 18px 40px -28px rgba(25, 35, 43, .4);
+  padding: 1.05rem 1.1rem 1.05rem 1.15rem;
+  border: 1px solid color-mix(in srgb, var(--pay-accent) 18%, var(--admin-line, #e5dfd4));
+  border-left: 5px solid var(--pay-accent);
+  border-radius: 16px;
+  background: var(--pay-soft);
+  box-shadow: 0 1px 2px rgba(25, 35, 43, 0.03);
   animation: acc-in .4s cubic-bezier(.2, .7, .2, 1) both;
+}
+.pay-receipt-hero.is-void {
+  --pay-accent: #c81e2d;
+  --pay-tint: #fde8ea;
+  --pay-ink: #9f1239;
+  --pay-soft: #fff5f5;
+  --pay-chip: #fecdd3;
 }
 .pay-receipt-main {
   display: flex;
   align-items: center;
-  gap: 1rem;
+  gap: 0.95rem;
   min-width: 0;
 }
 .pay-receipt-mark {
   display: grid;
   place-items: center;
   flex: none;
-  width: 56px;
-  height: 56px;
-  border-radius: 16px;
-  background: #e5f5ea;
-  color: #127238;
-  font-size: 1.2rem;
+  width: 3.15rem;
+  height: 3.15rem;
+  border-radius: 14px;
+  background: var(--pay-accent);
+  color: #fff;
+  font-size: 1.12rem;
+  box-shadow: 0 0 0 4px var(--pay-chip);
 }
-.pay-receipt-hero.is-clubs .pay-receipt-mark { background: #f3e9fb; color: #6b3fa0; }
-.pay-receipt-hero.is-ple .pay-receipt-mark { background: #fff1e0; color: #9a4b00; }
-.pay-receipt-hero.is-tour .pay-receipt-mark { background: #e7f6f8; color: #0b6e75; }
-.pay-receipt-hero.is-admission .pay-receipt-mark { background: #e8f0fc; color: #1d56b0; }
-.pay-receipt-hero.is-other .pay-receipt-mark { background: #f1ece2; color: #4a4338; }
+.pay-receipt-topline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.65rem;
+}
 .pay-receipt-label {
-  display: block;
-  color: var(--admin-muted);
-  font-size: .72rem;
-  font-weight: 750;
-  letter-spacing: .1em;
+  color: var(--pay-ink);
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .08em;
   text-transform: uppercase;
+}
+.pay-receipt-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.45rem;
+  padding: 0 0.55rem;
+  border-radius: 999px;
+  background: var(--pay-chip);
+  color: var(--pay-ink);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.pay-receipt-status.is-ok {
+  background: #d8f0e0;
+  color: #127238;
+}
+.pay-receipt-status.is-void {
+  background: #fecdd3;
+  color: #9f1239;
+}
+.pay-receipt-status i {
+  font-size: 0.62rem;
 }
 .pay-receipt-amount {
   display: block;
-  margin-top: .15rem;
-  color: #127238;
-  font-family: Yantramanav, Roboto, sans-serif;
-  font-size: clamp(1.85rem, 2.4vw, 2.35rem);
-  font-weight: 700;
+  margin-top: .28rem;
+  color: var(--pay-ink);
+  font-family: Yantramanav, Nunito, sans-serif;
+  font-size: clamp(1.7rem, 2.2vw, 2.15rem);
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
   letter-spacing: -.03em;
   line-height: .95;
 }
-.pay-receipt-hero.is-clubs .pay-receipt-amount { color: #6b3fa0; }
-.pay-receipt-hero.is-ple .pay-receipt-amount { color: #9a4b00; }
-.pay-receipt-hero.is-tour .pay-receipt-amount { color: #0b6e75; }
-.pay-receipt-hero.is-admission .pay-receipt-amount { color: #1d56b0; }
-.pay-receipt-hero.is-other .pay-receipt-amount { color: #4a4338; }
 .pay-receipt-amount small {
-  margin-right: .2rem;
-  color: var(--admin-muted);
-  font-family: Roboto, "Segoe UI", system-ui, sans-serif;
+  margin-right: .22rem;
+  color: color-mix(in srgb, var(--pay-ink) 55%, #8a8174);
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
   font-size: .58rem;
-  font-weight: 750;
+  font-weight: 800;
   letter-spacing: .08em;
 }
 .pay-receipt-main p {
-  margin: .4rem 0 0;
-  color: var(--admin-muted);
-  font-size: .88rem;
-  font-weight: 500;
+  margin: .35rem 0 0;
+  color: color-mix(in srgb, var(--pay-ink) 45%, #7a7368);
+  font-size: .84rem;
+  font-weight: 700;
 }
 .pay-receipt-meta {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: .75rem;
+  gap: .55rem;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-left: 1px solid #f1ece2;
-  padding-left: 1.2rem;
 }
 .pay-receipt-meta li {
   display: grid;
-  gap: .2rem;
+  gap: .18rem;
   min-width: 0;
+  padding: 0.65rem 0.7rem;
+  border: 1px solid color-mix(in srgb, var(--pay-accent) 12%, #ebe4d8);
+  border-top: 3px solid var(--pay-accent);
+  border-radius: 12px;
+  background: #fff;
+}
+.pay-receipt-meta li:nth-child(2) {
+  border-top-color: #1d56b0;
+}
+.pay-receipt-meta li:nth-child(3) {
+  border-top-color: #b07a16;
 }
 .pay-receipt-meta span {
   color: var(--admin-muted);
-  font-size: .68rem;
-  font-weight: 750;
+  font-size: .62rem;
+  font-weight: 800;
   letter-spacing: .08em;
   text-transform: uppercase;
 }
 .pay-receipt-meta strong {
   color: var(--admin-navy);
-  font-size: .95rem;
-  font-weight: 750;
+  font-size: .86rem;
+  font-weight: 800;
 }
 .pay-receipt-meta small {
   color: var(--admin-muted);
-  font-size: .78rem;
+  font-size: .72rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+.pay-detail-page .acc-detail-grid {
+  gap: 0.75rem;
+}
+.pay-detail-page .ofc-panel,
+.pay-detail-page .acc-panel {
+  border: 1px solid color-mix(in srgb, var(--pay-accent) 12%, var(--admin-line, #e5dfd4));
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(25, 35, 43, 0.03);
+  overflow: hidden;
+}
+.pay-detail-page .ofc-panel .dash-panel-head,
+.pay-detail-page .acc-panel .dash-panel-head {
+  margin: 0;
+  padding: 0.85rem 1.05rem;
+  border-bottom: 1px solid color-mix(in srgb, var(--pay-accent) 12%, #f0ebe2);
+  background: var(--pay-tint);
+}
+.pay-detail-page .ofc-panel .dash-panel-head h2,
+.pay-detail-page .acc-panel .dash-panel-head h2 {
+  color: var(--pay-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+.pay-detail-page .ofc-panel .dash-panel-head p,
+.pay-detail-page .acc-panel .dash-panel-head p {
+  margin: 0.28rem 0 0;
+  color: color-mix(in srgb, var(--pay-ink) 48%, #7a7368);
+  font-size: 0.86rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.pay-detail-page .ofc-panel .dash-panel-head a,
+.pay-detail-page .acc-panel .dash-panel-head a {
+  color: var(--pay-ink);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.pay-detail-page .acc-facts {
+  gap: 0.55rem;
+}
+.pay-detail-page .acc-facts > div {
+  padding: 0.62rem 0.75rem;
+  border: 1px solid #f0ebe2;
+  border-radius: 10px;
+  background: #fffcf9;
+}
+.pay-detail-page .acc-facts dt {
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.pay-detail-page .acc-facts dd {
+  font-size: 0.94rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.pay-detail-page .acc-facts dd strong,
+.pay-detail-page .acc-facts dd .acc-money,
+.pay-detail-page .acc-facts dd a {
+  color: var(--pay-ink);
+  font-size: inherit;
+}
+.pay-detail-page .acc-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  margin-top: 0.85rem;
+  padding: 0.8rem 0.9rem;
+  border-radius: 12px;
+  background: var(--pay-tint);
+  border: 1px solid color-mix(in srgb, var(--pay-accent) 16%, transparent);
+  color: var(--pay-ink);
+  font-size: 0.9rem;
+  font-weight: 650;
+  line-height: 1.45;
+}
+.pay-detail-page .acc-note i {
+  margin-top: 0.18rem;
+  margin-right: 0;
+  flex: none;
+  color: var(--pay-accent);
+  font-size: 0.86rem;
+}
 .pay-detail-page .aov-actions .aov-btn {
-  min-height: 42px;
+  min-height: 2.5rem;
+  padding: 0 1.05rem;
+  border-radius: 999px;
+  font-size: 0.86rem;
+  font-weight: 750;
+}
+.pay-detail-page .aov-actions .aov-btn.is-primary {
+  border-color: var(--pay-accent);
+  background: var(--pay-accent);
+  color: #fff;
+}
+.pay-detail-page .aov-actions .aov-btn.is-primary i {
+  color: #fff;
+}
+.pay-detail-page .aov-head .aov-btn.is-primary {
+  border-color: var(--admin-gold);
+  background: var(--admin-gold);
+  color: var(--admin-navy);
+}
+.pay-detail-page .aov-head .aov-btn.is-primary i {
+  color: var(--admin-navy);
+}
+.pay-detail-page .acc-panel-actions {
+  margin-top: 0.35rem;
+  margin-bottom: 0.15rem;
 }
 .pay-detail-page .acc-panel-actions .admin-btn,
 .pay-detail-page .acc-panel-actions button {
-  min-height: 42px;
-  border-radius: 12px;
-  transition: transform .16s ease, box-shadow .16s ease;
+  min-height: 2.6rem;
+  padding: 0 1.2rem;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease, transform 0.16s ease;
+}
+.pay-detail-page .acc-panel-actions .admin-btn i,
+.pay-detail-page .acc-panel-actions button i {
+  font-size: 0.78rem;
 }
 .pay-detail-page .acc-panel-actions .admin-btn:hover,
 .pay-detail-page .acc-panel-actions button:hover {
   transform: translateY(-1px);
+}
+.pay-detail-page .acc-panel-actions .acc-btn-danger {
+  border: 1px solid #f0b4bb;
+  background: #fff;
+  color: var(--acc-danger, #c81e2d) !important;
+}
+.pay-detail-page .acc-panel-actions .acc-btn-danger:hover {
+  background: #fff4f5;
+  border-color: #e88993;
+  color: #9f1239 !important;
 }
 
 @media (max-width: 1100px) {
@@ -2591,8 +3186,6 @@
   .pay-receipt-meta {
     border-left: 0;
     padding-left: 0;
-    border-top: 1px solid #f1ece2;
-    padding-top: .95rem;
   }
   .pay-kind-banner {
     grid-template-columns: auto minmax(0, 1fr);

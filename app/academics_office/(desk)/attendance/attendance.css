@@ -133,6 +133,7 @@
   flex: none;
   align-items: center;
   gap: .7rem;
+  width: auto;
   min-width: 11.5rem;
   padding: .1rem .15rem;
   cursor: pointer;
@@ -147,16 +148,15 @@
   line-height: .85;
   white-space: nowrap;
 }
-.reg-dateplate > span { display: grid; gap: .05rem; }
+.reg-dateplate > span,
+.reg-dateplate .kja-date-plate > span { display: grid; gap: .05rem; }
 .reg-dateplate em { color: #19232b; font-size: .92rem; font-style: normal; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; }
 .reg-dateplate small { color: #8a8174; font-size: .75rem; white-space: nowrap; }
-.reg-dateplate input {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  opacity: 0;
-  cursor: pointer;
+.reg-dateplate .kja-date-pop {
+  left: 0;
+  right: auto;
+  transform: none;
+  min-width: 19.5rem;
 }
 
 .reg-tabs {

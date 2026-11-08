@@ -210,13 +210,15 @@ export function StudentPicker({ value, onChange, autoFocus = false, debounceMs =
               <StudentFace id={row.student_id} name={row.full_name} className="acc-picked-avatar" />
               <span className="acc-picker-copy">
                 <strong><Highlight text={row.full_name} words={words} /></strong>
-                <small>
+                <span className="acc-picker-meta">
                   <span className="acc-picker-num"><Highlight text={row.student_number} words={words} /></span>
-                  {" · "}
-                  {row.class_code ?? "No class"}{row.stream ? ` ${row.stream}` : ""}
-                  {row.family_code ? <> · Family <Highlight text={row.family_code} words={words} /></> : null}
-                  {row.status !== "active" ? ` · ${row.status}` : ""}
-                </small>
+                  <span>{row.class_code ?? "No class"}{row.stream ? ` ${row.stream}` : ""}</span>
+                  {row.campus ? <span className="acc-picker-tag">{row.campus}</span> : null}
+                  {row.family_code ? (
+                    <span>Family <Highlight text={row.family_code} words={words} /></span>
+                  ) : null}
+                  {row.status !== "active" ? <span className="acc-picker-tag is-status">{row.status}</span> : null}
+                </span>
               </span>
               <em className={row.balance > 0 ? "is-owing" : row.balance < 0 ? "is-credit" : ""}>
                 {row.balance > 0 ? ugx(row.balance) : row.balance < 0 ? "In credit" : "Cleared"}

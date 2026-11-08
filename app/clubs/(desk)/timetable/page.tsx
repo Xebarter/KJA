@@ -4,9 +4,9 @@ import { AddScheduleForm, CreateSessionForm, RemoveScheduleButton } from "@/comp
 import { TimetablePrint } from "@/components/clubs/TimetablePrint";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { addDays, day, kampalaToday } from "@/lib/accounts-format";
+import { clubServesBranch } from "@/lib/club-funds-scope";
 import { requireClubs } from "@/lib/clubs-access";
 import { loadGuideClubs } from "@/lib/clubs-desk";
-import { filterClubCampuses, isClubCampus } from "@/lib/campuses";
 import { CLUBS_BASE, WEEKDAY_LABELS } from "@/lib/clubs-nav";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
@@ -38,15 +38,15 @@ export default async function ClubsTimetablePage({
   if (!supabaseConfigured()) return clubsNotReady("TimeTable", "config");
   const auth = await requireClubs("timetable", "sessions");
   if ("error" in auth) return clubsNotReady("TimeTable", "auth", auth.error);
+  if (!auth.activeCampus) return null;
 
-  const { clubs, error } = await loadGuideClubs(auth.supabase);
+  const { clubs: allClubs, error } = await loadGuideClubs(auth.supabase);
   if (error) return clubsNotReady("TimeTable", "schema", error);
+  const clubs = allClubs.filter((club) => clubServesBranch(club.campus, auth.activeCampus!));
 
   const params = await searchParams;
   const clubFilter = String(params.club || "").trim();
-  const campusRaw = String(params.campus || "").trim();
-  const campusFilter = isClubCampus(campusRaw) ? campusRaw : "";
-  const scopedCampuses = filterClubCampuses(auth.campuses);
+  const campusFilter = auth.activeCampus;
   const today = kampalaToday();
   const weekStart = addDays(today, -6);
 
@@ -115,9 +115,6 @@ export default async function ClubsTimetablePage({
   const thisWeek = visibleSessions.filter((row) => String(row.held_on) >= weekStart && String(row.held_on) <= today).length;
   const unmarked = visibleSessions.filter((row) => !(markStats.get(row.id as string)?.total)).length;
   const clubsOnBoard = new Set(visibleSchedules.map((row) => row.club_id)).size;
-  const sitesCovered = new Set(
-    visibleSchedules.map((row) => String(row.campus || "").trim() || "All campuses"),
-  ).size;
 
   const printClubsMap = new Map<string, { id: string; title: string; count: number }>();
   for (const row of visibleSchedules) {
@@ -141,11 +138,9 @@ export default async function ClubsTimetablePage({
       ),
   }));
 
-  function hrefFor(next: { campus?: string; club?: string }) {
+  function hrefFor(next: { club?: string }) {
     const query = new URLSearchParams();
-    const campus = next.campus === undefined ? campusFilter : next.campus;
     const club = next.club === undefined ? clubFilter : next.club;
-    if (campus) query.set("campus", campus);
     if (club) query.set("club", club);
     const text = query.toString();
     return text ? `${CLUBS_BASE}/timetable?${text}` : `${CLUBS_BASE}/timetable`;
@@ -157,9 +152,13 @@ export default async function ClubsTimetablePage({
         kicker="Operations"
         icon="fa-calendar-week"
         title="TimeTable"
-        description="Prepare weekly club schedules by campus. Class timetables in Academics show them as Club time."
+        description={`Prepare the ${campusFilter} weekly club schedule. Class timetables in Academics show them as Club time.`}
         meta={
           <>
+            <span className="clubs-head-chip">
+              <i className="fa-solid fa-school" aria-hidden="true" />
+              {campusFilter}
+            </span>
             <span className="clubs-head-chip">
               <i className="fa-solid fa-clock" aria-hidden="true" />
               {visibleSchedules.length} weekly slots
@@ -184,12 +183,12 @@ export default async function ClubsTimetablePage({
         <div className={`clubs-ov-kpi${visibleSchedules.length ? " is-ok" : ""}`}>
           <span>Weekly slots</span>
           <strong>{visibleSchedules.length}</strong>
-          <small>{campusFilter ? campusFilter : `${sitesCovered} campus views`}</small>
+          <small>{campusFilter}</small>
         </div>
         <div className="clubs-ov-kpi">
           <span>Clubs scheduled</span>
           <strong>{clubsOnBoard}</strong>
-          <small>On this view</small>
+          <small>On this branch</small>
         </div>
         <div className={`clubs-ov-kpi${thisWeek ? " is-ok" : ""}`}>
           <span>Meetings this week</span>
@@ -203,39 +202,26 @@ export default async function ClubsTimetablePage({
         </div>
       </div>
 
-      <nav className="clubs-tt-campuses" aria-label="Campus">
-        <Link href={hrefFor({ campus: "" })} className={!campusFilter ? "is-on" : undefined}>
-          All campuses
-        </Link>
-        {scopedCampuses.map((site) => (
-          <Link key={site} href={hrefFor({ campus: site })} className={campusFilter === site ? "is-on" : undefined}>
-            {site}
-          </Link>
-        ))}
-      </nav>
-
       <div className="clubs-sess-layout clubs-tt-layout">
         <div className="clubs-sess-side clubs-tt-main">
           <section className="clubs-detail-panel clubs-tt-week" aria-label="Weekly timetable">
             <header>
               <div>
-                <h2>{campusFilter ? `${campusFilter} week` : "Weekly club timetable"}</h2>
+                <h2>{campusFilter} week</h2>
                 <p>
                   {visibleSchedules.length} {visibleSchedules.length === 1 ? "slot" : "slots"}
                   {clubFilter ? ` · ${clubTitle.get(clubFilter) || "Club"}` : ""}
                   {" · "}shown on Academics as Club time
                 </p>
               </div>
-              {campusFilter ? (
-                <a
-                  className="clubs-reg-tool"
-                  href={`${CLUBS_BASE}/timetable/pdf?campus=${encodeURIComponent(campusFilter)}${clubFilter ? `&clubs=${clubFilter}` : ""}`}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  <i className="fa-solid fa-print" aria-hidden="true" /> Print {campusFilter}
-                </a>
-              ) : null}
+              <a
+                className="clubs-reg-tool"
+                href={`${CLUBS_BASE}/timetable/pdf?campus=${encodeURIComponent(campusFilter)}${clubFilter ? `&clubs=${clubFilter}` : ""}`}
+                target="_blank"
+                rel="noreferrer"
+              >
+                <i className="fa-solid fa-print" aria-hidden="true" /> Print {campusFilter}
+              </a>
             </header>
 
             {openClubs.length > 1 ? (
@@ -272,7 +258,7 @@ export default async function ClubsTimetablePage({
                               <small>
                                 {String(row.start_time).slice(0, 5)}–{String(row.end_time).slice(0, 5)}
                                 {row.venue ? ` · ${row.venue}` : ""}
-                                {!campusFilter && row.campus ? ` · ${row.campus}` : !campusFilter && !row.campus ? " · All campuses" : ""}
+                                {row.campus && row.campus !== campusFilter ? ` · ${row.campus}` : ""}
                               </small>
                             </div>
                             <div className="clubs-tt-day-actions">
@@ -296,7 +282,7 @@ export default async function ClubsTimetablePage({
                 <span className="clubs-ov-portal-icon" aria-hidden="true">
                   <i className="fa-solid fa-calendar-week" />
                 </span>
-                <strong>{campusFilter ? `No slots for ${campusFilter}` : "No weekly slots yet"}</strong>
+                <strong>{`No slots for ${campusFilter}`}</strong>
                 <p>Add a club slot with the prepare form. It will appear here and on class timetables.</p>
               </div>
             )}
@@ -370,7 +356,7 @@ export default async function ClubsTimetablePage({
                   key={`${campusFilter}-${clubFilter}`}
                   clubs={openClubs.map((club) => ({ id: club.id, title: club.title }))}
                   defaultClubId={clubFilter || undefined}
-                  defaultCampus={campusFilter || scopedCampuses[0] || ""}
+                  defaultCampus={campusFilter}
                   defaultWeekday={1}
                   submitLabel="Add to timetable"
                 />

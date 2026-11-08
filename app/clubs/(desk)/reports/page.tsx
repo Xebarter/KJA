@@ -7,7 +7,14 @@ import { loadTerms } from "@/lib/accounts";
 import { amount, day, ugx, ugxShort } from "@/lib/accounts-format";
 import { requireClubs } from "@/lib/clubs-access";
 import { CLUBS_BASE } from "@/lib/clubs-nav";
-import { CLUB_BRANCHES, CLUB_REPORT_BASIS, loadClubReport, type ClubFigure, type ClubReport } from "@/lib/club-reports";
+import {
+  campusCompareDeltas,
+  CLUB_BRANCHES,
+  CLUB_REPORT_BASIS,
+  loadClubReport,
+  type ClubFigure,
+  type ClubReport,
+} from "@/lib/club-reports";
 import { supabaseConfigured } from "@/lib/supabase/server";
 import { ClubReportDesk } from "./desk";
 import "./report.css";
@@ -35,7 +42,19 @@ function Meter({ value }: { value: number }) {
   );
 }
 
-function FigureTable({ rows, name, ranked = false, pupilCol = false }: { rows: ClubFigure[]; name: string; ranked?: boolean; pupilCol?: boolean }) {
+function FigureTable({
+  rows,
+  name,
+  ranked = false,
+  pupilCol = false,
+  spendCol = false,
+}: {
+  rows: ClubFigure[];
+  name: string;
+  ranked?: boolean;
+  pupilCol?: boolean;
+  spendCol?: boolean;
+}) {
   if (!rows.length) return <p className="cbr-empty">Nothing to show for this term.</p>;
   return (
     <div className="ofc-table-scroll">
@@ -62,9 +81,20 @@ function FigureTable({ rows, name, ranked = false, pupilCol = false }: { rows: C
             <th scope="col" className="is-num">
               Collected
             </th>
-            <th scope="col" className="is-num">
-              Still due
-            </th>
+            {spendCol ? (
+              <>
+                <th scope="col" className="is-num">
+                  Spent
+                </th>
+                <th scope="col" className="is-num">
+                  Balance
+                </th>
+              </>
+            ) : (
+              <th scope="col" className="is-num">
+                Still due
+              </th>
+            )}
             <th scope="col">Rate</th>
           </tr>
         </thead>
@@ -93,9 +123,20 @@ function FigureTable({ rows, name, ranked = false, pupilCol = false }: { rows: C
               <td data-label="Collected" className="is-num">
                 <strong>{money(row.collected)}</strong>
               </td>
-              <td data-label="Still due" className={`is-num${row.due > 0 ? " is-due" : ""}`}>
-                {row.due ? money(row.due) : "-"}
-              </td>
+              {spendCol ? (
+                <>
+                  <td data-label="Spent" className="is-num">
+                    {row.expenditure ? money(row.expenditure) : "-"}
+                  </td>
+                  <td data-label="Balance" className={`is-num${row.balance < 0 ? " is-due" : ""}`}>
+                    {money(row.balance)}
+                  </td>
+                </>
+              ) : (
+                <td data-label="Still due" className={`is-num${row.due > 0 ? " is-due" : ""}`}>
+                  {row.due ? money(row.due) : "-"}
+                </td>
+              )}
               <td data-label="Rate">
                 <span className="cbr-rate">
                   <Meter value={row.rate} />
@@ -146,7 +187,7 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
   const termId = String((await searchParams).term || "");
   let report: ClubReport;
   try {
-    report = await loadClubReport(auth.supabase, terms, termId || null);
+    report = await loadClubReport(auth.supabase, terms, termId || null, auth.campuses);
   } catch (loadError) {
     return clubsNotReady("Reports", "schema", loadError instanceof Error ? loadError.message : "Couldn't load the club report.");
   }
@@ -161,6 +202,9 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
   }));
   const unpaidClubs = report.clubs.filter((club) => club.due > 0).slice(0, 6);
   const topClubs = report.clubs.slice(0, 10);
+  const workingBranch = auth.activeCampus;
+  const campusDeltas = campusCompareDeltas(report.campuses);
+  const campusDeltaLine = campusDeltas[0] || null;
 
   return (
     <div className="app-page ofc-page clubs-page cbr-page">
@@ -175,10 +219,18 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
           </>
         }
         meta={
-          <span className={`clubs-head-chip${report.isCurrent ? " is-term" : ""}`}>
-            <i className="fa-solid fa-calendar-days" aria-hidden="true" />
-            {report.termLabel}
-          </span>
+          <>
+            <span className={`clubs-head-chip${report.isCurrent ? " is-term" : ""}`}>
+              <i className="fa-solid fa-calendar-days" aria-hidden="true" />
+              {report.termLabel}
+            </span>
+            {workingBranch ? (
+              <span className="clubs-head-chip">
+                <i className="fa-solid fa-code-compare" aria-hidden="true" />
+                Comparing campuses · working in {workingBranch}
+              </span>
+            ) : null}
+          </>
         }
         actions={
           <>
@@ -188,8 +240,8 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
             <Link className="clubs-head-btn" href={`${CLUBS_BASE}/register`}>
               Register
             </Link>
-            <Link className="clubs-head-btn" href={`${CLUBS_BASE}/receipts`}>
-              Receipts
+            <Link className="clubs-head-btn" href={`${CLUBS_BASE}/accounts`}>
+              Accounts
             </Link>
           </>
         }
@@ -218,20 +270,24 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
                   <small>UGX</small> {ugxShort(report.summary.collected)}
                 </strong>
                 <small>
-                  {report.summary.paidCount} paid · {ugxShort(report.online)} online
+                  {report.summary.paidCount} paid · {report.summary.rate}% rate
                 </small>
               </article>
-              <article className={report.summary.due > 0 ? "is-warn" : "is-good"}>
-                <span>Still to collect</span>
+              <article className={report.summary.expenditure > 0 ? "is-warn" : undefined}>
+                <span>Expenditure</span>
                 <strong>
-                  <small>UGX</small> {ugxShort(report.summary.due)}
+                  <small>UGX</small> {ugxShort(report.summary.expenditure)}
                 </strong>
-                <small>{Math.max(0, report.summary.consents - report.summary.paidCount)} unpaid consents</small>
+                <small>Registered on the Clubs desk</small>
               </article>
-              <article>
-                <span>Collection rate</span>
-                <strong>{report.summary.rate}%</strong>
-                <Meter value={report.summary.rate} />
+              <article className={report.summary.balance >= 0 ? "is-good" : "is-warn"}>
+                <span>Balance</span>
+                <strong>
+                  <small>UGX</small> {ugxShort(report.summary.balance)}
+                </strong>
+                <small>
+                  Still to collect {ugxShort(report.summary.due)}
+                </small>
               </article>
             </section>
             {report.insights.length ? (
@@ -286,13 +342,69 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
           </div>
         </Panel>
 
-        <Panel id="campuses" title="Campuses" description="Expected against collected at Kitante and Najjanankumbi. Makindye and Bunga do not run clubs.">
+        <Panel
+          id="campuses"
+          title="Campuses"
+          description="Compared across Kitante and Najjanankumbi. Income by pupil campus; expenditure by each club’s catalogue campus. Makindye and Bunga do not run clubs."
+        >
+          {report.campuses.length > 1 ? (
+            <section className="cbr-compare" aria-label="Campus comparison">
+              <div className="cbr-compare-grid">
+                {report.campuses.map((campus) => {
+                  const isWorking = workingBranch === campus.label;
+                  return (
+                    <article key={campus.key} className={`cbr-compare-card${isWorking ? " is-working" : ""}`}>
+                      <header>
+                        <strong>{campus.label}</strong>
+                        <span>{isWorking ? "Working branch" : "Compare"}</span>
+                      </header>
+                      <div className="cbr-compare-metrics">
+                        <div>
+                          <small>Collected</small>
+                          <strong>{ugxShort(campus.collected)}</strong>
+                        </div>
+                        <div>
+                          <small>Due</small>
+                          <strong className={campus.due > 0 ? "is-due" : undefined}>{ugxShort(campus.due)}</strong>
+                        </div>
+                        <div>
+                          <small>Spent</small>
+                          <strong>{ugxShort(campus.expenditure)}</strong>
+                        </div>
+                        <div>
+                          <small>Balance</small>
+                          <strong>{ugxShort(campus.balance)}</strong>
+                        </div>
+                        <div>
+                          <small>Rate</small>
+                          <strong>{campus.rate}%</strong>
+                        </div>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+              {campusDeltaLine ? <p className="cbr-compare-delta">{campusDeltaLine}</p> : null}
+              {campusDeltas.length > 1 ? (
+                <ul className="cbr-compare-deltas" aria-label="Campus differences">
+                  {campusDeltas.slice(1, 4).map((line) => (
+                    <li key={line}>{line}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </section>
+          ) : null}
+
           <div className="cbr-campuses">
             {report.campuses.map((campus, index) => {
               const tone = ["is-a", "is-b", "is-c", "is-d"][index % 4];
               const unpaid = Math.max(0, campus.consents - campus.paidCount);
+              const isWorking = workingBranch === campus.label;
               return (
-                <article key={campus.key} className={`cbr-campus ${tone}${campus.due > 0 ? " has-due" : campus.collected > 0 ? " is-clear" : ""}`}>
+                <article
+                  key={campus.key}
+                  className={`cbr-campus ${tone}${campus.due > 0 ? " has-due" : campus.collected > 0 ? " is-clear" : ""}${isWorking ? " is-working" : ""}`}
+                >
                   <header>
                     <div className="cbr-campus-id">
                       <span className="cbr-campus-mark" aria-hidden="true">
@@ -301,6 +413,7 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
                       <div>
                         <h3>{campus.label}</h3>
                         <p>
+                          {isWorking ? "Working branch · " : ""}
                           {campus.paidCount} paid
                           {unpaid ? ` · ${unpaid} unpaid` : campus.consents ? " · all settled" : " · no consents"}
                         </p>
@@ -329,6 +442,14 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
                       <dt>Still due</dt>
                       <dd className={campus.due > 0 ? "is-due" : undefined}>{campus.due ? ugxShort(campus.due) : "-"}</dd>
                     </div>
+                    <div>
+                      <dt>Spent</dt>
+                      <dd>{campus.expenditure ? ugxShort(campus.expenditure) : "-"}</dd>
+                    </div>
+                    <div>
+                      <dt>Balance</dt>
+                      <dd>{ugxShort(campus.balance)}</dd>
+                    </div>
                   </dl>
 
                   <div className="cbr-campus-foot">
@@ -344,7 +465,11 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
           <ShareChart rows={campusShare} label="Share of collections across campuses" />
         </Panel>
 
-        <Panel id="terms" title="Compared with other terms" description="Navy is what was collected. Gold is what was expected.">
+        <Panel
+          id="terms"
+          title="Compared with other terms"
+          description="Navy is what was collected. Gold is what was expected. Campus columns compare collections across Kitante and Najjanankumbi."
+        >
           {report.terms.length ? (
             <ColumnChart
               label="Collected and expected by term"
@@ -431,15 +556,80 @@ export default async function ClubReportPage({ searchParams }: { searchParams: P
         <Panel
           id="clubs"
           title="Clubs, best to worst"
-          description="Ranked by the amount collected this term. The rate is collected divided by expected."
+          description="Whole-desk ranking first, then the same clubs compared by pupil campus. Spent and balance come from Clubs-desk expenses."
           action={
             <a className="cbr-inline-print" href={pdf} target="_blank" rel="noreferrer">
               <i className="fa-solid fa-file-pdf" aria-hidden="true" /> PDF
             </a>
           }
         >
-          <HorizonBars rows={topClubs} label="Club collection ranking" />
-          <FigureTable rows={report.clubs} name="Club" ranked />
+          <HorizonBars rows={topClubs} label="Whole desk · club collection ranking" />
+          <FigureTable rows={report.clubs} name="Club" ranked spendCol />
+
+          <div className="cbr-campus-clubs">
+            {CLUB_BRANCHES.map((branch) => {
+              const rows = report.clubsByCampus[branch] || [];
+              const top = rows.slice(0, 8);
+              const due = rows.filter((club) => club.due > 0).slice(0, 5);
+              const isWorking = workingBranch === branch;
+              return (
+                <article key={branch} className={isWorking ? "is-working" : undefined}>
+                  <header>
+                    <div className="cbr-campus-clubs-title">
+                      <h3>{branch}</h3>
+                      <span>{rows.length} clubs</span>
+                    </div>
+                    <div className="cbr-campus-clubs-meta">
+                      {isWorking ? <em>Working branch</em> : null}
+                      <p>By pupil campus collections</p>
+                    </div>
+                  </header>
+                  {top.length ? (
+                    <>
+                      <ol className="cbr-campus-clubs-list">
+                        {top.map((club, index) => (
+                          <li key={club.key}>
+                            <span className="cbr-campus-clubs-rank">{index + 1}</span>
+                            <span className="cbr-campus-clubs-copy">
+                              <strong>{club.label}</strong>
+                              <small>
+                                {ugxShort(club.collected)} collected · {club.rate}%
+                              </small>
+                            </span>
+                            <em className={club.due > 0 ? "is-due" : undefined}>
+                              {club.due > 0 ? ugxShort(club.due) : "Clear"}
+                            </em>
+                          </li>
+                        ))}
+                      </ol>
+                      {due.length ? (
+                        <div className="cbr-campus-clubs-due">
+                          <h4>Still due here</h4>
+                          <ul>
+                            {due.map((club) => (
+                              <li key={club.key}>
+                                <span>
+                                  <strong>{club.label}</strong>
+                                  <small>
+                                    {club.rate}% · {club.paidCount}/{club.consents} paid
+                                  </small>
+                                </span>
+                                <em>{ugxShort(club.due)}</em>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      ) : (
+                        <p className="cbr-empty">No outstanding balances at {branch}.</p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="cbr-empty">No club activity at {branch} for this term.</p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
         </Panel>
 
         <Panel id="mix" title="Where it comes from" description="The same consents, split by interest, by class band, by class, and by how the money arrived.">

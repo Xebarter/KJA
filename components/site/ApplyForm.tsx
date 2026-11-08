@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useRef, useState } from "react";
 import { payAndApply } from "@/app/(site)/apply/actions";
 import { FeeSummary, MobileMoneyField, PaymentProgress, ugx, useAdmissionPayment, type FeeOption } from "@/components/site/AdmissionPayment";
@@ -182,7 +184,21 @@ export function ApplyForm({ fees, phone, email }: { fees: FeeOption[]; phone: st
             <input className="apply-input" type="text" maxLength={400} {...control("child_name")} />
           </Field>
           <Field id="child_birtDate" label="Date of birth" error={errors.child_birtDate}>
-            <input className="apply-input" type="date" {...control("child_birtDate")} />
+            <DateField
+              className="apply-input"
+              id="child_birtDate"
+              name="child_birtDate"
+              required
+              aria-invalid={Boolean(errors.child_birtDate)}
+              aria-describedby={errors.child_birtDate ? "child_birtDate-error" : undefined}
+              onBlur={(event) => {
+                const value = String(event.target.value || "");
+                if (value || errors.child_birtDate) validate("child_birtDate", value);
+              }}
+              onChange={(event) => {
+                if (errors.child_birtDate) validate("child_birtDate", event.target.value);
+              }}
+            />
           </Field>
           <Field id="grade" label="Class" optional>
             <select className="apply-input apply-select" id="grade" name="grade" defaultValue="">

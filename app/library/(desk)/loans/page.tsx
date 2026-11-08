@@ -1,4 +1,5 @@
 import { PageHeader } from "@/components/admin/PageHeader";
+import { DateField } from "@/components/ui/DateField";
 import { ActionForm } from "@/components/library/ActionForm";
 import { BorrowerFields } from "@/components/library/BorrowerFields";
 import { CopyFields } from "@/components/library/CopyFields";
@@ -72,7 +73,7 @@ export default async function LoansPage({
             <CopyFields />
             <label className="lib-field">
               Due
-              <input name="due_at" type="date" defaultValue={addDays(today, settings.loan_days)} required />
+              <DateField name="due_at" defaultValue={addDays(today, settings.loan_days)} required />
             </label>
             <BorrowerFields />
             <label className="lib-field">

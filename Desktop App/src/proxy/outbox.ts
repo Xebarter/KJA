@@ -1,5 +1,20 @@
 import { randomUUID } from "node:crypto";
+import {
+  assignCompositeIds,
+  compositeRowId,
+  isSyntheticIdTable,
+  localEntityId,
+  stripSyntheticIds,
+} from "./entity-keys";
 import type { ProxyStore } from "./store";
+
+export {
+  assignCompositeIds,
+  compositeRowId,
+  isSyntheticIdTable,
+  localEntityId,
+  stripSyntheticIds,
+} from "./entity-keys";
 
 export type FlushResult = { flushed: number; failed: number };
 
@@ -55,30 +70,6 @@ export function isPlainTableWrite(method: string, pathname: string): boolean {
   return Boolean(parseRestTable(pathname));
 }
 
-/** Stable synthetic id for composite-key upserts (attendance, assessment_scores). */
-export function compositeRowId(parts: (string | null | undefined)[]) {
-  return parts.map((part) => String(part ?? "")).join("::");
-}
-
-/** Stamp composite ids before ensureIds so upserts do not get random UUIDs. */
-export function assignCompositeIds(table: string, body: unknown): unknown {
-  const stamp = (row: Record<string, unknown>) => {
-    if (row.id != null && row.id !== "") return row;
-    if (table === "attendance" && row.student_id != null && row.attended_on != null) {
-      return { ...row, id: compositeRowId([String(row.student_id), String(row.attended_on)]) };
-    }
-    if (table === "assessment_scores" && row.assessment_id != null && row.student_id != null) {
-      return { ...row, id: compositeRowId([String(row.assessment_id), String(row.student_id)]) };
-    }
-    return row;
-  };
-  if (Array.isArray(body)) {
-    return body.map((item) => (item && typeof item === "object" && !Array.isArray(item) ? stamp(item as Record<string, unknown>) : item));
-  }
-  if (body && typeof body === "object") return stamp(body as Record<string, unknown>);
-  return body;
-}
-
 function applyFreshAccessToken(
   store: ProxyStore,
   userId: string,
@@ -94,19 +85,11 @@ function applyFreshAccessToken(
 function rememberRows(store: ProxyStore, userId: string, table: string, rows: Record<string, unknown>[]) {
   for (const row of rows) {
     if (!row || typeof row !== "object") continue;
-    let id = row.id == null ? "" : String(row.id);
-    if (!id) {
-      if (table === "attendance" && row.student_id != null && row.attended_on != null) {
-        id = compositeRowId([String(row.student_id), String(row.attended_on)]);
-        row.id = id;
-      } else if (table === "assessment_scores" && row.assessment_id != null && row.student_id != null) {
-        id = compositeRowId([String(row.assessment_id), String(row.student_id)]);
-        row.id = id;
-      }
-    }
+    const id = localEntityId(table, row);
     if (!id) continue;
-    store.upsertEntity(userId, table, id, row);
-    store.patchTableCaches(userId, table, "upsert", { ...row, id });
+    const next = { ...row, id };
+    store.upsertEntity(userId, table, id, next);
+    store.patchTableCaches(userId, table, "upsert", next);
   }
 }
 

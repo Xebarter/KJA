@@ -51,21 +51,33 @@ export default async function ClubPaymentPage({ params }: { params: Promise<{ id
         description={`${ugx(payment.amount)} for ${club?.title ?? "club"} · ${student?.full_name ?? "pupil"} · ${day(payment.paid_on)}`}
         actions={
           <>
+            <a className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/payments/club/${id}/receipt`} target="_blank" rel="noreferrer">
+              <i className="fa-solid fa-print" aria-hidden="true" /> Print receipt
+            </a>
+            <a className="aov-btn" href={`${ACCOUNTS_BASE}/payments/club/${id}/receipt?download=1`}>
+              <i className="fa-solid fa-download" aria-hidden="true" /> Download
+            </a>
             <Link className="aov-btn" href={`${ACCOUNTS_BASE}/payments?category=clubs`}>
               <i className="fa-solid fa-list" aria-hidden="true" /> Club payments
             </Link>
-            <Link className="aov-btn is-primary" href={`${ACCOUNTS_BASE}/payments?record=1&kind=club&student=${payment.student_id}`}>
-              <i className="fa-solid fa-plus" aria-hidden="true" /> Another payment
+            <Link className="aov-btn" href={`${ACCOUNTS_BASE}/payments?record=1&kind=club&student=${payment.student_id}`}>
+              <i className="fa-solid fa-plus" aria-hidden="true" /> Another
             </Link>
           </>
         }
       />
 
-      <section className="pay-receipt-hero is-clubs" aria-label="Receipt summary">
+      <section className={`pay-receipt-hero is-clubs${voided ? " is-void" : ""}`} aria-label="Receipt summary">
         <div className="pay-receipt-main">
           <span className="pay-receipt-mark" aria-hidden="true"><i className="fa-solid fa-puzzle-piece" /></span>
           <div>
-            <span className="pay-receipt-label">{voided ? "Voided amount" : "Received"}</span>
+            <div className="pay-receipt-topline">
+              <span className="pay-receipt-label">{voided ? "Voided amount" : "Amount received"}</span>
+              <span className={`pay-receipt-status${voided ? " is-void" : " is-ok"}`}>
+                <i className={`fa-solid ${voided ? "fa-ban" : "fa-circle-check"}`} aria-hidden="true" />
+                {voided ? "Voided" : "Paid"}
+              </span>
+            </div>
             <strong className="pay-receipt-amount">
               {moneyParts ? <><small>{moneyParts[1]}</small>{moneyParts[2]}</> : ugx(payment.amount)}
             </strong>
@@ -86,7 +98,7 @@ export default async function ClubPaymentPage({ params }: { params: Promise<{ id
           <li>
             <span>Term</span>
             <strong>{term?.label ?? "–"}</strong>
-            <small>Current club term</small>
+            <small>Club term</small>
           </li>
         </ul>
       </section>

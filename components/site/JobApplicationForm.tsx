@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useEffect, useRef, useState, type DragEvent, type FormEvent } from "react";
 import { submitJobApplication } from "@/lib/job-application-actions";
@@ -351,7 +353,7 @@ export function JobApplicationForm({
           </div>
           <div className="kja-ct-field">
             <label htmlFor="ja-available_from">Available to start<small>Optional</small></label>
-            <input id="ja-available_from" name="available_from" type="date" min={today || undefined} />
+            <DateField id="ja-available_from" name="available_from" min={today || undefined} />
           </div>
         </div>
       </fieldset>

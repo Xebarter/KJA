@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
@@ -105,7 +107,7 @@ export function ExpenseActions({ id, status, refNo, amount, payee, canDecide, ca
             </label>
             <label className="ofc-field">
               <span>Date paid</span>
-              <input type="date" name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
+              <DateField name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
             </label>
             <label className="ofc-field is-wide">
               <span>Transaction or cheque reference</span>

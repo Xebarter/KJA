@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { ClubsPageHeader } from "@/components/clubs/PageHeader";
+import { ClubExpenseCategories } from "@/components/clubs/ClubExpenseCategories";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { loadTerms } from "@/lib/accounts";
+import { loadClubExpenseCategories } from "@/lib/club-accounts";
 import { requireClubs } from "@/lib/clubs-access";
 import { CAMPUS_OPTIONS, CLUB_CAMPUSES, campusesLabel, filterClubCampuses } from "@/lib/campuses";
 import { CLUBS_BASE, clubsNav } from "@/lib/clubs-nav";
@@ -30,10 +32,10 @@ const DESK_MAP = [
     detail: "Consents, withdraw, CSV export, and printable club rolls.",
   },
   {
-    href: `${CLUBS_BASE}/receipts`,
-    icon: "fa-receipt",
-    label: "Receipts",
-    detail: "Read-only ledger of club payments for the current term.",
+    href: `${CLUBS_BASE}/accounts`,
+    icon: "fa-wallet",
+    label: "Accounts",
+    detail: "Collections, club expenses, balances, and printable statements.",
   },
   {
     href: `${CLUBS_BASE}/timetable`,
@@ -55,24 +57,31 @@ export default async function ClubsSettingsPage() {
   if ("error" in auth) return clubsNotReady("Settings", "auth", auth.error);
 
   const { terms, current, error: termError } = await loadTerms(auth.supabase);
-  const clubCampuses = filterClubCampuses(auth.campuses);
+  const clubCampuses = auth.clubCampuses.length ? auth.clubCampuses : filterClubCampuses(auth.campuses);
   const scopeLabel = campusesLabel(auth.campuses);
   const clubsScopeLabel = campusesLabel(clubCampuses);
+  const workingBranch = auth.activeCampus;
 
-  const [clubsProbe, consentsProbe, paymentsProbe, schedulesProbe, leadersProbe, studentsProbe] = await Promise.all([
+  const [clubsProbe, consentsProbe, paymentsProbe, schedulesProbe, leadersProbe, studentsProbe, categoriesPack] = await Promise.all([
     auth.supabase.from("clubs").select("id", { count: "exact", head: true }).not("guide_no", "is", null),
     auth.supabase.from("club_consents").select("id", { count: "exact", head: true }).is("withdrawn_at", null),
     auth.supabase.from("club_payments").select("id", { count: "exact", head: true }).is("voided_at", null),
     auth.supabase.from("club_schedules").select("id", { count: "exact", head: true }).eq("active", true),
     auth.supabase.from("club_leaders").select("id", { count: "exact", head: true }),
     auth.supabase.from("students").select("id", { head: true, count: "exact" }).limit(1),
+    loadClubExpenseCategories(auth.supabase),
   ]);
 
-  const clubsCount = clubsProbe.error ? null : clubsProbe.count ?? 0;
-  const openConsents = consentsProbe.error ? null : consentsProbe.count ?? 0;
-  const receiptsCount = paymentsProbe.error ? null : paymentsProbe.count ?? 0;
-  const scheduleCount = schedulesProbe.error ? null : schedulesProbe.count ?? 0;
-  const leaderCount = leadersProbe.error ? null : leadersProbe.count ?? 0;
+  const readCount = (probe: { error: unknown; count: number | null }) => {
+    if (probe.error) return null;
+    const value = Number(probe.count);
+    return Number.isFinite(value) ? value : 0;
+  };
+  const clubsCount = readCount(clubsProbe);
+  const openConsents = readCount(consentsProbe);
+  const receiptsCount = readCount(paymentsProbe);
+  const scheduleCount = readCount(schedulesProbe);
+  const leaderCount = readCount(leadersProbe);
   const studentsOk = !studentsProbe.error;
 
   const termReady = Boolean(current) && !termError;
@@ -80,8 +89,9 @@ export default async function ClubsSettingsPage() {
   const registerReady = studentsOk;
   const timetableReady = scheduleCount !== null;
   const ledgerReady = receiptsCount !== null;
-  const healthReady = [termReady, catalogueReady, registerReady, timetableReady, ledgerReady].filter(Boolean).length;
-  const healthTotal = 5;
+  const expensesReady = !categoriesPack.missing;
+  const healthReady = [termReady, catalogueReady, registerReady, timetableReady, ledgerReady, expensesReady].filter(Boolean).length;
+  const healthTotal = 6;
   const pagesAllowed = clubsNav.length;
 
   const healthRows = [
@@ -124,15 +134,26 @@ export default async function ClubsSettingsPage() {
     },
     {
       key: "ledger",
-      title: "Receipts",
+      title: "Accounts",
       detail:
         receiptsCount === null
           ? "Club ledger is not readable for this account"
           : receiptsCount
-            ? `${receiptsCount} receipts on file`
-            : "Ledger ready. No receipts yet",
+            ? `${receiptsCount} collections on file`
+            : "Collections ledger ready. No receipts yet",
       ok: ledgerReady,
       status: ledgerReady ? "Ready" : "Blocked",
+    },
+    {
+      key: "expenses",
+      title: "Club expenses",
+      detail: categoriesPack.missing
+        ? "Apply 0072_club_expenses.sql to enable spending"
+        : categoriesPack.categories.length
+          ? `${categoriesPack.categories.filter((row) => row.active).length} active categories`
+          : "Tables ready. Add expense categories below",
+      ok: expensesReady,
+      status: expensesReady ? (categoriesPack.categories.length ? "Ready" : "Quiet") : "Blocked",
     },
   ];
 
@@ -190,7 +211,7 @@ export default async function ClubsSettingsPage() {
           <small>Active memberships across the register</small>
         </article>
         <article className="cs-status-item">
-          <span>Receipts</span>
+          <span>Collections</span>
           <strong>{receiptsCount === null ? "Unavailable" : receiptsCount}</strong>
           <small>{receiptsCount === null ? "Ledger not available" : "Club payments on file"}</small>
         </article>
@@ -202,7 +223,7 @@ export default async function ClubsSettingsPage() {
             <header className="cs-card-head">
               <div>
                 <h2>Campus scope</h2>
-                <p>Your Team grant decides which pupils this desk can open.</p>
+                <p>Your Team grant sets which campuses you may open. Day-to-day work uses one active branch from the sidebar.</p>
               </div>
               <span className="cs-card-mark is-gold" aria-hidden="true">
                 <i className="fa-solid fa-school" />
@@ -213,11 +234,20 @@ export default async function ClubsSettingsPage() {
               {CAMPUS_OPTIONS.map((campus) => {
                 const granted = !auth.campuses.length || auth.campuses.includes(campus);
                 const runsClubs = (CLUB_CAMPUSES as readonly string[]).includes(campus);
+                const isWorking = workingBranch === campus;
                 return (
                   <span
                     key={campus}
-                    className={`cs-campus${granted && runsClubs ? " is-on" : ""}${!runsClubs ? " is-off" : ""}`}
-                    title={!runsClubs ? "Clubs do not run at this campus" : granted ? "Included in your scope" : "Outside your scope"}
+                    className={`cs-campus${granted && runsClubs ? " is-on" : ""}${!runsClubs ? " is-off" : ""}${isWorking ? " is-active" : ""}`}
+                    title={
+                      !runsClubs
+                        ? "Clubs do not run at this campus"
+                        : isWorking
+                          ? "Active working branch"
+                          : granted
+                            ? "Included in your scope"
+                            : "Outside your scope"
+                    }
                   >
                     <i className={`fa-solid ${runsClubs ? (granted ? "fa-check" : "fa-minus") : "fa-ban"}`} aria-hidden="true" />
                     {campus}
@@ -227,9 +257,10 @@ export default async function ClubsSettingsPage() {
             </div>
 
             <p className="cs-note">
-              Desk grant: <strong>{scopeLabel}</strong>. Clubs tallies and pickers use{" "}
-              <strong>{clubsScopeLabel}</strong> only. Makindye and Bunga do not run clubs. Full admins change campus
-              scope under <Link href="/admin/team">Admin → Team</Link>.
+              Desk grant: <strong>{scopeLabel}</strong>. Working branch:{" "}
+              <strong>{workingBranch || "Choose in the sidebar"}</strong>. Ops pages stay on that branch; Reports and the
+              Accounts compare strip still show both clubs campuses (<strong>{clubsScopeLabel}</strong>). Makindye and
+              Bunga do not run clubs. Full admins change campus scope under <Link href="/admin/team">Admin → Team</Link>.
             </p>
           </section>
 
@@ -262,8 +293,8 @@ export default async function ClubsSettingsPage() {
           <section className="cs-card">
             <header className="cs-card-head">
               <div>
-                <h2>How club fees move</h2>
-                <p>Clubs owns membership and operations. Accounts owns money in.</p>
+                <h2>How club funds move</h2>
+                <p>Accounts owns money in. Clubs owns membership, operations, and club spending.</p>
               </div>
               <span className="cs-card-mark is-ok" aria-hidden="true">
                 <i className="fa-solid fa-handshake" />
@@ -292,8 +323,14 @@ export default async function ClubsSettingsPage() {
               </li>
               <li>
                 <div>
-                  <strong>Reports and receipts follow</strong>
-                  <small>This desk shows collection, rankings, and printable income reports.</small>
+                  <strong>Clubs registers expenses</strong>
+                  <small>Spending from club funds is recorded on this desk and never posts to Accounts.</small>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <strong>Accounts and reports follow</strong>
+                  <small>Balances, rankings, and printable statements stay on the Clubs desk.</small>
                 </div>
               </li>
             </ol>
@@ -301,6 +338,25 @@ export default async function ClubsSettingsPage() {
               Need to take a payment? Open{" "}
               <Link href="/accounts/payments">Accounts → Payments</Link> with the unpaid consent from the register.
             </p>
+          </section>
+
+          <section className="cs-card">
+            <header className="cs-card-head">
+              <div>
+                <h2>Expense categories</h2>
+                <p>Labels for club spending registered on this desk.</p>
+              </div>
+              <span className="cs-card-mark is-gold" aria-hidden="true">
+                <i className="fa-solid fa-tags" />
+              </span>
+            </header>
+            {categoriesPack.missing ? (
+              <p className="cs-note">
+                Apply <code>0072_club_expenses.sql</code> to enable club expense categories.
+              </p>
+            ) : (
+              <ClubExpenseCategories categories={categoriesPack.categories} />
+            )}
           </section>
         </div>
 
@@ -335,6 +391,10 @@ export default async function ClubsSettingsPage() {
               <li>
                 <span>Clubs campuses in use</span>
                 <strong>{clubsScopeLabel}</strong>
+              </li>
+              <li>
+                <span>Working branch</span>
+                <strong>{workingBranch || "Not chosen yet"}</strong>
               </li>
               <li>
                 <span>Current term</span>
@@ -416,12 +476,19 @@ export default async function ClubsSettingsPage() {
                 </strong>
                 <small>Schedules across clubs, ready to pin up.</small>
               </Link>
-              <Link className="cs-print" href={`${CLUBS_BASE}/receipts`}>
+              <Link className="cs-print" href={`${CLUBS_BASE}/accounts`}>
                 <strong>
-                  <i className="fa-solid fa-receipt" aria-hidden="true" />
-                  Receipts browser
+                  <i className="fa-solid fa-wallet" aria-hidden="true" />
+                  Club accounts
                 </strong>
-                <small>Filter and export the club ledger.</small>
+                <small>Collections, expenses, balances, and CSV export.</small>
+              </Link>
+              <Link className="cs-print" href={`${CLUBS_BASE}/accounts/pdf${current ? `?term=${current.id}` : ""}`}>
+                <strong>
+                  <i className="fa-solid fa-file-invoice-dollar" aria-hidden="true" />
+                  Accounts statement
+                </strong>
+                <small>Print expected, collected, expenditure, and balance.</small>
               </Link>
             </div>
           </section>

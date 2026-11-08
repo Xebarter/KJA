@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { normalizePhone } from "@/lib/students";
 import { logSystem } from "@/lib/system-logs";
 
-export type ActionResult = { error?: string; ok?: string; warning?: string; id?: string };
+export type ActionResult = { error?: string; ok?: string; warning?: string; id?: string; ids?: string[] };
 
 export const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 

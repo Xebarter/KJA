@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -235,11 +237,11 @@ export function EventEditor({ record }: { record: Article }) {
             <div className="alx-when aev-when">
               <label className="alx-when-field">
                 <span><i className="fa-regular fa-calendar" aria-hidden="true" /> Starts</span>
-                <input type="date" value={form.starts_on} onChange={(event) => set("starts_on", event.target.value)} />
+                <DateField value={form.starts_on} onChange={(event) => set("starts_on", event.target.value)} />
               </label>
               <label className="alx-when-field">
                 <span><i className="fa-regular fa-calendar-check" aria-hidden="true" /> Ends</span>
-                <input type="date" value={form.ends_on} onChange={(event) => set("ends_on", event.target.value)} />
+                <DateField value={form.ends_on} onChange={(event) => set("ends_on", event.target.value)} />
               </label>
               <label className="alx-when-field">
                 <span><i className="fa-regular fa-clock" aria-hidden="true" /> Start time</span>

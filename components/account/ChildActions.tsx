@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { removeChild, saveChild } from "@/app/account/actions";
@@ -76,7 +78,7 @@ function ChildForm({
         </label>
         <label className="ch-field" htmlFor={`${prefix}-dob`}>
           <span>Date of birth</span>
-          <input id={`${prefix}-dob`} name="date_of_birth" type="date" max={today} defaultValue={child?.date_of_birth || ""} />
+          <DateField id={`${prefix}-dob`} name="date_of_birth" max={today} defaultValue={child?.date_of_birth || ""} />
         </label>
         <label className="ch-field" htmlFor={`${prefix}-code`}>
           <span>Student number <small>Optional</small></span>

@@ -5,15 +5,20 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { kampalaToday, methodInfo, percent, ugx, type Term } from "@/lib/accounts-format";
-import { CLUB_CAMPUSES, type ClubCampusId } from "@/lib/campuses";
 import { CLUB_CATEGORIES } from "@/lib/clubs";
+import {
+  CLUB_BRANCHES,
+  clubBranch,
+  clubInFundsScope,
+  studentInFundsScope,
+  type ClubBranch,
+} from "@/lib/club-funds-scope";
 import { SCHOOL_CLASSES } from "@/lib/students";
 
-export const CLUB_BRANCHES = CLUB_CAMPUSES;
-export type ClubBranch = ClubCampusId;
+export { CLUB_BRANCHES, clubBranch, type ClubBranch };
 
 export const CLUB_REPORT_BASIS =
-  "Expected income is the current catalogue fee for each consent that was open during the term, for pupils at Kitante and Najjanankumbi. Makindye and Bunga do not run clubs and are not counted. When a receipt exists, that consent is counted at the amount on the receipt, even if the fee changed later.";
+  "Expected income is the current catalogue fee for each consent that was open during the term, for pupils at Kitante and Najjanankumbi (by the pupil’s campus). Makindye and Bunga do not run clubs and are not counted. When a receipt exists, that consent is counted at the amount on the receipt, even if the fee changed later. Expenditure is club spending registered on the Clubs desk for the term, attributed to each club’s catalogue campus; clubs marked All campuses stay on whole-desk totals only. Balance is collected minus expenditure.";
 
 export type ClubFigure = {
   key: string;
@@ -23,6 +28,8 @@ export type ClubFigure = {
   paidCount: number;
   expected: number;
   collected: number;
+  expenditure: number;
+  balance: number;
   due: number;
   rate: number;
 };
@@ -56,6 +63,8 @@ export type ClubReport = {
   summary: ClubFigure;
   campuses: ClubFigure[];
   clubs: ClubFigure[];
+  /** Per-branch club standing (income by pupil campus, spend by club catalogue campus). */
+  clubsByCampus: Record<ClubBranch, ClubFigure[]>;
   categories: ClubFigure[];
   sections: ClubFigure[];
   classes: ClubFigure[];
@@ -64,26 +73,18 @@ export type ClubReport = {
   months: MonthFigure[];
   online: number;
   desk: number;
+  expenditure: number;
   insights: string[];
 };
 
 type ConsentRow = { student_id: string; club_id: string; consented_at: string; withdrawn_at: string | null };
 type PaymentRow = { student_id: string; club_id: string; term_id: string; amount: number; paid_on: string; method: string; source: string };
-type ClubRow = { id: string; title: string; category: string | null; fee_amount: number | null; sort_order: number | null };
+type ExpenseRow = { club_id: string; term_id: string; amount: number };
+type ClubRow = { id: string; title: string; category: string | null; fee_amount: number | null; sort_order: number | null; campus?: string | null };
 type PupilRow = { campus: string | null; class_code: string | null };
 
 function emptyCampusMoney(): Record<ClubBranch, number> {
   return Object.fromEntries(CLUB_BRANCHES.map((branch) => [branch, 0])) as Record<ClubBranch, number>;
-}
-
-export function clubBranch(campus: string | null | undefined): ClubBranch | null {
-  const value = String(campus ?? "").toLowerCase().replace(/[^a-z]/g, "");
-  // Blank / unset campus: count with Kitante (same default as operationalCampus elsewhere).
-  if (!value) return "Kitante";
-  if (value.includes("najjanankumbi") || value === "najja" || value.startsWith("najja")) return "Najjanankumbi";
-  if (value.includes("kitante")) return "Kitante";
-  // Makindye and Bunga do not run clubs — exclude from club tallies.
-  return null;
 }
 
 function collectionRate(collected: number, expected: number) {
@@ -96,6 +97,7 @@ class Tally {
   paidCount = 0;
   expected = 0;
   collected = 0;
+  expenditure = 0;
   pupils = new Set<string>();
 
   add(studentId: string, expected: number, collected: number) {
@@ -107,6 +109,11 @@ class Tally {
     this.pupils.add(studentId);
   }
 
+  addSpend(amount: number) {
+    if (amount <= 0) return;
+    this.expenditure += amount;
+  }
+
   freeze(key: string, label: string): ClubFigure {
     return {
       key,
@@ -116,6 +123,8 @@ class Tally {
       paidCount: this.paidCount,
       expected: this.expected,
       collected: this.collected,
+      expenditure: this.expenditure,
+      balance: this.collected - this.expenditure,
       due: Math.max(0, this.expected - this.collected),
       rate: collectionRate(this.collected, this.expected),
     };
@@ -167,6 +176,42 @@ function chartTerm(term: Term) {
   return `T${term.term}`;
 }
 
+/** Explicit Kitante vs Najjanankumbi differences for UI and PDF callouts. */
+export function campusCompareDeltas(campuses: ClubFigure[]): string[] {
+  if (campuses.length < 2) return [];
+  const [a, b] = campuses;
+  const lines: string[] = [];
+  if (a.collected === b.collected) {
+    if (a.collected > 0) lines.push(`${a.label} and ${b.label} have collected the same amount.`);
+  } else {
+    const lead = a.collected >= b.collected ? a : b;
+    const other = lead === a ? b : a;
+    lines.push(`${lead.label} has collected ${ugx(lead.collected - other.collected)} more than ${other.label}.`);
+  }
+  if (a.rate !== b.rate && (a.expected > 0 || b.expected > 0)) {
+    const better = a.rate >= b.rate ? a : b;
+    const other = better === a ? b : a;
+    const gap = Math.abs(a.rate - b.rate);
+    lines.push(`${better.label} collects at ${better.rate}% vs ${other.label} at ${other.rate}% (${gap} points ahead).`);
+  }
+  if (a.due !== b.due && (a.due > 0 || b.due > 0)) {
+    const heavier = a.due >= b.due ? a : b;
+    const other = heavier === a ? b : a;
+    lines.push(`${heavier.label} still has ${ugx(heavier.due - other.due)} more outstanding than ${other.label}.`);
+  }
+  if (a.expenditure !== b.expenditure && (a.expenditure > 0 || b.expenditure > 0)) {
+    const heavier = a.expenditure >= b.expenditure ? a : b;
+    const other = heavier === a ? b : a;
+    lines.push(`${heavier.label} has spent ${ugx(heavier.expenditure - other.expenditure)} more than ${other.label}.`);
+  }
+  if (a.balance !== b.balance) {
+    const stronger = a.balance >= b.balance ? a : b;
+    const other = stronger === a ? b : a;
+    lines.push(`${stronger.label} holds a ${ugx(stronger.balance - other.balance)} stronger balance than ${other.label}.`);
+  }
+  return lines;
+}
+
 function insights(report: Omit<ClubReport, "insights">): string[] {
   const lines: string[] = [];
   const ranked = [...report.campuses].sort((a, b) => b.collected - a.collected);
@@ -186,8 +231,24 @@ function insights(report: Omit<ClubReport, "insights">): string[] {
       lines.push(`${lead.label} accounts for ${percent(lead.collected, whole)}% of club income collected this term.`);
     }
   }
+  const dueRanked = [...report.campuses].sort((a, b) => b.due - a.due);
+  if (dueRanked[0] && dueRanked[1] && dueRanked[0].due > dueRanked[1].due && dueRanked[0].due > 0) {
+    lines.push(`${dueRanked[0].label} carries ${ugx(dueRanked[0].due - dueRanked[1].due)} more still due than ${dueRanked[1].label}.`);
+  }
+  const spendRanked = [...report.campuses].sort((a, b) => b.expenditure - a.expenditure);
+  if (spendRanked[0] && spendRanked[1] && spendRanked[0].expenditure > spendRanked[1].expenditure && spendRanked[0].expenditure > 0) {
+    lines.push(`${spendRanked[0].label} has spent ${ugx(spendRanked[0].expenditure - spendRanked[1].expenditure)} more than ${spendRanked[1].label}.`);
+  }
+  const balanceRanked = [...report.campuses].sort((a, b) => b.balance - a.balance);
+  if (balanceRanked[0] && balanceRanked[1] && balanceRanked[0].balance !== balanceRanked[1].balance) {
+    lines.push(`${balanceRanked[0].label} holds the stronger campus balance at ${ugx(balanceRanked[0].balance)}.`);
+  }
+  for (const branch of CLUB_BRANCHES) {
+    const leader = (report.clubsByCampus[branch] || []).find((club) => club.collected > 0);
+    if (leader) lines.push(`At ${branch}, ${leader.label} leads with ${ugx(leader.collected)} collected.`);
+  }
   const best = report.clubs.find((club) => club.collected > 0);
-  if (best) lines.push(`${best.label} leads the clubs, with ${ugx(best.collected)} collected.`);
+  if (best) lines.push(`${best.label} leads the clubs overall, with ${ugx(best.collected)} collected.`);
   const weakest = [...report.clubs].filter((club) => club.consents > 0 && club.due > 0).sort((a, b) => a.rate - b.rate || b.due - a.due)[0];
   if (weakest) lines.push(`${weakest.label} still has ${ugx(weakest.due)} to collect, the widest gap among the clubs.`);
   const index = report.terms.findIndex((term) => term.key === report.termId);
@@ -206,8 +267,13 @@ function insights(report: Omit<ClubReport, "insights">): string[] {
     const amount = report.online >= report.desk ? report.online : report.desk;
     lines.push(`${ugx(amount)} was paid ${channel} this term.`);
   }
+  if (report.expenditure > 0) {
+    lines.push(`Clubs spent ${ugx(report.expenditure)} this term, leaving a balance of ${ugx(report.summary.balance)}.`);
+    const heavy = [...report.clubs].filter((club) => club.expenditure > 0).sort((a, b) => b.expenditure - a.expenditure)[0];
+    if (heavy) lines.push(`${heavy.label} leads spending at ${ugx(heavy.expenditure)}.`);
+  }
   if (report.summary.consents > 0 && report.summary.due === 0) lines.push("Every consent counted for this term has been paid.");
-  return lines.slice(0, 6);
+  return lines.slice(0, 8);
 }
 
 export function assembleClubReport(input: {
@@ -216,6 +282,7 @@ export function assembleClubReport(input: {
   clubs: ClubRow[];
   consents: ConsentRow[];
   payments: PaymentRow[];
+  expenses?: ExpenseRow[];
   students: Map<string, PupilRow>;
   today?: string;
 }): ClubReport {
@@ -237,12 +304,24 @@ export function assembleClubReport(input: {
     });
   }
   const selectedClubs = new Map<string, Tally>();
+  const selectedClubsByCampus = new Map<ClubBranch, Map<string, Tally>>(
+    CLUB_BRANCHES.map((branch) => [branch, new Map<string, Tally>()]),
+  );
   const selectedCategories = new Map<string, Tally>();
   const selectedSections = new Map<string, Tally>();
   const selectedClasses = new Map<string, Tally>();
   const selectedCampuses = new Map<ClubBranch, Tally>(CLUB_BRANCHES.map((branch) => [branch, new Tally()]));
   const selectedAll = new Tally();
   const counted = new Set<string>();
+
+  const clubTallyAt = (branch: ClubBranch, clubId: string) => {
+    const map = selectedClubsByCampus.get(branch)!;
+    const existing = map.get(clubId);
+    if (existing) return existing;
+    const next = new Tally();
+    map.set(clubId, next);
+    return next;
+  };
 
   const take = (term: Term, studentId: string, clubId: string, expected: number, collected: number) => {
     const branch = branchOf(studentId);
@@ -258,6 +337,7 @@ export function assembleClubReport(input: {
     const clubTally = selectedClubs.get(clubId) ?? new Tally();
     clubTally.add(studentId, expected, collected);
     selectedClubs.set(clubId, clubTally);
+    clubTallyAt(branch, clubId).add(studentId, expected, collected);
     const category = club?.category && CLUB_CATEGORIES.includes(club.category as (typeof CLUB_CATEGORIES)[number]) ? club.category : "Other";
     const categoryTally = selectedCategories.get(category) ?? new Tally();
     categoryTally.add(studentId, expected, collected);
@@ -296,11 +376,55 @@ export function assembleClubReport(input: {
     take(term, payment.student_id, payment.club_id, amount, amount);
   }
 
+  const spend = (term: Term, clubId: string, amount: number) => {
+    if (amount <= 0) return;
+    const bucket = termTallies.get(term.id);
+    if (!bucket) return;
+    bucket.all.addSpend(amount);
+    const club = clubById.get(clubId);
+    // Attribute spend to the club's catalogue campus (not pupil campus). All-campus clubs stay on totals only.
+    const rawCampus = String(club?.campus ?? "").trim();
+    const campusBranch =
+      /^all\s*campuses$/i.test(rawCampus) ? null : clubBranch(club?.campus ?? null);
+    if (campusBranch) bucket.byCampus[campusBranch].addSpend(amount);
+    if (!selected || term.id !== selected.id) return;
+    selectedAll.addSpend(amount);
+    if (campusBranch) {
+      selectedCampuses.get(campusBranch)?.addSpend(amount);
+      clubTallyAt(campusBranch, clubId).addSpend(amount);
+    }
+    const clubTally = selectedClubs.get(clubId) ?? new Tally();
+    clubTally.addSpend(amount);
+    selectedClubs.set(clubId, clubTally);
+    const category = club?.category && CLUB_CATEGORIES.includes(club.category as (typeof CLUB_CATEGORIES)[number]) ? club.category : "Other";
+    const categoryTally = selectedCategories.get(category) ?? new Tally();
+    categoryTally.addSpend(amount);
+    selectedCategories.set(category, categoryTally);
+  };
+
+  for (const expense of input.expenses || []) {
+    const term = chronological.find((entry) => entry.id === expense.term_id);
+    if (!term) continue;
+    spend(term, expense.club_id, Number(expense.amount) || 0);
+  }
+
   const summary = selectedAll.freeze("all", selected?.label ?? "This term");
   const campuses = CLUB_BRANCHES.map((branch) => selectedCampuses.get(branch)!.freeze(branch, branch));
-  const clubs = [...selectedClubs.entries()]
-    .map(([id, tally]) => tally.freeze(id, clubById.get(id)?.title || "Club"))
-    .sort((a, b) => b.collected - a.collected || b.rate - a.rate || a.label.localeCompare(b.label));
+  const sortClubFigures = (rows: ClubFigure[]) =>
+    rows.sort((a, b) => a.label.localeCompare(b.label) || b.collected - a.collected || b.rate - a.rate);
+  const clubs = sortClubFigures(
+    [...selectedClubs.entries()].map(([id, tally]) => tally.freeze(id, clubById.get(id)?.title || "Club")),
+  );
+  const clubsByCampus = Object.fromEntries(
+    CLUB_BRANCHES.map((branch) => [
+      branch,
+      sortClubFigures(
+        [...(selectedClubsByCampus.get(branch)?.entries() || [])]
+          .map(([id, tally]) => tally.freeze(id, clubById.get(id)?.title || "Club"))
+          .filter((row) => row.expected > 0 || row.collected > 0 || row.expenditure > 0),
+      ),
+    ]),
+  ) as Record<ClubBranch, ClubFigure[]>;
   const categories = [...CLUB_CATEGORIES, "Other"]
     .filter((category) => selectedCategories.has(category))
     .map((category) => selectedCategories.get(category)!.freeze(category, category));
@@ -386,6 +510,7 @@ export function assembleClubReport(input: {
     summary,
     campuses,
     clubs,
+    clubsByCampus,
     categories,
     sections,
     classes,
@@ -394,6 +519,7 @@ export function assembleClubReport(input: {
     months,
     online,
     desk,
+    expenditure: summary.expenditure,
   };
   return { ...base, insights: insights(base) };
 }
@@ -411,11 +537,23 @@ async function paged<T>(run: (from: number, to: number) => PromiseLike<{ data: T
   return rows;
 }
 
-export async function loadClubReport(supabase: SupabaseClient, terms: Term[], selectedId: string | null) {
-  const [clubs, consents, payments] = await Promise.all([
-    paged<ClubRow>((from, to) => supabase.from("clubs").select("id, title, category, fee_amount, sort_order").not("guide_no", "is", null).order("sort_order").range(from, to)),
+export async function loadClubReport(
+  supabase: SupabaseClient,
+  terms: Term[],
+  selectedId: string | null,
+  campuses?: readonly string[] | null,
+) {
+  const [clubs, consents, payments, expensesResult] = await Promise.all([
+    paged<ClubRow>((from, to) => supabase.from("clubs").select("id, title, category, fee_amount, sort_order, campus").not("guide_no", "is", null).order("sort_order").range(from, to)),
     paged<ConsentRow>((from, to) => supabase.from("club_consents").select("student_id, club_id, consented_at, withdrawn_at").order("consented_at").range(from, to)),
     paged<PaymentRow>((from, to) => supabase.from("club_payments").select("student_id, club_id, term_id, amount, paid_on, method, source").is("voided_at", null).order("paid_on").range(from, to)),
+    paged<ExpenseRow>((from, to) =>
+      supabase.from("club_expenses").select("club_id, term_id, amount").is("voided_at", null).order("spent_on").range(from, to),
+    ).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error);
+      if (/club_expenses|does not exist|schema cache/i.test(message)) return [] as ExpenseRow[];
+      throw error;
+    }),
   ]);
   const studentIds = [...new Set([...consents.map((row) => row.student_id), ...payments.map((row) => row.student_id)])];
   const students = new Map<string, PupilRow>();
@@ -425,5 +563,26 @@ export async function loadClubReport(supabase: SupabaseClient, terms: Term[], se
     if (error) throw new Error(error.message);
     for (const row of data || []) students.set(row.id, { campus: row.campus, class_code: row.class_code });
   }
-  return assembleClubReport({ terms, selectedId, clubs, consents, payments, students });
+
+  const staffCampuses = campuses ?? null;
+  const scopedStudents = new Map<string, PupilRow>();
+  for (const [id, pupil] of students) {
+    if (studentInFundsScope(pupil.campus, staffCampuses)) scopedStudents.set(id, pupil);
+  }
+  const scopedPayments = payments.filter((row) => scopedStudents.has(row.student_id));
+  const scopedConsents = consents.filter((row) => scopedStudents.has(row.student_id));
+  const clubCampus = new Map(clubs.map((club) => [club.id, club.campus]));
+  const scopedExpenses = expensesResult.filter((row) =>
+    clubInFundsScope(clubCampus.get(row.club_id) ?? null, staffCampuses),
+  );
+
+  return assembleClubReport({
+    terms,
+    selectedId,
+    clubs,
+    consents: scopedConsents,
+    payments: scopedPayments,
+    expenses: scopedExpenses,
+    students: scopedStudents,
+  });
 }

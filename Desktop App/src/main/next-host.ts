@@ -46,8 +46,11 @@ export function nextHttpAlive(timeoutMs = 800): Promise<boolean> {
         agent: false,
       },
       (res) => {
+        // Treat 5xx as dead - a wedged keep-warm host returned 500 and still
+        // counted as "alive", then the desk opened on a black/error frame.
+        const code = res.statusCode ?? 0;
         res.resume();
-        resolve(typeof res.statusCode === "number" && res.statusCode > 0);
+        resolve(code >= 200 && code < 400);
       },
     );
     req.on("timeout", () => {

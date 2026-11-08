@@ -3,7 +3,15 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { applyOptimisticWrite, ensureIds, isPlainTableWrite, parseRestTable } from "../src/proxy/outbox";
+import {
+  applyOptimisticWrite,
+  assignCompositeIds,
+  ensureIds,
+  isPlainTableWrite,
+  localEntityId,
+  parseRestTable,
+  stripSyntheticIds,
+} from "../src/proxy/outbox";
 import { ProxyStore } from "../src/proxy/store";
 import { isServiceRoleRequest, userIdFromAuthHeader } from "../src/proxy/jwt";
 import { startProxy, type ProxyHandle } from "../src/proxy/server";
@@ -45,6 +53,13 @@ describe("outbox helpers", () => {
     expect(assigned).toHaveLength(1);
     expect((body as { id: string }).id).toBe(assigned[0]);
   });
+
+  it("stamps club_attendance composite ids and strips them for upstream", () => {
+    const row = { session_id: "s1", student_id: "p1", status: "present" };
+    const stamped = assignCompositeIds("club_attendance", row) as { id: string; session_id: string };
+    expect(stamped.id).toBe(localEntityId("club_attendance", row));
+    expect(stripSyntheticIds("club_attendance", stamped)).toEqual(row);
+  });
 });
 
 describe("ProxyStore + optimistic writes", () => {
@@ -78,6 +93,15 @@ describe("ProxyStore + optimistic writes", () => {
     expect(store.recentGets("u1", 10)).toEqual([
       "https://example.supabase.co/rest/v1/students",
     ]);
+  });
+
+  it("ingests club_attendance rows without an id column", () => {
+    store.ingestJsonArray("u1", "club_attendance", [
+      { session_id: "s1", student_id: "p1", status: "present", note: "" },
+    ]);
+    const id = localEntityId("club_attendance", { session_id: "s1", student_id: "p1" });
+    expect(id).toBeTruthy();
+    expect(store.getEntity("u1", "club_attendance", id!).status).toBe("present");
   });
 
   it("applies offline insert then keeps pending outbox", () => {

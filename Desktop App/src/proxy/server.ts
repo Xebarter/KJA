@@ -22,10 +22,12 @@ import {
 } from "./jwt";
 import {
   applyOptimisticWrite,
+  assignCompositeIds,
   ensureIds,
   flushOutbox,
   isPlainTableWrite,
   parseRestTable,
+  stripSyntheticIds,
 } from "./outbox";
 import { ProxyStore } from "./store";
 
@@ -542,9 +544,12 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
           let bodyForQueue = body;
           if (method === "POST" && body) {
             try {
+              const table = parseRestTable(pathname) || "";
               const parsed = JSON.parse(body.toString("utf8"));
-              const { body: withIds } = ensureIds(parsed);
-              bodyForQueue = Buffer.from(JSON.stringify(withIds));
+              // Composite keys first, then UUIDs — never invent a random id over a real PK.
+              const prepared = assignCompositeIds(table, parsed);
+              const { body: withIds } = ensureIds(prepared);
+              bodyForQueue = Buffer.from(JSON.stringify(stripSyntheticIds(table, withIds)));
             } catch {
               /* keep original */
             }

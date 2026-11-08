@@ -7,6 +7,27 @@ import type { ActionResult } from "@/lib/office-forms";
 
 export { Feedback, useOfficeAction };
 
+/** After a payment saves, bring the success card (and page) back to the top. */
+export function useScrollTopWhen(active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const frame = window.requestAnimationFrame(() => {
+      const done = document.querySelector<HTMLElement>(".acc-done");
+      const panel = document.querySelector<HTMLElement>(".pay-record-panel");
+      const target = done || panel;
+      if (target) {
+        const scroller = target.closest<HTMLElement>("[data-scroll], .ofc-dialog-body, .dialog-body, [role='dialog']");
+        if (scroller && scroller !== document.body && scroller.scrollHeight > scroller.clientHeight) {
+          scroller.scrollTo({ top: 0, behavior: "smooth" });
+        }
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [active]);
+}
+
 /** Opens the row when the click is not already on a link or button. */
 export function ClickRow({ href, className, children }: { href: string; className?: string; children: React.ReactNode }) {
   const router = useRouter();

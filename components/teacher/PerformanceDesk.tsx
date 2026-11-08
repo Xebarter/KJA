@@ -43,6 +43,7 @@ export type PerfPupil = {
 };
 
 export type PerfBand = {
+  id: string;
   label: string;
   count: number;
 };
@@ -255,7 +256,7 @@ export function PerformanceDesk({
           </div>
           <ul>
             {bands.map((band) => (
-              <li key={band.label}>
+              <li key={band.id}>
                 <span className="perf-band-label">{band.label}</span>
                 <span className="perf-band-track" aria-hidden="true">
                   <span style={{ width: `${Math.max(band.count ? 10 : 0, (band.count / bandMax) * 100)}%` }} />

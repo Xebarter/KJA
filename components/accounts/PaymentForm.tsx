@@ -1,8 +1,10 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { AmountInput, Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
+import { AmountInput, Dialog, Feedback, useOfficeAction, useScrollTopWhen } from "@/components/accounts/client";
 import { StudentPicker } from "@/components/accounts/StudentPicker";
 import { StudentFace } from "@/components/StudentFace";
 import {
@@ -99,6 +101,7 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
   const [formKey, setFormKey] = useState(0);
   const [loadingFamily, setLoadingFamily] = useState(false);
   const { result, setResult, pending, run } = useOfficeAction();
+  useScrollTopWhen(Boolean(saved?.id));
 
   const studentId = pupil?.student_id;
   useEffect(() => {
@@ -222,26 +225,31 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
     : "";
 
   if (saved?.id) {
+    const receiptNo = String(saved.ok || "").match(/receipt\s+(\S+)\s+saved/i)?.[1] || "Receipt";
     return (
       <div className="acc-done">
         <span className="acc-done-icon"><i className="fa-solid fa-check" aria-hidden="true" /></span>
-        <h2>{saved.ok}</h2>
-        <p>
+        <p className="acc-done-kicker">Payment complete</p>
+        <h2>Receipt saved</h2>
+        <p className="acc-done-no">{receiptNo}</p>
+        <p className="acc-done-meta">
           {ugx(value)}
           {saved.mode === "family"
-            ? ` from ${familyContext?.family.name || family?.name || "the family"}, shared across ${familySlices.length || "the"} ${familySlices.length === 1 ? "child" : "children"}`
-            : ` from ${pupil?.full_name}`}
-          {" "}by {info.label.toLowerCase()}.
+            ? ` · ${familyContext?.family.name || family?.name || "Family"} · ${familySlices.length || "?"} ${familySlices.length === 1 ? "child" : "children"}`
+            : ` · ${pupil?.full_name || "Pupil"}`}
+          {" · "}{info.label}
         </p>
         {saved.warning ? <p className="app-feedback is-warning">{saved.warning}</p> : null}
         <div className="acc-wizard-foot is-center">
-          <a className="admin-btn" href={receiptHref} target="_blank" rel="noreferrer">
+          <a className="acc-done-btn is-primary" href={receiptHref} target="_blank" rel="noreferrer">
             <i className="fa-solid fa-print" aria-hidden="true" /> Print receipt
           </a>
-          <Link className="admin-btn admin-btn-ghost" href={openHref}>Open payment</Link>
+          <Link className="acc-done-btn is-secondary" href={openHref}>
+            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> Details
+          </Link>
           <button
             type="button"
-            className="admin-btn admin-btn-ghost"
+            className="acc-done-btn is-quiet"
             onClick={() => {
               setSaved(null);
               setResult(null);
@@ -259,7 +267,7 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
           >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Record another
           </button>
-          {onDone ? <button type="button" className="admin-btn admin-btn-ghost" onClick={onDone}>Close</button> : null}
+          {onDone ? <button type="button" className="acc-done-btn is-quiet" onClick={onDone}>Close</button> : null}
         </div>
       </div>
     );
@@ -484,7 +492,7 @@ export function PaymentForm({ terms, termId, pupil: initialPupil = null, familyI
           )}
           <label className="ofc-field">
             <span>Date paid</span>
-            <input type="date" name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
+            <DateField name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
           </label>
           <div className="ofc-field is-wide">
             <span>Amount received</span>

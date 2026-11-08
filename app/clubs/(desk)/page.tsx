@@ -3,6 +3,7 @@ import { ClubsPageHeader } from "@/components/clubs/PageHeader";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { loadTerms } from "@/lib/accounts";
 import { percent, ugx, ugxShort } from "@/lib/accounts-format";
+import { clubServesBranch } from "@/lib/club-funds-scope";
 import { requireClubs } from "@/lib/clubs-access";
 import { clubListHref, CLUB_CATEGORIES } from "@/lib/clubs";
 import { CATEGORY_ICONS, loadConsentRegister } from "@/lib/clubs-desk";
@@ -15,25 +16,31 @@ export default async function ClubsOverviewPage() {
   if (!supabaseConfigured()) return clubsNotReady("Clubs", "config");
   const auth = await requireClubs();
   if ("error" in auth) return clubsNotReady("Clubs", "auth", auth.error);
+  if (!auth.activeCampus) return null;
   const { terms, current, error } = await loadTerms(auth.supabase);
   if (error) return clubsNotReady("Clubs", "schema", error);
 
-  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, auth.campuses, false);
+  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, [auth.activeCampus], false);
   if (pack.error) return clubsNotReady("Clubs", "schema", pack.error);
 
+  const branchClubs = pack.clubs.filter((club) => clubServesBranch(club.campus, auth.activeCampus!));
   const rows = pack.rows.filter((row) => !row.withdrawnAt);
   const paidCount = rows.filter((row) => row.status === "paid").length;
   const unpaidRows = rows.filter((row) => row.status === "unpaid");
   const waitingCount = rows.filter((row) => row.status === "waiting").length;
-  const openCount = pack.clubs.filter((club) => club.active).length;
-  const collected = (pack.payments || []).reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const openCount = branchClubs.filter((club) => club.active).length;
+  const scopedPupilIds = new Set(rows.map((row) => row.studentId));
+  const collected = (pack.payments || []).reduce((sum, row) => {
+    if (!scopedPupilIds.has(row.student_id)) return sum;
+    return sum + (Number(row.amount) || 0);
+  }, 0);
   const unpaidAmount = unpaidRows.reduce((sum, row) => sum + row.fee, 0);
   const stillDue = unpaidAmount + rows.filter((row) => row.status === "waiting").reduce((sum, row) => sum + row.fee, 0);
   const rate = rows.length ? percent(paidCount, rows.length) : 0;
   const needsCount = unpaidRows.length + waitingCount + (current ? 0 : terms.length ? 1 : 0);
 
   const categoryCounts = CLUB_CATEGORIES.map((category) => {
-    const clubs = pack.clubs.filter((club) => club.category === category && club.active);
+    const clubs = branchClubs.filter((club) => club.category === category && club.active);
     const consents = rows.filter((row) => clubs.some((club) => club.id === row.clubId)).length;
     return {
       category,
@@ -57,7 +64,7 @@ export default async function ClubsOverviewPage() {
       href: `${CLUBS_BASE}/catalogue`,
       icon: "fa-puzzle-piece",
       label: "Catalogue",
-      detail: `${openCount} open · ${pack.clubs.length} on the guide`,
+      detail: `${openCount} open · ${branchClubs.length} on the guide`,
     },
     {
       href: `${CLUBS_BASE}/timetable`,
@@ -66,10 +73,10 @@ export default async function ClubsOverviewPage() {
       detail: "Weekly schedules, meetings, and attendance",
     },
     {
-      href: `${CLUBS_BASE}/receipts`,
-      icon: "fa-receipt",
-      label: "Receipts",
-      detail: current ? `Ledger for ${current.label}` : "Read-only club ledger",
+      href: `${CLUBS_BASE}/accounts`,
+      icon: "fa-wallet",
+      label: "Accounts",
+      detail: current ? `Funds for ${current.label}` : "Collections and club expenses",
     },
     {
       href: `${CLUBS_BASE}/reports`,
@@ -87,11 +94,15 @@ export default async function ClubsOverviewPage() {
         title="Clubs desk"
         description={
           current
-            ? `Track consents, timetables, and collection for ${current.label}.`
-            : "Track consents, timetables, and collection. Set a current term before fees can be paid."
+            ? `Track consents, timetables, and collection for ${auth.activeCampus} · ${current.label}.`
+            : `Track consents, timetables, and collection for ${auth.activeCampus}. Set a current term before fees can be paid.`
         }
         meta={
           <>
+            <span className="clubs-head-chip">
+              <i className="fa-solid fa-school" aria-hidden="true" />
+              {auth.activeCampus}
+            </span>
             {current ? (
               <span className="clubs-head-chip is-term">
                 <i className="fa-solid fa-calendar-days" aria-hidden="true" />
@@ -193,7 +204,7 @@ export default async function ClubsOverviewPage() {
       ) : null}
 
       <div className="clubs-ov-kpis">
-        <Link className="clubs-ov-kpi" href={`${CLUBS_BASE}/receipts`}>
+        <Link className="clubs-ov-kpi" href={`${CLUBS_BASE}/accounts`}>
           <span>{current ? `Collected · ${current.label}` : "Collected"}</span>
           <strong>
             <small>UGX</small>

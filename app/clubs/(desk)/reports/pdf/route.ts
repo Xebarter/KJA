@@ -28,7 +28,7 @@ export async function GET(request: Request) {
   if (error) return new Response(error, { status: 500 });
   const term = new URL(request.url).searchParams.get("term");
   try {
-    const report = await loadClubReport(auth.supabase, terms, term);
+    const report = await loadClubReport(auth.supabase, terms, term, auth.campuses);
     let school = FALLBACK_SCHOOL;
     try {
       const { settings } = await getContent();
@@ -36,7 +36,9 @@ export async function GET(request: Request) {
     } catch {
       school = FALLBACK_SCHOOL;
     }
-    const bytes = await buildClubReportPdf(report, school, await loadCrest(request.url));
+    const bytes = await buildClubReportPdf(report, school, await loadCrest(request.url), {
+      activeCampus: auth.activeCampus,
+    });
     const name = `KJA-club-report-${report.termLabel || "term"}.pdf`;
     return pdfResponse(bytes, name, true);
   } catch (loadError) {

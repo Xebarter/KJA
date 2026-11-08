@@ -1,15 +1,45 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { refreshClubs, requireClubs } from "@/lib/clubs-access";
-import { CLUB_CATEGORIES, isClubSection } from "@/lib/clubs";
+import { classLabel } from "@/lib/academics";
+import { persistActiveClubCampus, refreshClubs, requireClubs } from "@/lib/clubs-access";
+import { CLUB_CATEGORIES, clubFits, isClubSection } from "@/lib/clubs";
 import { CLUBS_BASE, isClubAttendanceStatus } from "@/lib/clubs-nav";
 import { ACADEMICS_BASE } from "@/lib/academics-nav";
 import { kampalaToday, parseAmount } from "@/lib/accounts-format";
-import { CLUB_CAMPUSES } from "@/lib/campuses";
+import { CLUB_CAMPUSES, isClubCampus } from "@/lib/campuses";
+import { studentInFundsScope } from "@/lib/club-funds-scope";
 import { field, type ActionResult } from "@/lib/office-forms";
-import { isUuid, normalizePhone, phoneIsValid } from "@/lib/students";
+import { everyWord, isUuid, normalizePhone, phoneIsValid, searchNeedle, searchWords } from "@/lib/students";
 import { logClubs } from "@/lib/system-logs";
+
+export async function setActiveClubCampus(campus: string): Promise<ActionResult> {
+  if (!isClubCampus(campus)) return { error: "Unknown campus." };
+  const auth = await requireClubs();
+  if ("error" in auth) return { error: auth.error };
+  if (!auth.clubCampuses.includes(campus)) return { error: "You cannot open that campus." };
+  await persistActiveClubCampus(campus);
+  refreshClubs();
+  return { ok: "Campus switched." };
+}
+
+/** Name / number filter against `students` (not the admissions directory view). */
+function clubPupilSearchFilter(raw: string) {
+  const needle = searchNeedle(raw);
+  const words = searchWords(raw);
+  if (!needle || !words.length) return "";
+  return [everyWord(words, ["full_name", "preferred_name"]), `student_number.ilike.%${needle}%`].join(",");
+}
+
+export type ClubPupilHit = {
+  id: string;
+  full_name: string;
+  student_number: string;
+  class_code: string | null;
+  stream: string | null;
+  campus: string | null;
+  label: string;
+};
 
 function refreshAcademicsTimetable() {
   revalidatePath(`${ACADEMICS_BASE}/timetable`);
@@ -123,40 +153,134 @@ export async function createClub(form: FormData): Promise<ActionResult> {
   return { error: "The club could not be added. Try again." };
 }
 
+/** Live pupil search for desk consent — campus-scoped for clubs staff. */
+export async function searchClubPupils(raw: string): Promise<{ error?: string; rows: ClubPupilHit[] }> {
+  const auth = await requireClubs("register");
+  if ("error" in auth) return { error: auth.error, rows: [] };
+  const needle = searchNeedle(raw).slice(0, 60);
+  const words = searchWords(raw);
+  if (needle.length < 2 || !words.length) return { rows: [] };
+  const filter = clubPupilSearchFilter(needle);
+  if (!filter) return { rows: [] };
+
+  const { data, error } = await auth.supabase
+    .from("students")
+    .select("id, full_name, student_number, class_code, stream, campus, status")
+    .eq("status", "active")
+    .or(filter)
+    .order("full_name")
+    .limit(24);
+  if (error) return { error: "Pupil search failed.", rows: [] };
+
+  if (!auth.activeCampus) return { error: "Choose a campus first.", rows: [] };
+  const rows: ClubPupilHit[] = (data || [])
+    .filter((row) => studentInFundsScope((row.campus as string | null) ?? null, auth.campuses, auth.activeCampus))
+    .map((row) => ({
+      id: row.id as string,
+      full_name: row.full_name as string,
+      student_number: (row.student_number as string) || "",
+      class_code: (row.class_code as string | null) ?? null,
+      stream: (row.stream as string | null) ?? null,
+      campus: (row.campus as string | null) ?? null,
+      label: [
+        row.full_name,
+        row.student_number,
+        row.class_code ? classLabel(row.class_code as string, row.stream as string | null) : null,
+        row.campus,
+      ]
+        .filter(Boolean)
+        .join(" · "),
+    }));
+  return { rows };
+}
+
 export async function officeConsent(form: FormData): Promise<ActionResult> {
   const auth = await requireClubs("register");
   if ("error" in auth) return { error: auth.error };
   const studentId = String(form.get("student_id") || "");
-  const clubId = String(form.get("club_id") || "");
-  if (!isUuid(studentId) || !isUuid(clubId)) return { error: "Choose the pupil and the club." };
+  const clubIds = [...new Set(form.getAll("club_id").map(String))].filter(isUuid);
+  if (!isUuid(studentId) || !clubIds.length) return { error: "Choose the pupil and at least one club." };
 
-  const [{ data: student }, { data: club }, { data: existing }] = await Promise.all([
-    auth.supabase.from("students").select("id, full_name").eq("id", studentId).maybeSingle(),
-    auth.supabase.from("clubs").select("id, title, active").eq("id", clubId).maybeSingle(),
-    auth.supabase.from("club_consents").select("id").eq("student_id", studentId).eq("club_id", clubId).is("withdrawn_at", null).maybeSingle(),
+  const [{ data: student }, { data: clubRows }, { data: existingRows }] = await Promise.all([
+    auth.supabase.from("students").select("id, full_name, class_code, campus, status").eq("id", studentId).maybeSingle(),
+    auth.supabase.from("clubs").select("id, title, active, section").in("id", clubIds),
+    auth.supabase.from("club_consents").select("id, club_id").eq("student_id", studentId).in("club_id", clubIds).is("withdrawn_at", null),
   ]);
-  if (!student) return { error: "That pupil is not on the register." };
-  if (!club) return { error: "That club is not on the catalogue." };
-  if (existing) return { error: "This pupil already has an open consent for that club." };
-
-  const { error } = await auth.supabase.from("club_consents").insert({
-    student_id: studentId,
-    club_id: clubId,
-    user_id: auth.user.id,
-  });
-  if (error) {
-    if (error.code === "23505") return { error: "This pupil already has an open consent for that club." };
-    return { error: "The consent could not be saved." };
+  if (!student || student.status !== "active") return { error: "That pupil is not on the register." };
+  if (!auth.activeCampus) return { error: "Choose a campus first." };
+  if (!studentInFundsScope((student.campus as string | null) ?? null, auth.campuses, auth.activeCampus)) {
+    return { error: "That pupil is outside your working campus." };
   }
+
+  const clubs = clubRows || [];
+  if (clubs.length !== clubIds.length) return { error: "One of those clubs is not on the catalogue." };
+  if (clubs.some((club) => !club.active)) return { error: "One of those clubs is not open for consent." };
+  if (clubs.some((club) => !clubFits(club.section, student.class_code))) {
+    return { error: "One of those clubs is not offered for this pupil's class." };
+  }
+
+  const already = new Set((existingRows || []).map((row) => row.club_id as string));
+  const fresh = clubs.filter((club) => !already.has(club.id));
+  if (!fresh.length) {
+    return {
+      error:
+        clubIds.length === 1
+          ? "This pupil already has an open consent for that club."
+          : "This pupil already has open consent for those clubs.",
+    };
+  }
+
+  const saved: { id: string; title: string }[] = [];
+  for (const club of fresh) {
+    const { error } = await auth.supabase.from("club_consents").insert({
+      student_id: studentId,
+      club_id: club.id,
+      user_id: auth.user.id,
+    });
+    if (error) {
+      if (error.code === "23505") continue;
+      if (saved.length) {
+        refreshClubs(`${CLUBS_BASE}/register`, ...saved.map((row) => `${CLUBS_BASE}/catalogue/${row.id}`), CLUBS_BASE);
+        return {
+          error: `Saved ${saved.length} consent${saved.length === 1 ? "" : "s"}, then one failed.`,
+          warning: saved.map((row) => row.title).join(", "),
+        };
+      }
+      return { error: "The consent could not be saved." };
+    }
+    saved.push({ id: club.id, title: club.title });
+  }
+
+  if (!saved.length) {
+    return {
+      error:
+        clubIds.length === 1
+          ? "This pupil already has an open consent for that club."
+          : "This pupil already has open consent for those clubs.",
+    };
+  }
+
+  const titles = saved.map((row) => row.title);
+  const summary =
+    titles.length === 1
+      ? titles[0]
+      : titles.length === 2
+        ? `${titles[0]} and ${titles[1]}`
+        : `${titles[0]} and ${titles.length - 1} more`;
   await logClubs(auth.supabase, auth.user.id, {
     kind: "consent",
-    body: `Recorded club consent for ${student.full_name} · ${club.title}.`,
+    body: `Recorded club consent for ${student.full_name} · ${summary}.`,
     entityType: "club",
-    entityId: clubId,
+    entityId: saved[0].id,
     studentId,
   });
-  refreshClubs(`${CLUBS_BASE}/register`, `${CLUBS_BASE}/catalogue/${clubId}`, CLUBS_BASE);
-  return { ok: `Consent recorded for ${student.full_name} · ${club.title}.` };
+  refreshClubs(`${CLUBS_BASE}/register`, ...saved.map((row) => `${CLUBS_BASE}/catalogue/${row.id}`), CLUBS_BASE);
+  const skipped = already.size;
+  const ok =
+    saved.length === 1
+      ? `Consent recorded for ${student.full_name} · ${saved[0].title}.`
+      : `Consent recorded for ${student.full_name} in ${saved.length} clubs.`;
+  return skipped ? { ok, warning: `${skipped} already consented club${skipped === 1 ? "" : "s"} skipped.` } : { ok };
 }
 
 export async function withdrawConsent(form: FormData): Promise<ActionResult> {

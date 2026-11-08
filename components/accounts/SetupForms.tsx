@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useState } from "react";
 import {
@@ -241,15 +243,15 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
         </label>
         <label className="ofc-field">
           <span>Opens</span>
-          <input name="starts_on" type="date" defaultValue={term?.starts_on ?? ""} />
+          <DateField name="starts_on" defaultValue={term?.starts_on ?? ""} />
         </label>
         <label className="ofc-field">
           <span>Closes</span>
-          <input name="ends_on" type="date" defaultValue={term?.ends_on ?? ""} />
+          <DateField name="ends_on" defaultValue={term?.ends_on ?? ""} />
         </label>
         <label className="ofc-field">
           <span>Fees due by</span>
-          <input name="due_on" type="date" defaultValue={term?.due_on ?? ""} />
+          <DateField name="due_on" defaultValue={term?.due_on ?? ""} />
         </label>
       </FormDialog>
     </Section>

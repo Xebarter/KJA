@@ -173,6 +173,12 @@
   background: rgba(253, 163, 27, 0.1);
 }
 
+.cs-campus.is-active {
+  border-color: var(--clubs-navy);
+  background: rgba(25, 35, 43, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(25, 35, 43, 0.12);
+}
+
 .cs-campus.is-off {
   opacity: 0.55;
   color: var(--clubs-muted);

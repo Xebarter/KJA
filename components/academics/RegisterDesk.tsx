@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { DeskForm } from "@/components/academics/Form";
 import { RegisterClosure } from "@/components/academics/OpenRegisters";
 import { StudentFace } from "@/components/StudentFace";
+import { DateField } from "@/components/ui/DateField";
 
 type Status = "present" | "late" | "absent" | "excused";
 type Mark = { status: Status | ""; note: string };
@@ -252,7 +253,16 @@ export function RegisterDesk({
             <button type="button" onClick={() => go(shift(date, -1))} aria-label="Previous day">
               <i className="fa-solid fa-chevron-left" aria-hidden="true" />
             </button>
-            <label className="reg-dateplate">
+            <DateField
+              key={date}
+              className="reg-dateplate"
+              value={date}
+              suppressHydrationWarning
+              aria-label={longDate(date)}
+              onChange={(event) => {
+                if (event.target.value) go(event.target.value);
+              }}
+            >
               <strong>{parts.day}</strong>
               <span>
                 <em>{parts.weekday}</em>
@@ -261,17 +271,7 @@ export function RegisterDesk({
                   {termLabel ? ` · ${termLabel}` : ""}
                 </small>
               </span>
-              <input
-                type="date"
-                key={date}
-                defaultValue={date}
-                suppressHydrationWarning
-                aria-label={longDate(date)}
-                onChange={(event) => {
-                  if (event.target.value) go(event.target.value);
-                }}
-              />
-            </label>
+            </DateField>
             <button type="button" onClick={() => go(shift(date, 1))} aria-label="Next day">
               <i className="fa-solid fa-chevron-right" aria-hidden="true" />
             </button>

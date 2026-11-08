@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { createClub, saveClub, withdrawConsent } from "@/app/clubs/(desk)/actions";
+import { createClub, officeConsent, saveClub, withdrawConsent } from "@/app/clubs/(desk)/actions";
 import { Dialog, Feedback, useOfficeAction } from "@/components/accounts/client";
 import { StudentFace } from "@/components/StudentFace";
-import { CLUB_CATEGORIES, clubListHref, type ClubListFilters } from "@/lib/clubs";
+import { CLUB_CATEGORIES, clubFits, clubListHref, type ClubListFilters } from "@/lib/clubs";
+import { CATEGORY_ICONS, categoryTone } from "@/lib/clubs-desk";
 import { CLUBS_BASE } from "@/lib/clubs-nav";
-import { amount, day, parseAmount } from "@/lib/accounts-format";
+import { amount, parseAmount } from "@/lib/accounts-format";
 import { CLUB_CAMPUSES, isClubCampus } from "@/lib/campuses";
 import type { ActionResult } from "@/lib/office-forms";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
@@ -25,15 +26,6 @@ export type CatalogueClub = {
 };
 
 export type ClubStripItem = CatalogueClub & { audience: string; icon: string };
-
-const CATEGORY_ICONS: Record<string, string> = {
-  "Games and Sports": "fa-futbol",
-  "Art and Entertainment": "fa-palette",
-  "Science and Technology": "fa-flask",
-  "Travel and Adventure": "fa-compass",
-  "Information and Language": "fa-language",
-  Religion: "fa-book-open",
-};
 
 const WHO = [
   { value: "nursery", label: "Nursery", hint: "Only nursery classes can join." },
@@ -490,7 +482,7 @@ export function ClubCatalogueBoard({
               type="button"
               role="tab"
               aria-selected={category === group.category}
-              className={category === group.category ? "is-on" : ""}
+              className={`tone-${categoryTone(group.category)}${category === group.category ? " is-on" : ""}`}
               onClick={() => setCategory(category === group.category ? "" : group.category)}
             >
               <i className={`fa-solid ${group.icon}`} aria-hidden="true" />
@@ -523,9 +515,9 @@ export function ClubCatalogueBoard({
       {grouped.length ? (
         <div className="clubs-cat-groups" id="club-catalogue">
           {grouped.map((group) => (
-            <section key={group.category} className="clubs-cat-group">
+            <section key={group.category} className={`clubs-cat-group tone-${categoryTone(group.category)}`}>
               <header className="clubs-cat-group-head">
-                <span className="clubs-ov-portal-icon" aria-hidden="true">
+                <span className="clubs-cat-group-icon" aria-hidden="true">
                   <i className={`fa-solid ${group.icon}`} />
                 </span>
                 <div>
@@ -535,59 +527,43 @@ export function ClubCatalogueBoard({
                   </p>
                 </div>
               </header>
-              <ul className="clubs-cat-grid">
-                {group.clubs.map((club) => (
-                  <li key={club.id}>
-                    <article className={`clubs-cat-card${club.active ? "" : " is-closed"}`}>
-                      <header>
-                        <div>
-                          <h3>{club.title}</h3>
-                          <p>
-                            <i className={`fa-solid ${club.icon}`} aria-hidden="true" />
-                            {club.audience}
-                          </p>
-                        </div>
-                        <span className={`clubs-cat-state${club.active ? " is-open" : ""}`}>
-                          {club.active ? "Open" : "Closed"}
+              <ul className="clubs-cat-strips">
+                {group.clubs.map((club) => {
+                  const detailHref = `${CLUBS_BASE}/catalogue/${club.id}`;
+                  const meta = [club.audience, club.campus, club.meeting].filter(Boolean).join(" · ");
+                  return (
+                    <li key={club.id}>
+                      <article className={`clubs-cat-strip tone-${categoryTone(club.category)}${club.active ? "" : " is-closed"}`}>
+                        <Link className="clubs-cat-strip-hit" href={detailHref} aria-label={`Open ${club.title}`}>
+                          <span className="visually-hidden">Open {club.title}</span>
+                        </Link>
+                        <span className="clubs-cat-strip-icon" aria-hidden="true">
+                          <i className={`fa-solid ${club.icon}`} />
                         </span>
-                      </header>
-
-                      <dl className="clubs-cat-meta">
-                        {club.meeting ? (
-                          <div>
-                            <dt>Meeting</dt>
-                            <dd>{club.meeting}</dd>
+                        <div className="clubs-cat-strip-main">
+                          <div className="clubs-cat-strip-title">
+                            <h3>{club.title}</h3>
+                            <span className={`clubs-cat-state${club.active ? " is-open" : ""}`}>
+                              {club.active ? "Open" : "Closed"}
+                            </span>
                           </div>
-                        ) : null}
-                        {club.campus ? (
-                          <div>
-                            <dt>Campus</dt>
-                            <dd>{club.campus}</dd>
-                          </div>
-                        ) : null}
-                        {club.description ? (
-                          <div className="is-note">
-                            <dt>Note</dt>
-                            <dd>{club.description}</dd>
-                          </div>
-                        ) : null}
-                      </dl>
-
-                      <footer>
-                        <p className="clubs-cat-price">
+                          {meta ? <p className="clubs-cat-strip-meta">{meta}</p> : null}
+                          {club.description ? <p className="clubs-cat-strip-note">{club.description}</p> : null}
+                        </div>
+                        <div className="clubs-cat-strip-fee">
                           <strong>{amount(club.fee)}</strong>
                           <span>UGX / term</span>
-                        </p>
-                        <div className="clubs-cat-actions">
-                          <Link className="clubs-cat-open" href={`${CLUBS_BASE}/catalogue/${club.id}`}>
-                            Open
-                          </Link>
-                          <ClubEdit club={club} />
                         </div>
-                      </footer>
-                    </article>
-                  </li>
-                ))}
+                        <div className="clubs-cat-strip-actions">
+                          <ClubEdit club={club} className="clubs-cat-edit" />
+                          <Link className="clubs-cat-open" href={detailHref} tabIndex={-1} aria-hidden="true">
+                            <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                          </Link>
+                        </div>
+                      </article>
+                    </li>
+                  );
+                })}
               </ul>
             </section>
           ))}
@@ -624,7 +600,38 @@ export type ClubConsentRow = {
   withdrawnAt: string | null;
 };
 
+export type ClubMembership = {
+  consentId: string;
+  clubId: string;
+  title: string;
+  fee: number;
+  status: "paid" | "waiting" | "unpaid";
+  receiptNo: string | null;
+};
+
+export type ClubPupilRow = {
+  studentId: string;
+  studentName: string;
+  studentNumber: string;
+  classCode: string;
+  stream: string;
+  classLabel: string;
+  campus: string | null;
+  photoPath: string | null;
+  clubs: ClubMembership[];
+};
+
+export type ClubEditorOption = {
+  id: string;
+  title: string;
+  section: string | null;
+  fee: number;
+};
+
 export type { ClubListFilters };
+
+const PAGE_SIZE = 50;
+const CHIP_PREVIEW = 4;
 
 const PAY_LABEL: Record<string, string> = {
   unpaid: "Not paid",
@@ -892,56 +899,191 @@ function ClubRollPrint({ clubs, filters }: { clubs: PrintClub[]; filters: ClubLi
   );
 }
 
-function classMatches(row: ClubConsentRow, classCode: string) {
+function classMatches(row: ClubPupilRow, classCode: string) {
   if (!classCode) return true;
   if (classCode === "none") return !row.classCode;
   return row.classCode === classCode;
 }
 
-function rowMatches(row: ClubConsentRow, filters: ClubListFilters, query: string, ignorePay = false) {
-  const showWithdrawn = filters.withdrawn === "1";
-  if (showWithdrawn ? !row.withdrawnAt : row.withdrawnAt) return false;
-  if (!ignorePay && filters.pay && row.status !== filters.pay) return false;
-  if (filters.club && row.clubId !== filters.club) return false;
+function pupilMatches(row: ClubPupilRow, filters: ClubListFilters, query: string, ignorePay = false) {
+  if (!ignorePay && filters.pay && !row.clubs.some((club) => club.status === filters.pay)) return false;
+  if (filters.club && !row.clubs.some((club) => club.clubId === filters.club)) return false;
   if (!classMatches(row, filters.classCode)) return false;
   if (filters.stream && row.stream !== filters.stream) return false;
   if (filters.campus && (row.campus || "") !== filters.campus) return false;
   const needle = query.trim().toLowerCase();
   if (!needle) return true;
-  return `${row.studentName} ${row.studentNumber} ${row.clubTitle} ${row.classLabel} ${row.campus ?? ""}`.toLowerCase().includes(needle);
+  const clubText = row.clubs.map((club) => club.title).join(" ");
+  return `${row.studentName} ${row.studentNumber} ${clubText} ${row.classLabel} ${row.campus ?? ""}`.toLowerCase().includes(needle);
 }
 
-function WithdrawConsent({ consentId, studentName, clubTitle }: { consentId: string; studentName: string; clubTitle: string }) {
-  const { result, setResult, pending, run } = useOfficeAction();
+function ClubChips({ clubs }: { clubs: ClubMembership[] }) {
+  if (!clubs.length) return <span className="clubs-reg-none">No clubs yet</span>;
+  const shown = clubs.slice(0, CHIP_PREVIEW);
+  const more = clubs.length - shown.length;
   return (
-    <button
-      type="button"
-      className="clubs-reg-ghost"
-      disabled={pending}
-      title={`Withdraw ${studentName} from ${clubTitle}`}
-      onClick={() => {
-        setResult(null);
-        const data = new FormData();
-        data.set("id", consentId);
-        run(() => withdrawConsent(data));
-      }}
-    >
-      {pending ? "…" : "Withdraw"}
-      {result?.error ? <span className="visually-hidden">{result.error}</span> : null}
-    </button>
+    <ul className="clubs-reg-chips">
+      {shown.map((club) => (
+        <li key={club.clubId}>
+          <span className={`clubs-reg-chip is-${club.status}`} title={club.status === "paid" ? "Paid" : club.status === "waiting" ? "Waiting on payment" : "Not paid"}>
+            {club.title}
+          </span>
+        </li>
+      ))}
+      {more > 0 ? (
+        <li>
+          <span className="clubs-reg-chip is-more">+{more}</span>
+        </li>
+      ) : null}
+    </ul>
+  );
+}
+
+function PupilClubEditor({
+  row,
+  catalogue,
+  onClose,
+}: {
+  row: ClubPupilRow;
+  catalogue: ClubEditorOption[];
+  onClose: () => void;
+}) {
+  const options = useMemo(
+    () => catalogue.filter((club) => clubFits(club.section, row.classCode || null)).sort((a, b) => a.title.localeCompare(b.title)),
+    [catalogue, row.classCode],
+  );
+  const membershipOf = useMemo(() => new Map(row.clubs.map((club) => [club.clubId, club])), [row.clubs]);
+  const locked = useMemo(
+    () => new Set(row.clubs.filter((club) => club.status === "paid" || club.status === "waiting").map((club) => club.clubId)),
+    [row.clubs],
+  );
+  const original = useMemo(() => new Set(row.clubs.map((club) => club.clubId)), [row.clubs]);
+  const [picked, setPicked] = useState(() => [...original]);
+  const { result, setResult, pending, run } = useOfficeAction();
+
+  const dirty = useMemo(() => {
+    if (picked.length !== original.size) return true;
+    return picked.some((id) => !original.has(id));
+  }, [picked, original]);
+
+  return (
+    <div className="clubs-reg-expand" onClick={(event) => event.stopPropagation()}>
+      <div className="clubs-reg-expand-head">
+        <div>
+          <strong>Manage clubs</strong>
+          <p>Tick clubs to consent. Paid and waiting clubs stay locked.</p>
+        </div>
+        <button type="button" className="clubs-reg-ghost" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      {options.length ? (
+        <ul className="clubs-reg-edit-list" role="group" aria-label={`Clubs for ${row.studentName}`}>
+          {options.map((club) => {
+            const membership = membershipOf.get(club.id);
+            const status = membership?.status;
+            const on = picked.includes(club.id);
+            const isLocked = locked.has(club.id);
+            return (
+              <li key={club.id}>
+                <label className={`clubs-reg-edit-club${on ? " is-on" : ""}${status ? ` is-${status}` : ""}${isLocked ? " is-locked" : ""}`}>
+                  <input
+                    type="checkbox"
+                    checked={on}
+                    disabled={isLocked || pending}
+                    onChange={(event) => {
+                      setResult(null);
+                      setPicked((current) =>
+                        event.target.checked ? [...current, club.id] : current.filter((id) => id !== club.id),
+                      );
+                    }}
+                  />
+                  <span className="clubs-reg-edit-copy">
+                    <strong>{club.title}</strong>
+                    <small>
+                      {status === "paid"
+                        ? membership?.receiptNo
+                          ? `Paid · ${membership.receiptNo}`
+                          : "Paid"
+                        : status === "waiting"
+                          ? "Waiting on mobile money"
+                          : status === "unpaid"
+                            ? `Consented · ${amount(club.fee)}`
+                            : amount(club.fee)}
+                    </small>
+                  </span>
+                  {status === "paid" ? <em className="clubs-reg-edit-tag is-paid">Paid</em> : null}
+                  {status === "waiting" ? <em className="clubs-reg-edit-tag is-waiting">Waiting</em> : null}
+                  {status === "unpaid" ? <em className="clubs-reg-edit-tag is-unpaid">Unpaid</em> : null}
+                </label>
+              </li>
+            );
+          })}
+        </ul>
+      ) : (
+        <p className="clubs-reg-expand-empty">No open clubs fit this pupil&apos;s class.</p>
+      )}
+      <Feedback result={result} />
+      <div className="clubs-reg-expand-foot">
+        <button type="button" className="admin-btn admin-btn-ghost" onClick={onClose} disabled={pending}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="admin-btn"
+          disabled={pending || !dirty}
+          onClick={() => {
+            const addIds = picked.filter((id) => !original.has(id));
+            const dropIds = [...original].filter((id) => !picked.includes(id) && !locked.has(id));
+            if (!addIds.length && !dropIds.length) {
+              setResult({ error: "No changes to save." });
+              return;
+            }
+            run(async () => {
+              if (addIds.length) {
+                const data = new FormData();
+                data.set("student_id", row.studentId);
+                for (const id of addIds) data.append("club_id", id);
+                const added = await officeConsent(data);
+                if (added.error) return added;
+              }
+              for (const clubId of dropIds) {
+                const membership = membershipOf.get(clubId);
+                if (!membership) continue;
+                const data = new FormData();
+                data.set("id", membership.consentId);
+                const dropped = await withdrawConsent(data);
+                if (dropped.error) return dropped;
+              }
+              const parts = [
+                addIds.length ? `added ${addIds.length}` : "",
+                dropIds.length ? `removed ${dropIds.length}` : "",
+              ].filter(Boolean);
+              return { ok: `Updated clubs for ${row.studentName} (${parts.join(", ")}).` };
+            }, () => onClose());
+          }}
+        >
+          {pending ? "Saving…" : "Save changes"}
+        </button>
+      </div>
+    </div>
   );
 }
 
 export function ClubRegister({
   rows,
+  catalogue,
   termLabel,
   filters: initial,
 }: {
-  rows: ClubConsentRow[];
+  rows: ClubPupilRow[];
+  catalogue: ClubEditorOption[];
   termLabel: string;
   filters: ClubListFilters;
 }) {
   const [filters, setFilters] = useState(initial);
+  const [page, setPage] = useState(1);
+  const [openId, setOpenId] = useState("");
   const deferredQuery = useDeferredValue(filters.q);
   const searching = deferredQuery !== filters.q;
   const echo = useRef(false);
@@ -950,6 +1092,8 @@ export function ClubRegister({
     echo.current = true;
     setFilters(next);
     writeFilters(next);
+    setPage(1);
+    setOpenId("");
     echo.current = false;
   };
 
@@ -957,7 +1101,12 @@ export function ClubRegister({
     const sync = () => {
       if (echo.current) return;
       const next = readFilters();
-      setFilters((current) => (sameFilters(current, next) ? current : next));
+      setFilters((current) => {
+        if (sameFilters(current, next)) return current;
+        setPage(1);
+        setOpenId("");
+        return next;
+      });
     };
     window.addEventListener(FILTER_EVENT, sync);
     window.addEventListener("popstate", sync);
@@ -969,11 +1118,15 @@ export function ClubRegister({
 
   const clubs = useMemo(() => {
     const titles = new Map<string, string>();
-    for (const row of rows) titles.set(row.clubId, row.clubTitle);
+    for (const club of catalogue) titles.set(club.id, club.title);
+    for (const row of rows) {
+      for (const club of row.clubs) titles.set(club.clubId, club.title);
+    }
     return [...titles.entries()]
       .map(([id, title]) => ({ id, title }))
       .sort((a, b) => a.title.localeCompare(b.title));
-  }, [rows]);
+  }, [catalogue, rows]);
+
   const classes = useMemo(() => {
     const codes = [...new Set(rows.map((row) => row.classCode).filter(Boolean))];
     codes.sort((a, b) => {
@@ -1005,29 +1158,32 @@ export function ClubRegister({
   );
 
   const narrowed = useMemo(
-    () => rows.filter((row) => rowMatches(row, filters, deferredQuery, true)),
+    () => rows.filter((row) => pupilMatches(row, filters, deferredQuery, true)),
     [rows, filters, deferredQuery],
   );
-  /** Open consents in the current list filter — print ignores the payment tab so both paid and unpaid appear. */
+
   const printClubs = useMemo(() => {
-    const source = filters.withdrawn === "1" ? [] : narrowed;
     const counts = new Map<string, PrintClub>();
-    for (const row of source) {
-      const current = counts.get(row.clubId);
-      if (current) current.count += 1;
-      else counts.set(row.clubId, { id: row.clubId, title: row.clubTitle, count: 1 });
+    for (const row of narrowed) {
+      for (const club of row.clubs) {
+        const current = counts.get(club.clubId);
+        if (current) current.count += 1;
+        else counts.set(club.clubId, { id: club.clubId, title: club.title, count: 1 });
+      }
     }
     return [...counts.values()].sort((a, b) => a.title.localeCompare(b.title));
-  }, [narrowed, filters.withdrawn]);
+  }, [narrowed]);
+
   const visible = useMemo(
-    () => (filters.pay ? narrowed.filter((row) => row.status === filters.pay) : narrowed),
+    () => (filters.pay ? narrowed.filter((row) => row.clubs.some((club) => club.status === filters.pay)) : narrowed),
     [narrowed, filters.pay],
   );
+
   const counts = {
     "": narrowed.length,
-    unpaid: narrowed.filter((row) => row.status === "unpaid").length,
-    waiting: narrowed.filter((row) => row.status === "waiting").length,
-    paid: narrowed.filter((row) => row.status === "paid").length,
+    unpaid: narrowed.filter((row) => row.clubs.some((club) => club.status === "unpaid")).length,
+    waiting: narrowed.filter((row) => row.clubs.some((club) => club.status === "waiting")).length,
+    paid: narrowed.filter((row) => row.clubs.some((club) => club.status === "paid")).length,
   };
   const tabs = [
     { value: "", label: "All", count: counts[""] },
@@ -1036,17 +1192,25 @@ export function ClubRegister({
     { value: "paid", label: "Paid", count: counts.paid },
   ];
 
+  const pages = Math.max(1, Math.ceil(visible.length / PAGE_SIZE));
+  const safePage = Math.min(page, pages);
+  const from = (safePage - 1) * PAGE_SIZE;
+  const pageRows = visible.slice(from, from + PAGE_SIZE);
+
+  useEffect(() => {
+    if (page !== safePage) setPage(safePage);
+  }, [page, safePage]);
+
   const clubTitle = clubs.find((club) => club.id === filters.club)?.title;
-  const classLabel = filters.classCode === "none" ? "No class" : filters.classCode ? className(filters.classCode) : "";
+  const classLabelText = filters.classCode === "none" ? "No class" : filters.classCode ? className(filters.classCode) : "";
   const pills: { key: string; label: string; next: ClubListFilters }[] = [];
   if (filters.q) pills.push({ key: "q", label: `Search: “${filters.q.trim()}”`, next: { ...filters, q: "" } });
   if (clubTitle) pills.push({ key: "club", label: clubTitle, next: { ...filters, club: "" } });
-  if (classLabel) pills.push({ key: "class", label: `Class: ${classLabel}`, next: { ...filters, classCode: "" } });
+  if (classLabelText) pills.push({ key: "class", label: `Class: ${classLabelText}`, next: { ...filters, classCode: "" } });
   if (filters.stream) pills.push({ key: "stream", label: `Stream ${filters.stream}`, next: { ...filters, stream: "" } });
   if (filters.campus) pills.push({ key: "campus", label: filters.campus, next: { ...filters, campus: "" } });
   if (filters.pay) pills.push({ key: "pay", label: PAY_LABEL[filters.pay] ?? "Payment", next: { ...filters, pay: "" } });
-  if (filters.withdrawn === "1") pills.push({ key: "withdrawn", label: "Withdrawn", next: { ...filters, withdrawn: "" } });
-  const filtered = Boolean(filters.q || filters.pay || filters.club || filters.classCode || filters.stream || filters.campus || filters.withdrawn);
+  const filtered = Boolean(filters.q || filters.pay || filters.club || filters.classCode || filters.stream || filters.campus);
   const needle = deferredQuery.trim();
   const exportQuery = new URLSearchParams(
     Object.fromEntries(
@@ -1057,26 +1221,26 @@ export function ClubRegister({
         class: filters.classCode,
         stream: filters.stream,
         campus: filters.campus,
-        withdrawn: filters.withdrawn || "",
       }).filter(([, value]) => Boolean(value)),
     ),
   ).toString();
 
   return (
-    <div className="clubs-reg">
+    <div className="clubs-reg is-pupils">
       <div className="clubs-reg-head">
         <div>
-          <h2>{filters.withdrawn === "1" ? "Withdrawn consents" : termLabel}</h2>
+          <h2>{termLabel}</h2>
           <p aria-live="polite">
-            {visible.length} {visible.length === 1 ? "consent" : "consents"}
+            {visible.length} {visible.length === 1 ? "pupil" : "pupils"}
             {needle ? ` matching “${needle}”` : ""}
+            {visible.length > PAGE_SIZE ? ` · page ${safePage} of ${pages}` : ""}
           </p>
         </div>
         <div className="clubs-reg-tools">
           <a className="clubs-reg-tool" href={`${CLUBS_BASE}/register/export${exportQuery ? `?${exportQuery}` : ""}`}>
             <i className="fa-solid fa-file-csv" aria-hidden="true" /> CSV
           </a>
-          <ClubRollPrint clubs={printClubs} filters={filters} />
+          <ClubRollPrint clubs={printClubs} filters={{ ...filters, withdrawn: "" }} />
         </div>
       </div>
 
@@ -1086,26 +1250,17 @@ export function ClubRegister({
             key={tab.label}
             type="button"
             role="tab"
-            aria-selected={filters.withdrawn !== "1" && filters.pay === tab.value}
-            className={filters.withdrawn !== "1" && filters.pay === tab.value ? "is-on" : ""}
+            aria-selected={filters.pay === tab.value}
+            className={filters.pay === tab.value ? "is-on" : ""}
             onClick={() => apply({ ...filters, pay: tab.value, withdrawn: "" })}
           >
             {tab.label}
             <em>{tab.count}</em>
           </button>
         ))}
-        <button
-          type="button"
-          role="tab"
-          aria-selected={filters.withdrawn === "1"}
-          className={filters.withdrawn === "1" ? "is-on" : ""}
-          onClick={() => apply({ ...filters, withdrawn: filters.withdrawn === "1" ? "" : "1", pay: "" })}
-        >
-          Withdrawn
-        </button>
       </div>
 
-      <form className="clubs-reg-filters" role="search" aria-label="Filter club consents" onSubmit={(event) => event.preventDefault()}>
+      <form className="clubs-reg-filters" role="search" aria-label="Filter pupils" onSubmit={(event) => event.preventDefault()}>
         <div className="clubs-reg-filters-row">
           <label className={`clubs-cat-search${searching ? " is-searching" : ""}`}>
             <i className={`fa-solid ${searching ? "fa-spinner fa-spin" : "fa-magnifying-glass"}`} aria-hidden="true" />
@@ -1211,83 +1366,109 @@ export function ClubRegister({
         ) : null}
       </form>
 
-      {visible.length ? (
-        <div className="clubs-reg-table-wrap">
-          <table className="clubs-reg-table" id="club-register">
-            <thead>
-              <tr>
-                <th scope="col">Pupil</th>
-                <th scope="col">Club</th>
-                <th scope="col">Consented</th>
-                <th scope="col" className="is-num">
-                  Fee
-                </th>
-                <th scope="col">Payment</th>
-                <th scope="col">
-                  <span className="visually-hidden">Actions</span>
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {visible.map((row) => (
-                <tr key={row.id}>
-                  <td data-label="Pupil">
-                    <span className="clubs-reg-who">
-                      <StudentFace className="clubs-reg-face" id={row.studentId} name={row.studentName} photoPath={row.photoPath} />
-                      <span>
-                        <strong className="clubs-reg-name">{row.studentName}</strong>
-                        <small>{[row.studentNumber, row.classLabel, row.campus].filter(Boolean).join(" · ")}</small>
-                      </span>
-                    </span>
-                  </td>
-                  <td data-label="Club">
-                    <Link className="clubs-reg-club" href={`${CLUBS_BASE}/catalogue/${row.clubId}`}>
-                      {row.clubTitle}
-                    </Link>
-                  </td>
-                  <td data-label="Consented">{day(row.consentedAt)}</td>
-                  <td data-label="Fee" className="is-num">
-                    <strong>{amount(row.fee)}</strong>
-                  </td>
-                  <td data-label="Payment">
-                    {row.status === "paid" ? (
-                      <span className="clubs-reg-pay is-paid">
-                        <i className="fa-solid fa-circle-check" aria-hidden="true" /> Paid
-                        {row.receiptNo ? <small>{row.receiptNo}</small> : null}
-                      </span>
-                    ) : null}
-                    {row.status === "waiting" ? (
-                      <span className="clubs-reg-pay is-waiting">
-                        <i className="fa-solid fa-mobile-screen" aria-hidden="true" /> Waiting
-                      </span>
-                    ) : null}
-                    {row.status === "unpaid" ? <span className="clubs-reg-pay is-unpaid">Not paid</span> : null}
-                    {row.status === "withdrawn" ? (
-                      <span className="clubs-reg-pay is-withdrawn">
-                        Withdrawn
-                        {row.withdrawnAt ? <small>{day(row.withdrawnAt)}</small> : null}
-                      </span>
-                    ) : null}
-                  </td>
-                  <td data-label="Actions">
-                    <div className="clubs-reg-actions">
-                      {!row.withdrawnAt ? (
-                        <WithdrawConsent consentId={row.id} studentName={row.studentName} clubTitle={row.clubTitle} />
-                      ) : null}
-                    </div>
-                  </td>
+      {pageRows.length ? (
+        <>
+          <div className="clubs-reg-table-wrap">
+            <table className="clubs-reg-table is-pupils" id="club-register">
+              <thead>
+                <tr>
+                  <th scope="col">Pupil</th>
+                  <th scope="col">Clubs</th>
+                  <th scope="col" className="is-narrow">
+                    <span className="visually-hidden">Expand</span>
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {pageRows.map((row) => {
+                  const open = openId === row.studentId;
+                  return (
+                    <tr key={row.studentId} className={open ? "is-open" : undefined}>
+                      <td colSpan={3} className="clubs-reg-pupil-cell">
+                        <button
+                          type="button"
+                          className="clubs-reg-row-btn"
+                          aria-expanded={open}
+                          onClick={() => setOpenId(open ? "" : row.studentId)}
+                        >
+                          <span className="clubs-reg-who">
+                            <StudentFace className="clubs-reg-face" id={row.studentId} name={row.studentName} photoPath={row.photoPath} />
+                            <span>
+                              <strong className="clubs-reg-name">{row.studentName}</strong>
+                              <small>{[row.studentNumber, row.classLabel, row.campus].filter(Boolean).join(" · ")}</small>
+                            </span>
+                          </span>
+                          <span className="clubs-reg-clubs-cell" data-label="Clubs">
+                            <ClubChips clubs={row.clubs} />
+                          </span>
+                          <span className={`clubs-reg-chevron${open ? " is-open" : ""}`} aria-hidden="true">
+                            <i className="fa-solid fa-chevron-down" />
+                          </span>
+                        </button>
+                        <div className={`clubs-reg-detail${open ? " is-open" : ""}`}>
+                          {open ? (
+                            <PupilClubEditor
+                              key={`${row.studentId}:${row.clubs.map((club) => `${club.clubId}:${club.status}`).join(",")}`}
+                              row={row}
+                              catalogue={catalogue}
+                              onClose={() => setOpenId("")}
+                            />
+                          ) : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {pages > 1 ? (
+            <footer className="clubs-reg-pager">
+              <span>
+                Showing <strong>{from + 1}–{Math.min(from + PAGE_SIZE, visible.length)}</strong> of{" "}
+                <strong>{visible.length.toLocaleString("en-GB")}</strong>
+              </span>
+              <div>
+                <button
+                  type="button"
+                  className="clubs-reg-page-btn"
+                  disabled={safePage <= 1}
+                  onClick={() => {
+                    setOpenId("");
+                    setPage((current) => Math.max(1, current - 1));
+                  }}
+                >
+                  <i className="fa-solid fa-chevron-left" aria-hidden="true" /> Previous
+                </button>
+                <span className="clubs-reg-page-num">
+                  Page {safePage} of {pages}
+                </span>
+                <button
+                  type="button"
+                  className="clubs-reg-page-btn"
+                  disabled={safePage >= pages}
+                  onClick={() => {
+                    setOpenId("");
+                    setPage((current) => Math.min(pages, current + 1));
+                  }}
+                >
+                  Next <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                </button>
+              </div>
+            </footer>
+          ) : null}
+        </>
       ) : (
         <div className="clubs-reg-empty">
           <span className="clubs-ov-portal-icon" aria-hidden="true">
-            <i className={`fa-solid ${filtered ? "fa-magnifying-glass" : "fa-handshake"}`} />
+            <i className={`fa-solid ${filtered ? "fa-magnifying-glass" : "fa-users"}`} />
           </span>
-          <strong>{filtered ? "No matches" : "No consents yet"}</strong>
-          <p>{filtered ? "Try another name, club, class or payment filter." : "Consents appear here when a parent agrees on the portal."}</p>
+          <strong>{filtered ? "No matches" : "No pupils on the register"}</strong>
+          <p>
+            {filtered
+              ? "Try another name, club, class or payment filter."
+              : "Active pupils appear here once the student register is available."}
+          </p>
           {filtered ? (
             <button type="button" className="admin-btn admin-btn-ghost" onClick={() => apply(EMPTY_FILTERS)}>
               Clear filters

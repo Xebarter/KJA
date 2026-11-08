@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useRef, useState } from "react";
 import { payAndApplyAsParent } from "@/app/(site)/apply/actions";
 import { FeeSummary, MobileMoneyField, PaymentProgress, ugx, useAdmissionPayment, type FeeOption } from "@/components/site/AdmissionPayment";
@@ -73,7 +75,7 @@ export function NewApplication({ phone, fees }: { phone: string; fees: FeeOption
           </label>
           <label className="ch-field" htmlFor="ap-dob">
             <span>Date of birth</span>
-            <input id="ap-dob" name="child_dob" type="date" max={today} />
+            <DateField id="ap-dob" name="child_dob" max={today} />
           </label>
           <label className="ch-field" htmlFor="ap-grade">
             <span>Class applying for</span>

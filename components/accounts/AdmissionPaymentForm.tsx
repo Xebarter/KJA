@@ -1,7 +1,9 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useEffect, useState } from "react";
-import { AmountInput, Feedback, useOfficeAction } from "@/components/accounts/client";
+import { AmountInput, Feedback, useOfficeAction, useScrollTopWhen } from "@/components/accounts/client";
 import { loadAdmissionFees, recordDeskAdmissionPayment } from "@/app/accounts/(desk)/payments/actions";
 import { PAYMENT_METHODS, kampalaToday, methodInfo, ugx, type PaymentMethod } from "@/lib/accounts-format";
 import { CAMPUS_OPTIONS } from "@/lib/campuses";
@@ -24,6 +26,7 @@ export function AdmissionPaymentForm({ onDone }: { onDone?: () => void }) {
   const [saved, setSaved] = useState<(ActionResult & { amount?: number; childName?: string }) | null>(null);
   const [formKey, setFormKey] = useState(0);
   const { result, setResult, pending, run } = useOfficeAction();
+  useScrollTopWhen(Boolean(saved?.id));
 
   const info = methodInfo(method);
   const campusFee = fees.find((row) => row.campus === campus)?.fee ?? 0;
@@ -46,22 +49,25 @@ export function AdmissionPaymentForm({ onDone }: { onDone?: () => void }) {
   }, [campusFee]);
 
   if (saved?.id) {
-    const receiptHref = `/apply/receipt/${saved.id}`;
+    const receiptNo = String(saved.ok || "").match(/receipt\s+(\S+)\s+saved/i)?.[1] || "Receipt";
+    const printHref = `/apply/receipt/${saved.id}`;
     return (
       <div className="acc-done">
         <span className="acc-done-icon"><i className="fa-solid fa-check" aria-hidden="true" /></span>
-        <h2>{saved.ok}</h2>
-        <p>
-          {ugx(saved.amount || amount)} admission fee
-          {saved.childName ? ` for ${saved.childName}` : ""} by {info.label.toLowerCase()}.
+        <p className="acc-done-kicker">Payment complete</p>
+        <h2>Receipt saved</h2>
+        <p className="acc-done-no">{receiptNo}</p>
+        <p className="acc-done-meta">
+          {ugx(saved.amount || amount)} · Admission fee
+          {saved.childName ? ` · ${saved.childName}` : ""} · {info.label}
         </p>
         <div className="acc-wizard-foot is-center">
-          <a className="admin-btn" href={receiptHref} target="_blank" rel="noreferrer">
-            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" /> Open receipt
+          <a className="acc-done-btn is-primary" href={printHref} target="_blank" rel="noreferrer">
+            <i className="fa-solid fa-print" aria-hidden="true" /> Print receipt
           </a>
           <button
             type="button"
-            className="admin-btn admin-btn-ghost"
+            className="acc-done-btn is-quiet"
             onClick={() => {
               setSaved(null);
               setResult(null);
@@ -72,7 +78,7 @@ export function AdmissionPaymentForm({ onDone }: { onDone?: () => void }) {
           >
             <i className="fa-solid fa-plus" aria-hidden="true" /> Record another
           </button>
-          {onDone ? <button type="button" className="admin-btn admin-btn-ghost" onClick={onDone}>Close</button> : null}
+          {onDone ? <button type="button" className="acc-done-btn is-quiet" onClick={onDone}>Close</button> : null}
         </div>
       </div>
     );
@@ -162,7 +168,7 @@ export function AdmissionPaymentForm({ onDone }: { onDone?: () => void }) {
         <div className="ofc-fields">
           <label className="ofc-field">
             <span>Date paid</span>
-            <input type="date" name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
+            <DateField name="paid_on" defaultValue={kampalaToday()} max={kampalaToday()} required />
           </label>
           <div className="ofc-field is-wide">
             <span>Amount received</span>

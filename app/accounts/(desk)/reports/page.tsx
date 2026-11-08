@@ -37,11 +37,12 @@ function Section({ id, title, description, children }: {
     <section id={id} className="acr-section" role="tabpanel" aria-labelledby={`acr-tab-${id}`} tabIndex={-1}>
       <header className="acr-section-head">
         <div>
+          <p className="acr-section-kicker">Report section</p>
           <h2 id={`${id}-title`}>{title}</h2>
           {description ? <p>{description}</p> : null}
         </div>
       </header>
-      {children}
+      <div className="acr-section-body">{children}</div>
     </section>
   );
 }
@@ -63,8 +64,8 @@ function Card({ title, description, csv, link, flush = false, children }: {
         </div>
         {csv || link ? (
           <span className="acr-card-actions no-print">
-            {link ? <Link className="acr-csv" href={link.href}>{link.label}</Link> : null}
-            {csv ? <a className="acr-csv" href={csv}><i className="fa-solid fa-download" aria-hidden="true" /> Download</a> : null}
+            {link ? <Link className="acr-csv" href={link.href}>{link.label} <i className="fa-solid fa-arrow-right" aria-hidden="true" /></Link> : null}
+            {csv ? <a className="acr-csv" href={csv}><i className="fa-solid fa-download" aria-hidden="true" /> CSV</a> : null}
           </span>
         ) : null}
       </header>
@@ -231,11 +232,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
       <header className="aov-head acr-head no-print">
         <div>
-          <p className="aov-kicker"><i className="fa-solid fa-chart-column" aria-hidden="true" /> Insights</p>
+          <p className="aov-kicker"><i className="fa-solid fa-chart-column" aria-hidden="true" /> Accounts desk</p>
           <h1>Reports</h1>
           <p className="aov-lede">
             <span className="aov-term">{report.periodLabel}</span>
-            <span>Billing, collections, debtors and spending. Pick a section below.</span>
+            <span>Billing, collections, debtors and spending — one clear view.</span>
           </p>
         </div>
         <div className="aov-actions">
@@ -248,7 +249,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               to: workbookDefaults.to,
             })}
           >
-            <i className="fa-solid fa-file-excel" aria-hidden="true" /> Excel
+            <i className="fa-solid fa-file-excel" aria-hidden="true" /> Excel workbook
           </a>
           <PrintButton label="Print" className="aov-btn" />
           <Link className="aov-btn" href={`${ACCOUNTS_BASE}/debtors`}>

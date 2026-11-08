@@ -54,7 +54,7 @@ npm run dev
 
 - Sign in with a staff / officer / admin / teacher account (same as the website).
 - Sidebar pages prefetch inside the desktop cookie (`kja-desktop=1`) so switches feel instant.
-- After login the proxy warms critical desk data (register, subjects, fee setup, calendar, clubs, CMS lists, and recently visited URLs) into SQLite.
+- After login the proxy warms critical desk data (register, subjects, fee setup, calendar, clubs + expenses/attendance, store catalogue/stock/issues/supply, CMS lists, and recently visited URLs) into SQLite.
 - Offline for a long stretch: cached REST reads keep working; the last auth user is reused for up to 14 days without renewing the JWT; plain table writes go to a local outbox and flush when the network returns. Offline edits patch cached list bodies so pages do not go blank.
 - Online-only (not queued): RPCs, storage uploads, service-role calls, mail, payment gateways, PDF generation that needs live data, and `/api/desktop/team`.
 - Collaborative Applications / admission-payments prefer live Supabase while online, and still keep a last snapshot for offline reading.
@@ -72,6 +72,7 @@ npm run dev
 8. Installer output is under `Desktop App/release/` (`KJA-Staff-Desktop-Setup-<version>.exe`).
 9. Close any running Staff Desktop (and free `release/win-unpacked`) before packing — Windows locks `app.asar` otherwise.
 10. Apply pending Supabase SQL (through `0071_system_logs.sql`) on the live project before relying on Logs offline snapshots.
+11. `pack:next` deletes `.next-desktop` before building so a prior Desktop `next dev` cannot leave a truncated App Router manifest (that showed as a black desk after install).
 
 ## Website hooks (desktop-gated)
 

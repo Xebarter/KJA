@@ -5,10 +5,10 @@ import { ConsentOffice } from "@/components/clubs/ConsentOffice";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { loadTerms } from "@/lib/accounts";
 import { ugxShort } from "@/lib/accounts-format";
-import { classLabel } from "@/lib/academics";
+import { clubServesBranch } from "@/lib/club-funds-scope";
 import { requireClubs } from "@/lib/clubs-access";
 import { clubListHref } from "@/lib/clubs";
-import { listFilters, loadConsentRegister } from "@/lib/clubs-desk";
+import { listFilters, loadPupilRegister } from "@/lib/clubs-desk";
 import { CLUBS_BASE } from "@/lib/clubs-nav";
 import { supabaseConfigured } from "@/lib/supabase/server";
 
@@ -22,34 +22,27 @@ export default async function ClubsRegisterPage({
   if (!supabaseConfigured()) return clubsNotReady("Register", "config");
   const auth = await requireClubs("register");
   if ("error" in auth) return clubsNotReady("Register", "auth", auth.error);
+  if (!auth.activeCampus) return null;
   const { current, error } = await loadTerms(auth.supabase);
   if (error) return clubsNotReady("Register", "schema", error);
-  const filters = listFilters(await searchParams);
+  const filters = { ...listFilters(await searchParams), campus: "" };
 
-  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, auth.campuses, true);
+  const pack = await loadPupilRegister(auth.supabase, current?.id ?? null, [auth.activeCampus]);
   if (pack.error) return clubsNotReady("Register", "schema", pack.error);
 
-  const openRows = pack.rows.filter((row) => !row.withdrawnAt);
-  const paidCount = openRows.filter((row) => row.status === "paid").length;
-  const unpaidRows = openRows.filter((row) => row.status === "unpaid");
-  const waitingCount = openRows.filter((row) => row.status === "waiting").length;
-  const withdrawnCount = pack.rows.filter((row) => row.withdrawnAt).length;
-  const unpaidAmount = unpaidRows.reduce((sum, row) => sum + row.fee, 0);
-
-  const { data: pupilSearch } = await auth.supabase
-    .from("students")
-    .select("id, full_name, student_number, class_code, stream, campus, status")
-    .eq("status", "active")
-    .order("full_name")
-    .limit(800);
-  const campusSet = new Set(auth.campuses);
-  const pupils = (pupilSearch || [])
-    .filter((row) => !campusSet.size || !row.campus || campusSet.has(row.campus as (typeof auth.campuses)[number]))
-    .map((row) => ({
-      id: row.id as string,
-      label: [row.full_name, row.student_number, row.class_code ? classLabel(row.class_code as string, row.stream as string | null) : null, row.campus]
-        .filter(Boolean)
-        .join(" · "),
+  const memberships = pack.rows.flatMap((row) => row.clubs);
+  const paidCount = memberships.filter((club) => club.status === "paid").length;
+  const unpaidRows = memberships.filter((club) => club.status === "unpaid");
+  const waitingCount = memberships.filter((club) => club.status === "waiting").length;
+  const unpaidAmount = unpaidRows.reduce((sum, club) => sum + club.fee, 0);
+  const consentedPupils = pack.rows.filter((row) => row.clubs.length).length;
+  const catalogue = pack.clubs
+    .filter((club) => club.active && clubServesBranch(club.campus, auth.activeCampus!))
+    .map((club) => ({
+      id: club.id,
+      title: club.title,
+      section: club.section,
+      fee: Number(club.fee_amount) || 0,
     }));
 
   return (
@@ -60,11 +53,15 @@ export default async function ClubsRegisterPage({
         title="Register"
         description={
           current
-            ? `Open consents for ${current.label}, including payment status and desk withdrawals.`
-            : "Consents appear here when a parent agrees on the portal or at the desk."
+            ? `Every active ${auth.activeCampus} pupil for ${current.label}. Open a row to consent or withdraw clubs.`
+            : `Every active ${auth.activeCampus} pupil. Open a row to register club consent at the desk.`
         }
         meta={
           <>
+            <span className="clubs-head-chip">
+              <i className="fa-solid fa-school" aria-hidden="true" />
+              {auth.activeCampus}
+            </span>
             {current ? (
               <span className="clubs-head-chip is-term">
                 <i className="fa-solid fa-calendar-days" aria-hidden="true" />
@@ -77,8 +74,12 @@ export default async function ClubsRegisterPage({
               </span>
             )}
             <span className="clubs-head-chip">
+              <i className="fa-solid fa-users" aria-hidden="true" />
+              {pack.rows.length} pupils
+            </span>
+            <span className="clubs-head-chip">
               <i className="fa-solid fa-handshake" aria-hidden="true" />
-              {openRows.length} consented
+              {memberships.length} consents
             </span>
             <span className={`clubs-head-chip${paidCount ? " is-ok" : ""}`}>
               <i className="fa-solid fa-circle-check" aria-hidden="true" />
@@ -95,8 +96,7 @@ export default async function ClubsRegisterPage({
         actions={
           <>
             <ConsentOffice
-              clubs={pack.clubs.filter((club) => club.active).map((club) => ({ id: club.id, title: club.title }))}
-              pupils={pupils}
+              clubs={catalogue.map((club) => ({ id: club.id, title: club.title, section: club.section }))}
             />
             <Link className="clubs-head-btn" href={`${CLUBS_BASE}/register/export`}>
               <i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV
@@ -144,17 +144,17 @@ export default async function ClubsRegisterPage({
             </li>
             <li>
               <Link
-                className={withdrawnCount ? undefined : "is-done"}
-                href={clubListHref({ withdrawn: "1" })}
+                className={consentedPupils ? undefined : "is-done"}
+                href={clubListHref({ pay: "" })}
               >
                 <span className="clubs-focus-icon" aria-hidden="true">
-                  <i className="fa-solid fa-user-minus" />
+                  <i className="fa-solid fa-users" />
                 </span>
                 <span className="clubs-focus-copy">
-                  <strong>Withdrawn</strong>
-                  <small>Removed from this term</small>
+                  <strong>Whole school</strong>
+                  <small>{pack.rows.length} active pupils</small>
                 </span>
-                <em>{withdrawnCount}</em>
+                <em>{pack.rows.length}</em>
               </Link>
             </li>
           </ul>
@@ -163,14 +163,14 @@ export default async function ClubsRegisterPage({
 
       <div className="clubs-ov-kpis clubs-reg-kpis">
         <Link className="clubs-ov-kpi" href={clubListHref({ pay: "" })}>
-          <span>Consented</span>
-          <strong>{openRows.length}</strong>
-          <small>{current ? current.label : "Open consents"}</small>
+          <span>Pupils</span>
+          <strong>{pack.rows.length}</strong>
+          <small>{consentedPupils} with a club</small>
         </Link>
         <Link className={`clubs-ov-kpi${paidCount ? " is-ok" : ""}`} href={clubListHref({ pay: "paid" })}>
           <span>Paid</span>
           <strong>{paidCount}</strong>
-          <small>{openRows.length ? `${Math.round((paidCount / openRows.length) * 100)}% of consents` : "None yet"}</small>
+          <small>{memberships.length ? `${Math.round((paidCount / memberships.length) * 100)}% of consents` : "None yet"}</small>
         </Link>
         <Link className={`clubs-ov-kpi${unpaidRows.length ? " is-warn" : ""}`} href={clubListHref({ pay: "unpaid" })}>
           <span>Not paid</span>
@@ -180,7 +180,7 @@ export default async function ClubsRegisterPage({
         <Link className={`clubs-ov-kpi${waitingCount ? " is-warn" : ""}`} href={clubListHref({ pay: "waiting" })}>
           <span>Waiting</span>
           <strong>{waitingCount}</strong>
-          <small>{withdrawnCount ? `${withdrawnCount} withdrawn` : "Mobile money pending"}</small>
+          <small>Mobile money pending</small>
         </Link>
       </div>
 
@@ -196,8 +196,13 @@ export default async function ClubsRegisterPage({
         </div>
       ) : null}
 
-      <section className="clubs-reg-board" id="register" aria-label="Learners who have consented or paid">
-        <ClubRegister rows={pack.rows} termLabel={current ? current.label : "This term"} filters={filters} />
+      <section className="clubs-reg-board" id="register" aria-label="School club register">
+        <ClubRegister
+          rows={pack.rows}
+          catalogue={catalogue}
+          termLabel={current ? current.label : "This term"}
+          filters={filters}
+        />
       </section>
     </div>
   );

@@ -3,6 +3,7 @@ import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
+import { localEntityId } from "./entity-keys";
 
 export type CacheRow = {
   user_id: string;
@@ -428,19 +429,18 @@ export class ProxyStore {
   }
 
   ingestJsonArray(userId: string, tableName: string, payload: unknown) {
+    const ingestOne = (item: unknown) => {
+      if (!item || typeof item !== "object" || Array.isArray(item)) return;
+      const obj = item as Record<string, unknown>;
+      const id = localEntityId(tableName, obj);
+      if (!id) return;
+      this.upsertEntity(userId, tableName, id, { ...obj, id });
+    };
     if (!Array.isArray(payload)) {
-      if (payload && typeof payload === "object" && "id" in (payload as object)) {
-        const obj = payload as Record<string, unknown>;
-        this.upsertEntity(userId, tableName, String(obj.id), obj);
-      }
+      ingestOne(payload);
       return;
     }
-    for (const item of payload) {
-      if (item && typeof item === "object" && "id" in item) {
-        const obj = item as Record<string, unknown>;
-        this.upsertEntity(userId, tableName, String(obj.id), obj);
-      }
-    }
+    for (const item of payload) ingestOne(item);
   }
 
   enqueueOutbox(row: {

@@ -5,6 +5,7 @@ import { ACCOUNTS_BASE, logAccounts, refreshAccounts, requireAccounts } from "@/
 import { allocateFamilyPayment, type FamilyPayBucket, type FamilyPaySlice } from "@/lib/accounts-family-pay";
 import { isPaymentMethod, kampalaToday, methodInfo, parseAmount, ugx } from "@/lib/accounts-format";
 import { isCampusId } from "@/lib/campuses";
+import { clubFits } from "@/lib/clubs";
 import { dateField, field, type ActionResult } from "@/lib/office-forms";
 import { admissionFees } from "@/lib/payments/admission";
 import type { SidebarHit } from "@/lib/sidebar-search";
@@ -638,6 +639,11 @@ export type ClubPayOption = {
   title: string;
   fee: number;
   category: string | null;
+  needsConsent: boolean;
+  /** Already settled for the current term — shown green, not selectable. */
+  paid: boolean;
+  receiptNo: string | null;
+  paymentId: string | null;
 };
 
 /** Active charge products for the recorder. */
@@ -654,7 +660,7 @@ export async function loadChargeProducts(): Promise<{ error?: string; rows: Char
   return { rows: (data || []) as ChargeProduct[] };
 }
 
-/** Clubs a pupil has consented to and not yet paid for the current term. */
+/** Guide clubs that fit the pupil: unpaid (payable) plus already paid this term. */
 export async function loadClubOptionsForPupil(studentId: string): Promise<{ error?: string; rows: ClubPayOption[]; termLabel?: string }> {
   const auth = await requireAccounts();
   if ("error" in auth) return { error: auth.error, rows: [] };
@@ -663,99 +669,273 @@ export async function loadClubOptionsForPupil(studentId: string): Promise<{ erro
   const { data: term } = await supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle();
   if (!term) return { error: "Set the current term before recording a club payment.", rows: [] };
 
-  const [{ data: consents }, { data: paid }, { data: clubs }] = await Promise.all([
+  const [{ data: consents }, { data: paid }, { data: clubs }, { data: student }, { data: waitingRows }] = await Promise.all([
     supabase.from("club_consents").select("club_id").eq("student_id", studentId).is("withdrawn_at", null),
-    supabase.from("club_payments").select("club_id").eq("student_id", studentId).eq("term_id", term.id).is("voided_at", null),
-    supabase.from("clubs").select("id, title, fee_amount, category, active").eq("active", true).not("guide_no", "is", null).order("sort_order"),
+    supabase
+      .from("club_payments")
+      .select("id, club_id, receipt_no")
+      .eq("student_id", studentId)
+      .eq("term_id", term.id)
+      .is("voided_at", null),
+    supabase
+      .from("clubs")
+      .select("id, title, fee_amount, category, active, section")
+      .eq("active", true)
+      .not("guide_no", "is", null)
+      .order("sort_order"),
+    supabase.from("students").select("id, class_code").eq("id", studentId).maybeSingle(),
+    supabase
+      .from("club_collections")
+      .select("id, club_id")
+      .eq("student_id", studentId)
+      .eq("term_id", term.id)
+      .in("status", ["pending", "initiated"]),
   ]);
+
+  const waiting = new Set((waitingRows || []).map((row) => row.club_id as string));
+  if (waitingRows?.length) {
+    const { data: waitingItems } = await supabase
+      .from("club_collection_items")
+      .select("collection_id, club_id")
+      .in(
+        "collection_id",
+        waitingRows.map((row) => row.id as string),
+      );
+    for (const item of waitingItems || []) waiting.add(item.club_id as string);
+  }
+
   const consented = new Set((consents || []).map((row) => row.club_id as string));
-  const already = new Set((paid || []).map((row) => row.club_id as string));
-  const rows = ((clubs || []) as { id: string; title: string; fee_amount: number; category: string | null; active: boolean }[])
-    .filter((club) => consented.has(club.id) && !already.has(club.id) && Number(club.fee_amount) > 0)
-    .map((club) => ({ id: club.id, title: club.title, fee: Number(club.fee_amount), category: club.category }));
+  const paidByClub = new Map(
+    (paid || []).map((row) => [
+      row.club_id as string,
+      { id: row.id as string, receiptNo: (row.receipt_no as string | null) || null },
+    ]),
+  );
+  const classCode = (student?.class_code as string | null) || null;
+  const rows = (
+    (clubs || []) as {
+      id: string;
+      title: string;
+      fee_amount: number;
+      category: string | null;
+      active: boolean;
+      section: string | null;
+    }[]
+  )
+    .filter((club) => Number(club.fee_amount) > 0 && clubFits(club.section, classCode))
+    .filter((club) => paidByClub.has(club.id) || !waiting.has(club.id))
+    .map((club) => {
+      const settled = paidByClub.get(club.id);
+      return {
+        id: club.id,
+        title: club.title,
+        fee: Number(club.fee_amount),
+        category: club.category,
+        needsConsent: !settled && !consented.has(club.id),
+        paid: Boolean(settled),
+        receiptNo: settled?.receiptNo ?? null,
+        paymentId: settled?.id ?? null,
+      };
+    })
+    .sort((a, b) => {
+      if (a.paid !== b.paid) return a.paid ? 1 : -1;
+      if (!a.paid && !b.paid && a.needsConsent !== b.needsConsent) return Number(a.needsConsent) - Number(b.needsConsent);
+      return a.title.localeCompare(b.title);
+    });
   return { rows, termLabel: term.label as string };
 }
 
-/** Record a club fee at the desk (same ledger as online club settle). */
-export async function recordDeskClubPayment(form: FormData): Promise<ActionResult> {
+type ClubPayRow = {
+  id: string;
+  title: string;
+  fee_amount: number;
+  section: string | null;
+};
+
+/** Record one or more club fees at the desk (consent missing clubs first when needed). */
+export async function recordDeskClubPayment(
+  form: FormData,
+): Promise<ActionResult & { amount?: number; clubTitles?: string[] }> {
   const auth = await requireAccounts("payments");
   if ("error" in auth) return { error: auth.error };
   const studentId = String(form.get("student_id") || "");
-  const clubId = String(form.get("club_id") || "");
+  const clubIds = [...new Set(form.getAll("club_id").map((value) => String(value || "")).filter(Boolean))];
   const method = String(form.get("method") || "");
   const reference = field(form, "reference", 80);
   const payer = field(form, "payer_name", 120);
-  if (!isUuid(studentId) || !isUuid(clubId)) return { error: "Choose the child and the club." };
+  if (!isUuid(studentId) || !clubIds.length || clubIds.some((id) => !isUuid(id))) {
+    return { error: "Choose the child and at least one club." };
+  }
   if (!isPaymentMethod(method)) return { error: "Choose how the money was received." };
   if (methodInfo(method).needsReference && !reference) return { error: "Enter the receipt or transaction reference." };
 
   const { supabase, user } = auth;
-  const [{ data: club }, { data: term }, { data: consent }, { data: student }] = await Promise.all([
-    supabase.from("clubs").select("id, title, fee_amount").eq("id", clubId).maybeSingle(),
+  const [{ data: clubRows }, { data: term }, { data: consentRows }, { data: student }] = await Promise.all([
+    supabase.from("clubs").select("id, title, fee_amount, section").in("id", clubIds),
     supabase.from("fee_terms").select("id, label").eq("is_current", true).maybeSingle(),
-    supabase.from("club_consents").select("id").eq("student_id", studentId).eq("club_id", clubId).is("withdrawn_at", null).maybeSingle(),
-    supabase.from("students").select("id, full_name, family_id").eq("id", studentId).maybeSingle(),
+    supabase
+      .from("club_consents")
+      .select("id, club_id")
+      .eq("student_id", studentId)
+      .in("club_id", clubIds)
+      .is("withdrawn_at", null),
+    supabase.from("students").select("id, full_name, family_id, class_code").eq("id", studentId).maybeSingle(),
   ]);
   if (!student) return { error: "That pupil is not on the register." };
-  if (!club) return { error: "That club is not on the catalogue." };
-  if (!consent) return { error: "The parent has not consented to this club." };
   if (!term) return { error: "Set the current term before recording a club payment." };
-  const amount = Number(club.fee_amount);
-  if (!Number.isFinite(amount) || amount <= 0) return { error: "This club has no fee to record." };
 
-  const { data: existing } = await supabase
-    .from("club_payments")
-    .select("id")
+  const { data: waitingRows } = await supabase
+    .from("club_collections")
+    .select("id, club_id")
     .eq("student_id", studentId)
-    .eq("club_id", clubId)
     .eq("term_id", term.id)
-    .is("voided_at", null)
-    .maybeSingle();
-  if (existing) return { error: "This club is already paid for the current term." };
+    .in("status", ["pending", "initiated"]);
+  const waiting = new Set((waitingRows || []).map((row) => row.club_id as string));
+  if (waitingRows?.length) {
+    const { data: waitingItems } = await supabase
+      .from("club_collection_items")
+      .select("collection_id, club_id")
+      .in(
+        "collection_id",
+        waitingRows.map((row) => row.id as string),
+      );
+    for (const item of waitingItems || []) waiting.add(item.club_id as string);
+  }
+
+  const clubsById = new Map(((clubRows || []) as ClubPayRow[]).map((club) => [club.id, club]));
+  const consented = new Set((consentRows || []).map((row) => row.club_id as string));
+  const { data: existingPays } = await supabase
+    .from("club_payments")
+    .select("club_id")
+    .eq("student_id", studentId)
+    .eq("term_id", term.id)
+    .in("club_id", clubIds)
+    .is("voided_at", null);
+  const alreadyPaid = new Set((existingPays || []).map((row) => row.club_id as string));
+
+  const classCode = (student.class_code as string | null) || null;
+  const prepared: { club: ClubPayRow; amount: number; needsConsent: boolean }[] = [];
+  for (const clubId of clubIds) {
+    const club = clubsById.get(clubId);
+    if (!club) return { error: "One of the selected clubs is not on the catalogue." };
+    if (!clubFits(club.section, classCode)) {
+      return { error: `${club.title} does not fit this pupil’s class.` };
+    }
+    const amount = Number(club.fee_amount);
+    if (!Number.isFinite(amount) || amount <= 0) return { error: `${club.title} has no fee to record.` };
+    if (alreadyPaid.has(clubId)) return { error: `${club.title} is already paid for the current term.` };
+    if (waiting.has(clubId)) {
+      return { error: `${club.title} is waiting on a phone payment. Finish or cancel that collection first.` };
+    }
+    prepared.push({ club, amount, needsConsent: !consented.has(clubId) });
+  }
 
   const paid = dateField(form, "paid_on");
   if (paid.error) return { error: "Check the payment date." };
   const paidOn = paid.value ?? kampalaToday();
   if (paidOn > kampalaToday()) return { error: "The payment date can't be in the future." };
 
-  const { data: payment, error } = await supabase
-    .from("club_payments")
-    .insert({
-      student_id: studentId,
-      family_id: student.family_id,
-      club_id: clubId,
-      term_id: term.id,
-      amount,
-      method,
-      reference,
-      paid_on: paidOn,
-      payer_name: payer,
-      notes: field(form, "notes", 500) || "Recorded by the accounts office.",
-      source: "manual",
-      received_by: user.id,
-    })
-    .select("id, receipt_no")
-    .single();
-  if (error) {
-    if (error.code === "23505") return { error: "This payment is already on record." };
-    return { error: error.message };
+  const notes = field(form, "notes", 500) || "Recorded by the accounts office.";
+  const needsConsent = prepared.filter((row) => row.needsConsent);
+  if (needsConsent.length) {
+    const { error: consentError } = await supabase.from("club_consents").insert(
+      needsConsent.map((row) => ({
+        student_id: studentId,
+        club_id: row.club.id,
+        user_id: user.id,
+      })),
+    );
+    if (consentError) {
+      if (consentError.code === "23505") {
+        // Race: consent appeared between load and insert — continue to pay.
+      } else {
+        return { error: consentError.message };
+      }
+    }
   }
+
+  const payments: { id: string; receipt_no: string; title: string; amount: number }[] = [];
+  for (let index = 0; index < prepared.length; index += 1) {
+    const row = prepared[index];
+    const baseRef = reference || null;
+    const paymentRef =
+      baseRef && prepared.length > 1 && index > 0
+        ? `${baseRef}-${index + 1}`.slice(0, 80)
+        : baseRef;
+    const { data: payment, error } = await supabase
+      .from("club_payments")
+      .insert({
+        student_id: studentId,
+        family_id: student.family_id,
+        club_id: row.club.id,
+        term_id: term.id,
+        amount: row.amount,
+        method,
+        reference: paymentRef,
+        paid_on: paidOn,
+        payer_name: payer,
+        notes,
+        source: "manual",
+        received_by: user.id,
+      })
+      .select("id, receipt_no")
+      .single();
+    if (error) {
+      if (error.code === "23505") {
+        return {
+          error:
+            payments.length > 0
+              ? `Stopped after ${payments.length} receipt(s): ${row.club.title} is already on record or the reference was reused.`
+              : "This payment is already on record.",
+        };
+      }
+      return {
+        error:
+          payments.length > 0
+            ? `Stopped after ${payments.length} receipt(s): ${error.message}`
+            : error.message,
+      };
+    }
+    payments.push({
+      id: payment.id,
+      receipt_no: payment.receipt_no,
+      title: row.club.title,
+      amount: row.amount,
+    });
+  }
+
+  const total = payments.reduce((sum, row) => sum + row.amount, 0);
+  const titles = payments.map((row) => row.title);
+  const receiptList = payments.map((row) => row.receipt_no).join(", ");
   await logAccounts(supabase, user.id, {
     kind: "payment",
     entity: "payment",
-    entityId: payment.id,
+    entityId: payments[0].id,
     studentId,
-    body: `Recorded ${ugx(amount)} for ${club.title}, ${student.full_name}, ${term.label} (${payment.receipt_no}).`,
+    body:
+      payments.length === 1
+        ? `Recorded ${ugx(total)} for ${titles[0]}, ${student.full_name}, ${term.label} (${receiptList}).`
+        : `Recorded ${ugx(total)} for ${payments.length} clubs (${titles.join(", ")}), ${student.full_name}, ${term.label} (${receiptList}).`,
   });
   refreshAccounts(
     PAYMENTS,
-    `${PAYMENTS}/club/${payment.id}`,
+    ...payments.map((row) => `${PAYMENTS}/club/${row.id}`),
     `/clubs`,
     `/clubs/register`,
+    `/clubs/accounts`,
     `/clubs/receipts`,
     `${ACCOUNTS_BASE}/students/${studentId}`,
   );
-  return { ok: `Club receipt ${payment.receipt_no} saved.`, id: payment.id };
+  return {
+    ok:
+      payments.length === 1
+        ? `Club receipt ${payments[0].receipt_no} saved.`
+        : `${payments.length} club receipts saved (${receiptList}).`,
+    id: payments[0].id,
+    ids: payments.map((row) => row.id),
+    amount: total,
+    clubTitles: titles,
+  };
 }
 
 /** Published campus admission fees for the desk recorder. */
@@ -965,7 +1145,7 @@ export async function voidClubPayment(id: string, reason: string): Promise<Actio
     studentId: data.student_id,
     body: `Voided club receipt ${data.receipt_no} (${ugx(data.amount)}): ${why}`,
   });
-  refreshAccounts(PAYMENTS, `${PAYMENTS}/club/${id}`, `/clubs`, `/clubs/register`, `/clubs/receipts`, `${ACCOUNTS_BASE}/students/${data.student_id}`);
+  refreshAccounts(PAYMENTS, `${PAYMENTS}/club/${id}`, `/clubs`, `/clubs/register`, `/clubs/accounts`, `/clubs/receipts`, `${ACCOUNTS_BASE}/students/${data.student_id}`);
   return { ok: `Receipt ${data.receipt_no} voided.` };
 }
 

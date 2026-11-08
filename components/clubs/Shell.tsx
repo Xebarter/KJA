@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
+import { setActiveClubCampus } from "@/app/clubs/(desk)/actions";
 import { signOut } from "@/app/actions";
+import { ClubBranchGate } from "@/components/clubs/ClubBranchGate";
 import { DashboardSwitch } from "@/components/DashboardSwitch";
 import { DeskWarmup } from "@/components/DeskWarmup";
 import { DesktopChrome } from "@/components/DesktopChrome";
@@ -31,6 +33,9 @@ export function ClubsShell({
   pages = null,
   canSwitch = false,
   home = CLUBS_BASE,
+  campuses = [],
+  activeCampus = null,
+  needsBranchChoice = false,
 }: {
   children: React.ReactNode;
   person: { name: string; email: string; role: string };
@@ -38,10 +43,14 @@ export function ClubsShell({
   pages?: string[] | null;
   canSwitch?: boolean;
   home?: string;
+  campuses?: string[];
+  activeCampus?: string | null;
+  needsBranchChoice?: boolean;
 }) {
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
   const nav = useMemo(
     () =>
       clubsNav.filter((item) => {
@@ -78,8 +87,16 @@ export function ClubsShell({
     };
   }, [open]);
 
+  function switchCampus(campus: string) {
+    if (campus === activeCampus || pending) return;
+    startTransition(async () => {
+      await setActiveClubCampus(campus);
+      router.refresh();
+    });
+  }
+
   return (
-    <div className={`admin-shell ofc-shell clubs-shell${open ? " is-nav-open" : ""}`}>
+    <div className={`admin-shell ofc-shell clubs-shell${open ? " is-nav-open" : ""}${needsBranchChoice ? " is-branch-gate" : ""}`}>
       <DesktopChrome desk="Clubs" />
       <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
@@ -87,7 +104,7 @@ export function ClubsShell({
           <Seal />
           <span>
             <strong>Clubs</strong>
-            <span>{current}</span>
+            <span>{activeCampus ? `${current} · ${activeCampus}` : current}</span>
           </span>
         </Link>
         <button
@@ -108,9 +125,27 @@ export function ClubsShell({
           <Seal />
           <span>
             <strong>Clubs</strong>
-            <span>Kampala Junior Academy</span>
+            <span>{activeCampus || "Kampala Junior Academy"}</span>
           </span>
         </Link>
+
+        {campuses.length > 1 ? (
+          <div className="clubs-branch-switch" role="group" aria-label="Active campus">
+            {campuses.map((campus) => (
+              <button
+                key={campus}
+                type="button"
+                className={activeCampus === campus ? "is-on" : ""}
+                disabled={pending || needsBranchChoice}
+                onClick={() => switchCampus(campus)}
+              >
+                {campus}
+              </button>
+            ))}
+          </div>
+        ) : campuses.length === 1 ? (
+          <p className="clubs-branch-switch is-solo">{campuses[0]}</p>
+        ) : null}
 
         <nav className="admin-nav clubs-nav" aria-label="Clubs desk">
           {nav.map((item) => {
@@ -123,6 +158,11 @@ export function ClubsShell({
                 prefetch={false}
                 className={active ? "active" : ""}
                 aria-current={active ? "page" : undefined}
+                tabIndex={needsBranchChoice ? -1 : undefined}
+                aria-disabled={needsBranchChoice || undefined}
+                onClick={(event) => {
+                  if (needsBranchChoice) event.preventDefault();
+                }}
               >
                 <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                 <span>{item.label}</span>
@@ -163,7 +203,9 @@ export function ClubsShell({
         </div>
       </aside>
 
-      <div className="admin-main clubs-main">{children}</div>
+      <div className="admin-main clubs-main">
+        {needsBranchChoice ? <ClubBranchGate campuses={campuses} /> : children}
+      </div>
     </div>
   );
 }

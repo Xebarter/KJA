@@ -103,7 +103,8 @@ export function DesktopSyncBar() {
   const showHydrate = hydrating || (status.hydrating === false && holdComplete);
   const offline = !status.online;
   const showOutbox = status.pending > 0 || status.flushing;
-  if (!showHydrate && status.online && !showOutbox) return null;
+  // Offline state is shown on the titlebar presence chip — no full-width offline strip.
+  if (!showHydrate && !showOutbox) return null;
 
   if (showHydrate && !offline) {
     const label =
@@ -131,10 +132,12 @@ export function DesktopSyncBar() {
     );
   }
 
+  if (!showOutbox) return null;
+
   const label = offline
-    ? status.pending > 0
-      ? `You’re offline. Desks keep working from the last sync · ${status.pending} change${status.pending === 1 ? "" : "s"} waiting`
-      : "You’re offline. Desks keep working from the last sync"
+    ? status.pending === 1
+      ? "1 change waiting — will sync when you’re back online"
+      : `${status.pending} changes waiting — will sync when you’re back online`
     : status.flushing
       ? "Sending saved changes…"
       : status.pending === 1
@@ -142,12 +145,12 @@ export function DesktopSyncBar() {
         : `${status.pending} changes waiting to sync`;
 
   return (
-    <div className={`kja-desktop-sync${offline ? " is-offline" : " is-pending"}`} role="status">
+    <div className="kja-desktop-sync is-pending" role="status">
       <span className="kja-desktop-sync-icon" aria-hidden="true">
-        <i className={`fa-solid ${offline ? "fa-cloud-slash" : status.flushing ? "fa-arrows-rotate" : "fa-cloud-arrow-up"}`} />
+        <i className={`fa-solid ${status.flushing ? "fa-arrows-rotate" : "fa-cloud-arrow-up"}`} />
       </span>
       <div className="kja-desktop-sync-copy">
-        <strong className="kja-desktop-sync-label">{offline ? "Working offline" : "Sync"}</strong>
+        <strong className="kja-desktop-sync-label">Sync</strong>
         <span className="kja-desktop-sync-detail">{label}</span>
         {status.lastError ? <span className="kja-desktop-sync-error">{status.lastError}</span> : null}
       </div>

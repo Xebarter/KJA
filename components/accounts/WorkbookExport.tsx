@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useMemo, useState } from "react";
 import { addDays, dateRangeLabel, kampalaToday } from "@/lib/accounts-format";
 import { ACCOUNTS_BASE } from "@/lib/accounts-nav";
@@ -89,11 +91,11 @@ export function WorkbookExport({
         <div className="acr-workbook-dates">
           <label>
             <span>From</span>
-            <input type="date" value={from} max={to || today} onChange={(event) => onFrom(event.target.value)} />
+            <DateField value={from} max={to || today} onChange={(event) => onFrom(event.target.value)} />
           </label>
           <label>
             <span>To</span>
-            <input type="date" value={to} min={from || undefined} max={today} onChange={(event) => onTo(event.target.value)} />
+            <DateField value={to} min={from || undefined} max={today} onChange={(event) => onTo(event.target.value)} />
           </label>
         </div>
 

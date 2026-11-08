@@ -149,10 +149,10 @@ export function ReportDesk({
     >
       <div className="acr-summary">{summary}</div>
 
-      <div ref={chromeRef} className="acr-chrome no-print">
+      <div ref={chromeRef} className={`acr-chrome no-print${pending ? " is-pending" : ""}`}>
         <div className="acr-controls">
           <div className="acr-terms" role="group" aria-label="Report period">
-            <span>Term</span>
+            <span>Period</span>
             <div>
               {periods.map((period) => (
                 <PeriodLink key={period.value || "current"} href={`${period.href}${current}`} on={currentPeriod === period.value}>
@@ -162,7 +162,8 @@ export function ReportDesk({
             </div>
           </div>
           <p className="acr-asof">
-            <i className="fa-regular fa-clock" aria-hidden="true" /> As of {asOf}
+            <i className="fa-regular fa-clock" aria-hidden="true" />
+            <span>As of {asOf}</span>
           </p>
         </div>
 

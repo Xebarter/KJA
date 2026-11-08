@@ -13,6 +13,7 @@ import {
 import { AcademicsGate, Empty } from "@/components/academics/ui";
 import {
   ASSESSMENT_KINDS,
+  bandsForSection,
   classSection,
   gradeBandSection,
   gradeBandSectionsToLoad,
@@ -284,7 +285,8 @@ export default async function TeacherPerformancePage({
   const median = medianOf(scored.map((pupil) => pupil.percent as number));
   const watchCount = deskPupils.filter((pupil) => pupil.watch).length;
   const openPapers = deskPapers.filter((paper) => paper.status === "open").length;
-  const bandSpread: PerfBand[] = bands.map((band) => ({
+  const bandSpread: PerfBand[] = bandsForSection(bands, markSection).map((band) => ({
+    id: band.id,
     label: band.label,
     count: deskPupils.filter((pupil) => pupil.grade === band.label).length,
   }));

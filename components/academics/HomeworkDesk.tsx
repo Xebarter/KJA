@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useEffect, useMemo, useRef, useState, useTransition, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { RichTextEditor } from "@/components/admin/RichTextEditor";
@@ -705,7 +707,7 @@ export function HomeworkDesk({
                 </label>
                 <div className="ofc-field">
                   <span>Due on</span>
-                  <input name="due_on" type="date" required value={dueOn} onChange={(event) => setDueOn(event.target.value)} />
+                  <DateField name="due_on" required value={dueOn} onChange={(event) => setDueOn(event.target.value)} />
                   <div className="ahw-due-presets" role="group" aria-label="Quick due dates">
                     {DUE_PRESETS.map((preset) => {
                       const value = plusDays(today, preset.days);

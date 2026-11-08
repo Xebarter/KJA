@@ -4,10 +4,11 @@
  * folder, so we copy it after the default resource copy.
  *
  * Also ensure CSS/JS chunks land under `.next-desktop/static` (custom distDir),
- * not `.next/static`.
+ * not `.next/static`, and heal truncated App Router manifests / chunk paths.
  */
 const { cpSync, existsSync, rmSync } = require("node:fs");
 const { join } = require("node:path");
+const { repairStandaloneDist } = require("./repair-standalone.cjs");
 
 function copyFresh(src, dest, label) {
   if (!existsSync(src)) {
@@ -23,6 +24,7 @@ function copyFresh(src, dest, label) {
 exports.default = async function afterPack(context) {
   const websiteRoot = join(context.packager.projectDir, "..");
   const standalone = join(context.appOutDir, "resources", "next-standalone");
+  const distDir = join(standalone, ".next-desktop");
 
   copyFresh(
     join(websiteRoot, ".next-desktop", "standalone", "node_modules"),
@@ -32,7 +34,7 @@ exports.default = async function afterPack(context) {
 
   copyFresh(
     join(websiteRoot, ".next-desktop", "static"),
-    join(standalone, ".next-desktop", "static"),
+    join(distDir, "static"),
     "Next static assets",
   );
 
@@ -41,4 +43,6 @@ exports.default = async function afterPack(context) {
   if (existsSync(wrongStatic)) {
     rmSync(wrongStatic, { recursive: true, force: true });
   }
+
+  repairStandaloneDist(distDir);
 };

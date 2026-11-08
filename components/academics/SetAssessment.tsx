@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useState } from "react";
 import { setAssessments } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
@@ -113,7 +115,7 @@ export function SetAssessment({ termId, classes, kinds }: { termId: string; clas
       </div>
       <label className="ofc-field">
         <span>Date</span>
-        <input name="held_on" type="date" />
+        <DateField name="held_on" />
       </label>
       <p className="asm-note">{summary}{ready ? " Nursery classes are marked out of 100. Subjects that do not apply to a class are left out. The share is how much of the subject total this set is worth. One set is the whole total. A midterm at 30 and an end of term at 70 both appear on the report card." : ""}</p>
       <button className="asm-commit" type="submit" disabled={!ready}>Set assessments</button>

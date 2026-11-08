@@ -333,6 +333,138 @@ export async function familyReceiptPdf(supabase: SupabaseClient, batchId: string
   return { bytes: await render(doc, requestUrl), filename: `KJA-Family-Receipt-${batch.receipt_no}.pdf` };
 }
 
+/** Club fee receipt for a desk or online club_payments row. */
+export async function clubReceiptPdf(supabase: SupabaseClient, id: string, requestUrl: string) {
+  const { data: payment } = await supabase.from("club_payments").select("*").eq("id", id).maybeSingle();
+  if (!payment) return null;
+
+  const [{ data: club }, { data: term }, pupils, { data: receiver }] = await Promise.all([
+    supabase.from("clubs").select("id, title, category").eq("id", payment.club_id).maybeSingle(),
+    supabase.from("fee_terms").select("id, label").eq("id", payment.term_id).maybeSingle(),
+    loadPupils(supabase, [payment.student_id as string]),
+    payment.received_by
+      ? supabase.from("profiles").select("full_name").eq("id", payment.received_by as string).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const pupil = pupils.get(payment.student_id as string);
+  const method = methodInfo(String(payment.method));
+  const voided = Boolean(payment.voided_at);
+  const receiptNo = String(payment.receipt_no || "CLB");
+
+  const doc: AccountsDoc = {
+    tag: "OFFICIAL RECEIPT",
+    number: receiptNo,
+    issued: `Paid ${day(payment.paid_on as string)}`,
+    title: "Club payment receipt",
+    intro: voided
+      ? `This receipt was cancelled${payment.void_reason ? `: ${payment.void_reason}` : "."}`
+      : `Received with thanks for ${club?.title ?? "club"} membership.`,
+    status: voided ? { label: "Void", tone: "grey" } : { label: "Received", tone: "green" },
+    hero: {
+      label: "Amount received",
+      amount: Number(payment.amount) || 0,
+      words: true,
+      facts: [
+        ["Method", method.label],
+        ["Reference", String(payment.reference || "-")],
+        ["Date", day(payment.paid_on as string)],
+      ],
+    },
+    parties: [
+      { title: "Pupil", rows: pupilRows(pupil) },
+      {
+        title: "Club payment",
+        rows: [
+          ["Club", club?.title ?? "-"],
+          ["Category", club?.category ?? "-"],
+          ["Term", term?.label ?? "-"],
+          ["Paid by", String(payment.payer_name || pupil?.mailing_name || "-")],
+          ["Received by", payment.source === "online" ? "Online payment" : receiver?.full_name || "Accounts office"],
+        ].slice(0, 5) as [string, string][],
+      },
+    ],
+    notes: payment.notes ? { title: "Notes", lines: [String(payment.notes)] } : undefined,
+    stamp: voided
+      ? { top: "KJA ACCOUNTS", middle: "VOID", bottom: day(payment.voided_at as string), tone: "red" }
+      : { top: "KJA ACCOUNTS", middle: "PAID", bottom: day(payment.paid_on as string), tone: "green" },
+    footer: "This receipt was produced by the KJA accounts office. Keep it as proof of club payment.",
+  };
+  return { bytes: await render(doc, requestUrl), filename: `KJA-Club-Receipt-${receiptNo}.pdf` };
+}
+
+/** PLE / tour / other charge receipt. */
+export async function chargeReceiptPdf(supabase: SupabaseClient, id: string, requestUrl: string) {
+  const { data: payment } = await supabase.from("charge_payments").select("*").eq("id", id).maybeSingle();
+  if (!payment) return null;
+
+  const studentId = payment.student_id ? String(payment.student_id) : "";
+  const [{ data: product }, { data: term }, pupils, { data: receiver }] = await Promise.all([
+    supabase.from("charge_products").select("id, name, kind").eq("id", payment.product_id).maybeSingle(),
+    payment.term_id
+      ? supabase.from("fee_terms").select("id, label").eq("id", payment.term_id).maybeSingle()
+      : Promise.resolve({ data: null }),
+    studentId ? loadPupils(supabase, [studentId]) : Promise.resolve(new Map<string, Pupil>()),
+    payment.received_by
+      ? supabase.from("profiles").select("full_name").eq("id", payment.received_by as string).maybeSingle()
+      : Promise.resolve({ data: null }),
+  ]);
+  const pupil = studentId ? pupils.get(studentId) : undefined;
+  const method = methodInfo(String(payment.method));
+  const voided = Boolean(payment.voided_at);
+  const receiptNo = String(payment.receipt_no || "CHG");
+  const kindLabel =
+    product?.kind === "ple" ? "PLE" : product?.kind === "tour" ? "Tour" : product?.kind === "admission" ? "Admission" : "Charge";
+
+  const doc: AccountsDoc = {
+    tag: "OFFICIAL RECEIPT",
+    number: receiptNo,
+    issued: `Paid ${day(payment.paid_on as string)}`,
+    title: `${kindLabel} payment receipt`,
+    intro: voided
+      ? `This receipt was cancelled${payment.void_reason ? `: ${payment.void_reason}` : "."}`
+      : `Received with thanks for ${product?.name ?? "the charge"}.`,
+    status: voided ? { label: "Void", tone: "grey" } : { label: "Received", tone: "green" },
+    hero: {
+      label: "Amount received",
+      amount: Number(payment.amount) || 0,
+      words: true,
+      facts: [
+        ["Method", method.label],
+        ["Reference", String(payment.reference || "-")],
+        ["Date", day(payment.paid_on as string)],
+      ],
+    },
+    parties: [
+      pupil
+        ? { title: "Pupil", rows: pupilRows(pupil) }
+        : {
+            title: "Payer",
+            rows: [
+              ["Paid by", String(payment.payer_name || "-")],
+              ["Charge", product?.name ?? "-"],
+              ["Kind", kindLabel],
+            ] as [string, string][],
+          },
+      {
+        title: "Payment",
+        rows: [
+          ["Product", product?.name ?? "-"],
+          ["Term", term?.label ?? "-"],
+          ["Paid by", String(payment.payer_name || pupil?.mailing_name || "-")],
+          ["Received by", receiver?.full_name || "Accounts office"],
+          ["Recorded", day(payment.created_at as string)],
+        ].slice(0, 5) as [string, string][],
+      },
+    ],
+    notes: payment.notes ? { title: "Notes", lines: [String(payment.notes)] } : undefined,
+    stamp: voided
+      ? { top: "KJA ACCOUNTS", middle: "VOID", bottom: day(payment.voided_at as string), tone: "red" }
+      : { top: "KJA ACCOUNTS", middle: "PAID", bottom: day(payment.paid_on as string), tone: "green" },
+    footer: "This receipt was produced by the KJA accounts office. Keep it as proof of payment.",
+  };
+  return { bytes: await render(doc, requestUrl), filename: `KJA-${kindLabel}-Receipt-${receiptNo}.pdf` };
+}
+
 // ---------------------------------------------------------------- statement
 
 /** A statement for one pupil, or for a whole family when several ids are given. */

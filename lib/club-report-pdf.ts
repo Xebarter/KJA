@@ -19,9 +19,19 @@ import {
 } from "pdf-lib";
 import { day, ugx } from "@/lib/accounts-format";
 import { loadCrest, type School } from "@/lib/accounts-pdf";
-import { CLUB_REPORT_BASIS, type ClubFigure, type ClubReport } from "@/lib/club-reports";
+import {
+  campusCompareDeltas,
+  CLUB_BRANCHES,
+  CLUB_REPORT_BASIS,
+  type ClubFigure,
+  type ClubReport,
+} from "@/lib/club-reports";
 
 export { loadCrest };
+
+export type ClubReportPdfOptions = {
+  activeCampus?: string | null;
+};
 
 const NAVY = rgb(0.098, 0.137, 0.169);
 const RED = rgb(0.894, 0.141, 0.208);
@@ -91,7 +101,13 @@ function trackedWidth(value: string, font: PDFFont, size: number, gap: number) {
 
 type Col = { label: string; width: number; align?: "right" };
 
-export async function buildClubReportPdf(report: ClubReport, school: School, crestBytes: Uint8Array | null) {
+export async function buildClubReportPdf(
+  report: ClubReport,
+  school: School,
+  crestBytes: Uint8Array | null,
+  options: ClubReportPdfOptions = {},
+) {
+  const activeCampus = options.activeCampus?.trim() || null;
   const pdf = await PDFDocument.create();
   pdf.setTitle(`Club income report ${report.termLabel}`);
   pdf.setAuthor("Kampala Junior Academy");
@@ -164,7 +180,21 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
 
   const footer = () => {
     page.drawRectangle({ x: 0, y: FOOT + 8, width: W, height: 0.7, color: HAIR });
-    text(fit("Kitante and Najjanankumbi  ·  Club income report", italic, 7.5, CW - 72), M, FOOT + 18, 7.5, italic, MUTED);
+    text(
+      fit(
+        activeCampus
+          ? `Comparing campuses  ·  working in ${activeCampus}  ·  Club income report`
+          : "Kitante and Najjanankumbi  ·  Club income report",
+        italic,
+        7.5,
+        CW - 72,
+      ),
+      M,
+      FOOT + 18,
+      7.5,
+      italic,
+      MUTED,
+    );
     right(`Page ${pageNo}`, W - M, FOOT + 18, 7.5, bold, MUTED);
     page.drawRectangle({ x: 0, y: FOOT, width: W, height: 2.2, color: GOLD });
     page.drawRectangle({ x: 0, y: 0, width: W, height: FOOT, color: PAPER });
@@ -293,9 +323,9 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
   const metrics = () => {
     const items: [string, string, string, RGB?, RGB?][] = [
       ["Expected", money(report.summary.expected), "UGX", TINT, LINE],
-      ["Collected", money(report.summary.collected), "UGX", GREEN_SOFT, GREEN],
-      ["Still to collect", money(report.summary.due), "UGX", TINT, LINE],
-      ["Collection", `${report.summary.rate}%`, `${report.summary.paidCount} of ${report.summary.consents} paid`, TINT, LINE],
+      ["Collected", money(report.summary.collected), `${report.summary.rate}% collected`, GREEN_SOFT, GREEN],
+      ["Expenditure", money(report.summary.expenditure), "Clubs desk spend", TINT, LINE],
+      ["Balance", money(report.summary.balance), `Still due ${money(report.summary.due)}`, TINT, LINE],
     ];
     const gap = 8;
     const width = (CW - gap * 3) / 4;
@@ -311,7 +341,7 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
         y - 32,
         12,
         bold,
-        index === 2 && report.summary.due > 0 ? AMBER : INK,
+        index === 3 && report.summary.balance < 0 ? AMBER : INK,
       );
       text(fit(item[2], regular, 7, width - 16), x + 8, y - 46, 7, regular, MUTED);
     });
@@ -480,7 +510,21 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
     MUTED,
   );
   y -= 12;
-  text("Scope: Kitante and Najjanankumbi only. Makindye and Bunga do not run clubs.", M, y, 8, italic, MUTED);
+  text(
+    fit(
+      activeCampus
+        ? `Comparing Kitante and Najjanankumbi  ·  working branch: ${activeCampus}. Makindye and Bunga do not run clubs.`
+        : "Scope: Kitante and Najjanankumbi only. Makindye and Bunga do not run clubs.",
+      italic,
+      8,
+      CW,
+    ),
+    M,
+    y,
+    8,
+    italic,
+    MUTED,
+  );
   y -= 16;
   metrics();
   channelStrip();
@@ -497,12 +541,14 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
   }
 
   // ---- Campuses ----
-  heading("Campuses", "Expected against collected at Kitante and Najjanankumbi.");
+  heading("Campuses", "Compared across Kitante and Najjanankumbi — income by pupil campus, spend by club catalogue campus.");
   const campusWidth = (CW - 10) / 2;
-  ensure(86);
+  const campusCardH = 98;
+  ensure(campusCardH + 10);
   report.campuses.forEach((campus, index) => {
     const x = M + index * (campusWidth + 10);
-    card(x, y, campusWidth, 76, WHITE, LINE);
+    const isWorking = Boolean(activeCampus && activeCampus === campus.label);
+    card(x, y, campusWidth, campusCardH, WHITE, isWorking ? NAVY : LINE);
     text(campus.label, x + 10, y - 16, 11, bold, INK);
     right(
       `${campus.rate}%`,
@@ -512,31 +558,55 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
       bold,
       campus.rate >= 80 ? GREEN : campus.due > 0 ? AMBER : INK,
     );
-    text(`Expected  ${money(campus.expected)}`, x + 10, y - 34, 8, regular, MUTED);
-    text(`Collected  ${money(campus.collected)}`, x + 10, y - 48, 9, bold, INK);
+    if (isWorking) {
+      text("Working branch", x + 10, y - 28, 7, italic, GOLD_DEEP);
+    }
+    const labelY = isWorking ? y - 42 : y - 34;
+    text(`Expected  ${money(campus.expected)}`, x + 10, labelY, 8, regular, MUTED);
+    text(`Collected  ${money(campus.collected)}`, x + 10, labelY - 14, 9, bold, INK);
+    text(
+      fit(`Still due  ${money(campus.due)}   ·   Spent  ${money(campus.expenditure)}`, regular, 7.5, campusWidth - 20),
+      x + 10,
+      labelY - 28,
+      7.5,
+      regular,
+      MUTED,
+    );
     text(
       fit(
-        `Still due  ${money(campus.due)}   ·   ${campus.paidCount}/${campus.consents} paid   ·   ${campus.pupils} pupils`,
+        `Balance  ${money(campus.balance)}   ·   ${campus.paidCount}/${campus.consents} paid   ·   ${campus.pupils} pupils`,
         regular,
         7.5,
         campusWidth - 20,
       ),
       x + 10,
-      y - 64,
+      labelY - 42,
       7.5,
       regular,
       MUTED,
     );
   });
-  y -= 90;
+  y -= campusCardH + 14;
   bars(
     report.campuses.map((campus) => ({ label: campus.label, a: campus.collected, b: campus.expected })),
     ["Collected", "Expected"],
     70,
   );
 
+  const deltas = campusCompareDeltas(report.campuses).slice(0, 3);
+  if (deltas.length) {
+    heading("Campus differences", "Where Kitante and Najjanankumbi diverge this term.");
+    deltas.forEach((line) => {
+      ensure(16);
+      page.drawCircle({ x: M + 3, y: y + 2, size: 2, color: GOLD });
+      text(fit(line, regular, 9, CW - 16), M + 12, y, 9, regular, INK);
+      y -= 14;
+    });
+    y -= 4;
+  }
+
   // ---- Clubs ----
-  heading("Clubs, best to worst", "Ranked by amount collected this term. The rate is collected divided by expected.");
+  heading("Clubs, best to worst", "Whole-desk ranking by amount collected this term. The rate is collected divided by expected.");
   if (report.clubs.length) {
     table(
       [
@@ -580,6 +650,58 @@ export async function buildClubReportPdf(report: ClubReport, school: School, cre
           `${club.rate}%`,
         ]),
       );
+    }
+
+    heading("Clubs by campus", "The same clubs compared by pupil campus — top collections and balances still due.");
+    for (const branch of CLUB_BRANCHES) {
+      const rows = report.clubsByCampus[branch] || [];
+      const top = rows.slice(0, 8);
+      const due = rows.filter((club) => club.due > 0).slice(0, 5);
+      const workingNote = activeCampus === branch ? " · working branch" : "";
+      heading(
+        branch,
+        top.length
+          ? `Top clubs from pupils at ${branch}${workingNote}.`
+          : `No club activity at ${branch} for this term.`,
+      );
+      if (!top.length) continue;
+      table(
+        [
+          { label: "Club", width: CW * 0.3 },
+          { label: "Consents", width: CW * 0.12, align: "right" },
+          { label: "Expected", width: CW * 0.16, align: "right" },
+          { label: "Collected", width: CW * 0.16, align: "right" },
+          { label: "Still due", width: CW * 0.14, align: "right" },
+          { label: "Rate", width: CW * 0.12, align: "right" },
+        ],
+        top.map((club) => [
+          club.label,
+          String(club.consents),
+          money(club.expected),
+          money(club.collected),
+          money(club.due),
+          `${club.rate}%`,
+        ]),
+      );
+      if (due.length) {
+        ensure(14);
+        text(`Still due at ${branch}`, M, y, 8, bold, MUTED);
+        y -= 12;
+        table(
+          [
+            { label: "Club", width: CW * 0.4 },
+            { label: "Unpaid", width: CW * 0.16, align: "right" },
+            { label: "Still due", width: CW * 0.22, align: "right" },
+            { label: "Rate", width: CW * 0.22, align: "right" },
+          ],
+          due.map((club) => [
+            club.label,
+            String(Math.max(0, club.consents - club.paidCount)),
+            money(club.due),
+            `${club.rate}%`,
+          ]),
+        );
+      }
     }
   } else {
     ensure(16);

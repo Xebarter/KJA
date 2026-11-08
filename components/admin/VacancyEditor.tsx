@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -328,7 +330,7 @@ export function VacancyEditor({
               </div>
               <div className="story-field">
                 <div className="story-field-head"><label htmlFor="vacancy-start">Start date</label><span className="story-hint">Optional</span></div>
-                <input id="vacancy-start" type="date" value={form.start_date} disabled={!extended} onChange={(event) => set("start_date", event.target.value)} />
+                <DateField id="vacancy-start" value={form.start_date} disabled={!extended} onChange={(event) => set("start_date", event.target.value)} />
               </div>
               <div className="story-field">
                 <div className="story-field-head"><label htmlFor="vacancy-salary">Salary</label><span className="story-hint">Optional</span></div>
@@ -415,7 +417,7 @@ export function VacancyEditor({
                 <label htmlFor="vacancy-closes">Closing date</label>
                 {form.closes_on ? <button type="button" className="app-link-btn" onClick={() => set("closes_on", "")}>Clear</button> : null}
               </div>
-              <input id="vacancy-closes" type="date" value={form.closes_on} onChange={(event) => set("closes_on", event.target.value)} />
+              <DateField id="vacancy-closes" value={form.closes_on} onChange={(event) => set("closes_on", event.target.value)} />
               <div className="vac-shortcuts">
                 {deadlineShortcuts.map((item) => (
                   <button key={item.label} type="button" className={form.closes_on === item.value ? "active" : ""} onClick={() => set("closes_on", item.value)}>{item.label}</button>

@@ -38,7 +38,6 @@ export type AccountsDoc = {
 };
 
 const NAVY = rgb(0.098, 0.137, 0.169);
-const NAVY_SOFT = rgb(0.16, 0.21, 0.25);
 const RED = rgb(0.894, 0.141, 0.208);
 const GOLD = rgb(0.992, 0.639, 0.106);
 const GOLD_DEEP = rgb(0.769, 0.463, 0.016);
@@ -48,7 +47,11 @@ const LINE = rgb(0.91, 0.87, 0.79);
 const TINT = rgb(0.992, 0.976, 0.945);
 const GOLD_TINT = rgb(1, 0.957, 0.882);
 const WHITE = rgb(1, 1, 1);
-const SOFT_WHITE = rgb(0.78, 0.8, 0.82);
+const IVORY = rgb(0.988, 0.973, 0.945);
+const IVORY_DEEP = rgb(0.973, 0.949, 0.902);
+const MESH = rgb(0.82, 0.74, 0.58);
+const MESH_SOFT = rgb(0.9, 0.84, 0.72);
+const FOOT_INK = rgb(0.22, 0.27, 0.31);
 const TONES: Record<Tone, { fg: RGB; bg: RGB }> = {
   green: { fg: rgb(0.09, 0.502, 0.239), bg: rgb(0.89, 0.961, 0.91) },
   red: { fg: rgb(0.784, 0.118, 0.176), bg: rgb(0.992, 0.925, 0.933) },
@@ -156,13 +159,40 @@ export async function buildAccountsPdf(doc: AccountsDoc, school: School, crestBy
       borderWidth: options.border ? options.borderWidth ?? 1 : 0,
     });
 
+  const drawMesh = (x: number, y: number, w: number, h: number) => {
+    const step = 14;
+    for (let i = -h; i < w + h; i += step) {
+      page.drawLine({
+        start: { x: x + i, y: y + h },
+        end: { x: x + i + h, y: y },
+        thickness: 0.35,
+        color: MESH_SOFT,
+        opacity: 0.55,
+      });
+      page.drawLine({
+        start: { x: x + i, y: y },
+        end: { x: x + i + h, y: y + h },
+        thickness: 0.28,
+        color: MESH,
+        opacity: 0.4,
+      });
+    }
+    for (let px = x + 10; px < x + w; px += 18) {
+      for (let py = y + 8; py < y + h; py += 16) {
+        page.drawCircle({ x: px + ((py / 16) % 2) * 4, y: py, size: 0.7, color: GOLD_DEEP, opacity: 0.28 });
+      }
+    }
+  };
+
   const footer = () => {
     text(fit(doc.footer, italic, 8, CW - 120), M, FOOT + 22, 8, italic, MUTED);
     right(`${doc.number}  |  Page ${pageNo}`, W - M, FOOT + 22, 8, bold, MUTED);
-    page.drawRectangle({ x: 0, y: FOOT, width: W, height: 2.5, color: GOLD });
-    page.drawRectangle({ x: 0, y: 0, width: W, height: FOOT, color: NAVY });
-    centered(`${school.phone}   |   ${school.email}   |   kja.ug`, W / 2, 26, 8.5, bold, WHITE);
-    centered(fit(school.address, regular, 7.5, CW), W / 2, 13, 7.5, regular, SOFT_WHITE);
+    page.drawRectangle({ x: 0, y: 0, width: W, height: FOOT, color: IVORY });
+    drawMesh(0, 0, W, FOOT);
+    page.drawRectangle({ x: 0, y: FOOT - 1.5, width: W, height: 1.5, color: GOLD });
+    page.drawRectangle({ x: 0, y: FOOT - 3, width: W, height: 1, color: RED });
+    centered(`${school.phone}   |   ${school.email}   |   kja.ug`, W / 2, 26, 8.5, bold, FOOT_INK);
+    centered(fit(school.address, regular, 7.5, CW), W / 2, 13, 7.5, regular, MUTED);
   };
 
   const watermark = () => {
@@ -171,11 +201,12 @@ export async function buildAccountsPdf(doc: AccountsDoc, school: School, crestBy
     page.drawImage(crest, { x: (W - size) / 2, y: H / 2 - size / 2 - 60, width: size, height: size, opacity: 0.035 });
   };
 
-  // Header band
+  // Header band — light ivory stationery with gold meshwork
   watermark();
   const bandH = 132;
-  page.drawRectangle({ x: 0, y: H - bandH, width: W, height: bandH, color: NAVY });
-  page.drawRectangle({ x: W - 210, y: H - bandH, width: 210, height: bandH, color: NAVY_SOFT });
+  page.drawRectangle({ x: 0, y: H - bandH, width: W, height: bandH, color: IVORY });
+  page.drawRectangle({ x: W - 210, y: H - bandH, width: 210, height: bandH, color: IVORY_DEEP });
+  drawMesh(0, H - bandH, W, bandH);
   page.drawRectangle({ x: 0, y: H - bandH - 4, width: W, height: 4, color: GOLD });
   page.drawRectangle({ x: 0, y: H - bandH - 5.5, width: W, height: 1.5, color: RED });
   const crestCx = M + 42;
@@ -183,13 +214,13 @@ export async function buildAccountsPdf(doc: AccountsDoc, school: School, crestBy
   page.drawCircle({ x: crestCx, y: crestCy, size: 45, color: WHITE, borderColor: GOLD, borderWidth: 2.5 });
   if (crest) page.drawImage(crest, { x: crestCx - 31, y: crestCy - 31, width: 62, height: 62 });
   const nameX = M + 102;
-  spaced("KAMPALA JUNIOR ACADEMY", nameX, H - 56, 14, bold, WHITE, 1.1);
-  text("Accounts Office", nameX, H - 74, 9.5, bold, GOLD);
-  text(fit(school.address, regular, 8.5, 220), nameX, H - 89, 8.5, regular, SOFT_WHITE);
-  text(fit(`${school.phone}  |  ${school.email}`, regular, 8.5, 220), nameX, H - 102, 8.5, regular, SOFT_WHITE);
-  spaced(doc.tag, W - M - spacedWidth(doc.tag, 8.5, bold, 1.6), H - 52, 8.5, bold, GOLD, 1.6);
-  right(doc.number, W - M, H - 72, 12.5, bold, WHITE);
-  right(doc.issued, W - M, H - 88, 8.5, regular, SOFT_WHITE);
+  spaced("KAMPALA JUNIOR ACADEMY", nameX, H - 56, 14, bold, INK, 1.1);
+  text("Accounts Office", nameX, H - 74, 9.5, bold, GOLD_DEEP);
+  text(fit(school.address, regular, 8.5, 220), nameX, H - 89, 8.5, regular, MUTED);
+  text(fit(`${school.phone}  |  ${school.email}`, regular, 8.5, 220), nameX, H - 102, 8.5, regular, MUTED);
+  spaced(doc.tag, W - M - spacedWidth(doc.tag, 8.5, bold, 1.6), H - 52, 8.5, bold, GOLD_DEEP, 1.6);
+  right(doc.number, W - M, H - 72, 12.5, bold, INK);
+  right(doc.issued, W - M, H - 88, 8.5, regular, MUTED);
 
   // Title and status
   let top = H - bandH - 44;

@@ -1,15 +1,26 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { ClubAccountsCard } from "@/components/clubs/ClubAccountsBoard";
 import { ClubsPageHeader } from "@/components/clubs/PageHeader";
 import { ClubEdit } from "@/components/clubs/ClubsDesk";
+import { ClubExpenseAddPanel } from "@/components/clubs/ClubExpenseForm";
+import { VoidClubExpenseButton } from "@/components/clubs/ClubExpenseActions";
 import { AddPatronForm, AddScheduleForm, RemoveLeaderButton, RemoveScheduleButton, CreateSessionForm } from "@/components/clubs/ClubOps";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { StudentFace } from "@/components/StudentFace";
 import { loadTerms } from "@/lib/accounts";
 import { amount, day, methodInfo, ugxShort } from "@/lib/accounts-format";
+import {
+  enrichClubExpenses,
+  loadClubAccountsSummary,
+  loadClubExpense,
+  loadClubExpenseCategories,
+  loadClubExpenses,
+} from "@/lib/club-accounts";
+import { clubServesBranch, studentInFundsScope } from "@/lib/club-funds-scope";
 import { requireClubs } from "@/lib/clubs-access";
 import { clubListHref, sectionLabel } from "@/lib/clubs";
-import { audienceLabel, CATEGORY_ICONS, loadConsentRegister } from "@/lib/clubs-desk";
+import { audienceLabel, CATEGORY_ICONS, categoryTone, loadConsentRegister } from "@/lib/clubs-desk";
 import { CLUBS_BASE, WEEKDAY_LABELS } from "@/lib/clubs-nav";
 import { displayPhone, isUuid, telHref } from "@/lib/students";
 import { supabaseConfigured } from "@/lib/supabase/server";
@@ -21,14 +32,24 @@ function patronRoleLabel(role: string | null | undefined) {
 
 export const metadata = { title: "Club" };
 
-export default async function ClubDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ClubDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ expense?: string; edit?: string }>;
+}) {
   if (!supabaseConfigured()) return clubsNotReady("Club", "config");
   const auth = await requireClubs("catalogue");
   if ("error" in auth) return clubsNotReady("Club", "auth", auth.error);
+  if (!auth.activeCampus) return null;
   const { id } = await params;
   if (!isUuid(id)) notFound();
+  const query = await searchParams;
+  const showExpenseForm = query.expense === "1";
+  const editId = isUuid(String(query.edit || "")) ? String(query.edit) : "";
 
-  const { current, error: termError } = await loadTerms(auth.supabase);
+  const { terms, current, error: termError } = await loadTerms(auth.supabase);
   if (termError) return clubsNotReady("Club", "schema", termError);
 
   const { data: club } = await auth.supabase
@@ -37,18 +58,30 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
     .eq("id", id)
     .maybeSingle();
   if (!club) notFound();
+  if (!clubServesBranch(club.campus as string | null, auth.activeCampus)) notFound();
 
-  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, auth.campuses, true);
+  const pack = await loadConsentRegister(auth.supabase, current?.id ?? null, [auth.activeCampus], true);
   const roster = pack.rows.filter((row) => row.clubId === id && !row.withdrawnAt);
   const withdrawn = pack.rows.filter((row) => row.clubId === id && row.withdrawnAt);
   const paidCount = roster.filter((row) => row.status === "paid").length;
   const unpaid = roster.filter((row) => row.status === "unpaid");
   const waitingCount = roster.filter((row) => row.status === "waiting").length;
   const fee = Number(club.fee_amount) || 0;
-  const expected = roster.reduce((sum, row) => sum + row.fee, 0);
   const unpaidAmount = unpaid.reduce((sum, row) => sum + row.fee, 0);
 
-  const [{ data: paymentsRaw }, { data: waiting }, leadersRes, schedulesRes, sessionsRes, staffRes] = await Promise.all([
+  const [
+    { data: paymentsRaw },
+    { data: waiting },
+    leadersRes,
+    schedulesRes,
+    sessionsRes,
+    staffRes,
+    summaryPack,
+    expensesPack,
+    categoriesPack,
+    editPack,
+    { data: allClubs },
+  ] = await Promise.all([
     current
       ? auth.supabase
           .from("club_payments")
@@ -69,15 +102,45 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
       .order("weekday"),
     auth.supabase.from("club_sessions").select("id, held_on, venue").eq("club_id", id).order("held_on", { ascending: false }).limit(12),
     auth.supabase.from("profiles").select("id, full_name, email, phone, role").in("role", ["admin", "admissions", "accounts", "academics", "library", "store", "clubs", "officer", "staff"]).order("full_name").limit(400),
+    loadClubAccountsSummary(auth.supabase, {
+      termId: current?.id ?? null,
+      clubId: id,
+      campuses: auth.campuses,
+      campusFilter: auth.activeCampus,
+    }),
+    current
+      ? loadClubExpenses(auth.supabase, {
+          termId: current.id,
+          clubId: id,
+          limit: 40,
+          campuses: auth.campuses,
+          campusFilter: auth.activeCampus,
+        })
+      : Promise.resolve({ expenses: [], error: null, missing: false }),
+    loadClubExpenseCategories(auth.supabase, { activeOnly: true }),
+    editId ? loadClubExpense(auth.supabase, editId) : Promise.resolve({ expense: null, error: null, missing: false }),
+    auth.supabase.from("clubs").select("id, title").not("guide_no", "is", null).order("title"),
   ]);
+  const recentExpenses = await enrichClubExpenses(auth.supabase, expensesPack.expenses);
 
   const leadersPack =
     leadersRes.error && /phone/i.test(leadersRes.error.message)
       ? await auth.supabase.from("club_leaders").select("id, role, profile_id, active").eq("club_id", id).eq("active", true)
       : leadersRes;
   const schemaHint = [leadersPack.error?.message, schedulesRes.error?.message, sessionsRes.error?.message].find((msg) => msg && /club_leaders|club_schedules|club_sessions|schema cache|does not exist/i.test(msg));
-  const payments = (paymentsRaw || []).filter((row) => !row.voided_at);
-  const collected = payments.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+  const openPayments = (paymentsRaw || []).filter((row) => !row.voided_at);
+  const paymentStudentIds = [...new Set(openPayments.map((row) => row.student_id as string))];
+  const missingCampusIds = paymentStudentIds.filter((studentId) => !roster.some((row) => row.studentId === studentId));
+  const { data: paymentPupils } = missingCampusIds.length
+    ? await auth.supabase.from("students").select("id, campus").in("id", missingCampusIds)
+    : { data: [] as { id: string; campus: string | null }[] };
+  const paymentCampus = new Map<string, string | null>([
+    ...roster.map((row) => [row.studentId, row.campus] as const),
+    ...(paymentPupils || []).map((row) => [row.id as string, (row.campus as string | null) ?? null] as const),
+  ]);
+  const payments = openPayments.filter((row) =>
+    studentInFundsScope(paymentCampus.get(row.student_id as string) ?? null, auth.campuses, auth.activeCampus),
+  );
   const leaders = leadersPack.data || [];
   const schedules = schedulesRes.data || [];
   const sessions = sessionsRes.data || [];
@@ -90,6 +153,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
   const pupilById = new Map(roster.map((row) => [row.studentId, row]));
 
   const category = club.category || "Other";
+  const tone = categoryTone(category);
   const icon = CATEGORY_ICONS[category] || "fa-puzzle-piece";
   const editClub = {
     id: club.id,
@@ -103,30 +167,63 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
     active: Boolean(club.active),
   };
   const printHref = `${CLUBS_BASE}/roll/pdf?clubs=${id}`;
+  const accountsPdfHref = `${CLUBS_BASE}/catalogue/${id}/accounts/pdf${current ? `?term=${current.id}` : ""}`;
+  const expenseHref = `${CLUBS_BASE}/catalogue/${id}?expense=1`;
+  const accountsHref = `${CLUBS_BASE}/accounts?club=${id}`;
+  const clubOptions = (allClubs || []).map((row) => ({ id: row.id as string, title: row.title as string }));
   const metaBits = [
+    category,
     sectionLabel(club.section),
-    audienceLabel(club.section),
     club.meeting,
     club.campus,
     club.guide_no ? `Guide #${club.guide_no}` : null,
   ].filter(Boolean);
+  const rosterPreview = roster.slice(0, 8);
+  const rosterMore = Math.max(0, roster.length - rosterPreview.length);
 
   return (
-    <div className="app-page ofc-page clubs-page clubs-detail-page">
+    <div className={`app-page ofc-page clubs-page clubs-detail-page tone-${tone}`}>
       <ClubsPageHeader
         kicker="Catalogue"
         icon={icon}
         title={club.title}
         description={metaBits.join(" · ")}
+        meta={
+          <>
+            <span className={`clubs-head-chip${club.active ? " is-ok" : " is-warn"}`}>
+              <i className={`fa-solid ${club.active ? "fa-door-open" : "fa-door-closed"}`} aria-hidden="true" />
+              {club.active ? "Open" : "Closed"}
+            </span>
+            <span className="clubs-head-chip">
+              <i className="fa-solid fa-users" aria-hidden="true" />
+              {roster.length} {roster.length === 1 ? "member" : "members"}
+            </span>
+            {unpaid.length ? (
+              <span className="clubs-head-chip is-warn">
+                <i className="fa-solid fa-circle-exclamation" aria-hidden="true" />
+                {unpaid.length} unpaid · {ugxShort(unpaidAmount)}
+              </span>
+            ) : null}
+            {current ? (
+              <span className="clubs-head-chip is-term">
+                <i className="fa-solid fa-calendar" aria-hidden="true" />
+                {current.label}
+              </span>
+            ) : null}
+          </>
+        }
         actions={
           <>
             <ClubEdit club={editClub} className="clubs-head-btn" />
-            <a className="clubs-head-btn is-primary" href={printHref} target="_blank" rel="noreferrer">
-              <i className="fa-solid fa-print" aria-hidden="true" /> Print register
-            </a>
+            <Link className="clubs-head-btn is-primary" href={expenseHref}>
+              <i className="fa-solid fa-plus" aria-hidden="true" /> Expense
+            </Link>
             <Link className="clubs-head-btn" href={clubListHref({ club: id })}>
               Register
             </Link>
+            <a className="clubs-head-btn" href={accountsPdfHref} target="_blank" rel="noreferrer">
+              <i className="fa-solid fa-print" aria-hidden="true" /> Accounts PDF
+            </a>
             <Link className="clubs-head-btn" href={`${CLUBS_BASE}/catalogue`}>
               All clubs
             </Link>
@@ -134,48 +231,21 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
         }
       />
 
-      <div className="clubs-ov-kpis clubs-detail-kpis">
-        <div className="clubs-ov-kpi">
-          <span>Term fee</span>
-          <strong>
-            <small>UGX</small>
-            {amount(fee)}
-          </strong>
-          <small>{current ? current.label : "Per consented learner"}</small>
-        </div>
-        <div className={`clubs-ov-kpi${roster.length ? " is-ok" : ""}`}>
-          <span>Members</span>
-          <strong>{roster.length}</strong>
-          <small>
-            {paidCount} paid{waitingCount ? ` · ${waitingCount} waiting` : ""}
-          </small>
-        </div>
-        <div className={`clubs-ov-kpi${unpaid.length ? " is-warn" : ""}`}>
-          <span>Not paid</span>
-          <strong>{unpaid.length}</strong>
-          <small>{unpaid.length ? ugxShort(unpaidAmount) : "Nothing outstanding"}</small>
-        </div>
-        <div className={`clubs-ov-kpi${collected ? " is-ok" : ""}`}>
-          <span>Collected</span>
-          <strong>
-            <small>UGX</small>
-            {ugxShort(collected)}
-          </strong>
-          <small>{expected ? `${ugxShort(collected)} of ${ugxShort(expected)}` : "No expected fees yet"}</small>
-        </div>
-      </div>
-
-      <section className="clubs-detail-hero" aria-label="Club details">
-        <div className="clubs-detail-hero-main">
-          <span className={`clubs-detail-badge${club.active ? " is-open" : " is-closed"}`}>
-            {club.active ? "Open for parents" : "Closed"}
-          </span>
-          <div className="clubs-detail-cat">
-            <i className={`fa-solid ${icon}`} aria-hidden="true" />
-            <span>{category}</span>
-          </div>
-          {club.description ? <p>{club.description}</p> : <p className="is-empty">No description on the parent guide yet.</p>}
+      <section className="clubs-detail-about" aria-label="Club summary">
+        <span className="clubs-detail-about-icon" aria-hidden="true">
+          <i className={`fa-solid ${icon}`} />
+        </span>
+        <div className="clubs-detail-about-copy">
+          {club.description ? <p>{club.description}</p> : <p className="is-empty">No parent-guide description yet.</p>}
           <ul className="clubs-detail-meta">
+            <li>
+              <i className="fa-solid fa-tag" aria-hidden="true" />
+              {category}
+            </li>
+            <li>
+              <i className="fa-solid fa-coins" aria-hidden="true" />
+              UGX {amount(fee)} / term
+            </li>
             {club.meeting ? (
               <li>
                 <i className="fa-solid fa-clock" aria-hidden="true" />
@@ -189,34 +259,55 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
               </li>
             ) : null}
             <li>
-              <i className="fa-solid fa-users" aria-hidden="true" />
+              <i className="fa-solid fa-graduation-cap" aria-hidden="true" />
               {audienceLabel(club.section)}
             </li>
           </ul>
         </div>
-        <div className="clubs-detail-hero-side">
-          <a className="clubs-detail-action" href={printHref} target="_blank" rel="noreferrer">
-            <span className="clubs-ov-portal-icon" aria-hidden="true">
-              <i className="fa-solid fa-print" />
-            </span>
-            <span>
-              <strong>Print register</strong>
-              <small>Members with expected and collected totals</small>
-            </span>
-            <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
+        <div className="clubs-detail-about-links">
+          <a href={printHref} target="_blank" rel="noreferrer">
+            <i className="fa-solid fa-print" aria-hidden="true" /> Print register
           </a>
-          <Link className="clubs-detail-action" href={clubListHref({ club: id })}>
-            <span className="clubs-ov-portal-icon" aria-hidden="true">
-              <i className="fa-solid fa-clipboard-list" />
-            </span>
-            <span>
-              <strong>Open on Register</strong>
-              <small>Filter, withdraw, or desk consent</small>
-            </span>
-            <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+          <Link href={clubListHref({ club: id })}>
+            <i className="fa-solid fa-clipboard-list" aria-hidden="true" /> Open register
           </Link>
         </div>
       </section>
+
+      {expensesPack.missing || categoriesPack.missing ? (
+        <div className="clubs-notice">
+          <i className="fa-solid fa-triangle-exclamation" aria-hidden="true" />
+          <div>
+            <h2>Expense tables not ready</h2>
+            <p>
+              Apply <code>0072_club_expenses.sql</code> to enable club expense registration and balances.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <ClubAccountsCard
+        summary={summaryPack.summary}
+        termLabel={current?.label}
+        clubId={id}
+        printHref={accountsPdfHref}
+        expenseHref={expenseHref}
+        accountsHref={`${accountsHref}&view=expenses`}
+        title="Accounts"
+        description={current ? `${current.label} · expected, collected, spend, balance` : "Expected, collected, spend, and balance"}
+      />
+
+      <ClubExpenseAddPanel
+        open={showExpenseForm}
+        categories={categoriesPack.categories}
+        clubs={clubOptions}
+        terms={terms}
+        currentTermId={current?.id}
+        expense={editPack.expense?.club_id === id ? editPack.expense : null}
+        defaultClubId={id}
+        cancelHref={`${CLUBS_BASE}/catalogue/${id}`}
+        onDoneHref={`${CLUBS_BASE}/catalogue/${id}`}
+      />
 
       {schemaHint ? (
         <div className="clubs-notice">
@@ -230,82 +321,95 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
         </div>
       ) : null}
 
-      <div className="clubs-detail-grid">
-        <section className="clubs-detail-panel" aria-label="Roster">
-          <header>
-            <div>
-              <h2>Roster</h2>
-              <p>{current ? current.label : "Open consents"} · paid and unpaid</p>
-            </div>
+      <section className="clubs-detail-panel" aria-label="Roster">
+        <header>
+          <div>
+            <h2>Roster</h2>
+            <p>
+              {roster.length} open · {paidCount} paid
+              {waitingCount ? ` · ${waitingCount} waiting` : ""}
+            </p>
+          </div>
+          <div className="clubs-detail-panel-links">
+            <Link className="clubs-ov-link" href={clubListHref({ club: id })}>
+              Full register <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+            </Link>
             <a className="clubs-ov-link" href={printHref} target="_blank" rel="noreferrer">
               Print <i className="fa-solid fa-arrow-up-right-from-square" aria-hidden="true" />
             </a>
-          </header>
-          {roster.length ? (
-            <div className="clubs-detail-table-wrap">
-              <table className="clubs-detail-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Pupil</th>
-                    <th scope="col">Payment</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {roster.map((row) => (
-                    <tr key={row.id}>
-                      <td data-label="Pupil">
-                        <span className="clubs-reg-who">
-                          <StudentFace className="clubs-reg-face" id={row.studentId} name={row.studentName} photoPath={row.photoPath} />
-                          <span>
-                            <strong className="clubs-reg-name">{row.studentName}</strong>
-                            <small>{[row.studentNumber, row.classLabel, row.campus].filter(Boolean).join(" · ")}</small>
-                          </span>
+          </div>
+        </header>
+        {rosterPreview.length ? (
+          <div className="clubs-detail-table-wrap">
+            <table className="clubs-detail-table">
+              <thead>
+                <tr>
+                  <th scope="col">Pupil</th>
+                  <th scope="col">Payment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rosterPreview.map((row) => (
+                  <tr key={row.id}>
+                    <td data-label="Pupil">
+                      <span className="clubs-reg-who">
+                        <StudentFace className="clubs-reg-face" id={row.studentId} name={row.studentName} photoPath={row.photoPath} />
+                        <span>
+                          <strong className="clubs-reg-name">{row.studentName}</strong>
+                          <small>{[row.studentNumber, row.classLabel, row.campus].filter(Boolean).join(" · ")}</small>
                         </span>
-                      </td>
-                      <td data-label="Payment">
-                        {row.status === "paid" ? (
-                          <span className="clubs-reg-pay is-paid">
-                            <i className="fa-solid fa-circle-check" aria-hidden="true" /> Paid
-                            {row.receiptNo ? <small>{row.receiptNo}</small> : null}
-                          </span>
-                        ) : null}
-                        {row.status === "waiting" ? (
-                          <span className="clubs-reg-pay is-waiting">
-                            <i className="fa-solid fa-mobile-screen" aria-hidden="true" /> Waiting
-                          </span>
-                        ) : null}
-                        {row.status === "unpaid" ? <span className="clubs-reg-pay is-unpaid">Not paid</span> : null}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="clubs-reg-empty">
-              <span className="clubs-ov-portal-icon" aria-hidden="true">
-                <i className="fa-solid fa-handshake" />
-              </span>
-              <strong>No open consents</strong>
-              <p>Parents consent on the portal, or use desk consent on the register.</p>
-            </div>
-          )}
-          {withdrawn.length ? (
-            <p className="clubs-detail-note">
-              {withdrawn.length} withdrawn consent{withdrawn.length === 1 ? "" : "s"}. See{" "}
-              <Link href={clubListHref({ club: id, withdrawn: "1" })}>Register → Withdrawn</Link>.
-            </p>
-          ) : null}
-        </section>
+                      </span>
+                    </td>
+                    <td data-label="Payment">
+                      {row.status === "paid" ? (
+                        <span className="clubs-reg-pay is-paid">
+                          <i className="fa-solid fa-circle-check" aria-hidden="true" /> Paid
+                          {row.receiptNo ? <small>{row.receiptNo}</small> : null}
+                        </span>
+                      ) : null}
+                      {row.status === "waiting" ? (
+                        <span className="clubs-reg-pay is-waiting">
+                          <i className="fa-solid fa-mobile-screen" aria-hidden="true" /> Waiting
+                        </span>
+                      ) : null}
+                      {row.status === "unpaid" ? <span className="clubs-reg-pay is-unpaid">Not paid</span> : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <p className="clubs-detail-empty">No open consents yet. Parents consent on the portal, or use desk consent on Register.</p>
+        )}
+        {rosterMore || withdrawn.length ? (
+          <p className="clubs-detail-note">
+            {rosterMore ? (
+              <>
+                +{rosterMore} more on{" "}
+                <Link href={clubListHref({ club: id })}>Register</Link>
+                {withdrawn.length ? " · " : ""}
+              </>
+            ) : null}
+            {withdrawn.length ? (
+              <>
+                {withdrawn.length} withdrawn —{" "}
+                <Link href={clubListHref({ club: id, withdrawn: "1" })}>view withdrawn</Link>
+              </>
+            ) : null}
+          </p>
+        ) : null}
+      </section>
 
+      <div className="clubs-detail-grid">
         <section className="clubs-detail-panel" aria-label="Fee history">
           <header>
             <div>
               <h2>Fee history</h2>
               <p>{current ? current.label : "Current term"} receipts</p>
             </div>
-            <Link className="clubs-ov-link" href={`${CLUBS_BASE}/receipts`}>
-              All receipts <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+            <Link className="clubs-ov-link" href={`${accountsHref}&view=collections`}>
+              All collections <i className="fa-solid fa-chevron-right" aria-hidden="true" />
             </Link>
           </header>
           {payments.length ? (
@@ -322,7 +426,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
                   </tr>
                 </thead>
                 <tbody>
-                  {payments.map((row) => {
+                  {payments.slice(0, 6).map((row) => {
                     const pupil = pupilById.get(row.student_id as string);
                     return (
                       <tr key={row.id as string}>
@@ -345,13 +449,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
               </table>
             </div>
           ) : (
-            <div className="clubs-reg-empty">
-              <span className="clubs-ov-portal-icon" aria-hidden="true">
-                <i className="fa-solid fa-receipt" />
-              </span>
-              <strong>No receipts yet</strong>
-              <p>Club payments for this term will appear here.</p>
-            </div>
+            <p className="clubs-detail-empty">No receipts yet for this term.</p>
           )}
 
           {(waiting || []).length ? (
@@ -367,6 +465,72 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
               </ul>
             </div>
           ) : null}
+        </section>
+
+        <section className="clubs-detail-panel" aria-label="Recent expenses">
+          <header>
+            <div>
+              <h2>Recent expenses</h2>
+              <p>{current ? current.label : "Current term"} spending</p>
+            </div>
+            <Link className="clubs-ov-link" href={`${accountsHref}&view=expenses`}>
+              All expenses <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+            </Link>
+          </header>
+          {recentExpenses.length ? (
+            <div className="clubs-detail-table-wrap">
+              <table className="clubs-detail-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Ref</th>
+                    <th scope="col">Payee</th>
+                    <th scope="col" className="is-num">
+                      Amount
+                    </th>
+                    <th scope="col">
+                      <span className="visually-hidden">Actions</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {recentExpenses.slice(0, 6).map((row) => (
+                    <tr key={row.id}>
+                      <td data-label="Ref">
+                        <strong>{row.ref_no}</strong>
+                        <small>
+                          {day(row.spent_on)} · {row.categoryName}
+                        </small>
+                      </td>
+                      <td data-label="Payee">
+                        {row.payee}
+                        <small>{row.description}</small>
+                      </td>
+                      <td data-label="Amount" className="is-num">
+                        <strong>{amount(row.amount)}</strong>
+                      </td>
+                      <td data-label="Actions">
+                        <VoidClubExpenseButton
+                          id={row.id}
+                          refNo={row.ref_no}
+                          amount={row.amount}
+                          payee={row.payee}
+                          editHref={`${CLUBS_BASE}/catalogue/${id}?expense=1&edit=${row.id}`}
+                        />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="clubs-detail-empty-state">
+              <p className="clubs-detail-empty">No expenses yet this term.</p>
+              <Link className="clubs-detail-cta" href={expenseHref}>
+                <i className="fa-solid fa-plus" aria-hidden="true" />
+                Register expense
+              </Link>
+            </div>
+          )}
         </section>
       </div>
 
@@ -466,7 +630,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ id:
         </header>
         {sessions.length ? (
           <ul className="clubs-detail-sessions">
-            {sessions.map((row) => (
+            {sessions.slice(0, 6).map((row) => (
               <li key={row.id as string}>
                 <Link href={`${CLUBS_BASE}/timetable/${row.id}`}>
                   <span className="clubs-ov-portal-icon" aria-hidden="true">

@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useId, useRef, useState } from "react";
 import {
   addStudentNote,
@@ -83,7 +85,7 @@ export function StudentStatusActions({ id, name, status, classCode }: { id: stri
               ) : (
                 <div className="apw-field">
                   <label htmlFor="leave-date">Date</label>
-                  <input id="leave-date" name="date" type="date" defaultValue={todayIso()} max={todayIso()} className="ofc-dialog-input" required />
+                  <DateField id="leave-date" name="date" defaultValue={todayIso()} max={todayIso()} className="ofc-dialog-input" required />
                 </div>
               )}
               <div className="apw-field">

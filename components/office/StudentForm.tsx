@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -360,7 +362,7 @@ export function StudentForm({
             />
           </Choice>
           <Field label="Date of birth" hint={snap.dob ? <span className="enr-age">{ageLabel(snap.dob)}</span> : undefined}>
-            <input name="date_of_birth" type="date" defaultValue={text("date_of_birth")} max={new Date().toISOString().slice(0, 10)} />
+            <DateField name="date_of_birth" defaultValue={text("date_of_birth")} max={new Date().toISOString().slice(0, 10)} />
           </Field>
           <Field label="Nationality"><input name="nationality" defaultValue={text("nationality") || (isNew ? "Ugandan" : "")} /></Field>
         </div>
@@ -425,7 +427,7 @@ export function StudentForm({
             <Chips name="campus" label="Campus" initial={text("campus")} options={[{ value: "", label: "Not recorded" }, ...campuses.map((campus) => ({ value: campus, label: campus }))]} />
           </Choice>
           <div className="ofc-fields enr-pair">
-            <Field label="Enrolment date"><input name="enrolled_on" type="date" defaultValue={text("enrolled_on")} /></Field>
+            <Field label="Enrolment date"><DateField name="enrolled_on" defaultValue={text("enrolled_on")} /></Field>
             <Field label="Student number" hint={isNew ? "Optional" : undefined}>
               <input
                 name="student_number"

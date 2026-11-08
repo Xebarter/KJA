@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { createSession, removeLeader, removeSchedule, saveAttendance, saveLeader, saveSchedule } from "@/app/clubs/(desk)/actions";
 import { Feedback, useOfficeAction } from "@/components/accounts/client";
 import { StudentFace } from "@/components/StudentFace";
+import { DateField } from "@/components/ui/DateField";
 import { CLUB_ATTENDANCE_STATUSES, CLUBS_BASE, WEEKDAY_LABELS } from "@/lib/clubs-nav";
 import { CLUB_CAMPUSES } from "@/lib/campuses";
 import { displayPhone } from "@/lib/students";
@@ -252,7 +253,7 @@ export function CreateSessionForm({
         </label>
         <label className="clubs-ops-field">
           <span>Date</span>
-          <input type="date" name="held_on" required />
+          <DateField name="held_on" required />
         </label>
       </div>
       <label className="clubs-ops-field">

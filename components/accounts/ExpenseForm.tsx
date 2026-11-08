@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { AmountInput, Feedback, useOfficeAction } from "@/components/accounts/client";
+import { DateField } from "@/components/ui/DateField";
 import { saveExpense } from "@/app/accounts/(desk)/expenses/actions";
 import { ACCOUNTS_BASE, PAYMENT_METHODS, day, kampalaToday, methodInfo, ugx, ugxShort, type Expense, type ExpenseCategory } from "@/lib/accounts-format";
 
@@ -146,7 +147,7 @@ export function ExpenseForm({ categories, campuses, expense, spentBy, onCancel }
             <AmountInput name="amount_display" value={value} onValue={setValue} required />
           </Field>
           <Field label="Date" required>
-            <input type="date" name="spent_on" value={spentOn} max={kampalaToday()} required onChange={(event) => setSpentOn(event.target.value)} />
+            <DateField name="spent_on" value={spentOn} max={kampalaToday()} required onChange={(event) => setSpentOn(event.target.value)} />
           </Field>
           <Field label="What it’s for" required wide>
             <textarea name="description" required rows={3} maxLength={600} value={description} onChange={(event) => setDescription(event.target.value)} placeholder="e.g. 20 reams of printing paper for exams" />

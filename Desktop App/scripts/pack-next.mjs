@@ -1,7 +1,11 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { spawnSync } from "node:child_process";
 import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+
+const require = createRequire(import.meta.url);
+const { repairStandaloneDist } = require("./repair-standalone.cjs");
 
 /** Must match Desktop App/src/shared/ports.ts - baked into the client bundle. */
 const PROXY_URL = "http://127.0.0.1:47321";
@@ -82,6 +86,14 @@ if (service) desktopEnvLines.push(`SUPABASE_SERVICE_ROLE_KEY=${service}`);
 writeFileSync(join(resourcesDir, "desktop.env"), `${desktopEnvLines.join("\n")}\n`, "utf8");
 console.log(`[pack-next] Wrote ${join(resourcesDir, "desktop.env")}`);
 
+// Clean dist so a prior `next dev` (same distDir) cannot leave a 3-route
+// app-paths-manifest that makes the installed app open to a black desk.
+const distDir = join(root, ".next-desktop");
+if (existsSync(distDir)) {
+  console.log(`[pack-next] Removing stale ${distDir}`);
+  rmSync(distDir, { recursive: true, force: true });
+}
+
 const result = spawnSync("npm", ["run", "build"], {
   cwd: root,
   env: {
@@ -97,4 +109,13 @@ const result = spawnSync("npm", ["run", "build"], {
   stdio: "inherit",
   shell: process.platform === "win32",
 });
-process.exit(result.status ?? 1);
+
+if ((result.status ?? 1) !== 0) {
+  process.exit(result.status ?? 1);
+}
+
+// Heal standalone quirks before electron-builder copies resources.
+repairStandaloneDist(join(root, ".next-desktop"));
+repairStandaloneDist(join(root, ".next-desktop", "standalone", ".next-desktop"));
+console.log("[pack-next] Standalone desks repaired.");
+process.exit(0);

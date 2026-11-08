@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useDeferredValue, useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
@@ -369,7 +371,7 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
             <div className="asp-form-row">
               <label className="ofc-field">
                 <span>Date of birth</span>
-                <input name="date_of_birth" type="date" required />
+                <DateField name="date_of_birth" required />
               </label>
               <label className="ofc-field">
                 <span>Sex</span>

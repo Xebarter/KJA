@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useMemo, useState } from "react";
 import { saveBand, saveDivisionBand, saveNextTermStart } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
@@ -304,12 +306,7 @@ function NextTermPanel({ nextTerm }: { nextTerm: NextTerm }) {
                 <DeskForm action={saveNextTermStart} className="grd-next-form">
                   <label className="ofc-field grd-date-field">
                     <span>Next term starts on</span>
-                    <input
-                      name="starts_on"
-                      type="date"
-                      required
-                      defaultValue={nextTerm.startsOn ?? ""}
-                      onChange={(event) => setPreview(event.target.value)}
+                    <DateField name="starts_on" required defaultValue={nextTerm.startsOn ?? ""} onChange={(event) => setPreview(event.target.value)}
                     />
                   </label>
                   <button className="grd-save grd-save-lg" type="submit">

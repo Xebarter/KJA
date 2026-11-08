@@ -1,5 +1,7 @@
 "use client";
 
+import { DateField } from "@/components/ui/DateField";
+
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { DeskForm } from "@/components/academics/Form";
@@ -241,7 +243,7 @@ export function InterventionsDesk({
               <div className="ivn-form-row">
                 <label className="ofc-field">
                   <span>Follow-up</span>
-                  <input name="follow_up_on" type="date" />
+                  <DateField name="follow_up_on" />
                 </label>
                 <button className="ivn-commit" type="submit">Open intervention</button>
               </div>

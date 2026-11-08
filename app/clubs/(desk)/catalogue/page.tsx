@@ -3,6 +3,7 @@ import { ClubCreate, ClubCatalogueBoard } from "@/components/clubs/ClubsDesk";
 import { clubsNotReady } from "@/components/clubs/ui";
 import { Empty } from "@/components/office/ui";
 import { amount } from "@/lib/accounts-format";
+import { clubServesBranch } from "@/lib/club-funds-scope";
 import { requireClubs } from "@/lib/clubs-access";
 import { CLUB_CATEGORIES } from "@/lib/clubs";
 import { audienceLabel, CATEGORY_ICONS, loadGuideClubs } from "@/lib/clubs-desk";
@@ -14,9 +15,11 @@ export default async function ClubsCataloguePage() {
   if (!supabaseConfigured()) return clubsNotReady("Clubs", "config");
   const auth = await requireClubs("catalogue");
   if ("error" in auth) return clubsNotReady("Clubs", "auth", auth.error);
-  const { clubs, error } = await loadGuideClubs(auth.supabase);
+  if (!auth.activeCampus) return null;
+  const { clubs: allClubs, error } = await loadGuideClubs(auth.supabase);
   if (error) return clubsNotReady("Clubs", "schema", error);
 
+  const clubs = allClubs.filter((club) => clubServesBranch(club.campus, auth.activeCampus!));
   const known = new Set<string>(CLUB_CATEGORIES);
   const groups = [
     ...CLUB_CATEGORIES.map((category) => ({
@@ -59,9 +62,13 @@ export default async function ClubsCataloguePage() {
         kicker="Catalogue"
         icon="fa-puzzle-piece"
         title="Clubs"
-        description="Manage the guide parents use when they consent, including fees, meeting notes, and who each club is for."
+        description={`Manage the ${auth.activeCampus} guide parents use when they consent, including fees, meeting notes, and who each club is for.`}
         meta={
           <>
+            <span className="clubs-head-chip">
+              <i className="fa-solid fa-school" aria-hidden="true" />
+              {auth.activeCampus}
+            </span>
             <span className="clubs-head-chip">
               <i className="fa-solid fa-layer-group" aria-hidden="true" />
               {clubs.length} on the guide
@@ -86,7 +93,7 @@ export default async function ClubsCataloguePage() {
       />
 
       <div className="clubs-ov-kpis clubs-cat-kpis">
-        <div className="clubs-ov-kpi">
+        <div className="clubs-ov-kpi is-navy">
           <span>On the guide</span>
           <strong>{clubs.length}</strong>
           <small>{groups.length} interest {groups.length === 1 ? "group" : "groups"}</small>
@@ -101,7 +108,7 @@ export default async function ClubsCataloguePage() {
           <strong>{closedCount}</strong>
           <small>Hidden from parents</small>
         </div>
-        <div className="clubs-ov-kpi">
+        <div className="clubs-ov-kpi is-gold">
           <span>Typical fee</span>
           <strong>
             <small>UGX</small>

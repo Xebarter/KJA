@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { DateField } from "@/components/ui/DateField";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { ActionForm } from "@/components/store/ActionForm";
 import { PurchaseLines } from "@/components/store/PurchaseLines";
@@ -180,7 +181,7 @@ export default async function StorePurchasesPage({
               </label>
               <label>
                 Received on
-                <input name="received_on" type="date" defaultValue={today} required />
+                <DateField name="received_on" defaultValue={today} required />
               </label>
               <label>
                 Supplier reference

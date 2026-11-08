@@ -250,6 +250,7 @@ async function finishLedger(row: ClubCollection, paymentId: string, paidAt: stri
   revalidatePath("/account");
   revalidatePath("/clubs");
   revalidatePath("/clubs/register");
+  revalidatePath("/clubs/accounts");
   revalidatePath("/clubs/receipts");
   revalidatePath("/accounts/payments");
   return (data as ClubCollection) ?? { ...row, status: "paid", payment_id: paymentId, paid_at: paidAt, transaction_ref: transactionRef };

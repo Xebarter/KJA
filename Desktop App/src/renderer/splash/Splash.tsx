@@ -30,7 +30,7 @@ export function Splash() {
       </div>
       <p className="splash-kicker">Kampala Junior Academy</p>
       <h1>Staff Desktop</h1>
-      <p className="splash-sub">Your offices, ready offline</p>
+      <p className="splash-sub">Your Desk</p>
 
       <div className="splash-status" role="status" aria-live="polite">
         {error ? (

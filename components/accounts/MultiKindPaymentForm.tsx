@@ -13,7 +13,7 @@ export type RecordKind = "fees" | "club" | "admission" | "ple" | "tour" | "other
 
 const KINDS: { value: RecordKind; label: string; icon: string; hint: string }[] = [
   { value: "fees", label: "School fees", icon: "fa-graduation-cap", hint: "Term fees for a pupil or family" },
-  { value: "club", label: "Club", icon: "fa-puzzle-piece", hint: "Consented club fee this term" },
+  { value: "club", label: "Club", icon: "fa-puzzle-piece", hint: "Club fees · consent and pay" },
   { value: "admission", label: "Admission", icon: "fa-file-signature", hint: "Fee paid at the desk" },
   { value: "ple", label: "PLE", icon: "fa-pen-to-square", hint: "Registration payment" },
   { value: "tour", label: "Tour", icon: "fa-bus", hint: "Trip contribution" },
