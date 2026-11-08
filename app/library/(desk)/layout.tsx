@@ -5,6 +5,7 @@ import { DEFAULT_CAMPUS, type CampusId } from "@/lib/campuses";
 import type { LibraryId } from "@/lib/library-nav";
 import { ROLE_LABELS } from "@/lib/office-nav";
 import { schemaHint, todayKampala } from "@/lib/library";
+import { remember } from "@/lib/remember";
 
 export const dynamic = "force-dynamic";
 
@@ -36,32 +37,43 @@ export default async function LibraryDeskLayout({ children }: { children: React.
     canSwitch = shell.canSwitch;
     home = shell.home;
 
-    const today = todayKampala();
-    const [overdue, ready, fines] = await Promise.all([
-      auth.supabase
-        .from("library_loans")
-        .select("id", { count: "exact", head: true })
-        .eq("library_id", activeLibrary)
-        .eq("campus", activeCampus)
-        .is("returned_at", null)
-        .lt("due_at", today),
-      auth.supabase
-        .from("library_reservations")
-        .select("id", { count: "exact", head: true })
-        .eq("library_id", activeLibrary)
-        .eq("campus", activeCampus)
-        .eq("status", "ready"),
-      auth.supabase
-        .from("library_fines")
-        .select("id", { count: "exact", head: true })
-        .eq("library_id", activeLibrary)
-        .eq("campus", activeCampus)
-        .is("paid_at", null)
-        .is("waived_at", null),
-    ]);
-    if (!schemaHint(overdue.error?.message)) badges.overdue = overdue.count ?? 0;
-    if (!schemaHint(ready.error?.message)) badges.ready = ready.count ?? 0;
-    if (!schemaHint(fines.error?.message)) badges.fines = fines.count ?? 0;
+    const pack = await remember(
+      `library-layout-badges:${auth.user.id}:${activeLibrary}:${activeCampus}`,
+      20_000,
+      async () => {
+        const today = todayKampala();
+        const [overdue, ready, fines] = await Promise.all([
+          auth.supabase
+            .from("library_loans")
+            .select("id", { count: "exact", head: true })
+            .eq("library_id", activeLibrary)
+            .eq("campus", activeCampus)
+            .is("returned_at", null)
+            .lt("due_at", today),
+          auth.supabase
+            .from("library_reservations")
+            .select("id", { count: "exact", head: true })
+            .eq("library_id", activeLibrary)
+            .eq("campus", activeCampus)
+            .eq("status", "ready"),
+          auth.supabase
+            .from("library_fines")
+            .select("id", { count: "exact", head: true })
+            .eq("library_id", activeLibrary)
+            .eq("campus", activeCampus)
+            .is("paid_at", null)
+            .is("waived_at", null),
+        ]);
+        return {
+          overdue: schemaHint(overdue.error?.message) ? 0 : overdue.count ?? 0,
+          ready: schemaHint(ready.error?.message) ? 0 : ready.count ?? 0,
+          fines: schemaHint(fines.error?.message) ? 0 : fines.count ?? 0,
+        };
+      },
+    );
+    badges.overdue = pack.overdue;
+    badges.ready = pack.ready;
+    badges.fines = pack.fines;
   }
 
   return (

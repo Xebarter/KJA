@@ -8,6 +8,8 @@ import { loadCampusScope } from "@/lib/campus-access";
 import { CAMPUS_OPTIONS, type CampusId } from "@/lib/campuses";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { DESK_SESSION_MS, deskAuthUser } from "@/lib/desk-auth";
+import { forgetPrefix, remember } from "@/lib/remember";
 import { everyWord, searchNeedle, searchWords } from "@/lib/students";
 import { createClient } from "@/lib/supabase/server";
 import { logSystem } from "@/lib/system-logs";
@@ -19,20 +21,34 @@ export const EXPENSE_RECEIPTS = "expense-receipts";
 export async function requireAccounts(...pages: string[]) {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await deskAuthUser(supabase);
   if (!user) return { error: "Your session has expired. Sign in again." } as const;
-  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile) return { error: "This account doesn't have access to the accounts office." } as const;
-  const grants = await loadGrants(supabase, user.id, profile.role);
-  if (!(await dashboardAllowed(grants, "accounts", pages))) {
+  let session: {
+    profile: { id: string; role: string | null; full_name: string | null; email: string | null };
+    grants: Awaited<ReturnType<typeof loadGrants>>;
+    campuses: CampusId[];
+  };
+  try {
+    session = await remember(`accounts-session:${user.id}`, DESK_SESSION_MS, async () => {
+      const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
+      if (!profile) throw new Error("no-accounts-access");
+      const grants = await loadGrants(supabase, user.id, profile.role);
+      const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "accounts");
+      return { profile, grants, campuses };
+    });
+  } catch {
+    return { error: "This account doesn't have access to the accounts office." } as const;
+  }
+  if (!(await dashboardAllowed(session.grants, "accounts", pages))) {
     return { error: pages.length ? "This account doesn't have access to that page." : "This account doesn't have access to the accounts office." } as const;
   }
-  const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "accounts");
-  return { supabase, user, profile, grants, campuses } as const;
+  return { supabase, user, profile: session.profile, grants: session.grants, campuses: session.campuses } as const;
 }
 
 export function refreshAccounts(...paths: string[]) {
   forgetAccountsRoll();
+  forgetPrefix("accounts-session:");
+  forgetPrefix("accounts-layout-shell:");
   revalidatePath(ACCOUNTS_BASE, "layout");
   for (const path of paths) revalidatePath(path);
 }

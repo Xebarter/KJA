@@ -11,6 +11,7 @@ import { DesktopChrome } from "@/components/DesktopChrome";
 import { SidebarSearch } from "@/components/SidebarSearch";
 import { initials } from "@/lib/applications";
 import { pageIdForPath, pageVisible } from "@/lib/dashboard-access";
+import { isDesktopClient } from "@/lib/desktop";
 import { EMPTY_OFFICE_BADGES, type OfficeBadgeCounts } from "@/lib/office-badges";
 import { OFFICE_BASE, officeNav } from "@/lib/office-nav";
 import type { SidebarHit } from "@/lib/sidebar-search";
@@ -52,6 +53,7 @@ export function OfficeShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const [badges, setBadges] = useState(initialBadges);
   const [person, setPerson] = useState(initialPerson);
   const search = useRef<HTMLInputElement>(null);
@@ -60,7 +62,17 @@ export function OfficeShell({
   const places = OFFICE_PLACES.filter((place) => show(place.href));
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -110,7 +122,14 @@ export function OfficeShell({
       <DesktopChrome desk="Admissions" />
       <DeskWarmup hrefs={nav.map((item) => item.href)} eager />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -131,7 +150,14 @@ export function OfficeShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="office-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Admissions office</strong>
@@ -160,7 +186,15 @@ export function OfficeShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <Link
+                  href={item.href}
+                  prefetch={false}
+                  className={active ? "active" : ""}
+                  aria-current={active ? "page" : undefined}
+                  onMouseEnter={() => warm(item.href)}
+                  onFocus={() => warm(item.href)}
+                  onPointerDown={() => warm(item.href)}
+                >
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -170,7 +204,14 @@ export function OfficeShell({
           })}
           <hr className="admin-nav-rule" />
           {show(`${OFFICE_BASE}/students/new`) ? (
-            <Link href={`${OFFICE_BASE}/students/new`} prefetch={false} className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}>
+            <Link
+              href={`${OFFICE_BASE}/students/new`}
+              prefetch={false}
+              className={pathname === `${OFFICE_BASE}/students/new` ? "active" : ""}
+              onMouseEnter={() => warm(`${OFFICE_BASE}/students/new`)}
+              onFocus={() => warm(`${OFFICE_BASE}/students/new`)}
+              onPointerDown={() => warm(`${OFFICE_BASE}/students/new`)}
+            >
               <i className="fa-solid fa-user-plus" aria-hidden="true" />
               <span>Enrol a student</span>
             </Link>

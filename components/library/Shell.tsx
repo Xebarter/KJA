@@ -52,6 +52,7 @@ export function LibraryShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const [pending, startTransition] = useTransition();
   const show = (href: string) => {
     if (pages === null) return true;
@@ -69,7 +70,17 @@ export function LibraryShell({
   );
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     // Website: warm sidebar routes. Desktop: DeskWarmup handles this gently.
@@ -116,7 +127,14 @@ export function LibraryShell({
       <DesktopChrome desk="Library" />
       <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Library</strong>
@@ -137,7 +155,14 @@ export function LibraryShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="library-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Library</strong>
@@ -190,7 +215,15 @@ export function LibraryShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                <Link
+                  href={item.href}
+                  prefetch={false}
+                  className={active ? "active" : ""}
+                  aria-current={active ? "page" : undefined}
+                  onMouseEnter={() => warm(item.href)}
+                  onFocus={() => warm(item.href)}
+                  onPointerDown={() => warm(item.href)}
+                >
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? (

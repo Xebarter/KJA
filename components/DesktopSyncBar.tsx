@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { isDesktopClient } from "@/lib/desktop";
 import "./desktop-sync.css";
@@ -38,8 +38,25 @@ function percentOf(status: SyncStatus): number {
  * Offline / outbox / hydrate strip for the Electron desks.
  * Styles live in desktop-sync.css (local assets - no CDN).
  */
+function deskDependsOnTable(pathname: string, table: string) {
+  if (pathname.startsWith("/admissions_office") || pathname.startsWith("/admin/applications")) {
+    return table === "applications" || table === "application_activity" || table === "admission_payments";
+  }
+  if (pathname.startsWith("/accounts")) {
+    return table === "fee_terms";
+  }
+  if (pathname.startsWith("/academics_office") || pathname.startsWith("/teacher")) {
+    return table === "academic_dates" || table === "fee_terms";
+  }
+  if (pathname.startsWith("/clubs")) {
+    return table === "clubs" || table === "fee_terms";
+  }
+  return false;
+}
+
 export function DesktopSyncBar() {
   const router = useRouter();
+  const pathname = usePathname();
   const [status, setStatus] = useState<SyncStatus | null>(null);
   const [busy, setBusy] = useState(false);
   const [holdComplete, setHoldComplete] = useState(false);
@@ -57,25 +74,17 @@ export function DesktopSyncBar() {
     let refreshTimer = 0;
     const scheduleRefresh = () => {
       window.clearTimeout(refreshTimer);
-      // Debounce so proxy invalidations do not cancel in-flight teacher soft-navs.
+      // Debounce so proxy invalidations do not cancel in-flight soft-navs / wipe RSC warmup.
       refreshTimer = window.setTimeout(() => router.refresh(), 700);
     };
     const offTable = api.onTableChanged((payload) => {
       if (!navigator.onLine) return;
       const current = desktopBridge();
       void current?.getSyncStatus().then((next) => {
+        // Never refresh while hydrate is filling the proxy - that wipes warm sidebar RSC.
         if (!next.online || next.hydrating) return;
-        // Only desks that actually depend on these tables - not every table change.
-        if (
-          payload.table === "applications" ||
-          payload.table === "application_activity" ||
-          payload.table === "admission_payments" ||
-          payload.table === "fee_terms" ||
-          payload.table === "academic_dates" ||
-          payload.table === "clubs"
-        ) {
-          scheduleRefresh();
-        }
+        if (!deskDependsOnTable(pathname, payload.table)) return;
+        scheduleRefresh();
       });
     });
     return () => {
@@ -83,7 +92,7 @@ export function DesktopSyncBar() {
       offSync();
       offTable();
     };
-  }, [router]);
+  }, [router, pathname]);
 
   const hydrating = Boolean(status?.hydrating) || holdComplete;
   const pct = useMemo(() => (status ? percentOf(status) : 0), [status]);

@@ -2,6 +2,7 @@ import { AccountsShell } from "@/components/accounts/Shell";
 import { requireAccounts } from "@/lib/accounts";
 import { shellPages } from "@/lib/dashboard-access";
 import { ROLE_LABELS } from "@/lib/office-nav";
+import { remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -12,15 +13,7 @@ export default async function AccountsLayout({ children }: { children: React.Rea
   let term: string | null = null;
   let person = { name: "Accounts office", email: "", role: "Accounts officer" };
   if (supabase) {
-    const [auth, expenses, drafts, current] = await Promise.all([
-      requireAccounts(),
-      supabase.from("expenses").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "draft"),
-      supabase.from("fee_terms").select("label").eq("is_current", true).maybeSingle(),
-    ]);
-    badges.expenses = expenses.count ?? 0;
-    badges.drafts = drafts.count ?? 0;
-    term = (current.data?.label as string | undefined) ?? null;
+    const auth = await requireAccounts();
     if (!("error" in auth)) {
       const email = auth.user.email ?? "";
       person = {
@@ -28,13 +21,28 @@ export default async function AccountsLayout({ children }: { children: React.Rea
         email,
         role: ROLE_LABELS[auth.profile.role ?? ""] ?? (auth.profile.role === "officer" ? "Team member" : person.role),
       };
+      const shell = shellPages(auth.grants, "accounts");
+      const pack = await remember(`accounts-layout-shell:${auth.user.id}`, 20_000, async () => {
+        const [expenses, drafts, current] = await Promise.all([
+          auth.supabase.from("expenses").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          auth.supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "draft"),
+          auth.supabase.from("fee_terms").select("label").eq("is_current", true).maybeSingle(),
+        ]);
+        return {
+          expenses: expenses.count ?? 0,
+          drafts: drafts.count ?? 0,
+          term: (current.data?.label as string | undefined) ?? null,
+        };
+      });
+      badges.expenses = pack.expenses;
+      badges.drafts = pack.drafts;
+      term = pack.term;
+      return (
+        <AccountsShell person={person} badges={badges} term={term} pages={shell.pages} canSwitch={shell.canSwitch} home={shell.home}>
+          {children}
+        </AccountsShell>
+      );
     }
-    const shell = !("error" in auth) ? shellPages(auth.grants, "accounts") : null;
-    return (
-      <AccountsShell person={person} badges={badges} term={term} pages={shell?.pages ?? null} canSwitch={shell?.canSwitch ?? false} home={shell?.home}>
-        {children}
-      </AccountsShell>
-    );
   }
   return (
     <AccountsShell person={person} badges={badges} term={term}>

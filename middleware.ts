@@ -10,7 +10,7 @@ import {
   type Grant,
 } from "@/lib/dashboard-access";
 import { isParentGuardian } from "@/lib/parent-access";
-import { STAFF_ROLE_COOKIE, TEACHER_OK_COOKIE, staffRoleCookieOptions } from "@/lib/staff-role-cookie";
+import { DESK_OK_COOKIE, STAFF_ROLE_COOKIE, TEACHER_OK_COOKIE, staffRoleCookieOptions } from "@/lib/staff-role-cookie";
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
@@ -60,6 +60,22 @@ export async function middleware(request: NextRequest) {
     (c) => c.name.includes("auth-token") || (c.name.startsWith("sb-") && c.name.includes("auth")),
   );
   if (isAdminLogin && !hasSupabaseAuth && !isServerAction) {
+    const headers = new Headers(request.headers);
+    headers.set("x-kja-path", path);
+    return NextResponse.next({ request: { headers } });
+  }
+
+  // Desktop soft-nav: skip getUser + profiles + grants when this desk already
+  // passed a full check. Layout still runs require*; this only removes the
+  // middleware tax that made sidebar hops feel sluggish.
+  const deskOk = request.cookies.get(DESK_OK_COOKIE)?.value ?? "";
+  if (
+    isDesktop &&
+    hasSupabaseAuth &&
+    !isServerAction &&
+    dashboard &&
+    deskOk === dashboard
+  ) {
     const headers = new Headers(request.headers);
     headers.set("x-kja-path", path);
     return NextResponse.next({ request: { headers } });
@@ -158,6 +174,8 @@ export async function middleware(request: NextRequest) {
 
   if (isChoose) {
     if (!user) return passOr(staffLogin("/choose-dashboard"));
+    // Leaving a desk via the chooser: next desk entry must re-run a full grant check.
+    response.cookies.set(DESK_OK_COOKIE, "", { ...staffRoleCookieOptions(), maxAge: 0 });
     return response;
   }
 
@@ -188,16 +206,24 @@ export async function middleware(request: NextRequest) {
       return passOr(send(dest));
     }
     // profiles.role = admin keeps every dashboard, with or without grant rows.
-    if (access.role === "admin") return response;
+    if (access.role === "admin") {
+      if (isDesktop) response.cookies.set(DESK_OK_COOKIE, dashboard, staffRoleCookieOptions());
+      return response;
+    }
     if (dashboard === "academics" && access.role === "staff") {
       const { data: teacher } = await supabase.from("teaching_staff").select("id").eq("profile_id", user.id).eq("active", true).maybeSingle();
-      if (teacher?.id) return response;
+      if (teacher?.id) {
+        if (isDesktop) response.cookies.set(DESK_OK_COOKIE, dashboard, staffRoleCookieOptions());
+        return response;
+      }
     }
     if (!pathAllowed(access.grants, dashboard, path)) {
+      response.cookies.set(DESK_OK_COOKIE, "", { ...staffRoleCookieOptions(), maxAge: 0 });
       const landing = landingPath(access.grants, dashboard);
       if (landing && landing !== path) return passOr(send(landing));
       return passOr(send(elsewhere(access.role, access.grants)));
     }
+    if (isDesktop) response.cookies.set(DESK_OK_COOKIE, dashboard, staffRoleCookieOptions());
     return response;
   }
 

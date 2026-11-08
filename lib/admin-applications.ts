@@ -4,19 +4,34 @@ import { loadCampusScope } from "@/lib/campus-access";
 import { CAMPUS_OPTIONS, type CampusId } from "@/lib/campuses";
 import { isFullAdmin, loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { DESK_SESSION_MS, deskAuthUser } from "@/lib/desk-auth";
 import { requireOffice } from "@/lib/office";
+import { remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
 
 async function adminSession() {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  const { data: { user } } = await supabase.auth.getUser();
+  const user = await deskAuthUser(supabase);
   if (!user) return { error: "Your session has expired. Sign in again." } as const;
-  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile) return { error: "This account is not an admin." } as const;
-  const grants = await loadGrants(supabase, user.id, profile.role);
-  const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "admin");
-  return { supabase, user, profile, grants, campuses } as const;
+  try {
+    const session = await remember(`admin-session:${user.id}`, DESK_SESSION_MS, async () => {
+      const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
+      if (!profile) throw new Error("no-admin-access");
+      const grants = await loadGrants(supabase, user.id, profile.role);
+      const campuses: CampusId[] = await loadCampusScope(supabase, user.id, profile.role, "admin");
+      return { profile, grants, campuses };
+    });
+    return {
+      supabase,
+      user,
+      profile: { ...session.profile, role: session.profile.role ?? "" },
+      grants: session.grants,
+      campuses: session.campuses,
+    } as const;
+  } catch {
+    return { error: "This account is not an admin." } as const;
+  }
 }
 
 export async function requireAdmin(...pages: string[]) {
@@ -53,8 +68,20 @@ type ApplicationDeskSession = {
 export async function requireApplicationDesk(...admissionsPages: string[]): Promise<ApplicationDeskSession | { error: string }> {
   const pages = admissionsPages.length ? admissionsPages : ["applications"];
   const [admin, office] = await Promise.all([requireAdmin("applications"), requireOffice(...pages)]);
-  if (!("error" in admin)) return { ...admin, campuses: admin.campuses };
-  if (!("error" in office)) return { ...office, campuses: office.campuses };
+  if (!("error" in admin)) {
+    return {
+      ...admin,
+      profile: { ...admin.profile, role: admin.profile.role ?? "" },
+      campuses: admin.campuses,
+    };
+  }
+  if (!("error" in office)) {
+    return {
+      ...office,
+      profile: { ...office.profile, role: office.profile.role ?? "" },
+      campuses: office.campuses,
+    };
+  }
   return { error: "This account doesn't have access to applications." } as const;
 }
 

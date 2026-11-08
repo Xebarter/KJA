@@ -4,6 +4,8 @@ import { CAMPUS_OPTIONS, type CampusId } from "@/lib/campuses";
 import { LIBRARY_BASE, LIBRARY_IDS, isLibraryId, type LibraryId } from "@/lib/library-nav";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { DESK_SESSION_MS, deskAuthUser } from "@/lib/desk-auth";
+import { forgetPrefix, remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
 import { cookies } from "next/headers";
 
@@ -59,29 +61,58 @@ export async function resolveActiveCampus(allowed: CampusId[], preferred?: strin
 export async function requireLibrary(...pages: string[]): Promise<LibraryAuth | { error: string }> {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." };
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await deskAuthUser(supabase);
   if (!user) return { error: "Your session has expired. Sign in again." };
-  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile) return { error: "This account doesn't have access to the library desk." };
-  const grants = await loadGrants(supabase, user.id, profile.role);
-  if (!(await dashboardAllowed(grants, "library", pages))) {
+  let session: {
+    profile: { id: string; role: string | null; full_name: string | null; email: string | null };
+    grants: Awaited<ReturnType<typeof loadGrants>>;
+    libraries: LibraryId[];
+    campuses: CampusId[];
+  };
+  try {
+    session = await remember(`library-session:${user.id}`, DESK_SESSION_MS, async () => {
+      const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
+      if (!profile) throw new Error("no-library-access");
+      const grants = await loadGrants(supabase, user.id, profile.role);
+      const libraries = await loadLibraryScope(supabase, user.id, profile.role);
+      if (!libraries.length) throw new Error("no-library-section");
+      const campuses = await loadCampusScope(supabase, user.id, profile.role, "library");
+      if (!campuses.length) throw new Error("no-library-campus");
+      return { profile, grants, libraries, campuses };
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "no-library-section") {
+      return { error: "No library section is assigned to this account. Ask an administrator." };
+    }
+    if (message === "no-library-campus") {
+      return { error: "No campus is assigned for the library desk. Ask an administrator." };
+    }
+    return { error: "This account doesn't have access to the library desk." };
+  }
+  if (!(await dashboardAllowed(session.grants, "library", pages))) {
     return {
       error: pages.length
         ? "This account doesn't have access to that page."
         : "This account doesn't have access to the library desk.",
     };
   }
-  const libraries = await loadLibraryScope(supabase, user.id, profile.role);
-  if (!libraries.length) return { error: "No library section is assigned to this account. Ask an administrator." };
-  const campuses = await loadCampusScope(supabase, user.id, profile.role, "library");
-  if (!campuses.length) return { error: "No campus is assigned for the library desk. Ask an administrator." };
-  const activeLibrary = await resolveActiveLibrary(libraries);
-  const activeCampus = await resolveActiveCampus(campuses);
-  return { supabase, user, profile, grants, libraries, activeLibrary, campuses, activeCampus };
+  const activeLibrary = await resolveActiveLibrary(session.libraries);
+  const activeCampus = await resolveActiveCampus(session.campuses);
+  return {
+    supabase,
+    user,
+    profile: session.profile,
+    grants: session.grants,
+    libraries: session.libraries,
+    activeLibrary,
+    campuses: session.campuses,
+    activeCampus,
+  };
 }
 
 export function refreshLibraryPaths(...paths: string[]) {
+  forgetPrefix("library-session:");
+  forgetPrefix("library-layout-badges:");
   return { base: LIBRARY_BASE, paths };
 }

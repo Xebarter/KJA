@@ -4,10 +4,11 @@ import { loadCampusScope } from "@/lib/campus-access";
 import type { CampusId } from "@/lib/campuses";
 import { hasDashboard, loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { DESK_SESSION_MS, deskAuthUser } from "@/lib/desk-auth";
 import { remember } from "@/lib/remember";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
-const SESSION_MS = 60_000;
+const SESSION_MS = DESK_SESSION_MS;
 
 type AcademicsProfile = { id: string; role: string; full_name: string | null; email: string | null };
 type AcademicsAccess =
@@ -48,10 +49,8 @@ async function loadAcademicsAccess(supabase: SupabaseClient, userId: string): Pr
 export async function requireAcademics(...pages: string[]) {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." } as const;
-  // Prefer getUser over getClaims - Desktop's loopback proxy serves /auth/v1/user reliably;
-  // local JWT claim verification often fails against that proxy and falsely "expires" the session.
-  const { data: userData } = await supabase.auth.getUser();
-  const authUser = userData.user;
+  // Desktop: getSession (local). Website: getUser so revoked sessions bounce.
+  const authUser = await deskAuthUser(supabase);
   if (!authUser?.id) return { error: "Your session has expired. Sign in again." } as const;
   const userId = authUser.id;
   const authEmail = authUser.email || "";

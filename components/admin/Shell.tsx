@@ -13,6 +13,7 @@ import { SidebarSearch } from "@/components/SidebarSearch";
 import { websiteNav } from "@/lib/admin";
 import { initials } from "@/lib/applications";
 import { pageIdForPath } from "@/lib/dashboard-access";
+import { isDesktopClient } from "@/lib/desktop";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 function navActive(pathname: string, href: string, also?: readonly string[]) {
@@ -53,10 +54,32 @@ function Seal() {
   );
 }
 
-function NavLink({ href, icon, badge, children, active }: { href: string; icon: string; badge?: number; children: React.ReactNode; active?: boolean }) {
+function NavLink({
+  href,
+  icon,
+  badge,
+  children,
+  active,
+  warm,
+}: {
+  href: string;
+  icon: string;
+  badge?: number;
+  children: React.ReactNode;
+  active?: boolean;
+  warm?: (href: string) => void;
+}) {
   const on = active ?? isActive(usePathname(), href);
   return (
-    <Link href={href} prefetch={false} className={on ? "active" : ""} aria-current={on ? "page" : undefined}>
+    <Link
+      href={href}
+      prefetch={false}
+      className={on ? "active" : ""}
+      aria-current={on ? "page" : undefined}
+      onMouseEnter={() => warm?.(href)}
+      onFocus={() => warm?.(href)}
+      onPointerDown={() => warm?.(href)}
+    >
       <i className={`fa-solid ${icon}`} aria-hidden="true" />
       <span>{children}</span>
       {badge ? <em className="admin-nav-badge" aria-label={`${badge} new`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -92,9 +115,20 @@ export function AdminShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const search = useRef<HTMLInputElement>(null);
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -157,7 +191,14 @@ export function AdminShell({
       <DesktopChrome desk="Admin" />
       <DeskWarmup eager hrefs={sections.map((section) => section.href)} />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>KJA Admin</strong>
@@ -178,7 +219,14 @@ export function AdminShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="admin-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>KJA Admin</strong>
@@ -200,15 +248,15 @@ export function AdminShell({
         />
 
         <nav className="admin-nav" aria-label="Admin">
-          {allowed("/admin") ? <NavLink href="/admin" icon="fa-gauge-high">Dashboard</NavLink> : null}
+          {allowed("/admin") ? <NavLink href="/admin" icon="fa-gauge-high" warm={warm}>Dashboard</NavLink> : null}
 
           <hr className="admin-nav-rule" />
-          {allowed("/admin/applications") ? <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications}>Applications</NavLink> : null}
-          {fullAdmin ? <NavLink href="/admin/team" icon="fa-user-shield">Team</NavLink> : null}
-          {fullAdmin ? <NavLink href="/admin/logs" icon="fa-clock-rotate-left">Logs</NavLink> : null}
-          {allowed("/admin/students") ? <NavLink href="/admin/students" icon="fa-user-graduate">Students</NavLink> : null}
-          {allowed("/admin/communications") ? <NavLink href="/admin/communications" icon="fa-comments" badge={unreadCommunications}>Communications</NavLink> : null}
-          {allowed("/admin/inbox/enquiries") ? <NavLink href="/admin/inbox/enquiries" icon="fa-envelope" badge={unreadEnquiries}>Enquiries</NavLink> : null}
+          {allowed("/admin/applications") ? <NavLink href="/admin/applications" icon="fa-file-signature" badge={newApplications} warm={warm}>Applications</NavLink> : null}
+          {fullAdmin ? <NavLink href="/admin/team" icon="fa-user-shield" warm={warm}>Team</NavLink> : null}
+          {fullAdmin ? <NavLink href="/admin/logs" icon="fa-clock-rotate-left" warm={warm}>Logs</NavLink> : null}
+          {allowed("/admin/students") ? <NavLink href="/admin/students" icon="fa-user-graduate" warm={warm}>Students</NavLink> : null}
+          {allowed("/admin/communications") ? <NavLink href="/admin/communications" icon="fa-comments" badge={unreadCommunications} warm={warm}>Communications</NavLink> : null}
+          {allowed("/admin/inbox/enquiries") ? <NavLink href="/admin/inbox/enquiries" icon="fa-envelope" badge={unreadEnquiries} warm={warm}>Enquiries</NavLink> : null}
 
           {officeNav.length ? <hr className="admin-nav-rule" /> : null}
           {officeNav.map((item) => (
@@ -235,7 +283,16 @@ export function AdminShell({
                     const active = navActive(pathname, item.href, "also" in item ? item.also : undefined);
                     const badge = item.id === "careers" ? newJobApplications : 0;
                     return (
-                      <Link key={item.id} href={item.href} prefetch={false} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        prefetch={false}
+                        className={active ? "active" : ""}
+                        aria-current={active ? "page" : undefined}
+                        onMouseEnter={() => warm(item.href)}
+                        onFocus={() => warm(item.href)}
+                        onPointerDown={() => warm(item.href)}
+                      >
                         {item.label}
                         {badge ? <em className="admin-nav-badge" aria-label={`${badge} new applications`}>{badge > 99 ? "99+" : badge}</em> : null}
                       </Link>

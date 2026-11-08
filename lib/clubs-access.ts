@@ -3,6 +3,8 @@ import { loadCampusScope } from "@/lib/campus-access";
 import { filterClubCampuses, isClubCampus, type CampusId, type ClubCampusId } from "@/lib/campuses";
 import { loadGrants } from "@/lib/dashboard-access";
 import { dashboardAllowed } from "@/lib/dashboard-guard";
+import { DESK_SESSION_MS, deskAuthUser } from "@/lib/desk-auth";
+import { forgetPrefix, remember } from "@/lib/remember";
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { cookies } from "next/headers";
@@ -58,39 +60,54 @@ export async function persistActiveClubCampus(campus: ClubCampusId) {
 export async function requireClubs(...pages: string[]): Promise<ClubsAuth | { error: string }> {
   const supabase = await createClient();
   if (!supabase) return { error: "Supabase is not connected yet." };
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const user = await deskAuthUser(supabase);
   if (!user) return { error: "Your session has expired. Sign in again." };
-  const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
-  if (!profile) return { error: "This account doesn't have access to the clubs desk." };
-  const grants = await loadGrants(supabase, user.id, profile.role);
-  if (!(await dashboardAllowed(grants, "clubs", pages))) {
+  let session: {
+    profile: { id: string; role: string | null; full_name: string | null; email: string | null };
+    grants: Awaited<ReturnType<typeof loadGrants>>;
+    campuses: CampusId[];
+    clubCampuses: ClubCampusId[];
+  };
+  try {
+    session = await remember(`clubs-session:${user.id}`, DESK_SESSION_MS, async () => {
+      const { data: profile } = await supabase.from("profiles").select("id, role, full_name, email").eq("id", user.id).maybeSingle();
+      if (!profile) throw new Error("no-clubs-access");
+      const grants = await loadGrants(supabase, user.id, profile.role);
+      const campuses = await loadCampusScope(supabase, user.id, profile.role, "clubs");
+      const clubCampuses = filterClubCampuses(campuses);
+      if (!clubCampuses.length) throw new Error("no-clubs-campus");
+      return { profile, grants, campuses, clubCampuses };
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (message === "no-clubs-campus") {
+      return { error: "No clubs campus is assigned to this account. Ask an administrator." };
+    }
+    return { error: "This account doesn't have access to the clubs desk." };
+  }
+  if (!(await dashboardAllowed(session.grants, "clubs", pages))) {
     return {
       error: pages.length
         ? "This account doesn't have access to that page."
         : "This account doesn't have access to the clubs desk.",
     };
   }
-  const campuses = await loadCampusScope(supabase, user.id, profile.role, "clubs");
-  const clubCampuses = filterClubCampuses(campuses);
-  if (!clubCampuses.length) {
-    return { error: "No clubs campus is assigned to this account. Ask an administrator." };
-  }
-  const resolved = await resolveActiveClubCampus(clubCampuses);
+  const resolved = await resolveActiveClubCampus(session.clubCampuses);
   return {
     supabase,
     user,
-    profile,
-    grants,
-    campuses,
-    clubCampuses,
+    profile: session.profile,
+    grants: session.grants,
+    campuses: session.campuses,
+    clubCampuses: session.clubCampuses,
     activeCampus: resolved.campus,
     needsBranchChoice: resolved.needsChoice,
   };
 }
 
 export function refreshClubs(...paths: string[]) {
+  forgetPrefix("clubs-session:");
+  forgetPrefix("clubs-layout-badge:");
   const targets = paths.length ? paths : [CLUBS_BASE];
   for (const path of targets) revalidatePath(path);
   revalidatePath(CLUBS_BASE);

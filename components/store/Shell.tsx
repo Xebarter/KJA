@@ -42,6 +42,7 @@ export function StoreShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const nav = useMemo(
     () =>
       storeNav.filter((item) => {
@@ -53,7 +54,17 @@ export function StoreShell({
   );
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (isDesktopClient()) return;
@@ -83,7 +94,14 @@ export function StoreShell({
       <DesktopChrome desk="Store" />
       <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Store</strong>
@@ -104,7 +122,14 @@ export function StoreShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="store-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Store</strong>
@@ -123,6 +148,9 @@ export function StoreShell({
                 prefetch={false}
                 className={active ? "active" : ""}
                 aria-current={active ? "page" : undefined}
+                onMouseEnter={() => warm(item.href)}
+                onFocus={() => warm(item.href)}
+                onPointerDown={() => warm(item.href)}
               >
                 <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                 <span>{item.label}</span>

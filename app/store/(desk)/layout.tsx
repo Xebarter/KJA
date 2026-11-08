@@ -1,6 +1,7 @@
 import { StoreShell } from "@/components/store/Shell";
 import { shellPages } from "@/lib/dashboard-access";
 import { ROLE_LABELS } from "@/lib/office-nav";
+import { remember } from "@/lib/remember";
 import { schemaHint } from "@/lib/store";
 import { requireStore } from "@/lib/store-access";
 
@@ -26,17 +27,23 @@ export default async function StoreDeskLayout({ children }: { children: React.Re
     canSwitch = shell.canSwitch;
     home = shell.home;
 
-    const [low, reqs] = await Promise.all([
-      auth.supabase.from("store_items").select("id, qty_on_hand, reorder_level").eq("active", true).limit(2000),
-      auth.supabase
-        .from("store_requisitions")
-        .select("id", { count: "exact", head: true })
-        .eq("status", "draft"),
-    ]);
-    if (!schemaHint(low.error?.message)) {
-      badges.low = (low.data || []).filter((row) => Number(row.qty_on_hand) <= Number(row.reorder_level)).length;
-    }
-    if (!schemaHint(reqs.error?.message)) badges.requisitions = reqs.count ?? 0;
+    const pack = await remember(`store-layout-badges:${auth.user.id}`, 20_000, async () => {
+      const [low, reqs] = await Promise.all([
+        auth.supabase.from("store_items").select("id, qty_on_hand, reorder_level").eq("active", true).limit(2000),
+        auth.supabase
+          .from("store_requisitions")
+          .select("id", { count: "exact", head: true })
+          .eq("status", "draft"),
+      ]);
+      return {
+        low: schemaHint(low.error?.message)
+          ? 0
+          : (low.data || []).filter((row) => Number(row.qty_on_hand) <= Number(row.reorder_level)).length,
+        requisitions: schemaHint(reqs.error?.message) ? 0 : reqs.count ?? 0,
+      };
+    });
+    badges.low = pack.low;
+    badges.requisitions = pack.requisitions;
   }
 
   return (

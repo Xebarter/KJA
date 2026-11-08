@@ -50,6 +50,7 @@ export function ClubsShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const [pending, startTransition] = useTransition();
   const nav = useMemo(
     () =>
@@ -62,7 +63,17 @@ export function ClubsShell({
   );
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     if (isDesktopClient()) return;
@@ -100,7 +111,14 @@ export function ClubsShell({
       <DesktopChrome desk="Clubs" />
       <DeskWarmup eager hrefs={nav.map((item) => item.href)} />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Clubs</strong>
@@ -121,7 +139,14 @@ export function ClubsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="clubs-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Clubs</strong>
@@ -160,6 +185,9 @@ export function ClubsShell({
                 aria-current={active ? "page" : undefined}
                 tabIndex={needsBranchChoice ? -1 : undefined}
                 aria-disabled={needsBranchChoice || undefined}
+                onMouseEnter={() => warm(item.href)}
+                onFocus={() => warm(item.href)}
+                onPointerDown={() => warm(item.href)}
                 onClick={(event) => {
                   if (needsBranchChoice) event.preventDefault();
                 }}

@@ -70,6 +70,14 @@ export function AcademicsShell({
   const search = useRef<HTMLInputElement>(null);
   useEffect(() => setDesktop(isDesktopClient()), []);
   const linkPrefetch = false;
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
   const show = (href: string) => {
     if (pages === null) return true;
     const id = pageIdForPath("academics", href);
@@ -143,7 +151,14 @@ export function AcademicsShell({
         ]}
       />
       <header className="admin-topbar">
-        <Link href={home} className="admin-topbar-brand" prefetch={linkPrefetch}>
+        <Link
+          href={home}
+          className="admin-topbar-brand"
+          prefetch={linkPrefetch}
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -164,7 +179,14 @@ export function AcademicsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="academics-side" className="admin-side">
-        <Link href={home} className="admin-brand" prefetch={linkPrefetch}>
+        <Link
+          href={home}
+          className="admin-brand"
+          prefetch={linkPrefetch}
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Academics office</strong>
@@ -193,7 +215,15 @@ export function AcademicsShell({
             return (
               <Fragment key={item.href}>
                 {divided ? <hr className="admin-nav-rule" /> : null}
-                <Link href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined} prefetch={linkPrefetch}>
+                <Link
+                  href={item.href}
+                  className={active ? "active" : ""}
+                  aria-current={active ? "page" : undefined}
+                  prefetch={linkPrefetch}
+                  onMouseEnter={() => warm(item.href)}
+                  onFocus={() => warm(item.href)}
+                  onPointerDown={() => warm(item.href)}
+                >
                   <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                   <span>{item.label}</span>
                   {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
@@ -203,7 +233,14 @@ export function AcademicsShell({
           })}
           <hr className="admin-nav-rule" />
           {show(`${ACADEMICS_BASE}/attendance`) ? (
-            <Link href={`${ACADEMICS_BASE}/attendance`} className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""} prefetch={linkPrefetch}>
+            <Link
+              href={`${ACADEMICS_BASE}/attendance`}
+              className={pathname === `${ACADEMICS_BASE}/attendance` ? "active" : ""}
+              prefetch={linkPrefetch}
+              onMouseEnter={() => warm(`${ACADEMICS_BASE}/attendance`)}
+              onFocus={() => warm(`${ACADEMICS_BASE}/attendance`)}
+              onPointerDown={() => warm(`${ACADEMICS_BASE}/attendance`)}
+            >
               <i className="fa-solid fa-clipboard-check" aria-hidden="true" />
               <span>Take a register</span>
             </Link>

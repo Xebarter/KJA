@@ -53,6 +53,7 @@ export function AccountsShell({
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const [desktop, setDesktop] = useState(false);
   const search = useRef<HTMLInputElement>(null);
   const show = (href: string) => {
     if (pages === null) return true;
@@ -63,7 +64,17 @@ export function AccountsShell({
   const places = ACCOUNTS_PLACES.filter((place) => show(place.href));
   const current = [...nav].reverse().find((item) => isActive(pathname, item.href))?.label ?? "Overview";
 
+  useEffect(() => setDesktop(isDesktopClient()), []);
   useEffect(() => setOpen(false), [pathname]);
+
+  function warm(href: string) {
+    if (!desktop) return;
+    try {
+      void router.prefetch(href);
+    } catch {
+      /* ignore */
+    }
+  }
 
   useEffect(() => {
     // Desktop: never stampede the local Next host with sidebar prefetches.
@@ -108,7 +119,14 @@ export function AccountsShell({
         ]}
       />
       <header className="admin-topbar">
-        <Link href={home} prefetch={false} className="admin-topbar-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-topbar-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -129,7 +147,14 @@ export function AccountsShell({
       <button className="admin-nav-scrim" type="button" tabIndex={-1} aria-hidden="true" onClick={() => setOpen(false)} />
 
       <aside id="accounts-side" className="admin-side">
-        <Link href={home} prefetch={false} className="admin-brand">
+        <Link
+          href={home}
+          prefetch={false}
+          className="admin-brand"
+          onMouseEnter={() => warm(home)}
+          onFocus={() => warm(home)}
+          onPointerDown={() => warm(home)}
+        >
           <Seal />
           <span>
             <strong>Accounts office</strong>
@@ -165,7 +190,16 @@ export function AccountsShell({
             const active = isActive(pathname, item.href);
             const badge = item.badge ? badges[item.badge] : 0;
             return (
-              <Link key={item.href} href={item.href} className={active ? "active" : ""} aria-current={active ? "page" : undefined}>
+              <Link
+                key={item.href}
+                href={item.href}
+                prefetch={false}
+                className={active ? "active" : ""}
+                aria-current={active ? "page" : undefined}
+                onMouseEnter={() => warm(item.href)}
+                onFocus={() => warm(item.href)}
+                onPointerDown={() => warm(item.href)}
+              >
                 <i className={`fa-solid ${item.icon}`} aria-hidden="true" />
                 <span>{item.label}</span>
                 {badge ? <em className="admin-nav-badge" aria-label={`${badge} to look at`}>{badge > 99 ? "99+" : badge}</em> : null}
