@@ -86,7 +86,14 @@ function collectHeaders(req: http.IncomingMessage): Record<string, string> {
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(req.headers)) {
     if (v == null) continue;
-    out[k] = Array.isArray(v) ? v.join(", ") : v;
+    // Auth/api keys must stay a single token - joining duplicates with ", " makes
+    // PostgREST report "Expected 3 parts in JWT; got 5".
+    if (Array.isArray(v)) {
+      const lower = k.toLowerCase();
+      out[k] = lower === "authorization" || lower === "apikey" ? v[v.length - 1] : v.join(", ");
+      continue;
+    }
+    out[k] = v;
   }
   return out;
 }
@@ -110,8 +117,16 @@ function filterForwardHeaders(headers: Record<string, string>): Record<string, s
   const skip = hopByHop();
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(headers)) {
-    if (skip.has(k.toLowerCase())) continue;
-    out[k] = v;
+    const lower = k.toLowerCase();
+    if (skip.has(lower)) continue;
+    // Collapse Authorization / authorization (and any other case twins) to one entry.
+    // Fetch/undici can emit both, and Supabase joins them into an invalid JWT.
+    if (Object.keys(out).some((existing) => existing.toLowerCase() === lower)) {
+      for (const existing of Object.keys(out)) {
+        if (existing.toLowerCase() === lower) delete out[existing];
+      }
+    }
+    out[lower === "authorization" ? "authorization" : k] = v;
   }
   return out;
 }
@@ -258,8 +273,14 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
     emit();
     try {
       const result = await flushOutbox(store, forward);
-      if (result.failed) lastError = "Some changes could not sync.";
-      else lastError = null;
+      if (result.failed) {
+        const failed = store.pendingOutbox().find((row) => row.status === "failed" && row.error);
+        const detail = failed?.error || "";
+        lastError =
+          /PGRST301|JWT/i.test(detail)
+            ? "Sign-in token was malformed during sync. Click Retry, or sign out and back in."
+            : "Some changes could not sync.";
+      } else lastError = null;
     } catch (e) {
       lastError = e instanceof Error ? e.message : String(e);
     } finally {
@@ -851,7 +872,11 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
       emit();
     }
   };
-  void probeOnce();
+  // Delay the first reachability probe so boot is not racing a 5s upstream abort
+  // while Electron is still loading sign-in (noise + premature "offline").
+  const firstProbe = setTimeout(() => {
+    void probeOnce();
+  }, 8_000);
   const probe = setInterval(() => {
     void probeOnce();
   }, 5_000);
@@ -869,6 +894,7 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
     hydrateUser,
     replayGets: hydrateUser,
     close: async () => {
+      clearTimeout(firstProbe);
       clearInterval(probe);
       await new Promise<void>((resolve) => server.close(() => resolve()));
       store.close();

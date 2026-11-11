@@ -18,6 +18,12 @@ export function academicsSchemaScript(message: string | null | undefined) {
   if (message && /class_notices|notify_my_class|class_teacher_sees_conversation|academic_dates_class_scope|0041_teacher/i.test(message)) {
     return "supabase/0041_teacher_dashboard.sql";
   }
+  if (message && /operational_campus|0081_developmental_assessments_campus/i.test(message)) {
+    return "supabase/0081_developmental_assessments_campus.sql";
+  }
+  if (message && /developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|progress_codes|nursery_divisions|domain_division_links|skill_division_links|progress_legend|0077_nursery_dsba|0078_unify_nursery_progress_scale/i.test(message)) {
+    return "supabase/0077_nursery_dsba.sql";
+  }
   if (message && /subjects_kind_check|0028_subject_kinds|default_skills/i.test(message)) {
     return "supabase/0028_subject_kinds_academic_other.sql";
   }
@@ -69,7 +75,7 @@ export const academicsNav: AcademicsNavItem[] = [
   { href: `${ACADEMICS_BASE}/insights`, label: "Insights", icon: "fa-chart-column", group: "Office", office: true },
   { href: `${ACADEMICS_BASE}/activity`, label: "Activity", icon: "fa-clock-rotate-left", group: "Office", office: true },
   { href: `${ACADEMICS_BASE}/classes`, label: "Classes", icon: "fa-chalkboard", group: "Teaching" },
-  { href: `${ACADEMICS_BASE}/subjects`, label: "Subjects", icon: "fa-book-open", group: "Teaching", office: true },
+  { href: `${ACADEMICS_BASE}/subjects`, label: "Subjects / Domains", icon: "fa-book-open", group: "Teaching", office: true },
   { href: `${ACADEMICS_BASE}/staff`, label: "Staff", icon: "fa-chalkboard-user", group: "Teaching", office: true },
   { href: `${ACADEMICS_BASE}/timetable`, label: "Timetable", icon: "fa-table-cells", group: "Teaching" },
   { href: `${ACADEMICS_BASE}/schemes`, label: "Schemes", icon: "fa-list-check", group: "Teaching", badge: "schemes" },

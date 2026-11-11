@@ -8,7 +8,7 @@ import {
   scaleBands,
   type ReportSet,
 } from "@/lib/academics";
-import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
+import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
 import {
   activeAwards,
   formatPoints,
@@ -255,6 +255,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     { data: pupil },
     { data: lines },
     parts,
+    skillLinesByCard,
     initials,
     bands,
     { data: activityRows },
@@ -265,9 +266,10 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     clubsPack,
     otherSittings,
   ] = await Promise.all([
-    supabase.from("students").select("full_name, student_number, photo_path, campus").eq("id", studentId).maybeSingle(),
+    supabase.from("students").select("full_name, student_number, photo_path, campus, date_of_birth").eq("id", studentId).maybeSingle(),
     supabase.from("report_lines").select("*").eq("report_card_id", id),
     loadReportParts(supabase, [id]),
+    loadReportSkillLines(supabase, [id]),
     card.class_code
       ? loadSubjectInitials(supabase, { termId, classCode: card.class_code, stream: card.stream || "" })
       : Promise.resolve(new Map<string, string>()),
@@ -383,6 +385,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     pupil_name: pupil.full_name,
     student_number: pupil.student_number,
     term_label: termLabel,
+    term_year: num(termMeta?.year),
     report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
@@ -400,6 +403,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     status: card.status,
     student_id: studentId,
     photo_path: pupil.photo_path || null,
+    date_of_birth: (pupil as { date_of_birth?: string | null }).date_of_birth || null,
     activities,
     lines: (lines || [])
       .map((line) => ({
@@ -413,6 +417,8 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
         parts: parts.get(`${id}:${line.subject_id}`) ?? [],
       }))
       .sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
+    skillLines: skillLinesByCard.get(id) || [],
+    progressLegend: parseProgressLegend((card as { progress_legend?: unknown }).progress_legend),
     scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
   };
 
@@ -423,6 +429,8 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
   });
   sheet.fees = closing.fees;
   sheet.next_starts_on = closing.nextStartsOn;
+  sheet.next_ends_on = closing.nextEndsOn;
+  if (sheet.term_year == null && closing.termYear != null) sheet.term_year = closing.termYear;
   sheet.sets = cardSets(id, sheet.lines, parts);
 
   const place = classLabel(card.class_code, card.stream || "");

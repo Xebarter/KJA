@@ -56,6 +56,7 @@ export function DeskForm({
   refresh = true,
   status,
   onIssued,
+  quiet = false,
 }: {
   action: (formData: FormData) => Promise<Outcome>;
   children: React.ReactNode;
@@ -66,6 +67,8 @@ export function DeskForm({
   status?: string;
   /** When an action returns a one-time password (teacher desk login). */
   onIssued?: (issued: { email: string; password: string; temporary?: boolean }) => void;
+  /** Compact actions: no success banner (still shows errors). Avoids layout jumps in chips/rows. */
+  quiet?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -81,7 +84,8 @@ export function DeskForm({
         const submitter = (event.nativeEvent as SubmitEvent).submitter;
         if (submitter instanceof HTMLButtonElement && submitter.name) data.set(submitter.name, submitter.value);
         const button = submitter instanceof HTMLButtonElement ? submitter.innerText : "";
-        setBusyLabel(status || phrase(button));
+        setBusyLabel(status || phrase(button) || (quiet ? "Updating" : "Working"));
+        setResult(null);
         startTransition(async () => {
           const outcome: Outcome = await action(data).catch(() => ({ error: "Something went wrong. Try again." }));
           if (outcome.email && outcome.password && onIssued) {
@@ -92,7 +96,8 @@ export function DeskForm({
             router.refresh();
             return;
           }
-          setResult(outcome);
+          if (outcome.error || !quiet) setResult(outcome);
+          else setResult(null);
           if (outcome.ok && refresh) router.refresh();
         });
       }}
@@ -101,8 +106,8 @@ export function DeskForm({
         {children}
       </fieldset>
       {result?.error ? <p className="acd-feedback is-error" role="alert"><i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {result.error}</p> : null}
-      {result?.ok ? <p className="acd-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p> : null}
-      {result?.email && result?.password && !onIssued ? (
+      {!quiet && result?.ok ? <p className="acd-feedback" role="status"><i className="fa-solid fa-circle-check" aria-hidden="true" /> {result.ok}</p> : null}
+      {!quiet && result?.email && result?.password && !onIssued ? (
         <div className="acd-feedback acd-issued-inline" role="status">
           <p><strong>Teacher desk sign-in</strong>: share now. It will not be shown again.</p>
           <p>Email: <code>{result.email}</code></p>

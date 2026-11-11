@@ -8,6 +8,7 @@ import { openAcademics } from "@/lib/academics-access";
 import { groupOf } from "@/lib/accounts-agg";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
+import { nurseryDivision, type NurseryDivisionId } from "@/lib/nursery-dsba";
 import { isCocurricularSubject } from "@/lib/subject-kind";
 import { fetchAll } from "@/lib/students";
 
@@ -59,12 +60,33 @@ export default async function AssessmentsPage() {
   } catch (error) {
     papersLoadError = error instanceof Error ? error.message : "Assessments could not be loaded.";
   }
-  const [subjectsQuery, pupils, enteredById] = await Promise.all([
+  const [subjectsQuery, pupils, enteredById, dsbaQuery, dsbaRatings, skillLinksQuery] = await Promise.all([
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     term
       ? groupOf(supabase.from("assessment_scores").select("assessment_id, id.count(), assessments!inner(term_id)").eq("assessments.term_id", term.id), "assessment_id", "count")
       : Promise.resolve(new Map<string, number>()),
+    term
+      ? supabase
+          .from("developmental_assessments")
+          .select("id, class_code, stream, name, kind, held_on, status")
+          .eq("term_id", term.id)
+          .order("held_on", { ascending: false })
+      : Promise.resolve({ data: [], error: null }),
+    term
+      ? groupOf(
+          supabase
+            .from("skill_ratings")
+            .select("assessment_id, id.count(), developmental_assessments!inner(term_id)")
+            .eq("developmental_assessments.term_id", term.id)
+            .not("progress_code_id", "is", null),
+          "assessment_id",
+          "count",
+        ).then((map) => map ?? new Map<string, number>())
+      : Promise.resolve(new Map<string, number>()),
+    supabase
+      .from("skill_division_links")
+      .select("division_id, skill_id, developmental_skills!inner(active)"),
   ]);
   if (papersLoadError) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: papersLoadError }} />;
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
@@ -114,33 +136,90 @@ export default async function AssessmentsPage() {
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const groups = groupPupils(pupils);
   const rolls = new Map(groups.map((group) => [`${group.code}|${group.stream}`, group.pupils.length]));
-  const papers: PaperCard[] = rows.map((paper) => {
-    const subject = subjectById.get(paper.subject_id);
-    const subjectKind = subject?.kind === "cocurricular" ? "cocurricular" as const : "core" as const;
-    return {
-      id: paper.id,
-      href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
-      name: paper.name,
-      subject: subject?.name || "Subject",
-      classLabel: classLabel(paper.class_code, paper.stream),
-      classOrder: classOrder(paper.class_code) ?? 99,
-      stream: streamOf(paper.stream),
-      kind: paper.kind,
-      kindLabel: kindLabel(paper.kind),
-      classCode: paper.class_code,
-      status: paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open",
-      weight: Number(paper.weight) || 0,
-      maxScore: Number(paper.max_score) || 100,
-      heldOn: shortDay(paper.held_on),
-      heldOnIso: paper.held_on || "",
-      entered: counts.get(paper.id) || 0,
-      roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
-      nursery: classSection(paper.class_code) === "nursery",
-      subjectOrder: subject?.sort_order ?? 0,
-      subjectKind,
-      skillCount: subjectKind === "cocurricular" ? (subject?.default_skills.length ?? 0) : 0,
-    };
-  });
+  const primaryPapers: PaperCard[] = rows
+    .filter((paper) => classSection(paper.class_code) !== "nursery")
+    .map((paper) => {
+      const subject = subjectById.get(paper.subject_id);
+      const subjectKind = subject?.kind === "cocurricular" ? ("cocurricular" as const) : ("core" as const);
+      return {
+        id: paper.id,
+        href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
+        name: paper.name,
+        subject: subject?.name || "Subject",
+        classLabel: classLabel(paper.class_code, paper.stream),
+        classOrder: classOrder(paper.class_code) ?? 99,
+        stream: streamOf(paper.stream),
+        kind: paper.kind,
+        kindLabel: kindLabel(paper.kind),
+        classCode: paper.class_code,
+        status: paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open",
+        weight: Number(paper.weight) || 0,
+        maxScore: Number(paper.max_score) || 100,
+        heldOn: shortDay(paper.held_on),
+        heldOnIso: paper.held_on || "",
+        entered: counts.get(paper.id) || 0,
+        roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+        nursery: false,
+        subjectOrder: subject?.sort_order ?? 0,
+        subjectKind,
+        skillCount: subjectKind === "cocurricular" ? (subject?.default_skills.length ?? 0) : 0,
+      };
+    });
+
+  const skillsByDivision = new Map<NurseryDivisionId, number>();
+  if (!skillLinksQuery.error) {
+    for (const row of (skillLinksQuery.data || []) as {
+      division_id: string;
+      developmental_skills?: { active?: boolean } | { active?: boolean }[];
+    }[]) {
+      const division = row.division_id as NurseryDivisionId;
+      if (!["rc_c2", "c3", "c4"].includes(division)) continue;
+      const skill = Array.isArray(row.developmental_skills) ? row.developmental_skills[0] : row.developmental_skills;
+      if (skill && skill.active === false) continue;
+      skillsByDivision.set(division, (skillsByDivision.get(division) || 0) + 1);
+    }
+  }
+
+  const dsbaEntered = dsbaRatings instanceof Map ? dsbaRatings : new Map<string, number>();
+  const dsbaPapers: PaperCard[] = !dsbaQuery.error
+    ? ((dsbaQuery.data || []) as {
+        id: string;
+        class_code: string;
+        stream: string;
+        name: string;
+        kind: string;
+        held_on: string | null;
+        status: string | null;
+      }[]).map((paper) => {
+        const division = nurseryDivision(paper.class_code);
+        const skillCount = division ? skillsByDivision.get(division) || 0 : 0;
+        return {
+          id: paper.id,
+          href: `${ACADEMICS_BASE}/assessments/dsba/${paper.id}`,
+          name: paper.name,
+          subject: "Developmental skills",
+          classLabel: classLabel(paper.class_code, paper.stream),
+          classOrder: classOrder(paper.class_code) ?? 99,
+          stream: streamOf(paper.stream),
+          kind: paper.kind,
+          kindLabel: kindLabel(paper.kind),
+          classCode: paper.class_code,
+          status: paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open",
+          weight: 0,
+          maxScore: 0,
+          heldOn: shortDay(paper.held_on),
+          heldOnIso: paper.held_on || "",
+          entered: dsbaEntered.get(paper.id) || 0,
+          roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+          nursery: true,
+          subjectOrder: 0,
+          subjectKind: "core" as const,
+          skillCount,
+        };
+      })
+    : [];
+
+  const papers: PaperCard[] = [...dsbaPapers, ...primaryPapers];
   const otherPaperCount = papers.filter((paper) => paper.subjectKind === "cocurricular").length;
   const openCount = papers.filter((paper) => paper.status === "open").length;
   const waitingCount = papers.filter((paper) => paper.status === "submitted").length;
@@ -184,20 +263,25 @@ export default async function AssessmentsPage() {
               <SetAssessment
                 key="set-assessment"
                 termId={term.id}
+                campuses={campuses}
                 kinds={ASSESSMENT_KINDS.map((kind) => ({
                   value: kind.value,
                   label: kind.label,
                   weight: kind.weight,
                   name: kind.value === "endterm" ? "End of term examinations" : kind.value === "midterm" ? "Midterm examinations" : kind.value === "bot" ? "Beginning of term" : "Class test",
                 }))}
-                classes={groups.reduce<{ value: string; label: string; section: "nursery" | "primary"; subjects: number; streams: number }[]>((options, group) => {
-                  const existing = options.find((option) => option.value === group.code);
+                classes={groups.reduce<{ value: string; label: string; section: "nursery" | "primary"; subjects: number; streams: number; campus: string }[]>((options, group) => {
+                  const existing = options.find((option) => option.campus === group.campus && option.value === group.code);
                   if (existing) existing.streams += 1;
                   else options.push({
                     value: group.code,
                     label: group.name,
                     section: group.section,
-                    subjects: subjects.filter((subject) => subjectFits(subject, group.code)).length,
+                    campus: group.campus,
+                    // Nursery: one developmental sitting per stream; primary: subject markbooks.
+                    subjects: group.section === "nursery"
+                      ? 1
+                      : subjects.filter((subject) => subjectFits(subject, group.code)).length,
                     streams: 1,
                   });
                   return options;

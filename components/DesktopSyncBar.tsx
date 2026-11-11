@@ -145,8 +145,8 @@ export function DesktopSyncBar() {
 
   const label = offline
     ? status.pending === 1
-      ? "1 change waiting — will sync when you’re back online"
-      : `${status.pending} changes waiting — will sync when you’re back online`
+      ? "1 change waiting will sync when you’re back online"
+      : `${status.pending} changes waiting will sync when you’re back online`
     : status.flushing
       ? "Sending saved changes…"
       : status.pending === 1

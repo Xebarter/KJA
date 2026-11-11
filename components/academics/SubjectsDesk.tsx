@@ -20,6 +20,9 @@ export type SubjectClass = {
   section: "nursery" | "primary";
 };
 
+/** Primary-facing bands only — nursery uses DomainsDesk / DSBA. */
+const SUBJECT_FORM_BANDS = SUBJECT_BANDS.filter((band) => band.id !== "nursery");
+
 const SECTIONS = [
   { value: "", label: "All" },
   ...SUBJECT_BANDS.map((band) => ({ value: band.id, label: band.label })),
@@ -43,16 +46,6 @@ function classOn(section: SubjectRow["section"], entry: SubjectClass, from: numb
   if (from != null && entry.order < from) return false;
   if (to != null && entry.order > to) return false;
   return true;
-}
-
-function ClassMarks({ section, from, to, classes }: { section: SubjectRow["section"]; from: number | null; to: number | null; classes: SubjectClass[] }) {
-  return (
-    <span className="asb-marks" aria-hidden="true">
-      {classes.map((entry) => (
-        <i key={entry.code} className={classOn(section, entry, from, to) ? "is-on" : ""} />
-      ))}
-    </span>
-  );
 }
 
 export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow[]; classes: SubjectClass[]; save: SaveSubject }) {
@@ -102,7 +95,8 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
     });
   }, [rows, query, section, onlyHidden]);
 
-  const groups = (section ? SUBJECT_BANDS.filter((band) => band.id === section) : [...SUBJECT_BANDS])
+  const catalogueBands = SUBJECT_BANDS.filter((band) => band.id !== "nursery");
+  const groups = (section ? catalogueBands.filter((band) => band.id === section) : catalogueBands)
     .map((band) => ({
       key: band.id,
       label: band.label,
@@ -125,33 +119,60 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
 
   return (
     <>
-      <section className="asb-board" aria-label="Subject catalogue">
-        <header className="asb-cap">
-          <p>Subject catalogue</p>
-          <p>{nf(rows.length)} on the list</p>
-        </header>
-        <div className="asb-board-main">
-          <div className="asb-hero">
+      <section className="asb-strip" aria-label="Subject snapshot">
+        <div>
+          <span className="asb-strip-icon" aria-hidden="true">
+            <i className="fa-solid fa-book-open" />
+          </span>
+          <div>
             <span>Shown</span>
             <strong>{nf(active.length)}</strong>
-            <p>{hidden ? `${nf(hidden)} hidden from class lists` : "Every subject is visible to teachers"}</p>
+            <small>{hidden ? `${nf(hidden)} hidden` : "All visible"}</small>
           </div>
-          <ul className="asb-figs">
-            {SUBJECT_BANDS.map((band) => (
-              <li key={band.id}>
-                <div className="asb-fig">
-                  <span>{band.label}</span>
-                  <strong>{nf(bandCount(band.id))}</strong>
-                  <small>{band.hint}</small>
-                </div>
-              </li>
-            ))}
-          </ul>
+        </div>
+        {catalogueBands.map((band) => (
+          <div key={band.id}>
+            <span className="asb-strip-icon" aria-hidden="true">
+              <i className="fa-solid fa-layer-group" />
+            </span>
+            <div>
+              <span>{band.label}</span>
+              <strong>{nf(bandCount(band.id))}</strong>
+              <small>{band.hint}</small>
+            </div>
+          </div>
+        ))}
+        <div>
+          <span className="asb-strip-icon" aria-hidden="true">
+            <i className="fa-solid fa-masks-theater" />
+          </span>
+          <div>
+            <span>Other</span>
+            <strong>{nf(active.filter((subject) => subject.kind === "cocurricular").length)}</strong>
+            <small>Co-curricular</small>
+          </div>
         </div>
       </section>
 
       <div className="asb-layout">
-        <section className="asb-desk" aria-label="Subjects">
+        <section className="asb-panel asb-desk" aria-label="Subjects">
+          <div className="asb-panel-head">
+            <div>
+              <h2>Choose a subject</h2>
+              <p>Search the catalogue, then edit identity, type, and class span in the side panel.</p>
+            </div>
+            <div className="asb-panel-actions">
+              {narrowed ? (
+                <button type="button" className="asb-clear" onClick={clearFilters}>
+                  Clear filters
+                </button>
+              ) : null}
+              <button type="button" className={`asb-add${current ? "" : " is-on"}`} onClick={() => pick(null)}>
+                <i className="fa-solid fa-plus" aria-hidden="true" /> Add subject
+              </button>
+            </div>
+          </div>
+
           <div className="asb-finder">
             <label className="asb-search">
               <i className="fa-solid fa-magnifying-glass" aria-hidden="true" />
@@ -170,8 +191,14 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
             </label>
             <div className="asb-filters">
               <div className="asb-chips" role="group" aria-label="Section">
-                {SECTIONS.map((entry) => (
-                  <button key={entry.value || "all"} type="button" aria-pressed={section === entry.value} className={section === entry.value ? "is-on" : ""} onClick={() => setSection(entry.value)}>
+                {SECTIONS.filter((entry) => entry.value !== "nursery").map((entry) => (
+                  <button
+                    key={entry.value || "all"}
+                    type="button"
+                    aria-pressed={section === entry.value}
+                    className={section === entry.value ? "is-on" : ""}
+                    onClick={() => setSection(entry.value)}
+                  >
                     {entry.label}
                   </button>
                 ))}
@@ -181,58 +208,66 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
                   </button>
                 ) : null}
               </div>
+              <p className="asb-count-line">
+                {narrowed ? `${nf(visible.length)} of ${nf(rows.length)}` : `${nf(visible.length)} subject${visible.length === 1 ? "" : "s"}`}
+              </p>
             </div>
           </div>
 
-          <div className="asb-count">
-            <p>{narrowed ? `${nf(visible.length)} of ${nf(rows.length)}` : `${nf(visible.length)} subject${visible.length === 1 ? "" : "s"}`}</p>
-            <div>
-              {narrowed ? <button type="button" className="asb-clear" onClick={clearFilters}>Clear filters</button> : null}
-              <button type="button" className={`asb-add${current ? "" : " is-on"}`} onClick={() => pick(null)}>
-                <i className="fa-solid fa-plus" aria-hidden="true" /> Add subject
-              </button>
-            </div>
-          </div>
-
-          {groups.length ? groups.map((group) => (
-            <div className="asb-group" key={group.key}>
-              <header>
-                <h2>{group.label}</h2>
-                <span>{nf(group.rows.length)}</span>
-              </header>
-              <ul>
-                {group.rows.map((subject) => {
-                  const on = subject.id === selected;
-                  return (
-                    <li key={`${group.key}-${subject.id}`}>
-                      <button type="button" className={`asb-row${on ? " is-on" : ""}${subject.active ? "" : " is-hidden"}`} aria-pressed={on} onClick={() => pick(subject.id)}>
-                        <span className="asb-code">{subject.code}</span>
-                        <span className="asb-who">
-                          <strong>{subject.name}</strong>
-                          <small>
-                            {subject.kind === "cocurricular" ? `${subjectKindLabel(subject.kind)} · ` : ""}
-                            {spanText(subject)}
-                            {subject.active ? "" : " · Hidden"}
-                          </small>
-                        </span>
-                        <ClassMarks section={subject.section} from={subject.applies_from} to={subject.applies_to} classes={classes} />
-                        <i className="fa-solid fa-chevron-right asb-go" aria-hidden="true" />
-                      </button>
-                    </li>
-                  );
-                })}
-              </ul>
-            </div>
-          )) : (
+          {groups.length ? (
+            groups.map((group) => (
+              <div className="asb-group" key={group.key}>
+                <header>
+                  <h2>{group.label}</h2>
+                  <span>{nf(group.rows.length)}</span>
+                </header>
+                <ul className="asb-list">
+                  {group.rows.map((subject, index) => {
+                    const on = subject.id === selected;
+                    return (
+                      <li key={`${group.key}-${subject.id}`}>
+                        <button
+                          type="button"
+                          className={`asb-row${on ? " is-on" : ""}${subject.active ? "" : " is-hidden"}`}
+                          data-tone={String(index % 8)}
+                          aria-pressed={on}
+                          onClick={() => pick(subject.id)}
+                        >
+                          <span className="asb-row-icon" aria-hidden="true">
+                            <i className={`fa-solid ${subject.kind === "cocurricular" ? "fa-masks-theater" : "fa-table-list"}`} />
+                          </span>
+                          <span className="asb-who">
+                            <strong>{subject.name}</strong>
+                            <small>
+                              {subject.code}
+                              {subject.kind === "cocurricular" ? ` · ${subjectKindLabel(subject.kind)}` : ""}
+                              {` · ${spanText(subject)}`}
+                              {subject.active ? "" : " · Hidden"}
+                            </small>
+                          </span>
+                          <span className={`asb-badge${subject.active ? "" : " is-locked"}`}>{subject.active ? "Active" : "Hidden"}</span>
+                          <span className="asb-go">
+                            Open <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                          </span>
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ))
+          ) : (
             <div className="asb-empty">
-              <span><i className="fa-regular fa-book-open" aria-hidden="true" /></span>
+              <span>
+                <i className="fa-regular fa-book-open" aria-hidden="true" />
+              </span>
               <h2>{rows.length ? "Nothing matches" : "No subjects yet"}</h2>
               <p>{rows.length ? "Try another name, or clear the filters." : "Add the first subject in the panel."}</p>
             </div>
           )}
         </section>
 
-        <aside className="asb-editor" ref={editorRef} aria-label={current ? `Edit ${current.name}` : "Add a subject"}>
+        <aside className="asb-panel asb-editor" ref={editorRef} aria-label={current ? `Edit ${current.name}` : "Add a subject"}>
           <SubjectForm key={current?.id ?? "new"} subject={current} classes={classes} save={commit} />
         </aside>
       </div>
@@ -248,7 +283,9 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
   const [code, setCode] = useState("");
   const [kind, setKind] = useState<SubjectKind>(subject?.kind === "cocurricular" ? "cocurricular" : "core");
   const [skills, setSkills] = useState((subject?.default_skills || []).join(", "));
-  const [picked, setPicked] = useState<SubjectBandId[]>(subject ? bandsForSubject(subject) : ["lower", "upper"]);
+  const [picked, setPicked] = useState<SubjectBandId[]>(
+    subject ? bandsForSubject(subject).filter((band) => band !== "nursery") : ["lower", "upper"],
+  );
   const [active, setActive] = useState(subject ? subject.active : true);
   const [confirming, setConfirming] = useState(false);
 
@@ -356,7 +393,7 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
         <div className="asb-block">
           <p className="asb-step" id={sectionId}><span>3</span> Taught in</p>
           <div className="asb-seg is-bands" role="group" aria-labelledby={sectionId}>
-            {SUBJECT_BANDS.map((band) => {
+            {SUBJECT_FORM_BANDS.map((band) => {
               const on = picked.includes(band.id);
               return (
                 <label key={band.id} className={on ? "is-on" : ""}>
@@ -367,7 +404,7 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
               );
             })}
           </div>
-          <p className="asb-band-note">Sections between your picks are included automatically.</p>
+          <p className="asb-band-note">Nursery uses Domains (Developmental Skills-Based Assessment), not subjects.</p>
         </div>
 
         {isOther ? (

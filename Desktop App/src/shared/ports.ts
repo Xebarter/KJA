@@ -42,7 +42,7 @@ export const CRITICAL_HYDRATE_PATHS = [
   "/rest/v1/teaching_staff?select=id,full_name,initials,title,campus,email,phone,active&active=eq.true&order=full_name.asc",
   "/rest/v1/grade_bands?select=*&order=section.asc,sort_order.asc",
   "/rest/v1/division_bands?select=*&order=track.asc,sort_order.asc",
-  "/rest/v1/class_teachers?select=id,term_id,campus,class_code,stream,staff_id&order=class_code.asc",
+  "/rest/v1/class_teachers?select=id,term_id,campus,class_code,stream,staff_id,role&order=class_code.asc",
   "/rest/v1/subject_teachers?select=id,term_id,campus,class_code,stream,subject_id,staff_id&order=class_code.asc",
   "/rest/v1/timetable_slots?select=*&order=weekday.asc,period.asc&limit=2000",
   // Register (columns used by Admissions Overview counts + lists)
@@ -108,8 +108,9 @@ export const CRITICAL_HYDRATE_PATHS = [
 /**
  * Hard cap for `loadURL` of the staff gate when Next was already warm.
  * Keep-warm hosts that accept TCP but never finish SSR stuck the splash at 94%.
+ * Allow enough time for a first-hit recompile after desk code changes in `next dev`.
  */
-export const DESK_LOAD_TIMEOUT_MS = 8_000;
+export const DESK_LOAD_TIMEOUT_MS = 18_000;
 
 /** First paint after a cold `next` start can compile the login route - allow longer. */
 export const DESK_LOAD_COLD_TIMEOUT_MS = 45_000;

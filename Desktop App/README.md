@@ -71,7 +71,7 @@ npm run dev
 7. Do **not** run website `next dev` and Desktop App at the same time against a shared cache — they use separate folders (`.next` vs `.next-desktop`).
 8. Installer output is under `Desktop App/release/` (`KJA-Staff-Desktop-Setup-<version>.exe`).
 9. Close any running Staff Desktop (and free `release/win-unpacked`) before packing — Windows locks `app.asar` otherwise.
-10. Apply pending Supabase SQL (through `0071_system_logs.sql`) on the live project before relying on Logs offline snapshots.
+10. Apply pending Supabase SQL (through `0073_accounts_club_consent.sql`) on the live project before relying on Logs / club expenses / consent offline snapshots.
 11. `pack:next` deletes `.next-desktop` before building so a prior Desktop `next dev` cannot leave a truncated App Router manifest (that showed as a black desk after install).
 
 ## Website hooks (desktop-gated)

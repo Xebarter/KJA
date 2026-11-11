@@ -1,4 +1,4 @@
-import { readFile } from "fs/promises";
+import { readdir, readFile } from "fs/promises";
 import path from "path";
 import type { ReactElement } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
@@ -16,8 +16,10 @@ async function renderMarkup(element: ReactElement) {
 
 let cachedCss: string | null = null;
 let cachedCrest: string | null = null;
+let cachedNurseryArt: Map<string, string> | null = null;
 let cssReady: Promise<string> | null = null;
 let crestReady: Promise<string> | null = null;
+let nurseryArtReady: Promise<Map<string, string>> | null = null;
 
 async function inlineFontUrls(css: string) {
   const publicDir = path.join(process.cwd(), "public");
@@ -60,6 +62,7 @@ async function printStyles() {
       `html, body { margin: 0; padding: 0; width: 100%; }`,
       `.rpt-print-pack, .rpt-print-sheets { margin: 0; padding: 0; width: 100%; }`,
       `@media print { .rpt-print-pack .acd-sheet { max-width: 100%; margin: 0 auto; } }`,
+      `@media print { .rpt-print-pack .acd-sheet.is-nursery-dsba { height: auto; overflow: visible; } }`,
     ].join("\n");
     return cachedCss;
   })().finally(() => {
@@ -101,6 +104,56 @@ async function crestDataUri() {
   return crestReady;
 }
 
+/** Inline nursery domain illustrations so offline Playwright PDF does not miss them. */
+async function nurseryArtDataUris() {
+  if (cachedNurseryArt) return cachedNurseryArt;
+  if (nurseryArtReady) return nurseryArtReady;
+  nurseryArtReady = (async () => {
+    const map = new Map<string, string>();
+    const dir = path.join(process.cwd(), "public/nursery_report");
+    try {
+      const files = await readdir(dir);
+      await Promise.all(
+        files
+          .filter((name) => /\.(png|jpe?g|webp|gif)$/i.test(name))
+          .map(async (name) => {
+            try {
+              const bytes = await readFile(path.join(dir, name));
+              const lower = name.toLowerCase();
+              const mime = lower.endsWith(".jpg") || lower.endsWith(".jpeg")
+                ? "image/jpeg"
+                : lower.endsWith(".webp")
+                  ? "image/webp"
+                  : lower.endsWith(".gif")
+                    ? "image/gif"
+                    : "image/png";
+              const data = `data:${mime};base64,${bytes.toString("base64")}`;
+              map.set(`/nursery_report/${name}`, data);
+              map.set(`/nursery_report/${encodeURIComponent(name)}`, data);
+            } catch {
+              // Skip unreadable assets.
+            }
+          }),
+      );
+    } catch {
+      // Folder may be empty or missing in some environments.
+    }
+    cachedNurseryArt = map;
+    return map;
+  })().finally(() => {
+    nurseryArtReady = null;
+  });
+  return nurseryArtReady;
+}
+
+function inlineNurseryArt(html: string, art: Map<string, string>) {
+  let next = html;
+  for (const [fileUrl, data] of art) {
+    next = next.replaceAll(`src="${fileUrl}"`, `src="${data}"`);
+  }
+  return next;
+}
+
 /** Self-contained HTML for Playwright - same ReportSheet look, no office shell. */
 export async function buildReportPrintHtml(input: {
   origin: string;
@@ -108,7 +161,11 @@ export async function buildReportPrintHtml(input: {
   cards: StreamReportCard[];
   photos: Map<string, Uint8Array>;
 }): Promise<string> {
-  const [css, crest] = await Promise.all([printStyles(), crestDataUri()]);
+  const [css, crest, nurseryArt] = await Promise.all([
+    printStyles(),
+    crestDataUri(),
+    input.nursery ? nurseryArtDataUris() : Promise.resolve(new Map<string, string>()),
+  ]);
   const qrs = await Promise.all(
     input.cards.map(async (card) => {
       const href = reportOnlineUrl(card.id);
@@ -137,8 +194,9 @@ export async function buildReportPrintHtml(input: {
     </div>,
   );
 
-  // Crest paths in the sheet markup stay as /images/icon.png - rewrite to data URI.
+  // Crest / nursery art paths in the sheet markup stay as public URLs - rewrite to data URIs.
   const withCrest = body.replaceAll('src="/images/icon.png"', `src="${crest}"`);
+  const withArt = inlineNurseryArt(withCrest, nurseryArt);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -146,6 +204,6 @@ export async function buildReportPrintHtml(input: {
 <meta charset="utf-8" />
 <style>${css}</style>
 </head>
-<body>${withCrest}</body>
+<body>${withArt}</body>
 </html>`;
 }

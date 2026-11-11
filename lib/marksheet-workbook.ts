@@ -1,5 +1,14 @@
 import ExcelJS from "exceljs";
+import { MARKSHEET_FONT_FAMILY } from "@/lib/marksheet-fonts";
+import {
+  MARKSHEET_GROUP_PALETTE,
+  marksheetSubjectGroups,
+  type MarksheetSubjectColumn,
+} from "@/lib/marksheet-groups";
 import type { MarksheetTone } from "@/lib/marksheet-order";
+
+export type { MarksheetSubjectColumn, MarksheetSubjectGroup } from "@/lib/marksheet-groups";
+export { MARKSHEET_GROUP_PALETTE, marksheetSubjectGroups } from "@/lib/marksheet-groups";
 
 const SCHOOL = "Kampala Junior Academy";
 const NAVY = "FF19232B";
@@ -14,7 +23,10 @@ const GREEN = "FF127238";
 const RED = "FF9A3040";
 const AMBER = "FF8A5A12";
 const GOLD_WASH = "FFF8F1D4";
-const HEADER_ROW = 7;
+const LETTERHEAD_LAST = 6;
+/** Public header logo is 906×220 — keep that aspect in the sheet brand. */
+const LOGO_W = 164;
+const LOGO_H = 40;
 
 export type MarksheetWorkbookMark = {
   /** Number for a primary mark. Band label, Abs, or an em dash otherwise. */
@@ -33,7 +45,7 @@ export type MarksheetWorkbookInput = {
   sortLabel: string;
   combined?: boolean;
   nursery: boolean;
-  subjects: { name: string; maxScore: number; average: number | null }[];
+  subjects: MarksheetSubjectColumn[];
   pupils: {
     number: string;
     name: string;
@@ -54,7 +66,7 @@ const grid = (): Partial<ExcelJS.Borders> => {
   return { top: edge, left: edge, bottom: edge, right: edge };
 };
 const font = (size: number, color: string, bold = false, extra: Partial<ExcelJS.Font> = {}): Font => ({
-  name: "Calibri",
+  name: MARKSHEET_FONT_FAMILY,
   size,
   bold,
   color: { argb: color },
@@ -136,9 +148,18 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   workbook.created = new Date();
   workbook.modified = new Date();
 
+  const groups = marksheetSubjectGroups(input.subjects);
+  const hasGroups = groups.length > 0;
+  const groupRow = hasGroups ? LETTERHEAD_LAST + 1 : null;
+  const headerRow = hasGroups ? LETTERHEAD_LAST + 2 : LETTERHEAD_LAST + 1;
+  const subjectPalette = input.subjects.map((_subject, index) => {
+    const group = groups.find((entry) => index >= entry.start && index < entry.start + entry.count);
+    return group ? group.paletteIndex : null;
+  });
+
   const sheet = workbook.addWorksheet(sheetTitle(input.classLabel), {
     properties: { tabColor: { argb: NAVY }, showGridLines: false },
-    views: [{ state: "frozen", xSplit: 3, ySplit: HEADER_ROW, showGridLines: false, activeCell: "D8" }],
+    views: [{ state: "frozen", xSplit: 3, ySplit: headerRow, showGridLines: false, activeCell: `D${headerRow + 1}` }],
     pageSetup: {
       orientation: "landscape",
       paperSize: 9,
@@ -146,7 +167,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
       fitToWidth: 1,
       fitToHeight: 0,
       horizontalCentered: true,
-      printTitlesRow: `${HEADER_ROW}:${HEADER_ROW}`,
+      printTitlesRow: hasGroups ? `${groupRow}:${headerRow}` : `${headerRow}:${headerRow}`,
       margins: { left: 0.45, right: 0.45, top: 0.55, bottom: 0.55, header: 0.25, footer: 0.3 },
     },
   });
@@ -156,7 +177,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   const positionCol = averageCol + 1;
   const lastCol = positionCol;
   const pupilCount = input.pupils.length;
-  const firstData = HEADER_ROW + 1;
+  const firstData = headerRow + 1;
   const lastData = firstData + Math.max(pupilCount, 1) - 1;
   const foot = lastData + 1;
   const close = foot + 2;
@@ -170,26 +191,43 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   sheet.getColumn(averageCol).width = 13;
   sheet.getColumn(positionCol).width = 12;
 
+  const hasLogo = Boolean(input.logo?.byteLength);
+  const brandCol = hasLogo ? 3 : 2;
+
   sheet.getRow(1).height = 8;
   merge(sheet, 1, 1, lastCol, "", { fill: solid(GOLD) });
 
-  sheet.getRow(2).height = 18;
+  sheet.getRow(2).height = hasLogo ? 22 : 18;
   paint(sheet.getCell(2, 1), { fill: solid(WHITE) });
-  merge(sheet, 2, 2, Math.max(2, lastCol - 2), SCHOOL.toUpperCase(), {
-    font: font(11, NAVY, true),
-    fill: solid(WHITE),
-    alignment: { vertical: "middle" },
-  });
-  merge(sheet, 2, Math.max(3, lastCol - 1), lastCol, input.term, {
-    font: font(10, MUTED),
-    fill: solid(WHITE),
-    alignment: { vertical: "middle", horizontal: "right" },
-  });
+  if (hasLogo) {
+    for (let column = 1; column < brandCol; column += 1) paint(sheet.getCell(2, column), { fill: solid(WHITE) });
+    merge(sheet, 2, brandCol, lastCol, input.term, {
+      font: font(10, MUTED),
+      fill: solid(WHITE),
+      alignment: { vertical: "middle", horizontal: "right" },
+    });
+  } else {
+    merge(sheet, 2, 2, Math.max(2, lastCol - 2), SCHOOL.toUpperCase(), {
+      font: font(11, NAVY, true),
+      fill: solid(WHITE),
+      alignment: { vertical: "middle" },
+    });
+    merge(sheet, 2, Math.max(3, lastCol - 1), lastCol, input.term, {
+      font: font(10, MUTED),
+      fill: solid(WHITE),
+      alignment: { vertical: "middle", horizontal: "right" },
+    });
+  }
 
-  sheet.getRow(3).height = 28;
+  sheet.getRow(3).height = hasLogo ? 26 : 28;
   paint(sheet.getCell(3, 1), { fill: solid(WHITE), border: { bottom: side("medium", GOLD) } });
-  merge(sheet, 3, 2, lastCol, input.name, {
-    font: font(22, NAVY, true),
+  if (hasLogo) {
+    for (let column = 1; column < brandCol; column += 1) {
+      paint(sheet.getCell(3, column), { fill: solid(WHITE), border: { bottom: side("medium", GOLD) } });
+    }
+  }
+  merge(sheet, 3, brandCol, lastCol, input.name, {
+    font: font(20, NAVY, true),
     fill: solid(WHITE),
     alignment: { vertical: "middle" },
     border: { bottom: side("medium", GOLD) },
@@ -199,7 +237,10 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   const count = `${pupilCount} ${pupilCount === 1 ? "pupil" : "pupils"}`;
   sheet.getRow(4).height = 18;
   paint(sheet.getCell(4, 1), { fill: solid(WHITE) });
-  merge(sheet, 4, 2, lastCol, `${input.classLabel}    ·    ${input.kindLabel}    ·    ${held}    ·    ${count}`, {
+  if (hasLogo) {
+    for (let column = 1; column < brandCol; column += 1) paint(sheet.getCell(4, column), { fill: solid(WHITE) });
+  }
+  merge(sheet, 4, brandCol, lastCol, `${input.classLabel}    ·    ${input.kindLabel}    ·    ${held}    ·    ${count}`, {
     font: font(11, INK),
     fill: solid(WHITE),
     alignment: { vertical: "middle" },
@@ -217,27 +258,53 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   sheet.getRow(6).height = 8;
   merge(sheet, 6, 1, lastCol, "", { fill: solid(WHITE) });
 
-  sheet.getRow(HEADER_ROW).height = 34;
-  const headers: { col: number; text: string; align: "left" | "center" }[] = [
-    { col: 1, text: "No.", align: "center" },
-    { col: 2, text: "Student no.", align: "left" },
-    { col: 3, text: "Pupil", align: "left" },
+  if (hasGroups && groupRow !== null) {
+    sheet.getRow(groupRow).height = 18;
+    merge(sheet, groupRow, 1, 3, "", {
+      fill: solid(NAVY),
+      border: { bottom: side("thin", GOLD) },
+    });
+    merge(sheet, groupRow, averageCol, positionCol, "", {
+      fill: solid(NAVY),
+      border: { bottom: side("thin", GOLD) },
+    });
+    groups.forEach((group) => {
+      const palette = MARKSHEET_GROUP_PALETTE[group.paletteIndex];
+      const from = firstSubject + group.start;
+      const to = from + group.count - 1;
+      merge(sheet, groupRow, from, to, group.label, {
+        font: font(9, WHITE, true),
+        fill: solid(palette.header),
+        alignment: { vertical: "middle", horizontal: "center" },
+        border: { bottom: side("thin", GOLD) },
+      });
+    });
+  }
+
+  sheet.getRow(headerRow).height = 34;
+  const headers: { col: number; text: string; align: "left" | "center"; paletteIndex: number | null }[] = [
+    { col: 1, text: "No.", align: "center", paletteIndex: null },
+    { col: 2, text: "Student no.", align: "left", paletteIndex: null },
+    { col: 3, text: "Pupil", align: "left", paletteIndex: null },
   ];
   input.subjects.forEach((subject, index) => {
     headers.push({
       col: firstSubject + index,
       text: input.nursery ? `${subject.name}\nProgress` : subject.maxScore > 0 ? `${subject.name}\nout of ${subject.maxScore}` : `${subject.name}\nMark`,
       align: "center",
+      paletteIndex: subjectPalette[index],
     });
   });
-  headers.push({ col: averageCol, text: "Average", align: "center" });
-  headers.push({ col: positionCol, text: "Position", align: "center" });
+  headers.push({ col: averageCol, text: "Average", align: "center", paletteIndex: null });
+  headers.push({ col: positionCol, text: "Position", align: "center", paletteIndex: null });
   headers.forEach((header) => {
-    const cell = sheet.getCell(HEADER_ROW, header.col);
+    const cell = sheet.getCell(headerRow, header.col);
     cell.value = header.text;
+    const tinted = header.paletteIndex !== null;
+    const palette = tinted ? MARKSHEET_GROUP_PALETTE[header.paletteIndex] : null;
     paint(cell, {
-      font: font(10, WHITE, true),
-      fill: solid(NAVY),
+      font: font(10, tinted ? palette!.ink : WHITE, true),
+      fill: solid(tinted ? palette!.headerSoft : NAVY),
       alignment: { vertical: "middle", horizontal: header.align, wrapText: true },
       border: { bottom: side("medium", GOLD) },
     });
@@ -248,16 +315,17 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
     const rowNumber = firstData + index;
     const row = sheet.getRow(rowNumber);
     row.height = 20;
-    const fill = solid(index % 2 === 0 ? WHITE : ZEBRA);
+    const zebra = index % 2 !== 0;
+    const baseFill = solid(zebra ? ZEBRA : WHITE);
     const no = sheet.getCell(rowNumber, 1);
     no.value = index + 1;
-    paint(no, { font: font(10, MUTED, true), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
+    paint(no, { font: font(10, MUTED, true), fill: baseFill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
 
     const studentNo = sheet.getCell(rowNumber, 2);
     studentNo.value = pupil.number || "-";
     paint(studentNo, {
       font: font(10, pupil.number ? INK : "FFC4BBAE", false),
-      fill,
+      fill: baseFill,
       alignment: { vertical: "middle", horizontal: "left" },
       border: grid(),
       numFmt: "@",
@@ -265,21 +333,26 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
 
     const name = sheet.getCell(rowNumber, 3);
     name.value = pupil.name;
-    paint(name, { font: font(11, INK, true), fill, alignment: { vertical: "middle", horizontal: "left", indent: 1 }, border: grid() });
+    paint(name, { font: font(11, INK, true), fill: baseFill, alignment: { vertical: "middle", horizontal: "left", indent: 1 }, border: grid() });
 
     pupil.marks.forEach((mark, markIndex) => {
+      const paletteIndex = subjectPalette[markIndex];
+      const fill =
+        paletteIndex === null
+          ? baseFill
+          : solid(zebra ? MARKSHEET_GROUP_PALETTE[paletteIndex].bodyAlt : MARKSHEET_GROUP_PALETTE[paletteIndex].body);
       writeMark(sheet.getCell(rowNumber, firstSubject + markIndex), mark, fill);
     });
 
     const average = sheet.getCell(rowNumber, averageCol);
     if (pupil.average === null) {
       average.value = "-";
-      paint(average, { font: font(11, "FFC4BBAE", false), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
+      paint(average, { font: font(11, "FFC4BBAE", false), fill: baseFill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     } else {
       average.value = pupil.average;
       paint(average, {
         font: markFont(pupil.average >= 80 ? "high" : pupil.average < 50 ? "low" : "mid"),
-        fill,
+        fill: baseFill,
         alignment: { vertical: "middle", horizontal: "center" },
         border: grid(),
         numFmt: '0.0"%"',
@@ -290,12 +363,12 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
     const placed = pupil.position !== null && pupil.position <= 3;
     if (pupil.position === null) {
       position.value = "-";
-      paint(position, { font: font(11, "FFC4BBAE", false), fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
+      paint(position, { font: font(11, "FFC4BBAE", false), fill: baseFill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
     } else {
       position.value = pupil.position;
       paint(position, {
         font: font(12, NAVY, true),
-        fill: placed ? solid(GOLD_WASH) : fill,
+        fill: placed ? solid(GOLD_WASH) : baseFill,
         alignment: { vertical: "middle", horizontal: "center" },
         border: grid(),
         numFmt: "0",
@@ -360,7 +433,10 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
 
   if (input.logo?.byteLength) {
     const logoId = workbook.addImage({ base64: Buffer.from(input.logo).toString("base64"), extension: "png" });
-    sheet.addImage(logoId, { tl: { col: 0.15, row: 1.15 }, ext: { width: 40, height: 40 } });
+    sheet.addImage(logoId, {
+      tl: { col: 0.12, row: 1.2 },
+      ext: { width: LOGO_W, height: LOGO_H },
+    });
   }
 
   const raw = await workbook.xlsx.writeBuffer();

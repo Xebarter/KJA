@@ -83,7 +83,7 @@ export default async function PupilPage({ params }: { params: Promise<{ id: stri
       ? supabase.from("learner_interventions").select("id, reason, note, follow_up_on, status").eq("student_id", id).eq("term_id", term.id).order("created_at", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
     term && row.class_code
-      ? supabase.from("class_teachers").select("teaching_staff(full_name)").eq("term_id", term.id).eq("class_code", row.class_code).eq("stream", stream).maybeSingle()
+      ? supabase.from("class_teachers").select("teaching_staff(full_name)").eq("term_id", term.id).eq("class_code", row.class_code).eq("stream", stream).eq("role", "lead").maybeSingle()
       : Promise.resolve({ data: null, error: null }),
     supabase.from("students").select("formal_name").eq("id", id).maybeSingle(),
   ]);

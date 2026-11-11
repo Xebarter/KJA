@@ -1,23 +1,30 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { saveMarksheet, saveMarksheetScores } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
+import { MarksheetArrange } from "@/components/academics/MarksheetArrange";
 import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE, ranks, weightedPercent } from "@/lib/academics";
 import { marksheetExportHref, marksheetHref } from "@/lib/marksheet";
+import { marksheetSubjectGroups } from "@/lib/marksheet-groups";
 import {
   arrangeMarksheet,
   markPercent,
-  marksheetSortChoices,
+  marksheetDisplayAverage,
+  marksheetVisibleSubjects,
   markTone,
-  parseMarksheetSort,
   type MarksheetSort,
   type MarksheetTone,
 } from "@/lib/marksheet-order";
 import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
+
+type MarksheetExportFormat = "pdf" | "xlsx";
+
+type MarksheetSaveResult = { error?: string; ok?: string; href?: string };
+type MarksheetSaveAction = (formData: FormData) => Promise<MarksheetSaveResult>;
 
 export type MarksheetStatus = "open" | "submitted" | "approved";
 
@@ -42,6 +49,14 @@ export type MarksheetSubject = {
   weight: number;
   locked: boolean;
   editable: boolean;
+  /** Catalogue kind: core = Academic, cocurricular = Other. */
+  kind?: "core" | "cocurricular";
+  /** Combined marksheet: stable sitting key for spanning assessment headers. */
+  groupKey?: string;
+  /** Combined marksheet: thin spanning assessment label above subject columns. */
+  groupLabel?: string;
+  /** @deprecated Prefer groupKey/groupLabel; kept for older callers. */
+  sittingLabel?: string;
 };
 
 export type MarksheetMark = {
@@ -70,6 +85,10 @@ export type MarksheetIdentity = {
   classCode: string;
   stream: string;
   combine: boolean;
+  campus?: string;
+  /** Class-teacher multi-assessment worksheet (distinct from stream combine). */
+  combined?: boolean;
+  sittings?: { name: string; kind: string; heldOn: string }[];
 };
 
 export type MarksheetHeading = {
@@ -153,6 +172,12 @@ export function MarksheetDesk({
   office,
   nursery,
   streamCount,
+  closeHref = `${ACADEMICS_BASE}/assessments`,
+  sheetHrefBase,
+  exportHrefBase,
+  saveAction = saveMarksheet,
+  saveScoresAction = saveMarksheetScores,
+  allowExport = true,
 }: {
   subjects: MarksheetSubject[];
   pupils: MarksheetPupil[];
@@ -162,12 +187,22 @@ export function MarksheetDesk({
   office: boolean;
   nursery: boolean;
   streamCount: number;
+  closeHref?: string;
+  /** When set, “All streams” links use this path instead of the academics marksheet. */
+  sheetHrefBase?: string;
+  /** When set, Export downloads hit this path instead of the academics export route. */
+  exportHrefBase?: string;
+  saveAction?: MarksheetSaveAction;
+  saveScoresAction?: MarksheetSaveAction;
+  allowExport?: boolean;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const gridRef = useRef<HTMLDivElement>(null);
   const thaw = useRef<number | null>(null);
-  const closeHref = `${ACADEMICS_BASE}/assessments`;
+  const exportRootRef = useRef<HTMLDivElement>(null);
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const exportListId = useId();
   const incoming = useMemo(() => entriesFrom(pupils, subjects), [pupils, subjects]);
   const incomingKey = JSON.stringify(incoming);
   const seenKey = useRef(incomingKey);
@@ -178,8 +213,22 @@ export function MarksheetDesk({
   const [confirmUnlock, setConfirmUnlock] = useState(false);
   const [sort, setSort] = useState<MarksheetSort>("roll");
   const [frozen, setFrozen] = useState<string[] | null>(null);
+  const [exportOpen, setExportOpen] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState("");
+
+  function sittingHref(combine: boolean) {
+    return marksheetHref({
+      name: identity.name,
+      kind: identity.kind,
+      classCode: identity.classCode,
+      stream: identity.stream,
+      heldOn: identity.heldOn,
+      combine,
+      campus: identity.campus,
+      basePath: sheetHrefBase,
+    });
+  }
 
   useEffect(() => {
     if (incomingKey === seenKey.current) return;
@@ -197,8 +246,26 @@ export function MarksheetDesk({
     };
   }, []);
 
-  const subjectIds = useMemo(() => new Set(subjects.map((subject) => subject.id)), [subjects]);
-  const choices = useMemo(() => marksheetSortChoices(subjects), [subjects]);
+  useEffect(() => {
+    if (!exportOpen) return;
+    function onPointer(event: MouseEvent) {
+      if (!exportRootRef.current?.contains(event.target as Node)) setExportOpen(false);
+    }
+    function onKey(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setExportOpen(false);
+        exportButtonRef.current?.focus();
+      }
+    }
+    document.addEventListener("mousedown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [exportOpen]);
+
   const dirty = JSON.stringify(entries) !== saved;
   const editable = subjects.some((subject) => subject.editable);
 
@@ -229,16 +296,36 @@ export function MarksheetDesk({
         text: markLabel(parsed.score, parsed.missed, parsed.bandId, nursery, bands),
       };
     });
-    const average = weightedPercent(marks.map((mark, index) => {
+    const markRows = marks.map((mark, index) => {
       const paper = pupil.papers[index];
       return {
         score: mark.score,
         missed: mark.missed,
         max: paper?.id ? paper.maxScore : 0,
         weight: paper?.id ? paper.weight : 0,
+        kind: subjects[index]?.kind || "core",
       };
-    }));
-    const percents = Object.fromEntries(subjects.map((subject, index) => [subject.id, marks[index]?.percent ?? null]));
+    });
+    const average = weightedPercent(markRows);
+    const academicAverage = weightedPercent(markRows.filter((row) => row.kind !== "cocurricular"));
+    const otherAverage = weightedPercent(markRows.filter((row) => row.kind === "cocurricular"));
+    const percents: Record<string, number | null> = Object.fromEntries(
+      subjects.map((subject, index) => [subject.id, marks[index]?.percent ?? null]),
+    );
+    const byCatalogue = new Map<string, number[]>();
+    subjects.forEach((subject, index) => {
+      const catalogueId = subject.subjectId;
+      if (!catalogueId || catalogueId === subject.id) return;
+      if (!byCatalogue.has(catalogueId)) byCatalogue.set(catalogueId, []);
+      const percent = marks[index]?.percent;
+      if (percent === null || percent === undefined) return;
+      byCatalogue.get(catalogueId)!.push(percent);
+    });
+    for (const [catalogueId, values] of byCatalogue) {
+      percents[catalogueId] = values.length
+        ? values.reduce((sum, value) => sum + value, 0) / values.length
+        : null;
+    }
     return {
       id: pupil.id,
       name: pupil.name,
@@ -247,14 +334,45 @@ export function MarksheetDesk({
       pupil,
       marks,
       average,
+      academicAverage,
+      otherAverage,
       gaps: marks.filter((mark) => mark.blank).length,
       percents,
     };
   }), [pupils, subjects, entries, nursery, bands]);
 
+  const visibleIndexes = useMemo(() => {
+    const visibleIds = new Set(marksheetVisibleSubjects(subjects, sort).map((subject) => subject.id));
+    return subjects.flatMap((subject, index) => (visibleIds.has(subject.id) ? [index] : []));
+  }, [subjects, sort]);
+  const visibleSubjects = useMemo(
+    () =>
+      visibleIndexes.map((index) => {
+        const subject = subjects[index];
+        return {
+          ...subject,
+          groupKey: subject.groupKey || subject.sittingLabel,
+          groupLabel: subject.groupLabel || subject.sittingLabel,
+        };
+      }),
+    [subjects, visibleIndexes],
+  );
+  const assessmentGroups = useMemo(() => marksheetSubjectGroups(visibleSubjects), [visibleSubjects]);
+  const subjectGroupTone = useMemo(() => {
+    const tones = new Map<number, number>();
+    for (const group of assessmentGroups) {
+      for (let offset = 0; offset < group.count; offset += 1) tones.set(group.start + offset, group.paletteIndex);
+    }
+    return tones;
+  }, [assessmentGroups]);
+  const visibleIndexSet = useMemo(() => new Set(visibleIndexes), [visibleIndexes]);
+
   const positions = useMemo(
-    () => ranks(modeled.flatMap((row) => row.average === null ? [] : [{ id: row.id, value: row.average }])),
-    [modeled],
+    () => ranks(modeled.flatMap((row) => {
+      const value = marksheetDisplayAverage(row, sort);
+      return value === null ? [] : [{ id: row.id, value }];
+    })),
+    [modeled, sort],
   );
   const arranged = useMemo(() => arrangeMarksheet(modeled, sort), [modeled, sort]);
   const sequenced = useMemo(() => {
@@ -273,8 +391,9 @@ export function MarksheetDesk({
   const lines = sequenced.map((row, index) => {
     const haystack = `${row.name} ${row.number}${identity.combine ? ` ${row.pupil.stream}` : ""}`.toLowerCase();
     const matchesSearch = !words.length || words.every((word) => haystack.includes(word));
-    const show = matchesSearch && (!gapsOnly || row.gaps > 0);
-    const line = { row, no: index + 1, show, slot: show ? slot : -1 };
+    const viewGaps = visibleIndexes.filter((markIndex) => row.marks[markIndex]?.blank).length;
+    const show = matchesSearch && (!gapsOnly || viewGaps > 0);
+    const line = { row, no: index + 1, show, slot: show ? slot : -1, viewGaps, displayAverage: marksheetDisplayAverage(row, sort) };
     if (show) slot += 1;
     return line;
   });
@@ -306,16 +425,20 @@ export function MarksheetDesk({
       held: papers.filter((paper) => paper.status !== "open").length,
     };
   });
-  const gapCount = modeled.filter((row) => row.gaps > 0).length;
-  const entered = subjectStats.reduce((sum, subject) => sum + subject.entered, 0);
-  const places = subjectStats.reduce((sum, subject) => sum + subject.entered + subject.blank, 0);
-  const readyCount = subjectStats.reduce((sum, subject) => sum + subject.ready, 0);
-  const heldCount = subjectStats.reduce((sum, subject) => sum + subject.held, 0);
-  const scored = modeled.filter((row) => row.average !== null);
+  const visibleStats = visibleIndexes.map((index) => subjectStats[index]);
+  const gapCount = modeled.filter((row) => visibleIndexes.some((markIndex) => row.marks[markIndex]?.blank)).length;
+  const entered = visibleStats.reduce((sum, subject) => sum + subject.entered, 0);
+  const places = visibleStats.reduce((sum, subject) => sum + subject.entered + subject.blank, 0);
+  const readyCount = visibleStats.reduce((sum, subject) => sum + subject.ready, 0);
+  const heldCount = visibleStats.reduce((sum, subject) => sum + subject.held, 0);
+  const scored = modeled.flatMap((row) => {
+    const value = marksheetDisplayAverage(row, sort);
+    return value === null ? [] : [value];
+  });
   const classAverage = scored.length
-    ? Math.round((scored.reduce((sum, row) => sum + (row.average || 0), 0) / scored.length) * 10) / 10
+    ? Math.round((scored.reduce((sum, value) => sum + value, 0) / scored.length) * 10) / 10
     : null;
-  const columns = subjects.length + 3;
+  const columns = visibleSubjects.length + 3;
 
   function close() {
     router.push(closeHref);
@@ -334,7 +457,7 @@ export function MarksheetDesk({
     const col = Number(from.dataset.col);
     let nextRow = row + rowDelta;
     let nextCol = col + colDelta;
-    while (nextRow >= 0 && nextRow < visibleCount && nextCol >= 0 && nextCol < subjects.length) {
+    while (nextRow >= 0 && nextRow < visibleCount && nextCol >= 0 && nextCol < visibleSubjects.length) {
       const field = gridRef.current?.querySelector<HTMLElement>(`[data-row="${nextRow}"][data-col="${nextCol}"]`);
       if (field && !field.hasAttribute("disabled")) {
         field.focus();
@@ -386,6 +509,13 @@ export function MarksheetDesk({
     data.set("class_code", identity.classCode);
     data.set("stream", identity.stream);
     data.set("combine", identity.combine ? "1" : "");
+    if (identity.campus) data.set("campus", identity.campus);
+    if (identity.combined) {
+      data.set("combined", "1");
+      for (const sitting of identity.sittings || []) {
+        data.append("sitting", `${sitting.name}|${sitting.kind}|${sitting.heldOn}`);
+      }
+    }
     data.set("intent", "save");
     for (const pupil of pupils) {
       subjects.forEach((subject, index) => {
@@ -399,12 +529,16 @@ export function MarksheetDesk({
     return data;
   }
 
-  async function download() {
+  async function download(format: MarksheetExportFormat) {
+    if (!allowExport) return;
+    setExportOpen(false);
     setExportError("");
     setExporting(true);
+    const fallback = format === "pdf" ? "marksheet.pdf" : "marksheet.xlsx";
+    const fail = format === "pdf" ? "The PDF could not be prepared." : "The workbook could not be prepared.";
     try {
       if (dirty) {
-        const outcome = await saveMarksheetScores(buildSaveData());
+        const outcome = await saveScoresAction(buildSaveData());
         if (outcome.error) {
           setExportError(outcome.error);
           return;
@@ -418,19 +552,30 @@ export function MarksheetDesk({
         classCode: identity.classCode,
         stream: identity.stream,
         combine: identity.combine,
+        campus: identity.campus,
+        assessmentsCombined: identity.combined,
+        sittings: identity.combined
+          ? (identity.sittings || []).map((sitting) => ({
+              name: sitting.name,
+              kind: sitting.kind,
+              held: sitting.heldOn,
+            }))
+          : undefined,
         sort,
+        format,
+        basePath: exportHrefBase,
       }));
       if (!response.ok) {
-        setExportError((await response.text()) || "The workbook could not be prepared.");
+        setExportError((await response.text()) || fail);
         return;
       }
       const blob = await response.blob();
-      const filename = filenameFromDisposition(response.headers.get("content-disposition"), "marksheet.xlsx");
+      const filename = filenameFromDisposition(response.headers.get("content-disposition"), fallback);
       const outcome = await saveClientDownload(blob, filename);
       if (outcome === "canceled") return;
       if (dirty) router.refresh();
     } catch {
-      setExportError("The workbook could not be prepared.");
+      setExportError(fail);
     } finally {
       setExporting(false);
     }
@@ -450,7 +595,11 @@ export function MarksheetDesk({
         <div className="msh-bar-copy">
           <p>Assessment</p>
           <h1 id="msh-title">{heading.classLabel}</h1>
-          <p>{identity.name} · {heading.kindLabel} · {heading.heldLabel} · {heading.termLabel}{identity.combine ? " · All streams" : ""}</p>
+          <p>
+            {identity.combined
+              ? `${identity.name} · ${heading.kindLabel} · ${heading.heldLabel} · ${heading.termLabel}`
+              : `${identity.name} · ${heading.kindLabel} · ${heading.heldLabel} · ${heading.termLabel}${identity.combine ? " · All streams" : ""}`}
+          </p>
         </div>
         <dl className="msh-bar-stats">
           <div><dt>On roll</dt><dd>{nf(pupils.length)}</dd></div>
@@ -478,37 +627,23 @@ export function MarksheetDesk({
             Gaps only<em>{nf(gapCount)}</em>
           </button>
         </div>
-        <label className="msh-arrange">
-          <span>Arrange</span>
-          <select
-            value={sort}
-            aria-label="Arrange pupils"
-            onChange={(event) => {
-              setFrozen(null);
-              setSort(parseMarksheetSort(event.target.value, subjectIds));
-            }}
-          >
-            <optgroup label="Class">
-              {choices.classChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-            </optgroup>
-            {choices.subjectChoices.length ? (
-              <optgroup label="Subject">
-                {choices.subjectChoices.map((choice) => <option key={choice.value} value={choice.value}>{choice.label}</option>)}
-              </optgroup>
-            ) : null}
-          </select>
-        </label>
+        <MarksheetArrange
+          sort={sort}
+          subjects={subjects.map((subject) => ({
+            id: subject.id,
+            subjectId: subject.subjectId,
+            name: subject.name,
+            kind: subject.kind,
+          }))}
+          onChange={(next) => {
+            setFrozen(null);
+            setSort(next);
+          }}
+        />
         {streamCount > 1 ? (
           <a
             className={`msh-streams${identity.combine ? " is-on" : ""}`}
-            href={marksheetHref({
-              name: identity.name,
-              kind: identity.kind,
-              classCode: identity.classCode,
-              stream: identity.stream,
-              heldOn: identity.heldOn,
-              combine: !identity.combine,
-            })}
+            href={sittingHref(!identity.combine)}
             aria-pressed={identity.combine}
             onClick={(event) => {
               if (!dirty) return;
@@ -518,15 +653,49 @@ export function MarksheetDesk({
             <i className="fa-solid fa-layer-group" aria-hidden="true" /> All streams
           </a>
         ) : null}
-        <button type="button" className="msh-print msh-excel" onClick={download} disabled={exporting}>
-          <i className={`fa-solid ${exporting ? "fa-spinner fa-spin" : "fa-file-excel"}`} aria-hidden="true" /> {exporting ? "Preparing…" : "Excel"}
-        </button>
+        {allowExport ? (
+          <div className={`msh-export${exportOpen ? " is-open" : ""}`} ref={exportRootRef}>
+            <button
+              ref={exportButtonRef}
+              type="button"
+              className="msh-export-trigger"
+              aria-haspopup="listbox"
+              aria-expanded={exportOpen}
+              aria-controls={exportListId}
+              aria-label="Export"
+              disabled={exporting}
+              onClick={() => setExportOpen((open) => !open)}
+            >
+              <span className="msh-export-ico" aria-hidden="true">
+                <i className={`fa-solid ${exporting ? "fa-spinner fa-spin" : "fa-file-export"}`} />
+              </span>
+              <strong>{exporting ? "Preparing…" : "Export"}</strong>
+              <i className={`fa-solid fa-chevron-${exportOpen ? "up" : "down"}`} aria-hidden="true" />
+            </button>
+            {exportOpen && !exporting ? (
+              <div className="msh-export-menu" role="listbox" id={exportListId} aria-label="Export marksheet">
+                <button type="button" role="option" onClick={() => void download("pdf")}>
+                  <span className="msh-export-choice-ico" aria-hidden="true">
+                    <i className="fa-solid fa-file-pdf" />
+                  </span>
+                  <span>PDF</span>
+                </button>
+                <button type="button" role="option" onClick={() => void download("xlsx")}>
+                  <span className="msh-export-choice-ico" aria-hidden="true">
+                    <i className="fa-solid fa-file-excel" />
+                  </span>
+                  <span>Excel</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
         <button type="button" className="msh-print" onClick={() => window.print()}>
           <i className="fa-solid fa-print" aria-hidden="true" /> Print
         </button>
       </div>
       {exportError ? <p className="msh-export-error" role="alert">{exportError}</p> : null}
-      <DeskForm action={saveMarksheet} className="msh-form">
+      <DeskForm action={saveAction} className="msh-form">
         <input type="hidden" name="term_id" value={identity.termId} />
         <input type="hidden" name="name" value={identity.name} />
         <input type="hidden" name="kind" value={identity.kind} />
@@ -534,6 +703,18 @@ export function MarksheetDesk({
         <input type="hidden" name="class_code" value={identity.classCode} />
         <input type="hidden" name="stream" value={identity.stream} />
         <input type="hidden" name="combine" value={identity.combine ? "1" : ""} />
+        {identity.campus ? <input type="hidden" name="campus" value={identity.campus} /> : null}
+        {identity.combined ? <input type="hidden" name="combined" value="1" /> : null}
+        {identity.combined
+          ? (identity.sittings || []).map((sitting) => (
+              <input
+                key={`${sitting.name}|${sitting.kind}|${sitting.heldOn}`}
+                type="hidden"
+                name="sitting"
+                value={`${sitting.name}|${sitting.kind}|${sitting.heldOn}`}
+              />
+            ))
+          : null}
         <div
           className="msh-scroll"
           ref={gridRef}
@@ -552,15 +733,38 @@ export function MarksheetDesk({
           <table className="msh-table">
             <caption className="msh-sr">{identity.name}</caption>
             <thead>
-              <tr>
+              {assessmentGroups.length ? (
+                <tr className="msh-group-row">
+                  <th className="msh-pupil" scope="col" />
+                  {assessmentGroups.map((group) => (
+                    <th
+                      key={group.key}
+                      className={`msh-group is-g${group.paletteIndex}`}
+                      scope="colgroup"
+                      colSpan={group.count}
+                    >
+                      {group.label}
+                    </th>
+                  ))}
+                  <th className="msh-num msh-group-spacer" scope="col" />
+                  <th className="msh-num msh-group-spacer" scope="col" />
+                </tr>
+              ) : null}
+              <tr className={assessmentGroups.length ? "msh-subject-row" : undefined}>
                 <th className="msh-pupil" scope="col">Pupil</th>
-                {subjects.map((subject, index) => {
+                {visibleIndexes.map((index, col) => {
+                  const subject = subjects[index];
                   const stats = subjectStats[index];
                   const canApprove = office && !dirty && (stats?.ready || 0) > 0;
                   const canUnlock = office && !dirty && (stats?.held || 0) > 0;
                   const lockId = identity.combine ? `subject:${subject.subjectId}` : subject.id;
+                  const tone = subjectGroupTone.get(col);
                   return (
-                    <th key={subject.id} className={`msh-col is-${shownStatus(subject.status, stats?.entered || 0)}`} scope="col">
+                    <th
+                      key={subject.id}
+                      className={`msh-col is-${shownStatus(subject.status, stats?.entered || 0)}${tone === undefined ? "" : ` is-g${tone}`}`}
+                      scope="col"
+                    >
                       {subject.href ? <Link href={subject.href}>{subject.name}</Link> : <span>{subject.name}</span>}
                       <span className="msh-col-meta">
                         <em className={`msh-state is-${subject.status}`}>{stateLabel(subject.status, stats?.blank || 0)}</em>
@@ -580,7 +784,7 @@ export function MarksheetDesk({
               </tr>
             </thead>
             <tbody>
-              {lines.map(({ row, no, show, slot: lineSlot }) => (
+              {lines.map(({ row, no, show, slot: lineSlot, displayAverage }) => (
                 <tr key={row.id} hidden={!show}>
                   <th className="msh-pupil" scope="row">
                     <span className="msh-who">
@@ -591,31 +795,34 @@ export function MarksheetDesk({
                       </span>
                     </span>
                   </th>
-                  {row.marks.map((mark, markIndex) => {
+                  {visibleIndexes.map((markIndex, col) => {
+                    const mark = row.marks[markIndex];
                     const subject = subjects[markIndex];
                     const paper = row.pupil.papers[markIndex];
+                    const groupTone = subjectGroupTone.get(col);
+                    const groupClass = groupTone === undefined ? "" : ` is-g${groupTone}`;
                     const entry = entries[cellKey(row.id, subject.id)] || { score: "", bandId: "", missed: false };
                     if (!paper?.id) {
-                      return <td key={subject.id} className="msh-mark">-</td>;
+                      return <td key={subject.id} className={`msh-mark${groupClass}`}>-</td>;
                     }
                     const lockedLook = paper.status === "approved" ? " is-locked" : paper.locked ? " is-held" : "";
                     if (!paper.editable) {
                       return (
-                        <td key={subject.id} className={`msh-mark is-${mark.tone}${lockedLook}`}>
+                        <td key={subject.id} className={`msh-mark is-${mark.tone}${lockedLook}${groupClass}`}>
                           {mark.text || "-"}
                         </td>
                       );
                     }
                     const fieldProps = {
                       "data-row": lineSlot,
-                      "data-col": markIndex,
+                      "data-col": col,
                       "data-pupil": row.id,
                       "data-subject": subject.id,
                       className: "msh-field",
                       disabled: exporting,
                     };
                     return (
-                      <td key={subject.id} className={`msh-mark is-${mark.invalid ? "low" : mark.tone}${lockedLook}${mark.invalid ? " is-bad" : ""}`}>
+                      <td key={subject.id} className={`msh-mark is-${mark.invalid ? "low" : mark.tone}${lockedLook}${mark.invalid ? " is-bad" : ""}${groupClass}`}>
                         {entry.missed ? (
                           <>
                             <button
@@ -672,7 +879,7 @@ export function MarksheetDesk({
                       </td>
                     );
                   })}
-                  <td className={`msh-mark is-avg${row.average !== null && row.average < 50 ? " is-low" : ""}`}>{percentText(row.average)}</td>
+                  <td className={`msh-mark is-avg${displayAverage !== null && displayAverage < 50 ? " is-low" : ""}`}>{percentText(displayAverage)}</td>
                   <td className={`msh-mark is-pos${(positions.get(row.id) || 0) > 0 && (positions.get(row.id) || 0) <= 3 ? " is-top" : ""}`}>{positions.get(row.id) ? nf(positions.get(row.id) || 0) : "-"}</td>
                 </tr>
               ))}
@@ -685,14 +892,40 @@ export function MarksheetDesk({
             <tfoot>
               <tr>
                 <th className="msh-pupil" scope="row">Class average</th>
-                {subjects.map((subject, index) => (
-                  <td key={subject.id} className={subject.status === "approved" ? "is-locked" : subject.locked ? "is-held" : ""}>{percentText(subjectStats[index]?.average ?? null)}</td>
-                ))}
+                {visibleIndexes.map((index, col) => {
+                  const subject = subjects[index];
+                  const tone = subjectGroupTone.get(col);
+                  const locked = subject.status === "approved" ? " is-locked" : subject.locked ? " is-held" : "";
+                  const groupClass = tone === undefined ? "" : ` is-g${tone}`;
+                  return (
+                    <td key={subject.id} className={`${locked.trim()}${groupClass}`.trim() || undefined}>{percentText(subjectStats[index]?.average ?? null)}</td>
+                  );
+                })}
                 <td>{percentText(classAverage)}</td>
                 <td />
               </tr>
             </tfoot>
           </table>
+          {/* Keep filtered-out marks in the save payload. */}
+          {pupils.flatMap((pupil) =>
+            subjects.flatMap((subject, index) => {
+              if (visibleIndexSet.has(index)) return [];
+              const paper = pupil.papers[index];
+              if (!paper?.id || !paper.editable) return [];
+              const entry = entries[cellKey(pupil.id, subject.id)] || { score: "", bandId: "", missed: false };
+              return [
+                <input
+                  key={`score:${paper.id}:${pupil.id}`}
+                  type="hidden"
+                  name={`score:${paper.id}:${pupil.id}`}
+                  value={entry.missed ? "" : nursery ? entry.bandId : entry.score}
+                />,
+                entry.missed ? (
+                  <input key={`missed:${paper.id}:${pupil.id}`} type="hidden" name={`missed:${paper.id}:${pupil.id}`} value="1" />
+                ) : null,
+              ];
+            }),
+          )}
         </div>
         <footer className="msh-foot">
           <p>

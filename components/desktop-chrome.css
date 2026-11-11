@@ -190,3 +190,28 @@ html.kja-is-desktop .kja-admin .admin-topbar-brand strong {
 .admin-shell > .kja-desktop-chrome {
   grid-column: 1 / -1;
 }
+
+/* Never print the Electron title bar (Online/Offline chip, sync strip, desk label). */
+@media print {
+  .kja-desktop-chrome,
+  .kja-desktop-titlebar,
+  .kja-desktop-presence,
+  .kja-desktop-sync {
+    display: none !important;
+  }
+
+  html.kja-is-desktop {
+    --kja-desktop-titlebar-height: 0px;
+  }
+
+  html.kja-is-desktop .admin-shell {
+    grid-template-rows: minmax(0, 1fr);
+  }
+
+  html.kja-is-desktop .admin-side {
+    top: 0;
+    height: auto;
+    max-height: none;
+    min-height: 0;
+  }
+}

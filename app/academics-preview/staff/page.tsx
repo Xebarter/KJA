@@ -21,7 +21,7 @@ const grace: StaffMember = {
   profile_id: "linked",
   photo_path: null,
   active: true,
-  classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A", campus: "Kitante" }],
+  classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A", campus: "Kitante", role: "lead" }],
   subjects: [{
     key: "math",
     subjectId: "math",
@@ -103,6 +103,7 @@ export default function StaffPreview() {
           campus: "Kitante",
           staffId: "grace",
           staffName: "Grace Namukasa",
+          role: "lead",
         }]}
         termId="term-3"
         termLabel="Term 3 2026"

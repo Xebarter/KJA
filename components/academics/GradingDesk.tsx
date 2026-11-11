@@ -3,7 +3,12 @@
 import { DateField } from "@/components/ui/DateField";
 
 import { useMemo, useState } from "react";
-import { saveBand, saveDivisionBand, saveNextTermStart } from "@/app/academics_office/(desk)/actions";
+import {
+  saveBand,
+  saveDivisionBand,
+  saveNextTermStart,
+  saveProgressCode,
+} from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
 import {
   DEFAULT_DIVISION_BANDS,
@@ -15,9 +20,10 @@ import {
   type DivisionTrack,
   type GradeBandSection,
 } from "@/lib/grading-scale";
+import { type ProgressCodeRow, type ProgressScaleRow } from "@/lib/nursery-dsba";
 import { formatReportDate } from "@/lib/report-format";
 
-type DeskTab = GradeBandSection | "date";
+type DeskTab = "nursery" | "lower" | "upper" | "date";
 
 type NextTerm = {
   ready: boolean;
@@ -26,8 +32,8 @@ type NextTerm = {
   startsOn: string | null;
 };
 
-const SECTIONS: {
-  value: GradeBandSection;
+const PRIMARY_SECTIONS: {
+  value: Exclude<GradeBandSection, "nursery" | "primary">;
   title: string;
   short: string;
   range: string;
@@ -35,20 +41,10 @@ const SECTIONS: {
   icon: string;
   samples: number[];
   placeholder: string;
-  division?: DivisionTrack;
-  divisionBlurb?: string;
-  divisionSamples?: number[];
+  division: DivisionTrack;
+  divisionBlurb: string;
+  divisionSamples: number[];
 }[] = [
-  {
-    value: "nursery",
-    title: "Nursery",
-    short: "Early years",
-    range: "Reception · Baby · Middle · Top",
-    blurb: "Teachers choose a progress band. The markbook stores the middle of that range so reports stay consistent.",
-    icon: "fa-seedling",
-    samples: [88, 60, 30, 10],
-    placeholder: "Secure",
-  },
   {
     value: "lower",
     title: "Lower section",
@@ -84,43 +80,54 @@ export function GradingDesk({
   divisions,
   divisionReady,
   nextTerm,
+  progressScales = [],
+  progressCodes = [],
+  dsbaReady = false,
 }: {
   bands: BandRow[];
   divisions: DivisionBand[];
   divisionReady: boolean;
   nextTerm: NextTerm;
+  progressScales?: ProgressScaleRow[];
+  progressCodes?: ProgressCodeRow[];
+  dsbaReady?: boolean;
 }) {
   const [tab, setTab] = useState<DeskTab>("nursery");
 
   const reviews = useMemo(
     () =>
-      SECTIONS.map((item) => ({
+      PRIMARY_SECTIONS.map((item) => ({
         section: item,
         review: reviewScale(bandsForSection(bands, item.value)),
       })),
     [bands],
   );
-  const openIssues = reviews.reduce((sum, item) => sum + item.review.issues.length, 0);
-  const active = SECTIONS.find((item) => item.value === tab) ?? null;
+  const active = PRIMARY_SECTIONS.find((item) => item.value === tab) ?? null;
   const activeReview = active ? reviews.find((item) => item.section.value === active.value)!.review : null;
-  const readySections = reviews.filter((item) => !item.review.issues.length && item.review.ranked.length).length;
+  const nurseryScale =
+    progressScales.find((row) => row.key === "nursery") || progressScales[0] || null;
+  const nurseryScaleCodes = nurseryScale
+    ? progressCodes.filter((row) => row.scale_id === nurseryScale.id)
+    : [];
+  const nurseryReady = dsbaReady && Boolean(nurseryScale) && nurseryScaleCodes.length > 0;
 
   return (
     <div className="grd-desk">
-      <div className={`grd-status${openIssues ? " is-warn" : " is-ok"}`}>
-        <i className={`fa-solid ${openIssues ? "fa-triangle-exclamation" : "fa-circle-check"}`} aria-hidden="true" />
-        <div>
-          <strong>{openIssues ? "Subject grades need a quick look" : "Section grading looks complete"}</strong>
-          <p>
-            {openIssues
-              ? `${openIssues} gap${openIssues === 1 ? "" : "s"} across Nursery, Lower and Upper. Fix them on the matching section. Approved report cards keep the rules they already have.`
-              : `${readySections} of 3 sections ready. New draft report cards will use these rules. Approved cards keep the rules they already have.`}
-          </p>
-        </div>
-      </div>
-
       <nav className="grd-tabs" aria-label="Grading settings">
-        {SECTIONS.map((item) => {
+        <button
+          type="button"
+          className={tab === "nursery" ? "is-active" : undefined}
+          aria-current={tab === "nursery" ? "page" : undefined}
+          onClick={() => setTab("nursery")}
+        >
+          <i className="fa-solid fa-seedling" aria-hidden="true" />
+          <span>
+            <strong>Nursery</strong>
+            <em>Progress codes</em>
+          </span>
+          <b className={nurseryReady ? "is-set" : "is-watch"}>{nurseryReady ? "Ready" : "Review"}</b>
+        </button>
+        {PRIMARY_SECTIONS.map((item) => {
           const review = reviews.find((row) => row.section.value === item.value)!.review;
           const watch = review.issues.length > 0 || review.ranked.length === 0;
           return (
@@ -155,6 +162,10 @@ export function GradingDesk({
         </button>
       </nav>
 
+      {tab === "nursery" ? (
+        <NurseryProgressPanel dsbaReady={dsbaReady} scales={progressScales} codes={progressCodes} />
+      ) : null}
+
       {active && activeReview ? (
         <section className="grd-panel" aria-label={active.title}>
           <header className="grd-panel-head">
@@ -171,8 +182,7 @@ export function GradingDesk({
                 {activeReview.issues.length || !activeReview.ranked.length ? "Needs review" : "Ready"}
               </span>
               <span className="grd-meta-count">
-                {activeReview.ranked.length} subject band{activeReview.ranked.length === 1 ? "" : "s"}
-                {active.division ? " · report GRADE cutoffs" : ""}
+                {activeReview.ranked.length} subject band{activeReview.ranked.length === 1 ? "" : "s"} · report GRADE cutoffs
               </span>
             </div>
           </header>
@@ -185,43 +195,167 @@ export function GradingDesk({
               issues={activeReview.issues}
             />
 
-            {active.division ? (
-              <div className="grd-subpanel">
-                <header className="grd-subhead">
-                  <div>
-                    <h3>Report grade · AGG → GRADE</h3>
-                    <p>{active.divisionBlurb}</p>
-                  </div>
-                </header>
-                {divisionReady ? (
-                  <DivisionScale
-                    track={active.division}
-                    title={active.title}
-                    blurb={active.divisionBlurb || ""}
-                    samples={active.divisionSamples || []}
-                    bands={divisions.filter((band) => band.track === active.division)}
-                  />
-                ) : (
-                  <p className="grd-quiet">
-                    Run <code>supabase/0032_report_aggregate.sql</code> to set AGG → GRADE cutoffs for lower and upper primary.
-                  </p>
-                )}
-              </div>
-            ) : (
-              <aside className="grd-aside">
-                <i className="fa-solid fa-info-circle" aria-hidden="true" />
+            <div className="grd-subpanel">
+              <header className="grd-subhead">
                 <div>
-                  <strong>No aggregate grade</strong>
-                  <p>Nursery reports use progress bands only. Overall GRADE from AGG is for Lower and Upper primary.</p>
+                  <h3>Report grade · AGG → GRADE</h3>
+                  <p>{active.divisionBlurb}</p>
                 </div>
-              </aside>
-            )}
+              </header>
+              {divisionReady ? (
+                <DivisionScale
+                  track={active.division}
+                  title={active.title}
+                  blurb={active.divisionBlurb}
+                  samples={active.divisionSamples}
+                  bands={divisions.filter((band) => band.track === active.division)}
+                />
+              ) : (
+                <p className="grd-quiet">
+                  Run <code>supabase/0032_report_aggregate.sql</code> to set AGG → GRADE cutoffs for lower and upper primary.
+                </p>
+              )}
+            </div>
           </div>
         </section>
       ) : null}
 
       {tab === "date" ? <NextTermPanel nextTerm={nextTerm} /> : null}
     </div>
+  );
+}
+
+function NurseryProgressPanel({
+  dsbaReady,
+  scales,
+  codes,
+}: {
+  dsbaReady: boolean;
+  scales: ProgressScaleRow[];
+  codes: ProgressCodeRow[];
+}) {
+  if (!dsbaReady) {
+    return (
+      <section className="grd-nursery" aria-label="Nursery">
+        <p className="grd-quiet">
+          Run <code>supabase/0077_nursery_dsba.sql</code>
+          {", then "}
+          <code>supabase/0078_unify_nursery_progress_scale.sql</code> if an older install still has two scales.
+        </p>
+      </section>
+    );
+  }
+
+  const scale = scales.find((row) => row.key === "nursery") || scales[0] || null;
+  const scaleCodes = scale
+    ? codes.filter((code) => code.scale_id === scale.id).sort((a, b) => a.sort_order - b.sort_order)
+    : [];
+
+  if (!scale) {
+    return (
+      <section className="grd-nursery" aria-label="Nursery">
+        <p className="grd-quiet">
+          No progress scale found. Run <code>supabase/0078_unify_nursery_progress_scale.sql</code> to create the shared
+          catalogue.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="grd-nursery" aria-label="Nursery">
+      <div className="grd-nursery-panel">
+        <div className="grd-nursery-panel-head">
+          <div>
+            <h3>Legend preview</h3>
+            <p>What parents and teachers see when a skill is rated.</p>
+          </div>
+        </div>
+        {scaleCodes.length ? (
+          <ul className="grd-nursery-legend">
+            {scaleCodes.map((code, index) => (
+              <li key={code.id} data-tone={String(index % 8)}>
+                <strong>{code.code}</strong>
+                <span>{code.label}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="grd-nursery-empty">
+            <span>
+              <i className="fa-solid fa-list-check" aria-hidden="true" />
+            </span>
+            <h3>No codes yet</h3>
+            <p>Add the first progress code in the editor below.</p>
+          </div>
+        )}
+      </div>
+
+      <div className="grd-nursery-panel">
+        <div className="grd-nursery-panel-head">
+          <div>
+            <h3>Edit codes</h3>
+            <p>Change letters, meanings, or order. Every nursery class picks up the same list.</p>
+          </div>
+        </div>
+        <div className="grd-ledger grd-nursery-ledger">
+          <div className="grd-head is-division" aria-hidden="true">
+            <span>Code</span>
+            <span>Meaning</span>
+            <span>Order</span>
+            <span />
+            <span />
+          </div>
+          {scaleCodes.map((code) => (
+            <DeskForm key={code.id} action={saveProgressCode} className="grd-form is-division">
+              <input type="hidden" name="id" value={code.id} />
+              <input type="hidden" name="scale_id" value={scale.id} />
+              <label className="ofc-field">
+                <span>Code</span>
+                <input name="code" defaultValue={code.code} required />
+              </label>
+              <label className="ofc-field">
+                <span>Meaning</span>
+                <input name="label" defaultValue={code.label} required />
+              </label>
+              <label className="ofc-field">
+                <span>Order</span>
+                <input name="sort_order" type="number" defaultValue={code.sort_order} required />
+              </label>
+              <button className="grd-save" type="submit">
+                Save
+              </button>
+              <button className="grd-remove" type="submit" name="intent" value="delete">
+                Remove
+              </button>
+            </DeskForm>
+          ))}
+          <DeskForm action={saveProgressCode} className="grd-form is-division is-new">
+            <input type="hidden" name="scale_id" value={scale.id} />
+            <label className="ofc-field">
+              <span>Code</span>
+              <input name="code" required placeholder="M" />
+            </label>
+            <label className="ofc-field">
+              <span>Meaning</span>
+              <input name="label" required placeholder="Strong mastery" />
+            </label>
+            <label className="ofc-field">
+              <span>Order</span>
+              <input
+                name="sort_order"
+                type="number"
+                required
+                placeholder={String((scaleCodes.at(-1)?.sort_order ?? 0) + 1)}
+              />
+            </label>
+            <button className="grd-save" type="submit">
+              Add code
+            </button>
+          </DeskForm>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -338,7 +472,7 @@ function Scale({
   ranked,
   issues,
 }: {
-  section: (typeof SECTIONS)[number];
+  section: (typeof PRIMARY_SECTIONS)[number];
   bands: BandRow[];
   ranked: BandRow[];
   issues: string[];

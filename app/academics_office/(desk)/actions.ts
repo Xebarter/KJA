@@ -58,6 +58,12 @@ import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
 import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
 import { notifyStudentParents } from "@/lib/parent-notify";
+import {
+  isNurseryDivisionId,
+  mapDomain,
+  mapSkill,
+  type NurseryDivisionId,
+} from "@/lib/nursery-dsba";
 
 type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string; email?: string; password?: string; temporary?: boolean };
 
@@ -433,6 +439,46 @@ function holderName(value: { full_name?: string } | { full_name?: string }[] | n
   return row?.full_name || "another teacher";
 }
 
+type LeadRole = "lead" | "assistant";
+
+function leadRoleOf(raw: FormDataEntryValue | null): LeadRole | null {
+  const value = String(raw || "").trim();
+  if (value === "lead" || value === "1" || value === "class") return "lead";
+  if (value === "assistant") return "assistant";
+  return null;
+}
+
+function leadershipLabel(role: LeadRole) {
+  return role === "assistant" ? "assistant class teacher" : "class teacher";
+}
+
+async function clearOtherLeadership(
+  supabase: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>["supabase"],
+  termId: string,
+  staffId: string,
+  keep: { campus: string; classCode: string; stream: string; role: LeadRole },
+) {
+  const { data, error: listError } = await supabase
+    .from("class_teachers")
+    .select("id, campus, class_code, stream, role")
+    .eq("term_id", termId)
+    .eq("staff_id", staffId);
+  if (listError) return listError.message;
+  for (const row of data || []) {
+    if (
+      row.campus === keep.campus &&
+      row.class_code === keep.classCode &&
+      streamOf(row.stream) === keep.stream &&
+      (row.role || "lead") === keep.role
+    ) {
+      continue;
+    }
+    const { error: dropError } = await supabase.from("class_teachers").delete().eq("id", row.id);
+    if (dropError) return dropError.message;
+  }
+  return null;
+}
+
 export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   const opened = await gate("staff");
   if (!opened.auth) return { error: opened.error };
@@ -443,25 +489,29 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   const staffId = text(formData, "staff_id", 40);
   const { classCode, stream, termId, campus } = group(formData);
   const replace = formData.get("replace") === "1";
-  const lead = formData.get("class_teacher") === "1";
+  const wantLead = formData.get("class_teacher") === "1";
+  const wantAssistant = formData.get("assistant_teacher") === "1";
   const wanted = [...new Set(formData.getAll("subject_id").map(String))].filter(isUuid);
   if (!isUuid(staffId)) return { error: "Choose a teacher." };
   if (!isUuid(termId) || !isClassCode(classCode)) return { error: "Choose a class and a stream." };
+  if (wantLead && wantAssistant) return { error: "A teacher cannot be both class teacher and assistant of the same stream." };
 
   const { supabase } = opened.auth;
-  const [staffQuery, termQuery, subjectQuery, pupilQuery, heldQuery, leadQuery] = await Promise.all([
+  const [staffQuery, termQuery, subjectQuery, pupilQuery, heldQuery, leadRowsQuery, ownLeadQuery] = await Promise.all([
     supabase.from("teaching_staff").select("id, full_name, email, profile_id, active").eq("id", staffId).maybeSingle(),
     supabase.from("fee_terms").select("id").eq("id", termId).eq("is_current", true).maybeSingle(),
     supabase.from("subjects").select("*").eq("active", true),
     supabase.from("students").select("stream, campus").eq("class_code", classCode).eq("status", "active").limit(2000),
     supabase.from("subject_teachers").select("subject_id, staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream),
-    supabase.from("class_teachers").select("staff_id, teaching_staff(full_name)").eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).maybeSingle(),
+    supabase.from("class_teachers").select("staff_id, role, teaching_staff(full_name)").eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream),
+    supabase.from("class_teachers").select("campus, class_code, stream, role, teaching_staff(full_name)").eq("term_id", termId).eq("staff_id", staffId),
   ]);
-  if (staffQuery.error || termQuery.error || subjectQuery.error || pupilQuery.error || heldQuery.error || leadQuery.error) {
+  if (staffQuery.error || termQuery.error || subjectQuery.error || pupilQuery.error || heldQuery.error || leadRowsQuery.error || ownLeadQuery.error) {
     return { error: "The assignment could not be checked." };
   }
   const staff = staffQuery.data;
   if (!staff?.active) return { error: "That teacher is not on the roll." };
+  const staffName = String(staff.full_name || "Teacher");
   if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
   if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream && operationalCampus(row.campus as string | null) === campus)) {
     return { error: "That stream has no pupils at this campus." };
@@ -471,7 +521,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   const portal = await ensureTeacherPortalAccess({
     staffId,
     email: staff.email as string | null,
-    displayName: String(staff.full_name || "Teacher"),
+    displayName: staffName,
     profileId: staff.profile_id as string | null,
     active: Boolean(staff.active),
   });
@@ -495,9 +545,28 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
       name: holderName(row.teaching_staff as { full_name?: string } | { full_name?: string }[] | null),
     });
   }
-  const classHolder = leadQuery.data
-    ? { staffId: String(leadQuery.data.staff_id), name: holderName(leadQuery.data.teaching_staff as { full_name?: string } | { full_name?: string }[] | null) }
-    : null;
+
+  type Holder = { staffId: string; name: string };
+  let classHolder: Holder | null = null;
+  let assistantHolder: Holder | null = null;
+  for (const row of leadRowsQuery.data || []) {
+    const holder = {
+      staffId: String(row.staff_id),
+      name: holderName(row.teaching_staff as { full_name?: string } | { full_name?: string }[] | null),
+    };
+    if ((row.role || "lead") === "assistant") assistantHolder = holder;
+    else classHolder = holder;
+  }
+
+  const ownLeads = (ownLeadQuery.data || []).map((row) => ({
+    campus: operationalCampus(row.campus as string | null),
+    classCode: String(row.class_code),
+    stream: streamOf(row.stream),
+    role: ((row.role || "lead") === "assistant" ? "assistant" : "lead") as LeadRole,
+  }));
+  const ownElsewhere = ownLeads.find(
+    (row) => !(row.campus === campus && row.classCode === classCode && row.stream === stream),
+  );
 
   const clashes: string[] = [];
   for (const subject of fitting) {
@@ -505,16 +574,25 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     if (!picked.has(subject.id) || !current || current.staffId === staffId || replace) continue;
     clashes.push(`${subject.name} is already taught by ${current.name}.`);
   }
-  if (lead && classHolder && classHolder.staffId !== staffId && !replace) {
+  if (wantLead && classHolder && classHolder.staffId !== staffId && !replace) {
     clashes.push(`${classLabel(classCode, stream, campus)} already has ${classHolder.name} as class teacher.`);
+  }
+  if (wantAssistant && assistantHolder && assistantHolder.staffId !== staffId && !replace) {
+    clashes.push(`${classLabel(classCode, stream, campus)} already has ${assistantHolder.name} as assistant class teacher.`);
+  }
+  if ((wantLead || wantAssistant) && ownElsewhere && !replace) {
+    clashes.push(
+      `${staffName} already ${ownElsewhere.role === "assistant" ? "assists" : "leads"} ${classLabel(ownElsewhere.classCode, ownElsewhere.stream, ownElsewhere.campus)}. Tick replace to move that leadership here.`,
+    );
   }
   if (clashes.length === 1) return { error: clashes[0] };
   if (clashes.length > 1) return { error: `${clashes[0]} ${clashes.length - 1} more ${clashes.length === 2 ? "post is" : "posts are"} already filled. Tick replace to take them over.` };
 
   const releasingSubject = fitting.some((subject) => !picked.has(subject.id) && held.get(subject.id)?.staffId === staffId);
-  const releasingLead = !lead && classHolder?.staffId === staffId;
-  if (!picked.size && !lead && !releasingSubject && !releasingLead) {
-    return { error: "Choose a subject, or make this teacher the class teacher." };
+  const releasingLead = !wantLead && classHolder?.staffId === staffId;
+  const releasingAssistant = !wantAssistant && assistantHolder?.staffId === staffId;
+  if (!picked.size && !wantLead && !wantAssistant && !releasingSubject && !releasingLead && !releasingAssistant) {
+    return { error: "Choose a subject, or make this teacher the class teacher or assistant." };
   }
 
   for (const subject of fitting) {
@@ -532,29 +610,83 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     }
   }
 
-  if (lead) {
-    if (classHolder?.staffId !== staffId) {
+  async function saveLeadership(role: LeadRole, wantedRole: boolean, holder: Holder | null) {
+    if (wantedRole) {
+      if (ownElsewhere && replace) {
+        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus, classCode, stream, role });
+        if (cleared) return cleared;
+      }
+      if (holder?.staffId === staffId) {
+        // Already this role on this stream — still clear a different role on same stream if needed.
+        const otherRole: LeadRole = role === "lead" ? "assistant" : "lead";
+        const { error } = await supabase
+          .from("class_teachers")
+          .delete()
+          .eq("term_id", termId)
+          .eq("campus", campus)
+          .eq("class_code", classCode)
+          .eq("stream", stream)
+          .eq("staff_id", staffId)
+          .eq("role", otherRole);
+        if (error) return `The ${leadershipLabel(role)} could not be saved.`;
+        return null;
+      }
+      if (ownElsewhere) {
+        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus, classCode, stream, role });
+        if (cleared) return cleared;
+      }
+      // Drop this teacher's other role on the same stream before upsert.
+      const { error: dropSelf } = await supabase
+        .from("class_teachers")
+        .delete()
+        .eq("term_id", termId)
+        .eq("campus", campus)
+        .eq("class_code", classCode)
+        .eq("stream", stream)
+        .eq("staff_id", staffId);
+      if (dropSelf) return `The ${leadershipLabel(role)} could not be saved.`;
       const { error } = await supabase.from("class_teachers").upsert(
-        { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId },
-        { onConflict: "term_id,campus,class_code,stream" },
+        { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId, role },
+        { onConflict: "term_id,campus,class_code,stream,role" },
       );
-      if (error) return { error: "The class teacher could not be saved." };
+      if (error) {
+        if (/class_teachers_term_staff_key|duplicate key/i.test(error.message)) {
+          return `${staffName} already holds a class leadership post this term.`;
+        }
+        return `The ${leadershipLabel(role)} could not be saved.`;
+      }
+      return null;
     }
-  } else if (classHolder?.staffId === staffId) {
-    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
-    if (error) return { error: "The class teacher role could not be removed." };
+    if (holder?.staffId === staffId) {
+      const { error } = await supabase
+        .from("class_teachers")
+        .delete()
+        .eq("term_id", termId)
+        .eq("campus", campus)
+        .eq("class_code", classCode)
+        .eq("stream", stream)
+        .eq("staff_id", staffId)
+        .eq("role", role);
+      if (error) return `The ${leadershipLabel(role)} role could not be removed.`;
+    }
+    return null;
   }
+
+  const leadError = await saveLeadership("lead", wantLead, classHolder);
+  if (leadError) return { error: leadError };
+  const assistantError = await saveLeadership("assistant", wantAssistant, assistantHolder);
+  if (assistantError) return { error: assistantError };
 
   refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
   if (portal.created && portal.password && portal.email) {
     return {
-      ok: `${staff.full_name} assigned to ${classLabel(classCode, stream, campus)}. Teacher desk sign-in was created. Share the password now.`,
+      ok: `${staffName} assigned to ${classLabel(classCode, stream, campus)}. Teacher desk sign-in was created. Share the password now.`,
       email: portal.email,
       password: portal.password,
       temporary: portal.temporary,
     };
   }
-  return { ok: `${staff.full_name} assigned to ${classLabel(classCode, stream, campus)}.` };
+  return { ok: `${staffName} assigned to ${classLabel(classCode, stream, campus)}.` };
 }
 
 export async function releaseTeacherPost(formData: FormData): Promise<Result> {
@@ -568,11 +700,20 @@ export async function releaseTeacherPost(formData: FormData): Promise<Result> {
   const { classCode, stream, termId, campus } = group(formData);
   const kind = text(formData, "kind", 20);
   const subjectId = text(formData, "subject_id", 40);
+  const role = leadRoleOf(formData.get("role")) || "lead";
   if (!isUuid(staffId) || !isUuid(termId) || !isClassCode(classCode)) return { error: "Choose the post to remove." };
   const { supabase } = opened.auth;
   if (kind === "class") {
-    const { error } = await supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("staff_id", staffId);
-    if (error) return { error: "The class teacher role could not be removed." };
+    const { error } = await supabase
+      .from("class_teachers")
+      .delete()
+      .eq("term_id", termId)
+      .eq("campus", campus)
+      .eq("class_code", classCode)
+      .eq("stream", stream)
+      .eq("staff_id", staffId)
+      .eq("role", role);
+    if (error) return { error: `The ${leadershipLabel(role)} role could not be removed.` };
   } else if (kind === "subject" && isUuid(subjectId)) {
     const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subjectId).eq("staff_id", staffId);
     if (error) return { error: "The subject could not be removed." };
@@ -594,8 +735,14 @@ export async function saveSubject(formData: FormData): Promise<Result> {
   const code = text(formData, "code", 20).toUpperCase().replace(/[^A-Z0-9-]/g, "");
   if (!id && code.length < 2) return { error: "Enter a short code, such as ENG." };
   if (name.length < 2) return { error: "Enter the subject name." };
-  const span = spanForBands(formData.getAll("band").map(String).filter(isSubjectBand));
-  if (!span) return { error: "Choose at least one section." };
+  // Nursery academics use developmental domains (DSBA); subject catalogue is primary-facing.
+  const bands = formData
+    .getAll("band")
+    .map(String)
+    .filter(isSubjectBand)
+    .filter((band) => band !== "nursery");
+  const span = spanForBands(bands);
+  if (!span) return { error: "Choose Lower and/or Upper primary. Nursery uses Domains on this page." };
   const kind = text(formData, "kind", 20) === "cocurricular" ? "cocurricular" : "core";
   const skills = kind === "cocurricular"
     ? text(formData, "default_skills", 500)
@@ -679,30 +826,84 @@ export async function saveClassTeacher(formData: FormData): Promise<Result> {
   if (campusErr) return campusErr;
   const { classCode, stream, termId, campus } = group(formData);
   const staffId = text(formData, "staff_id", 40);
+  const role = leadRoleOf(formData.get("role")) || "lead";
+  const label = role === "assistant" ? "Assistant class teacher" : "Class teacher";
   if (!termId || !classCode) return { error: "Choose a term and a class." };
   if (!staffId) {
-    const { error } = await opened.auth.supabase.from("class_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream);
+    const { error } = await opened.auth.supabase
+      .from("class_teachers")
+      .delete()
+      .eq("term_id", termId)
+      .eq("campus", campus)
+      .eq("class_code", classCode)
+      .eq("stream", stream)
+      .eq("role", role);
     if (error) return { error: error.message };
-    refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
-    return { ok: "Class teacher saved." };
+    refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`, `${ACADEMICS_BASE}/staff`);
+    return { ok: `${label} cleared.` };
   }
+  if (!isUuid(staffId)) return { error: "Choose a teacher." };
+
+  const { data: ownRows, error: ownError } = await opened.auth.supabase
+    .from("class_teachers")
+    .select("id, campus, class_code, stream, role")
+    .eq("term_id", termId)
+    .eq("staff_id", staffId);
+  if (ownError) return { error: ownError.message };
+
+  const sameStreamOtherRole = (ownRows || []).find(
+    (row) =>
+      row.campus === campus &&
+      row.class_code === classCode &&
+      streamOf(row.stream) === stream &&
+      (row.role || "lead") !== role,
+  );
+  if (sameStreamOtherRole) {
+    return { error: "A teacher cannot be both class teacher and assistant of the same stream." };
+  }
+
   const portal = await ensurePortalForStaffId(opened.auth.supabase, staffId);
   if (portal.error) return { error: portal.error };
+
+  // Move this teacher off any other leadership post this term, then take this stream role.
+  const cleared = await clearOtherLeadership(opened.auth.supabase, termId, staffId, {
+    campus,
+    classCode,
+    stream,
+    role,
+  });
+  if (cleared) return { error: cleared };
+
+  const { error: dropSelf } = await opened.auth.supabase
+    .from("class_teachers")
+    .delete()
+    .eq("term_id", termId)
+    .eq("campus", campus)
+    .eq("class_code", classCode)
+    .eq("stream", stream)
+    .eq("staff_id", staffId);
+  if (dropSelf) return { error: dropSelf.message };
+
   const { error } = await opened.auth.supabase.from("class_teachers").upsert(
-    { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId },
-    { onConflict: "term_id,campus,class_code,stream" },
+    { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId, role },
+    { onConflict: "term_id,campus,class_code,stream,role" },
   );
-  if (error) return { error: error.message };
-  refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`);
+  if (error) {
+    if (/class_teachers_term_staff_key|duplicate key/i.test(error.message)) {
+      return { error: "That teacher already holds a class leadership post this term." };
+    }
+    return { error: error.message };
+  }
+  refreshAcademics(`${ACADEMICS_BASE}/classes/${classCode}`, `${ACADEMICS_BASE}/staff`);
   if (portal.created && portal.password && portal.email) {
     return {
-      ok: "Class teacher saved. Teacher desk sign-in was created. Share the password now.",
+      ok: `${label} saved. Teacher desk sign-in was created. Share the password now.`,
       email: portal.email,
       password: portal.password,
       temporary: portal.temporary,
     };
   }
-  return { ok: "Class teacher saved." };
+  return { ok: `${label} saved.` };
 }
 
 export async function saveSubjectTeacher(formData: FormData): Promise<Result> {
@@ -845,49 +1046,100 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   const kind = text(formData, "kind", 20);
   const name = text(formData, "name", 120);
   const heldOn = text(formData, "held_on", 10);
+  const campusText = text(formData, "campus", 80);
   if (!termId) return { error: "Set a current term before adding papers." };
   if (scope !== "all" && scope !== "one") return { error: "Choose all classes or one class." };
   if (!KINDS.has(kind)) return { error: "Choose the kind of paper." };
   if (name.length < 2) return { error: "Name this assessment." };
   if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Enter a valid date." };
+  if (!campusText) return { error: "Choose a campus for these assessments." };
+  const campus = formCampus(formData);
+  if (!campus) return { error: "Choose a valid campus." };
+  if (opened.auth.office && opened.auth.campuses.length && !opened.auth.campuses.includes(campus)) {
+    return { error: "That campus is outside your desk scope." };
+  }
 
   const pupils = await loadRoll(opened.auth.supabase, opened.auth.user.id, undefined, opened.auth.office ? opened.auth.campuses : undefined);
-  let groups = groupPupils(pupils);
+  let groups = groupPupils(pupils).filter((entry) => operationalCampus(entry.campus) === campus);
   if (scope === "one") {
     const classCode = text(formData, "class_code", 10);
     groups = groups.filter((entry) => entry.code === classCode);
-    if (!groups.length) return { error: "Choose a class that has pupils on the roll." };
+    if (!groups.length) return { error: "Choose a class that has pupils on the roll at this campus." };
   }
-  if (!groups.length) return { error: "No classes are on the roll." };
+  if (!groups.length) return { error: "No classes are on the roll at this campus." };
 
+  const nurseryGroups = groups.filter((entry) => entry.section === "nursery");
+  const primaryGroups = groups.filter((entry) => entry.section !== "nursery");
   const { data: subjectRows, error: subjectError } = await opened.auth.supabase.from("subjects").select("*").eq("active", true);
   if (subjectError) return { error: subjectError.message };
   const subjects = ((subjectRows || []) as Record<string, unknown>[]).map(mapSubject);
   const weight = num(text(formData, "weight", 8)) ?? kindWeight(kind);
   const requestedMax = num(text(formData, "max_score", 8));
   const primaryMax = requestedMax && requestedMax > 0 ? requestedMax : 0;
-  if (weight <= 0 || weight > 100) return { error: "Enter the share as a percentage from 1 to 100." };
-  if (groups.some((entry) => entry.section !== "nursery") && !primaryMax) {
-    return { error: "Enter the marks the paper is out of." };
+  if (primaryGroups.length) {
+    if (weight <= 0 || weight > 100) return { error: "Enter the share as a percentage from 1 to 100." };
+    if (!primaryMax) return { error: "Enter the marks the paper is out of." };
   }
 
-  const rows = groups.flatMap((entry) => {
-    const maxScore = entry.section === "nursery" ? 100 : primaryMax;
-    return subjects.filter((subject) => subjectFits(subject, entry.code)).map((subject) => ({
+  // Nursery: one developmental sitting per class/stream (domains × skills matrix).
+  if (nurseryGroups.length) {
+    const dsbaRows = nurseryGroups.map((entry) => ({
       term_id: termId,
-      campus: entry.campus,
+      campus,
+      class_code: entry.code,
+      stream: entry.stream,
+      name,
+      kind: kind as AssessmentKind,
+      held_on: heldOn || null,
+      created_by: opened.auth.user.id,
+    }));
+    let existingDsba: { class_code: string; stream: string | null; campus: string; name: string }[] = [];
+    try {
+      existingDsba = await fetchAll((from, to) =>
+        opened.auth.supabase
+          .from("developmental_assessments")
+          .select("class_code, stream, campus, name")
+          .eq("term_id", termId)
+          .eq("name", name)
+          .range(from, to),
+      );
+    } catch (error) {
+      return { error: dsbaSchemaHint(error instanceof Error ? error.message : "Nursery assessments need supabase/0077_nursery_dsba.sql.") };
+    }
+    const takenDsba = new Set(
+      existingDsba.map((row) => `${operationalCampus(row.campus)}|${row.class_code}|${streamOf(row.stream)}|${row.name}`),
+    );
+    const freshDsba = dsbaRows.filter((row) => !takenDsba.has(`${row.campus}|${row.class_code}|${streamOf(row.stream)}|${row.name}`));
+    if (freshDsba.length) {
+      const { error: dsbaError } = await opened.auth.supabase.from("developmental_assessments").insert(freshDsba);
+      if (dsbaError) return { error: dsbaSchemaHint(dsbaError.message) };
+    }
+  }
+
+  const rows = primaryGroups.flatMap((entry) =>
+    subjects.filter((subject) => subjectFits(subject, entry.code)).map((subject) => ({
+      term_id: termId,
+      campus,
       class_code: entry.code,
       stream: entry.stream,
       subject_id: subject.id,
       name,
       kind: kind as AssessmentKind,
-      max_score: maxScore,
+      max_score: primaryMax,
       weight,
       held_on: heldOn || null,
       created_by: opened.auth.user.id,
-    }));
-  });
-  if (!rows.length) return { error: "No subjects apply to the chosen classes." };
+    })),
+  );
+  if (!rows.length && !nurseryGroups.length) return { error: "No subjects apply to the chosen classes." };
+  if (!rows.length && nurseryGroups.length) {
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "marks",
+      body: `Set nursery developmental assessment “${name}” for ${nurseryGroups.length} class stream${nurseryGroups.length === 1 ? "" : "s"} at ${campus}.`,
+    });
+    refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+    return { ok: `Nursery developmental assessment ready for ${nurseryGroups.length} class stream${nurseryGroups.length === 1 ? "" : "s"} at ${campus}.` };
+  }
 
   let existing: { class_code: string; stream: string | null; campus: string; subject_id: string; name: string }[];
   try {
@@ -930,8 +1182,8 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   const streamCount = new Set(groups.map((entry) => entry.stream)).size;
   const created = `${fresh.length.toLocaleString("en-GB")} ${fresh.length === 1 ? "markbook" : "markbooks"}`;
   const where = scope === "one"
-    ? `for ${className(groups[0].code)}${streamCount > 1 ? `, across ${streamCount} streams` : ""}`
-    : `across ${createdClasses.toLocaleString("en-GB")} ${createdClasses === 1 ? "class" : "classes"}`;
+    ? `for ${className(groups[0].code)}${streamCount > 1 ? `, across ${streamCount} streams` : ""} at ${campus}`
+    : `across ${createdClasses.toLocaleString("en-GB")} ${createdClasses === 1 ? "class" : "classes"} at ${campus}`;
   const already = skipped ? ` ${skipped.toLocaleString("en-GB")} ${skipped === 1 ? "was" : "were"} already set.` : "";
   return { ok: `Set ${created} ${where}.${already}` };
 }
@@ -953,7 +1205,19 @@ export async function deleteAssessmentSet(formData: FormData): Promise<Result> {
   const { data, error } = await query;
   if (error) return { error: "The assessment could not be deleted." };
   const ids = (data || []).map((row) => String(row.id)).filter(isUuid);
-  if (!ids.length) return { error: "That assessment is no longer on the list." };
+
+  let dsbaQuery = opened.auth.supabase
+    .from("developmental_assessments")
+    .select("id")
+    .eq("term_id", termId)
+    .eq("name", name)
+    .eq("kind", kind);
+  dsbaQuery = heldOn ? dsbaQuery.eq("held_on", heldOn) : dsbaQuery.is("held_on", null);
+  const { data: dsbaData, error: dsbaError } = await dsbaQuery;
+  if (dsbaError) return { error: "The assessment could not be deleted." };
+  const dsbaIds = (dsbaData || []).map((row) => String(row.id)).filter(isUuid);
+
+  if (!ids.length && !dsbaIds.length) return { error: "That assessment is no longer on the list." };
 
   for (let index = 0; index < ids.length; index += 100) {
     const slice = ids.slice(index, index + 100);
@@ -962,9 +1226,24 @@ export async function deleteAssessmentSet(formData: FormData): Promise<Result> {
     const papers = await opened.auth.supabase.from("assessments").delete().in("id", slice);
     if (papers.error) return { error: "The assessment could not be deleted." };
   }
+
+  for (let index = 0; index < dsbaIds.length; index += 100) {
+    const slice = dsbaIds.slice(index, index + 100);
+    const ratings = await opened.auth.supabase.from("skill_ratings").delete().in("assessment_id", slice);
+    if (ratings.error) return { error: "The skill codes could not be removed." };
+    const papers = await opened.auth.supabase.from("developmental_assessments").delete().in("id", slice);
+    if (papers.error) return { error: "The developmental assessment could not be deleted." };
+  }
+
+  const parts = [
+    ids.length ? `${ids.length} ${ids.length === 1 ? "markbook" : "markbooks"}` : "",
+    dsbaIds.length
+      ? `${dsbaIds.length} nursery ${dsbaIds.length === 1 ? "class" : "classes"}`
+      : "",
+  ].filter(Boolean);
   await logAcademics(opened.auth.supabase, opened.auth.user.id, {
     kind: "marks",
-    body: `Deleted ${name} (${ids.length} ${ids.length === 1 ? "markbook" : "markbooks"}).`,
+    body: `Deleted ${name} (${parts.join(" · ")}).`,
   });
   refreshAcademics(`${ACADEMICS_BASE}/assessments`);
   return { ok: `${name} deleted.` };
@@ -1436,8 +1715,9 @@ export async function prepareReports(formData: FormData): Promise<Result> {
       comments.skipped ? `left ${comments.skipped} with existing remarks` : null,
     ].filter(Boolean);
     const note = comments.errors[0]?.messages[0];
+    const warning = "warning" in result ? result.warning : undefined;
     return {
-      ok: `${parts.join(", ")}.${note && !comments.succeeded ? ` ${note}` : ""}`.trim(),
+      ok: `${parts.join(", ")}.${note && !comments.succeeded ? ` ${note}` : ""}${warning ? ` ${warning}` : ""}`.trim(),
       href,
     };
   } catch (error) {
@@ -2535,4 +2815,296 @@ export async function remindTeachers(formData: FormData): Promise<Result> {
   refreshAcademics(`${ACADEMICS_BASE}/insights`);
   if (!sent && failed) return { error: `No reminders could be sent. ${log.find((row) => row.error)?.error ?? ""}`.trim() };
   return { ok: `Reminders sent to ${sent} teacher${sent === 1 ? "" : "s"}.` };
+}
+
+// ---------------------------------------------------------------- Nursery DSBA
+
+function dsbaSchemaHint(message: string) {
+  if (/operational_campus|0081/i.test(message)) {
+    return `${message} Run supabase/0081_developmental_assessments_campus.sql in the Supabase SQL editor.`;
+  }
+  if (/developmental_|progress_scales|progress_codes|nursery_divisions|skill_ratings|report_skill_lines|0077/i.test(message)) {
+    return `${message} Run supabase/0077_nursery_dsba.sql (then 0081_developmental_assessments_campus.sql; and 0078_unify_nursery_progress_scale.sql if needed) in the Supabase SQL editor.`;
+  }
+  return message;
+}
+
+export async function saveDevelopmentalDomain(formData: FormData): Promise<Result & {
+  domain?: ReturnType<typeof mapDomain>;
+  removedDomainId?: string;
+}> {
+  const opened = await gate("subjects");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (formData.get("intent") === "delete") {
+    if (!isUuid(id)) return { error: "Choose a domain to delete." };
+    const { data, error: lookupError } = await opened.auth.supabase.from("developmental_domains").select("name").eq("id", id).maybeSingle();
+    if (lookupError) return { error: dsbaSchemaHint(lookupError.message) };
+    const name = String(data?.name || "").trim();
+    if (!name) return { error: "That domain is already gone." };
+    const { error } = await opened.auth.supabase.from("developmental_domains").delete().eq("id", id);
+    if (error) {
+      return {
+        error: /foreign key|violates/i.test(error.message)
+          ? `${name} is already in use. Hide it instead of deleting it.`
+          : dsbaSchemaHint(error.message),
+      };
+    }
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "setup", body: `Deleted developmental domain ${name}.` });
+    refreshAcademics(`${ACADEMICS_BASE}/subjects`);
+    return { ok: `${name} deleted.`, removedDomainId: id };
+  }
+
+  const name = text(formData, "name", 80);
+  const code = text(formData, "code", 20).toUpperCase().replace(/[^A-Z0-9-]/g, "");
+  if (!id && code.length < 2) return { error: "Enter a short domain code." };
+  if (name.length < 2) return { error: "Enter the domain name." };
+  const divisions = formData.getAll("division").map(String).filter(isNurseryDivisionId);
+  if (!divisions.length) return { error: "Choose at least one nursery division." };
+  const sortOrder = num(text(formData, "sort_order", 6)) ?? 50;
+  const active = formData.get("active") !== "0";
+  const row = { name, sort_order: sortOrder, active };
+  const query = id
+    ? opened.auth.supabase.from("developmental_domains").update(row).eq("id", id).select("*").single()
+    : opened.auth.supabase.from("developmental_domains").insert({ ...row, code }).select("*").single();
+  const { data, error } = await query;
+  if (error || !data) {
+    return {
+      error: error?.message.includes("duplicate")
+        ? "That domain code is already in use."
+        : dsbaSchemaHint(error?.message || "The domain could not be saved."),
+    };
+  }
+  const domainId = String(data.id);
+  await opened.auth.supabase.from("domain_division_links").delete().eq("domain_id", domainId);
+  const { error: linkError } = await opened.auth.supabase
+    .from("domain_division_links")
+    .insert(divisions.map((division_id) => ({ domain_id: domainId, division_id })));
+  if (linkError) return { error: dsbaSchemaHint(linkError.message) };
+  refreshAcademics(`${ACADEMICS_BASE}/subjects`);
+  return {
+    ok: id ? "Domain updated." : `${name} added.`,
+    domain: mapDomain(data as Record<string, unknown>, divisions),
+  };
+}
+
+export async function saveDevelopmentalSkill(formData: FormData): Promise<Result & {
+  skill?: ReturnType<typeof mapSkill>;
+  removedSkillId?: string;
+}> {
+  const opened = await gate("subjects");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  if (formData.get("intent") === "delete") {
+    if (!isUuid(id)) return { error: "Choose a skill to delete." };
+    const { data, error: lookupError } = await opened.auth.supabase.from("developmental_skills").select("description").eq("id", id).maybeSingle();
+    if (lookupError) return { error: dsbaSchemaHint(lookupError.message) };
+    const description = String(data?.description || "").trim();
+    if (!description) return { error: "That skill is already gone." };
+    const { error } = await opened.auth.supabase.from("developmental_skills").delete().eq("id", id);
+    if (error) {
+      return {
+        error: /foreign key|violates/i.test(error.message)
+          ? "That skill is already on assessments or reports. Hide it instead."
+          : dsbaSchemaHint(error.message),
+      };
+    }
+    refreshAcademics(`${ACADEMICS_BASE}/subjects`);
+    return { ok: "Skill deleted.", removedSkillId: id };
+  }
+
+  const domainId = text(formData, "domain_id", 40);
+  const description = text(formData, "description", 200);
+  if (!isUuid(domainId)) return { error: "Choose a domain for this skill." };
+  if (description.length < 2) return { error: "Enter the skill description." };
+  const divisions = formData.getAll("division").map(String).filter(isNurseryDivisionId);
+  if (!divisions.length) return { error: "Choose at least one nursery division." };
+  const sortOrder = num(text(formData, "sort_order", 6)) ?? 50;
+  const active = formData.get("active") !== "0";
+  const row = { domain_id: domainId, description, sort_order: sortOrder, active };
+  const query = id
+    ? opened.auth.supabase.from("developmental_skills").update(row).eq("id", id).select("*").single()
+    : opened.auth.supabase.from("developmental_skills").insert(row).select("*").single();
+  const { data, error } = await query;
+  if (error || !data) return { error: dsbaSchemaHint(error?.message || "The skill could not be saved.") };
+  const skillId = String(data.id);
+  await opened.auth.supabase.from("skill_division_links").delete().eq("skill_id", skillId);
+  const { error: linkError } = await opened.auth.supabase
+    .from("skill_division_links")
+    .insert(divisions.map((division_id) => ({ skill_id: skillId, division_id })));
+  if (linkError) return { error: dsbaSchemaHint(linkError.message) };
+  refreshAcademics(`${ACADEMICS_BASE}/subjects`);
+  return {
+    ok: id ? "Skill updated." : "Skill added.",
+    skill: mapSkill(data as Record<string, unknown>, divisions),
+  };
+}
+
+export async function saveProgressCode(formData: FormData): Promise<Result> {
+  const opened = await gate("settings");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const id = text(formData, "id", 40);
+  const scaleId = text(formData, "scale_id", 40);
+  if (!isUuid(scaleId)) return { error: "Choose a progress scale." };
+  if (formData.get("intent") === "delete" && id) {
+    const { error } = await opened.auth.supabase.from("progress_codes").delete().eq("id", id);
+    if (error) return { error: dsbaSchemaHint(error.message) };
+    refreshAcademics(`${ACADEMICS_BASE}/settings`);
+    return { ok: "Progress code removed." };
+  }
+  const code = text(formData, "code", 8);
+  const label = text(formData, "label", 80);
+  const sortOrder = num(text(formData, "sort_order", 6)) ?? 0;
+  if (!code) return { error: "Enter the progress code (for example M or P)." };
+  if (!label) return { error: "Enter what the code means." };
+  const row = { scale_id: scaleId, code, label, sort_order: sortOrder };
+  const query = id
+    ? opened.auth.supabase.from("progress_codes").update(row).eq("id", id)
+    : opened.auth.supabase.from("progress_codes").insert(row);
+  const { error } = await query;
+  if (error) {
+    return {
+      error: error.message.includes("duplicate")
+        ? "That code already exists on this scale."
+        : dsbaSchemaHint(error.message),
+    };
+  }
+  refreshAcademics(`${ACADEMICS_BASE}/settings`);
+  return { ok: id ? "Progress code updated." : "Progress code added." };
+}
+
+export async function saveSkillRatings(formData: FormData): Promise<Result> {
+  const opened = await gate("assessments");
+  if (!opened.auth) return { error: opened.error };
+  const assessmentId = text(formData, "assessment_id", 40);
+  if (!isUuid(assessmentId)) return { error: "This developmental assessment could not be found." };
+  const { data: paper, error: paperError } = await opened.auth.supabase
+    .from("developmental_assessments")
+    .select("id, term_id, class_code, stream, campus, name, status")
+    .eq("id", assessmentId)
+    .maybeSingle();
+  if (paperError) return { error: dsbaSchemaHint(paperError.message) };
+  if (!paper) return { error: "This developmental assessment could not be found." };
+  if (markbookClosed(paper.status)) return { error: "This assessment is locked. Reopen it before changing codes." };
+
+  if (!opened.auth.office) {
+    const allowed = await teachesClass(opened.auth, {
+      termId: String(paper.term_id),
+      classCode: String(paper.class_code),
+      stream: streamOf(paper.stream as string | null),
+      campus: operationalCampus(paper.campus as string | null),
+    });
+    if (!allowed) return { error: "Only the class teacher can enter these skill codes." };
+  }
+
+  const rows: { assessment_id: string; student_id: string; skill_id: string; progress_code_id: string | null; note: string | null }[] = [];
+  for (const [key, value] of formData.entries()) {
+    if (!key.startsWith("rating:")) continue;
+    const parts = key.slice("rating:".length).split("|");
+    if (parts.length !== 2) continue;
+    const [studentId, skillId] = parts;
+    if (!isUuid(studentId) || !isUuid(skillId)) continue;
+    const raw = String(value).trim();
+    rows.push({
+      assessment_id: assessmentId,
+      student_id: studentId,
+      skill_id: skillId,
+      progress_code_id: isUuid(raw) ? raw : null,
+      note: null,
+    });
+  }
+  if (!rows.length) return { error: "There are no skill ratings to save." };
+
+  const submitting = formData.get("intent") === "submit";
+  if (submitting) {
+    const skillIds = [...new Set(rows.map((row) => row.skill_id))];
+    const studentIds = [...new Set(rows.map((row) => row.student_id))];
+    for (const studentId of studentIds) {
+      for (const skillId of skillIds) {
+        const row = rows.find((entry) => entry.student_id === studentId && entry.skill_id === skillId);
+        if (!row?.progress_code_id) {
+          return { error: "Choose a progress code for every skill before submitting." };
+        }
+      }
+    }
+  }
+
+  for (let index = 0; index < rows.length; index += 200) {
+    const slice = rows.slice(index, index + 200);
+    const { error } = await opened.auth.supabase.from("skill_ratings").upsert(slice, {
+      onConflict: "assessment_id,student_id,skill_id",
+    });
+    if (error) return { error: dsbaSchemaHint(error.message) };
+  }
+
+  if (submitting) {
+    const { error } = await opened.auth.supabase
+      .from("developmental_assessments")
+      .update({ status: "submitted" })
+      .eq("id", assessmentId);
+    if (error) return { error: dsbaSchemaHint(error.message) };
+  }
+
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "marks",
+    body: submitting
+      ? `Submitted developmental assessment “${paper.name}” for ${classLabel(String(paper.class_code), paper.stream as string | null)}.`
+      : `Saved skill ratings for “${paper.name}” · ${classLabel(String(paper.class_code), paper.stream as string | null)}.`,
+  });
+  refreshAcademics(
+    `${ACADEMICS_BASE}/assessments/dsba/${assessmentId}`,
+    `${ACADEMICS_BASE}/assessments/marksheet`,
+    `/teacher/assessments/dsba/${assessmentId}`,
+    `/teacher/marksheet`,
+    `/teacher/assessments`,
+  );
+  return { ok: submitting ? "Assessment submitted." : "Skill ratings saved." };
+}
+
+export async function reopenDevelopmentalAssessment(formData: FormData): Promise<Result> {
+  const opened = await gate("assessments");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const assessmentId = text(formData, "assessment_id", 40);
+  if (!isUuid(assessmentId)) return { error: "This assessment could not be found." };
+  const { error } = await opened.auth.supabase
+    .from("developmental_assessments")
+    .update({ status: "open" })
+    .eq("id", assessmentId);
+  if (error) return { error: dsbaSchemaHint(error.message) };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "marks", body: "Reopened a developmental assessment." });
+  refreshAcademics(
+    `${ACADEMICS_BASE}/assessments/dsba/${assessmentId}`,
+    `${ACADEMICS_BASE}/assessments/marksheet`,
+    `/teacher/marksheet`,
+  );
+  return { ok: "Assessment unlocked." };
+}
+
+export async function approveDevelopmentalAssessment(formData: FormData): Promise<Result> {
+  const opened = await gate("assessments");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const assessmentId = text(formData, "assessment_id", 40);
+  if (!isUuid(assessmentId)) return { error: "This assessment could not be found." };
+  const { error } = await opened.auth.supabase
+    .from("developmental_assessments")
+    .update({ status: "approved" })
+    .eq("id", assessmentId);
+  if (error) return { error: dsbaSchemaHint(error.message) };
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, { kind: "marks", body: "Approved a developmental assessment." });
+  refreshAcademics(
+    `${ACADEMICS_BASE}/assessments/dsba/${assessmentId}`,
+    `${ACADEMICS_BASE}/assessments/marksheet`,
+    `/teacher/marksheet`,
+  );
+  return { ok: "Assessment locked." };
 }

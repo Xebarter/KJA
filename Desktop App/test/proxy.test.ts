@@ -10,6 +10,7 @@ import {
   isPlainTableWrite,
   localEntityId,
   parseRestTable,
+  setBearerAuth,
   stripSyntheticIds,
 } from "../src/proxy/outbox";
 import { ProxyStore } from "../src/proxy/store";
@@ -37,6 +38,21 @@ describe("jwt helpers", () => {
 });
 
 describe("outbox helpers", () => {
+  it("sets a single Authorization header (dual casing breaks PostgREST JWTs)", () => {
+    const token = makeJwt("user-1");
+    const headers: Record<string, string> = {
+      Authorization: "Bearer stale",
+      apikey: "anon",
+    };
+    setBearerAuth(headers, token);
+    const authKeys = Object.keys(headers).filter((key) => key.toLowerCase() === "authorization");
+    expect(authKeys).toEqual(["authorization"]);
+    expect(headers.authorization).toBe(`Bearer ${token}`);
+    expect(headers.Authorization).toBeUndefined();
+    // Joining both casings is exactly how upstream reported "got 5" JWT parts.
+    expect(`${headers.authorization}, Bearer ${token}`.replace(/^Bearer\s+/i, "").split(".")).toHaveLength(5);
+  });
+
   it("parses rest table paths", () => {
     expect(parseRestTable("/rest/v1/students")).toBe("students");
     expect(parseRestTable("/rest/v1/rpc/foo")).toBeNull();

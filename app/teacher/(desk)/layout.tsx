@@ -5,6 +5,7 @@ import "../../academics_office/(desk)/assessments/assessments.css";
 import "../../academics_office/(desk)/attendance/attendance.css";
 import "../../academics_office/(desk)/calendar/calendar.css";
 import "../../academics_office/(desk)/homework/homework.css";
+import "./marksheet/marksheet.css";
 
 export default async function TeacherDeskLayout({ children }: { children: React.ReactNode }) {
   const teacher = await requireTeacher();

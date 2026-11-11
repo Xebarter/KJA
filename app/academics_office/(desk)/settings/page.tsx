@@ -3,6 +3,7 @@ import { GradingDesk } from "@/components/academics/GradingDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
 import { loadCurrentTerm, mapBand, mapDivisionBand } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
+import { mapProgressCode, mapProgressScale } from "@/lib/nursery-dsba";
 import { nextTermSlot } from "@/lib/report-closing";
 import { serviceClient } from "@/lib/supabase/service";
 
@@ -12,15 +13,24 @@ export default async function GradingPage() {
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Grading" state={opened} />;
   if (!opened.auth.office) return <OfficeOnly title="Grading" />;
-  const [{ data, error }, divisionsQuery] = await Promise.all([
+  const [{ data, error }, divisionsQuery, scalesQuery, codesQuery] = await Promise.all([
     opened.auth.supabase.from("grade_bands").select("*").order("section").order("sort_order"),
     opened.auth.supabase.from("division_bands").select("*").order("track").order("sort_order"),
+    opened.auth.supabase.from("progress_scales").select("*").order("sort_order"),
+    opened.auth.supabase.from("progress_codes").select("*").order("sort_order"),
   ]);
   if (error) return <AcademicsGate title="Grading" state={{ notice: "schema", message: error.message }} />;
   const bands = ((data || []) as Record<string, unknown>[]).map(mapBand);
   const divisionReady = !divisionsQuery.error;
   const divisions = divisionReady
     ? ((divisionsQuery.data || []) as Record<string, unknown>[]).map(mapDivisionBand)
+    : [];
+  const dsbaReady = !scalesQuery.error && !codesQuery.error;
+  const progressScales = dsbaReady
+    ? ((scalesQuery.data || []) as Record<string, unknown>[]).map(mapProgressScale)
+    : [];
+  const progressCodes = dsbaReady
+    ? ((codesQuery.data || []) as Record<string, unknown>[]).map(mapProgressCode)
     : [];
   const nextTerm = await loadNextTerm(opened.auth.supabase);
 
@@ -30,13 +40,16 @@ export default async function GradingPage() {
         kicker="Setup"
         icon="fa-sliders"
         title="Grading"
-        description="Separate grading for Nursery, Lower section (P1–P3) and Upper section (P4–P7), plus the next-term date printed on every report."
+        description="Nursery progress codes for developmental skills, letter grades for Lower and Upper primary, plus the next-term date printed on every report."
       />
       <GradingDesk
         bands={bands}
         divisions={divisions}
         divisionReady={divisionReady}
         nextTerm={nextTerm}
+        progressScales={progressScales}
+        progressCodes={progressCodes}
+        dsbaReady={dsbaReady}
       />
     </div>
   );

@@ -369,6 +369,29 @@ async function openDeskGate(
     console.warn("[desktop] desk gate load failed", e);
     // Stale auth cookies can hang middleware getUser - clear and retry once.
     await clearDeskAuthCookies(win);
+
+    // Warm keep-alive Next often accepts TCP while SSR is wedged (stale compile /
+    // hung auth). Restart it before burning another long load timeout.
+    if (!opts.coldNext) {
+      emitBoot({ phase: "warmup", message: "Restarting offices…", progress: 90 });
+      try {
+        nextHandle = await restartNext(env);
+        nextGraceUntil = Date.now() + 25_000;
+        await delay(400);
+        await loadDeskGate(win, DESK_LOAD_COLD_TIMEOUT_MS);
+        return;
+      } catch (restartErr) {
+        console.warn("[desktop] warm-host restart gate failed; revealing anyway", restartErr);
+        if (await portOpen(NEXT_PORT)) {
+          await forceOpenSignIn(win);
+          return;
+        }
+        throw restartErr instanceof Error
+          ? restartErr
+          : new Error("Desks stopped responding.");
+      }
+    }
+
     if ((await nextHttpAlive(1_500)) || (await portOpen(NEXT_PORT))) {
       emitBoot({ phase: "warmup", message: "Opening sign-in…", progress: 94 });
       await delay(300);
@@ -384,6 +407,7 @@ async function openDeskGate(
     emitBoot({ phase: "warmup", message: "Restarting offices…", progress: 90 });
     try {
       nextHandle = await restartNext(env);
+      nextGraceUntil = Date.now() + 25_000;
       await delay(200);
       await loadDeskGate(win, DESK_LOAD_COLD_TIMEOUT_MS);
     } catch (restartErr) {

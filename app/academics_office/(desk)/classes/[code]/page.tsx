@@ -72,19 +72,24 @@ export default async function ClassPage({
   const section = classSection(code);
 
   let classTeacher = "";
+  let assistantTeacher = "";
   const subjectTeachers = new Map<string, string>();
   if (term && chosen !== null) {
-    const [classRow, subjectRows] = await Promise.all([
-      supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("campus", campus).eq("class_code", code).eq("stream", chosen).maybeSingle(),
+    const [classRows, subjectRows] = await Promise.all([
+      supabase.from("class_teachers").select("staff_id, role").eq("term_id", term.id).eq("campus", campus).eq("class_code", code).eq("stream", chosen),
       supabase.from("subject_teachers").select("subject_id, staff_id").eq("term_id", term.id).eq("campus", campus).eq("class_code", code).eq("stream", chosen),
     ]);
-    classTeacher = classRow.data?.staff_id || "";
+    for (const row of classRows.data || []) {
+      if ((row.role || "lead") === "assistant") assistantTeacher = String(row.staff_id || "");
+      else classTeacher = String(row.staff_id || "");
+    }
     for (const row of subjectRows.data || []) subjectTeachers.set(row.subject_id as string, row.staff_id as string);
   }
   const visible = chosen === null ? [] : atCampus.filter((pupil) => (pupil.stream || "") === chosen);
   const boys = visible.filter((pupil) => pupil.sex === "M").length;
   const girls = visible.filter((pupil) => pupil.sex === "F").length;
   const teacher = staff.find((member) => member.id === classTeacher) ?? null;
+  const assistant = staff.find((member) => member.id === assistantTeacher) ?? null;
   const assigned = subjects.filter((subject) => subjectTeachers.has(subject.id)).length;
   const label = chosen === null ? classLabel(code, null, campus) : classLabel(code, chosen, campus);
   const campusQs = `campus=${campusQuery(campus)}`;
@@ -213,50 +218,82 @@ export default async function ClassPage({
               <section className="acr-panel">
                 <header className="acr-panel-head">
                   <div>
-                    <h2>Class teacher</h2>
-                    <p>{term ? term.label : "Set a current term before assigning."}</p>
+                    <h2>Teachers</h2>
+                    <p>{term ? `${term.label} · choose a teacher to assign or replace` : "Set a current term before assigning."}</p>
                   </div>
                 </header>
                 {term && office ? (
-                  <DeskForm action={saveClassTeacher} className="acr-lead">
-                    <input type="hidden" name="term_id" value={term.id} />
-                    <input type="hidden" name="class_code" value={code} />
-                    <input type="hidden" name="stream" value={chosen} />
-                    <input type="hidden" name="campus" value={campus} />
-                    <div className={`acr-lead-who${teacher ? "" : " is-open"}`}>
+                  <div className="acr-teachers">
+                    <DeskForm action={saveClassTeacher} className="acr-lead-row" quiet status="Saving">
+                      <input type="hidden" name="term_id" value={term.id} />
+                      <input type="hidden" name="class_code" value={code} />
+                      <input type="hidden" name="stream" value={chosen} />
+                      <input type="hidden" name="campus" value={campus} />
+                      <input type="hidden" name="role" value="lead" />
+                      <div className={`acr-lead-who is-compact${teacher ? " is-set" : " is-open"}`}>
+                        <em aria-hidden="true">{teacher ? initials(teacher.full_name) : <i className="fa-solid fa-user" />}</em>
+                        <span>
+                          <strong>Class teacher</strong>
+                          <small>{teacher?.full_name || "Needed"}</small>
+                        </span>
+                      </div>
+                      <select name="staff_id" defaultValue={classTeacher} aria-label="Class teacher">
+                        <option value="">{teacher ? "Clear class teacher" : "Choose class teacher"}</option>
+                        {staff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.id === classTeacher ? `${member.full_name} · current` : teacher && member.id !== classTeacher ? `Replace with ${member.full_name}` : member.full_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="acr-save" type="submit">Save</button>
+                    </DeskForm>
+                    <DeskForm action={saveClassTeacher} className="acr-lead-row" quiet status="Saving">
+                      <input type="hidden" name="term_id" value={term.id} />
+                      <input type="hidden" name="class_code" value={code} />
+                      <input type="hidden" name="stream" value={chosen} />
+                      <input type="hidden" name="campus" value={campus} />
+                      <input type="hidden" name="role" value="assistant" />
+                      <div className={`acr-lead-who is-compact${assistant ? " is-set" : " is-open"}`}>
+                        <em aria-hidden="true">{assistant ? initials(assistant.full_name) : <i className="fa-solid fa-user-plus" />}</em>
+                        <span>
+                          <strong>Assistant</strong>
+                          <small>{assistant?.full_name || "Optional"}</small>
+                        </span>
+                      </div>
+                      <select name="staff_id" defaultValue={assistantTeacher} aria-label="Assistant class teacher">
+                        <option value="">{assistant ? "Clear assistant" : "Choose assistant"}</option>
+                        {staff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.id === assistantTeacher ? `${member.full_name} · current` : assistant && member.id !== assistantTeacher ? `Replace with ${member.full_name}` : member.full_name}
+                          </option>
+                        ))}
+                      </select>
+                      <button className="acr-save" type="submit">Save</button>
+                    </DeskForm>
+                  </div>
+                ) : (
+                  <div className="acr-teachers is-readonly">
+                    <div className={`acr-lead-who is-compact${teacher ? " is-set" : " is-open"}`}>
                       <em aria-hidden="true">{teacher ? initials(teacher.full_name) : <i className="fa-solid fa-user" />}</em>
                       <span>
-                        <strong>{teacher?.full_name || "No class teacher"}</strong>
-                        <small>{teacher?.title || (teacher ? "Class teacher" : "Choose someone for this stream")}</small>
+                        <strong>Class teacher</strong>
+                        <small>{teacher?.full_name || (term ? "Not assigned" : "Needs a current term")}</small>
                       </span>
                     </div>
-                    <label className="acr-field">
-                      <span>Assign</span>
-                      <select name="staff_id" defaultValue={classTeacher} aria-label="Class teacher">
-                        <option value="">No class teacher</option>
-                        {staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}
-                      </select>
-                    </label>
-                    <button className="acr-commit" type="submit">Save class teacher</button>
-                  </DeskForm>
-                ) : (
-                  <div className={`acr-lead-who${teacher ? "" : " is-open"}`}>
-                    <em aria-hidden="true">{teacher ? initials(teacher.full_name) : <i className="fa-solid fa-user" />}</em>
-                    <span>
-                      <strong>{teacher?.full_name || "No class teacher"}</strong>
-                      <small>{term ? term.label : "Ask accounts to mark a term as current."}</small>
-                    </span>
+                    <div className={`acr-lead-who is-compact${assistant ? " is-set" : " is-open"}`}>
+                      <em aria-hidden="true">{assistant ? initials(assistant.full_name) : <i className="fa-solid fa-user-plus" />}</em>
+                      <span>
+                        <strong>Assistant</strong>
+                        <small>{assistant?.full_name || "None"}</small>
+                      </span>
+                    </div>
                   </div>
                 )}
-              </section>
 
-              <section className="acr-panel">
-                <header className="acr-panel-head">
-                  <div>
-                    <h2>Subject teachers</h2>
-                    <p>{subjects.length ? `${assigned} of ${subjects.length} assigned` : "No subjects for this class."}</p>
-                  </div>
-                </header>
+                <div className="acr-subjects-head">
+                  <strong>Subjects</strong>
+                  <span>{subjects.length ? `${assigned}/${subjects.length}` : "None"}</span>
+                </div>
                 {term && subjects.length ? (
                   <ul className="acr-subjects">
                     {subjects.map((subject) => {
@@ -264,17 +301,17 @@ export default async function ClassPage({
                       const holder = staff.find((member) => member.id === staffId);
                       if (!office) {
                         return (
-                          <li key={subject.id} className={holder ? "is-set" : ""}>
+                          <li key={subject.id} className={holder ? "is-set" : "is-open"}>
                             <span className="acr-subject">
                               <strong>{subject.name}</strong>
-                              <small>{holder?.full_name || "Unassigned"}</small>
+                              <small>{holder?.full_name || "Open"}</small>
                             </span>
                           </li>
                         );
                       }
                       return (
-                        <li key={subject.id} className={holder ? "is-set" : ""}>
-                          <DeskForm action={saveSubjectTeacher} className="acr-assign">
+                        <li key={subject.id} className={holder ? "is-set" : "is-open"}>
+                          <DeskForm action={saveSubjectTeacher} className="acr-assign" quiet status="Saving">
                             <input type="hidden" name="term_id" value={term.id} />
                             <input type="hidden" name="class_code" value={code} />
                             <input type="hidden" name="stream" value={chosen} />
@@ -282,11 +319,15 @@ export default async function ClassPage({
                             <input type="hidden" name="subject_id" value={subject.id} />
                             <span className="acr-subject">
                               <strong>{subject.name}</strong>
-                              <small>{holder?.full_name || "Unassigned"}</small>
+                              <small>{holder?.full_name || "Open"}</small>
                             </span>
                             <select name="staff_id" defaultValue={staffId} aria-label={`${subject.name} teacher`}>
-                              <option value="">Unassigned</option>
-                              {staff.map((member) => <option key={member.id} value={member.id}>{member.full_name}</option>)}
+                              <option value="">{holder ? "Clear teacher" : "Choose teacher"}</option>
+                              {staff.map((member) => (
+                                <option key={member.id} value={member.id}>
+                                  {member.id === staffId ? `${member.full_name} · current` : holder && member.id !== staffId ? `Replace with ${member.full_name}` : member.full_name}
+                                </option>
+                              ))}
                             </select>
                             <button className="acr-save" type="submit">Save</button>
                           </DeskForm>

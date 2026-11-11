@@ -37,7 +37,16 @@ export type StaffPeriod = {
   room: string | null;
 };
 
-export type StaffClass = { label: string; href: string; code: string; stream: string; campus: string };
+export type StaffLeadRole = "lead" | "assistant";
+
+export type StaffClass = {
+  label: string;
+  href: string;
+  code: string;
+  stream: string;
+  campus: string;
+  role: StaffLeadRole;
+};
 
 export type StaffMember = StaffRow & {
   classes: StaffClass[];
@@ -68,6 +77,7 @@ export type StaffLead = {
   campus: string;
   staffId: string;
   staffName: string;
+  role: StaffLeadRole;
 };
 
 export type StaffDeskData = {
@@ -155,8 +165,8 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string, campuses
 
   const today = kampalaToday();
   const [classRows, subjectRows, schemeRows, paperRows, slotRows, pupils] = await Promise.all([
-    rowsOf<{ staff_id: string; class_code: string; stream: string; campus: string }>(
-      supabase.from("class_teachers").select("staff_id, class_code, stream, campus").eq("term_id", term.id),
+    rowsOf<{ staff_id: string; class_code: string; stream: string; campus: string; role: string | null }>(
+      supabase.from("class_teachers").select("staff_id, class_code, stream, campus, role").eq("term_id", term.id),
     ),
     rowsOf<{ staff_id: string; class_code: string; stream: string; campus: string; subject_id: string; subjects: Named }>(
       supabase.from("subject_teachers").select("staff_id, class_code, stream, campus, subject_id, subjects(name)").eq("term_id", term.id),
@@ -177,7 +187,11 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string, campuses
     }),
   ]);
 
-  const led = new Set(classRows.map((row) => keyOf(row.class_code, row.stream, "", operationalCampus(row.campus))));
+  const led = new Set(
+    classRows
+      .filter((row) => (row.role || "lead") !== "assistant")
+      .map((row) => keyOf(row.class_code, row.stream, "", operationalCampus(row.campus))),
+  );
   const order = new Map<string, number>(SCHOOL_CLASSES.map((entry) => [entry.code, entry.order]));
   const gaps = [...new Set(pupils.filter((row) => row.class_code).map((row) => keyOf(row.class_code || "", row.stream || "", "", operationalCampus(row.campus))))]
     .filter((key) => !led.has(key))
@@ -236,6 +250,7 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string, campuses
     campus: operationalCampus(row.campus),
     staffId: row.staff_id,
     staffName: nameOf.get(row.staff_id) || "Teacher",
+    role: row.role === "assistant" ? "assistant" : "lead",
   }));
   const groups = new Map<string, StaffGroup>();
   for (const pupil of pupils) {
@@ -254,7 +269,15 @@ async function buildStaffDesk(supabase: SupabaseClient, userId: string, campuses
       .filter((row) => row.staff_id === person.id)
       .map((row) => {
         const campus = operationalCampus(row.campus);
-        return { code: row.class_code, stream: streamOf(row.stream), campus, label: classLabel(row.class_code, row.stream, campus), href: classHref(row.class_code, row.stream, campus) };
+        const role: StaffLeadRole = row.role === "assistant" ? "assistant" : "lead";
+        return {
+          code: row.class_code,
+          stream: streamOf(row.stream),
+          campus,
+          role,
+          label: classLabel(row.class_code, row.stream, campus),
+          href: classHref(row.class_code, row.stream, campus),
+        };
       })
       .sort((a, b) => (order.get(a.code) ?? 99) - (order.get(b.code) ?? 99) || a.label.localeCompare(b.label));
     const owned = new Set<string>();

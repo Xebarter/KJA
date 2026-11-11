@@ -2,9 +2,11 @@ import { loadTerms, requireAccounts } from "@/lib/accounts";
 import { expenseStatusInfo } from "@/lib/accounts-format";
 import { buildReconciliationWorkbook, reconciliationWorkbookFilename } from "@/lib/accounts-reconciliation-workbook";
 import { loadAccountsReport, parseReportDates, rateText, type AccountsReport } from "@/lib/accounts-reports";
+import { contentDisposition } from "@/lib/download-headers";
 import { csvResponse, pick, studentStatusInfo } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 function positionRows(report: AccountsReport) {
   return [
@@ -130,16 +132,31 @@ export async function GET(request: Request) {
       });
       const bytes = await buildReconciliationWorkbook({ report, preparedBy, generatedAt });
       const filename = reconciliationWorkbookFilename(report.periodLabel, report.today);
-      return new Response(new Uint8Array(bytes), {
-        headers: {
-          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename="${filename.replace(/"/g, "")}"`,
-          "Cache-Control": "no-store",
-        },
-      });
+      // Standalone copy - shared Node Buffer / ExcelJS views have caused Undici/Next
+      // HTML 500s on Desktop when the response body is piped.
+      const bodyBytes = Uint8Array.from(Buffer.from(bytes));
+      try {
+        return new Response(bodyBytes, {
+          headers: {
+            "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "content-disposition": contentDisposition(filename),
+            "cache-control": "no-store",
+          },
+        });
+      } catch (headerError) {
+        console.error("[accounts-reports-export] response headers", headerError);
+        return new Response(bodyBytes, {
+          headers: {
+            "content-type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "content-disposition": contentDisposition("KJA fee reconciliation.xlsx"),
+            "cache-control": "no-store",
+          },
+        });
+      }
     }
     return csvFor(kind, report);
   } catch (loadError) {
+    console.error("[accounts-reports-export]", loadError);
     return new Response(loadError instanceof Error ? loadError.message : "Export failed.", { status: 500 });
   }
 }

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ACADEMICS_BASE } from "@/lib/academics-nav";
+import { operationalCampus } from "@/lib/campuses";
 import { forget, remember } from "@/lib/remember";
 import { normalizeSubjectKind, type SubjectKind } from "@/lib/subject-kind";
 import { subjectFits as subjectFitsClass } from "@/lib/subject-bands";
@@ -15,7 +16,7 @@ const TZ = "Africa/Kampala";
 
 /** True when the error means an academics SQL script hasn't been run yet. */
 export function missingAcademicsSchema(message: string | null | undefined) {
-  return Boolean(message && /teaching_staff|subjects|grade_bands|division_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|overall_aggregate|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|does not exist|schema cache/i.test(message));
+  return Boolean(message && /teaching_staff|subjects|grade_bands|division_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|overall_aggregate|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|nursery_divisions|does not exist|schema cache/i.test(message));
 }
 export async function logAcademics(
   supabase: SupabaseClient,
@@ -488,9 +489,9 @@ export function groupPupils<T extends { class_code: string | null; stream: strin
   const groups: ClassGroup<T>[] = [];
   for (const entry of SCHOOL_CLASSES) {
     const mine = pupils.filter((pupil) => pupil.class_code === entry.code);
-    const campuses = [...new Set(mine.map((pupil) => String(pupil.campus || "").trim() || "Kitante"))].sort((a, b) => a.localeCompare(b));
+    const campuses = [...new Set(mine.map((pupil) => operationalCampus(pupil.campus)))].sort((a, b) => a.localeCompare(b));
     for (const campus of campuses) {
-      const atCampus = mine.filter((pupil) => (String(pupil.campus || "").trim() || "Kitante") === campus);
+      const atCampus = mine.filter((pupil) => operationalCampus(pupil.campus) === campus);
       const streams = [...new Set(atCampus.map((pupil) => streamOf(pupil.stream)))].sort((a, b) => a.localeCompare(b));
       for (const stream of streams) {
         const rows = atCampus.filter((pupil) => streamOf(pupil.stream) === stream);

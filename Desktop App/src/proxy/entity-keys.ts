@@ -17,6 +17,18 @@ export function localEntityId(table: string, row: Record<string, unknown>): stri
   if (table === "assessment_scores" && row.assessment_id != null && row.student_id != null) {
     return compositeRowId([String(row.assessment_id), String(row.student_id)]);
   }
+  if (table === "skill_ratings" && row.assessment_id != null && row.student_id != null && row.skill_id != null) {
+    return compositeRowId([String(row.assessment_id), String(row.student_id), String(row.skill_id)]);
+  }
+  if (table === "report_skill_lines" && row.report_card_id != null && row.skill_id != null) {
+    return compositeRowId([String(row.report_card_id), String(row.skill_id)]);
+  }
+  if (table === "domain_division_links" && row.domain_id != null && row.division_id != null) {
+    return compositeRowId([String(row.domain_id), String(row.division_id)]);
+  }
+  if (table === "skill_division_links" && row.skill_id != null && row.division_id != null) {
+    return compositeRowId([String(row.skill_id), String(row.division_id)]);
+  }
   if (table === "club_attendance" && row.session_id != null && row.student_id != null) {
     return compositeRowId([String(row.session_id), String(row.student_id)]);
   }

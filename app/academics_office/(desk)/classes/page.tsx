@@ -23,7 +23,7 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
   const [pupils, termPack, teachers] = await Promise.all([
     loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
     loadCurrentTerm(supabase),
-    supabase.from("class_teachers").select("term_id, class_code, stream, campus, teaching_staff(full_name)"),
+    supabase.from("class_teachers").select("term_id, class_code, stream, campus, role, teaching_staff(full_name)"),
   ]);
   if (teachers.error) return <AcademicsGate title="Classes" state={{ notice: "schema", message: teachers.error.message }} />;
   if (termPack.error) return <AcademicsGate title="Classes" state={{ notice: "schema", message: termPack.error }} />;
@@ -31,6 +31,7 @@ export default async function ClassesPage({ searchParams }: { searchParams: Prom
   const teacherName = new Map<string, string>();
   for (const row of teachers.data || []) {
     if (term && row.term_id !== term.id) continue;
+    if ((row.role || "lead") === "assistant") continue;
     const staff = row.teaching_staff as { full_name?: string } | { full_name?: string }[] | null;
     const name = Array.isArray(staff) ? staff[0]?.full_name : staff?.full_name;
     if (name) teacherName.set(classGroupKey(row.campus as string, row.class_code as string, row.stream as string), name);

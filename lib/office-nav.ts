@@ -31,6 +31,7 @@ export const officeNav: OfficeNavItem[] = [
   { href: `${OFFICE_BASE}/families`, label: "Families", icon: "fa-people-roof", group: "Register" },
   { href: `${OFFICE_BASE}/classes`, label: "Classes", icon: "fa-chalkboard", group: "Register" },
   { href: `${OFFICE_BASE}/promotions`, label: "Promotions", icon: "fa-stairs", group: "Year end" },
+  { href: `${OFFICE_BASE}/report-cards`, label: "Nursery report cards", icon: "fa-seedling", group: "Year end" },
   { href: `${OFFICE_BASE}/reports`, label: "Reports", icon: "fa-chart-column", group: "Insights" },
   { href: `${OFFICE_BASE}/medical`, label: "Medical", icon: "fa-kit-medical", group: "Insights" },
   { href: `${OFFICE_BASE}/birthdays`, label: "Birthdays", icon: "fa-cake-candles", group: "Insights" },

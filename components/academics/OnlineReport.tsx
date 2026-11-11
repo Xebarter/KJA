@@ -4,8 +4,14 @@ import {
   gradeTone,
   type SheetActivity,
   type SheetCard,
+  type SheetSkillLine,
 } from "@/components/academics/ReportSheet";
 import { classLabel, DEFAULT_GRADE_SCALE, formatShare } from "@/lib/academics";
+import {
+  nurseryAgeLabel,
+  nurseryDomainImagePath,
+  nurseryReportClassLabel,
+} from "@/lib/nursery-dsba";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import { normaliseReportTitle } from "@/lib/report-title";
 import "./online-report.css";
@@ -36,6 +42,27 @@ function activityPercent(row: SheetActivity) {
   return Math.round((row.score / max) * 1000) / 10;
 }
 
+function groupSkillLines(lines: SheetSkillLine[]) {
+  const groups: { domain: string; domainSort: number; image: string | null; skills: SheetSkillLine[] }[] = [];
+  for (const line of [...lines].sort((a, b) => a.domain_sort - b.domain_sort || a.skill_sort - b.skill_sort)) {
+    const last = groups[groups.length - 1];
+    if (last && last.domain === line.domain_name) {
+      last.skills.push(line);
+      continue;
+    }
+    groups.push({
+      domain: line.domain_name,
+      domainSort: line.domain_sort,
+      image: nurseryDomainImagePath({
+        domain_name: line.domain_name,
+        domain_sort: line.domain_sort,
+      }),
+      skills: [line],
+    });
+  }
+  return groups;
+}
+
 /** Mobile-first report body for QR `/r/[id]`. Use `embedded` inside OnlineReportShell. */
 export function OnlineReport({
   card,
@@ -48,15 +75,22 @@ export function OnlineReport({
   portrait?: ReactNode;
   embedded?: boolean;
 }) {
-  const place = classLabel(card.class_code, card.stream);
   const sheetTitle = normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
+  const skillGroups = groupSkillLines(card.skillLines || []);
+  const dsba = nursery && skillGroups.length > 0;
+  const place = dsba
+    ? nurseryReportClassLabel(card.class_code, card.stream)
+    : classLabel(card.class_code, card.stream);
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
+  const legend = card.progressLegend?.length ? card.progressLegend : null;
   const activities = ACTIVITY_SLOTS.map((slot) => (card.activities || []).find((row) => row.slot === slot))
     .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()));
   const fees = card.fees ?? [];
   const feeTotal = fees.reduce((sum, line) => sum + line.amount, 0);
   const overallTone = toneClass(card.overall_grade, card.overall_score);
+  const age = nurseryAgeLabel(card.date_of_birth);
+  const year = card.term_year != null ? String(card.term_year) : null;
 
   const body = (
     <>
@@ -82,26 +116,53 @@ export function OnlineReport({
             <span>{card.term_label}</span>
             {place ? <span>{place}</span> : null}
             {card.student_number ? <span>{card.student_number}</span> : null}
+            {dsba && age ? <span>{age}</span> : null}
+            {dsba && year ? <span>{year}</span> : null}
           </p>
+          {dsba && card.class_teacher_name ? (
+            <p className="kor-teacher-line">Class teacher · {card.class_teacher_name}</p>
+          ) : null}
         </div>
       </section>
 
       <section className="kor-snapshot" aria-label="Summary">
-        <div className={`kor-stat kor-stat-avg ${overallTone}`}>
-          <i className="fa-solid fa-chart-simple" aria-hidden="true" />
-          <span>{nursery ? "Overall" : "Average"}</span>
-          <strong>{formatScore(card.overall_score, nursery)}</strong>
-        </div>
-        <div className={`kor-stat kor-stat-grade ${overallTone}`}>
-          <i className="fa-solid fa-medal" aria-hidden="true" />
-          <span>Grade</span>
-          <strong>{card.overall_grade || "—"}</strong>
-        </div>
-        <div className="kor-stat kor-stat-agg">
-          <i className="fa-solid fa-hashtag" aria-hidden="true" />
-          <span>Aggregate</span>
-          <strong>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</strong>
-        </div>
+        {dsba ? (
+          <>
+            <div className="kor-stat kor-stat-avg">
+              <i className="fa-solid fa-seedling" aria-hidden="true" />
+              <span>Assessment</span>
+              <strong>Skills</strong>
+            </div>
+            <div className="kor-stat kor-stat-grade">
+              <i className="fa-solid fa-layer-group" aria-hidden="true" />
+              <span>Domains</span>
+              <strong>{skillGroups.length}</strong>
+            </div>
+            <div className="kor-stat kor-stat-agg">
+              <i className="fa-solid fa-list-check" aria-hidden="true" />
+              <span>Skills</span>
+              <strong>{card.skillLines?.length || 0}</strong>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className={`kor-stat kor-stat-avg ${overallTone}`}>
+              <i className="fa-solid fa-chart-simple" aria-hidden="true" />
+              <span>{nursery ? "Overall" : "Average"}</span>
+              <strong>{formatScore(card.overall_score, nursery)}</strong>
+            </div>
+            <div className={`kor-stat kor-stat-grade ${overallTone}`}>
+              <i className="fa-solid fa-medal" aria-hidden="true" />
+              <span>Grade</span>
+              <strong>{card.overall_grade || "—"}</strong>
+            </div>
+            <div className="kor-stat kor-stat-agg">
+              <i className="fa-solid fa-hashtag" aria-hidden="true" />
+              <span>Aggregate</span>
+              <strong>{card.overall_aggregate != null ? String(card.overall_aggregate) : "—"}</strong>
+            </div>
+          </>
+        )}
         <div className="kor-stat kor-stat-att">
           <i className="fa-solid fa-calendar-check" aria-hidden="true" />
           <span>Attendance</span>
@@ -109,57 +170,89 @@ export function OnlineReport({
         </div>
       </section>
 
-      <section className="kor-block" aria-labelledby="kor-subjects-title">
-        <div className="kor-block-head">
-          <h2 id="kor-subjects-title"><i className="fa-solid fa-book-open" aria-hidden="true" /> Academic record</h2>
-          <p>{card.lines.length ? `${card.lines.length} subjects` : "No subjects yet"}</p>
-        </div>
-
-        {card.lines.length ? (
-          <ul className="kor-subjects">
-            {card.lines.map((line) => {
-              const tone = toneClass(line.grade, line.score);
-              return (
-                <li key={line.subject_id} className={`kor-subject ${tone}`}>
-                  <div className="kor-subject-top">
-                    <h3>{line.subject_name}</h3>
-                    <div className="kor-marks">
-                      {!nursery ? <em className={`kor-score ${tone}`}>{formatScore(line.score, false)}</em> : null}
-                      <span className={`kor-grade ${tone}`}>
-                        {line.grade || (nursery ? formatScore(line.score, true) : "—")}
+      {dsba ? (
+        <section className="kor-block kor-nur-skills-block" aria-labelledby="kor-skills-title">
+          <div className="kor-block-head">
+            <h2 id="kor-skills-title"><i className="fa-solid fa-seedling" aria-hidden="true" /> Developmental skills</h2>
+            <p>
+              {skillGroups.length} domain{skillGroups.length === 1 ? "" : "s"} · {card.skillLines?.length || 0} skills
+            </p>
+          </div>
+          <ul className="kor-skills kor-nur-skills">
+            {skillGroups.map((group, index) => (
+              <li key={group.domain} className={`kor-skill-domain is-tone-${index % 8}`}>
+                <div className="kor-skill-domain-head">
+                  {group.image ? <img src={group.image} alt="" /> : <span className="kor-skill-domain-fallback" aria-hidden="true" />}
+                  <h3>{group.domain}</h3>
+                </div>
+                <ul>
+                  {group.skills.map((line) => (
+                    <li key={line.skill_id}>
+                      <span className="kor-skill-copy">{line.skill_description}</span>
+                      <span className="kor-skill-code">
+                        <strong>{line.progress_code || "—"}</strong>
+                        {line.progress_label ? <small>{line.progress_label}</small> : null}
                       </span>
-                    </div>
-                  </div>
-
-                  {sets.length ? (
-                    <dl className="kor-parts">
-                      {sets.map((set) => {
-                        const part = line.parts?.find((entry) => entry.key === set.key);
-                        return (
-                          <div key={set.key}>
-                            <dt>
-                              {set.label}
-                              <small>{formatShare(set.share)}</small>
-                            </dt>
-                            <dd>{formatScore(part?.score ?? null, nursery)}</dd>
-                          </div>
-                        );
-                      })}
-                    </dl>
-                  ) : null}
-
-                  {line.teacher_comment ? <p className="kor-note">{line.teacher_comment}</p> : null}
-                  {line.teacher_initials ? <p className="kor-initials">{line.teacher_initials}</p> : null}
-                </li>
-              );
-            })}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
           </ul>
-        ) : (
-          <p className="kor-empty">Subjects will appear here once the report is complete.</p>
-        )}
-      </section>
+        </section>
+      ) : (
+        <section className="kor-block" aria-labelledby="kor-subjects-title">
+          <div className="kor-block-head">
+            <h2 id="kor-subjects-title"><i className="fa-solid fa-book-open" aria-hidden="true" /> Academic record</h2>
+            <p>{card.lines.length ? `${card.lines.length} subjects` : "No subjects yet"}</p>
+          </div>
 
-      {activities.length ? (
+          {card.lines.length ? (
+            <ul className="kor-subjects">
+              {card.lines.map((line) => {
+                const tone = toneClass(line.grade, line.score);
+                return (
+                  <li key={line.subject_id} className={`kor-subject ${tone}`}>
+                    <div className="kor-subject-top">
+                      <h3>{line.subject_name}</h3>
+                      <div className="kor-marks">
+                        {!nursery ? <em className={`kor-score ${tone}`}>{formatScore(line.score, false)}</em> : null}
+                        <span className={`kor-grade ${tone}`}>
+                          {line.grade || (nursery ? formatScore(line.score, true) : "—")}
+                        </span>
+                      </div>
+                    </div>
+
+                    {sets.length ? (
+                      <dl className="kor-parts">
+                        {sets.map((set) => {
+                          const part = line.parts?.find((entry) => entry.key === set.key);
+                          return (
+                            <div key={set.key}>
+                              <dt>
+                                {set.label}
+                                <small>{formatShare(set.share)}</small>
+                              </dt>
+                              <dd>{formatScore(part?.score ?? null, nursery)}</dd>
+                            </div>
+                          );
+                        })}
+                      </dl>
+                    ) : null}
+
+                    {line.teacher_comment ? <p className="kor-note">{line.teacher_comment}</p> : null}
+                    {line.teacher_initials ? <p className="kor-initials">{line.teacher_initials}</p> : null}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="kor-empty">Subjects will appear here once the report is complete.</p>
+          )}
+        </section>
+      )}
+
+      {!dsba && activities.length ? (
         <section className="kor-block" aria-labelledby="kor-coco-title">
           <div className="kor-block-head">
             <h2 id="kor-coco-title"><i className="fa-solid fa-futbol" aria-hidden="true" /> Co-curricular</h2>
@@ -196,20 +289,47 @@ export function OnlineReport({
         ) : null}
       </section>
 
-      <section className="kor-block" aria-labelledby="kor-head-title">
-        <div className="kor-block-head">
-          <h2 id="kor-head-title"><i className="fa-solid fa-landmark" aria-hidden="true" /> Headteacher</h2>
-          <p>Closing remark</p>
-        </div>
-        <blockquote className={card.head_comment ? "kor-quote is-head" : "kor-quote is-empty"}>
-          {card.head_comment || "No headteacher comment on this report."}
-        </blockquote>
-      </section>
+      {dsba ? (
+        <section className="kor-block kor-nur-signs" aria-labelledby="kor-sign-title">
+          <div className="kor-block-head">
+            <h2 id="kor-sign-title"><i className="fa-solid fa-pen-fancy" aria-hidden="true" /> Signatures</h2>
+            <p>Head of section · Principal</p>
+          </div>
+          <div className="kor-nur-sign-grid">
+            <div>
+              <strong>Head of section</strong>
+              <span className="kor-nur-sign-line" aria-hidden="true" />
+            </div>
+            <div>
+              <strong>Principal</strong>
+              <span className="kor-nur-sign-line" aria-hidden="true" />
+            </div>
+          </div>
+        </section>
+      ) : (
+        <section className="kor-block" aria-labelledby="kor-head-title">
+          <div className="kor-block-head">
+            <h2 id="kor-head-title"><i className="fa-solid fa-landmark" aria-hidden="true" /> Headteacher</h2>
+            <p>Closing remark</p>
+          </div>
+          <blockquote className={card.head_comment ? "kor-quote is-head" : "kor-quote is-empty"}>
+            {card.head_comment || "No headteacher comment on this report."}
+          </blockquote>
+        </section>
+      )}
 
       <section className="kor-block kor-fees" aria-labelledby="kor-fees-title">
         <div className="kor-block-head">
           <h2 id="kor-fees-title"><i className="fa-solid fa-calendar-day" aria-hidden="true" /> Next term</h2>
-          <p>{formatReportDate(card.next_starts_on) || "Start date to be confirmed"}</p>
+          <p>
+            {formatReportDate(card.next_starts_on) || "Start date to be confirmed"}
+            {dsba ? (
+              <>
+                {" · ends "}
+                {formatReportDate(card.next_ends_on) || "to be confirmed"}
+              </>
+            ) : null}
+          </p>
         </div>
         {fees.length ? (
           <dl className="kor-fee-list">
@@ -231,22 +351,29 @@ export function OnlineReport({
         )}
       </section>
 
-      <section className="kor-scale" aria-label="Grading scale">
-        <p className="kor-kicker">Grading scale</p>
+      <section className="kor-scale" aria-label={dsba ? "Progress codes" : "Grading scale"}>
+        <p className="kor-kicker">{dsba ? "Progress codes" : "Grading scale"}</p>
         <ol>
-          {scale.map((band) => {
-            const tone = toneClass(band.label, (band.min + band.max) / 2);
-            const lo = Number.isInteger(band.min) ? String(band.min) : String(Math.round(band.min * 10) / 10);
-            const hi = Number.isInteger(band.max) ? String(band.max) : String(Math.round(band.max * 10) / 10);
-            return (
-              <li key={band.label} className={tone}>
-                <strong>{band.label}</strong>
-                <span>
-                  {lo}–{hi}
-                </span>
-              </li>
-            );
-          })}
+          {dsba && legend
+            ? legend.map((entry) => (
+                <li key={entry.code}>
+                  <strong>{entry.code}</strong>
+                  <span>{entry.label}</span>
+                </li>
+              ))
+            : scale.map((band) => {
+                const tone = toneClass(band.label, (band.min + band.max) / 2);
+                const lo = Number.isInteger(band.min) ? String(band.min) : String(Math.round(band.min * 10) / 10);
+                const hi = Number.isInteger(band.max) ? String(band.max) : String(Math.round(band.max * 10) / 10);
+                return (
+                  <li key={band.label} className={tone}>
+                    <strong>{band.label}</strong>
+                    <span>
+                      {lo}–{hi}
+                    </span>
+                  </li>
+                );
+              })}
         </ol>
       </section>
 

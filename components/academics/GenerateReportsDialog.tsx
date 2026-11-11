@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { prepareReports } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
+import { classSection } from "@/lib/academics";
 import type { ReportSitting } from "@/lib/academics-reports";
 import { DEFAULT_REPORT_TITLE } from "@/lib/report-title";
 
@@ -12,18 +13,22 @@ function roundShare(value: number) {
   return Math.round(value * 10) / 10;
 }
 
+type PrepareAction = (formData: FormData) => Promise<{ error?: string; ok?: string; href?: string }>;
+
 export function GenerateReportsDialog({
   termId,
   classCode,
   stream,
   sittings,
   defaultTitle = DEFAULT_REPORT_TITLE,
+  prepareAction = prepareReports,
 }: {
   termId: string;
   classCode: string;
   stream: string;
   sittings: ReportSitting[];
   defaultTitle?: string;
+  prepareAction?: PrepareAction;
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState(() => new Set(sittings.map((row) => row.key)));
@@ -55,12 +60,15 @@ export function GenerateReportsDialog({
     };
   }, [open]);
 
+  const dsba = sittings.some((row) => row.dsba);
   const chosen = useMemo(() => sittings.filter((row) => picked.has(row.key)), [sittings, picked]);
   const total = useMemo(
     () => roundShare(chosen.reduce((sum, row) => sum + (Number(shares[row.key]) || 0), 0)),
     [chosen, shares],
   );
-  const ready = chosen.length > 0 && Math.abs(total - 100) <= 0.05;
+  const ready = dsba
+    ? chosen.length === 1
+    : chosen.length > 0 && Math.abs(total - 100) <= 0.05;
 
   function toggle(key: string, on: boolean) {
     setPicked((current) => {
@@ -89,8 +97,18 @@ export function GenerateReportsDialog({
   }
 
   if (!sittings.length) {
+    const nursery = classSection(classCode) === "nursery";
     return (
-      <button className="rpt-btn" type="button" disabled title="Set assessments for this class before generating report cards">
+      <button
+        className="rpt-btn"
+        type="button"
+        disabled
+        title={
+          nursery
+            ? "Set a developmental assessment for this nursery class, enter skill codes, then lock it before generating report cards"
+            : "Set assessments for this class before generating report cards"
+        }
+      >
         Generate
       </button>
     );
@@ -112,10 +130,14 @@ export function GenerateReportsDialog({
             <header>
               <p>Report cards</p>
               <h2 id="rpt-generate-title">Prepare report cards</h2>
-              <span>Set the title printed on each card, then choose which assessments count and their shares.</span>
+              <span>
+                {dsba
+                  ? "Set the title, then choose one developmental assessment whose progress codes go on the cards."
+                  : "Set the title printed on each card, then choose which assessments count and their shares."}
+              </span>
             </header>
             <DeskForm
-              action={prepareReports}
+              action={prepareAction}
               className="rpt-generate-form"
               status="Generating reports"
             >
@@ -136,22 +158,24 @@ export function GenerateReportsDialog({
                 />
                 <small id="rpt-generate-title-hint">Printed under the school heading, for example End of Term Report.</small>
               </label>
-              <div className="rpt-generate-tools">
-                <label className="rpt-generate-all">
-                  <input
-                    type="checkbox"
-                    checked={picked.size === sittings.length}
-                    ref={(node) => {
-                      if (node) node.indeterminate = picked.size > 0 && picked.size < sittings.length;
-                    }}
-                    onChange={(event) => toggleAll(event.target.checked)}
-                  />
-                  <span>All assessments</span>
-                </label>
-                <button type="button" className="rpt-generate-even" onClick={spreadEven} disabled={!chosen.length}>
-                  Split evenly
-                </button>
-              </div>
+              {!dsba ? (
+                <div className="rpt-generate-tools">
+                  <label className="rpt-generate-all">
+                    <input
+                      type="checkbox"
+                      checked={picked.size === sittings.length}
+                      ref={(node) => {
+                        if (node) node.indeterminate = picked.size > 0 && picked.size < sittings.length;
+                      }}
+                      onChange={(event) => toggleAll(event.target.checked)}
+                    />
+                    <span>All assessments</span>
+                  </label>
+                  <button type="button" className="rpt-generate-even" onClick={spreadEven} disabled={!chosen.length}>
+                    Split evenly
+                  </button>
+                </div>
+              ) : null}
               <ul className="rpt-generate-list">
                 {sittings.map((row) => {
                   const on = picked.has(row.key);
@@ -159,40 +183,54 @@ export function GenerateReportsDialog({
                     <li key={row.key} className={on ? "is-on" : ""}>
                       <label className="rpt-generate-pick">
                         <input
-                          type="checkbox"
-                          name={on ? "set" : undefined}
+                          type={dsba ? "radio" : "checkbox"}
+                          name={dsba ? "set" : on ? "set" : undefined}
                           value={row.key}
                           checked={on}
-                          onChange={(event) => toggle(row.key, event.target.checked)}
+                          onChange={() => {
+                            if (dsba) setPicked(new Set([row.key]));
+                            else toggle(row.key, !on);
+                          }}
                         />
                         <span>
                           <strong>{row.label}</strong>
-                          <small>{row.kindLabel} · {nf(row.papers)} {row.papers === 1 ? "subject" : "subjects"}</small>
+                          <small>
+                            {row.kindLabel}
+                            {dsba ? " · developmental skills" : ` · ${nf(row.papers)} ${row.papers === 1 ? "subject" : "subjects"}`}
+                          </small>
                         </span>
                       </label>
-                      <label className="rpt-generate-share">
-                        <span>Share</span>
-                        <input
-                          name={on ? `share:${row.key}` : undefined}
-                          type="number"
-                          min={1}
-                          max={100}
-                          step={0.1}
-                          value={shares[row.key] ?? ""}
-                          disabled={!on}
-                          onChange={(event) => setShares((current) => ({ ...current, [row.key]: event.target.value }))}
-                          aria-label={`Share of the total for ${row.label}`}
-                        />
-                        <em>%</em>
-                      </label>
+                      {dsba ? (
+                        on ? <input type="hidden" name={`share:${row.key}`} value="100" /> : null
+                      ) : (
+                        <label className="rpt-generate-share">
+                          <span>Share</span>
+                          <input
+                            name={on ? `share:${row.key}` : undefined}
+                            type="number"
+                            min={1}
+                            max={100}
+                            step={0.1}
+                            value={shares[row.key] ?? ""}
+                            disabled={!on}
+                            onChange={(event) => setShares((current) => ({ ...current, [row.key]: event.target.value }))}
+                            aria-label={`Share of the total for ${row.label}`}
+                          />
+                          <em>%</em>
+                        </label>
+                      )}
                     </li>
                   );
                 })}
               </ul>
               <p className={`rpt-generate-total${ready ? " is-ok" : ""}`}>
-                {chosen.length
-                  ? <>Chosen shares add up to <strong>{total}%</strong>{ready ? "" : ". They must total 100%"}.</>
-                  : "Choose at least one assessment."}
+                {dsba
+                  ? chosen.length === 1
+                    ? "One developmental assessment selected."
+                    : "Choose one developmental assessment."
+                  : chosen.length
+                    ? <>Chosen shares add up to <strong>{total}%</strong>{ready ? "" : ". They must total 100%"}.</>
+                    : "Choose at least one assessment."}
               </p>
               <footer>
                 <button ref={closeRef} type="button" className="rpt-btn is-ghost" onClick={() => setOpen(false)}>Cancel</button>

@@ -71,7 +71,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     ) || null;
   let classTeacherId = "";
   if (term && current) {
-    const teacher = await supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("campus", current.campus).eq("class_code", current.code).eq("stream", current.stream).maybeSingle();
+    const teacher = await supabase.from("class_teachers").select("staff_id").eq("term_id", term.id).eq("campus", current.campus).eq("class_code", current.code).eq("stream", current.stream).eq("role", "lead").maybeSingle();
     classTeacherId = teacher.data?.staff_id || "";
   }
   const canMark = office || (Boolean(staffId) && staffId === classTeacherId);

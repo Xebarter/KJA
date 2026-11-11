@@ -70,6 +70,18 @@ export function isPlainTableWrite(method: string, pathname: string): boolean {
   return Boolean(parseRestTable(pathname));
 }
 
+/** Keep a single Authorization value. Dual casings become "Bearer a, Bearer a" upstream → JWT "got 5". */
+export function setBearerAuth(headers: Record<string, string>, token: string) {
+  const raw = String(token || "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  if (!raw) return;
+  for (const key of Object.keys(headers)) {
+    if (key.toLowerCase() === "authorization") delete headers[key];
+  }
+  headers.authorization = `Bearer ${raw}`;
+}
+
 function applyFreshAccessToken(
   store: ProxyStore,
   userId: string,
@@ -78,8 +90,7 @@ function applyFreshAccessToken(
   const token = store.getMeta(`access_token:${userId}`);
   if (!token) return;
   // Prefer a still-valid token captured from a later request over the frozen outbox JWT.
-  headers.authorization = `Bearer ${token}`;
-  headers.Authorization = `Bearer ${token}`;
+  setBearerAuth(headers, token);
 }
 
 function rememberRows(store: ProxyStore, userId: string, table: string, rows: Record<string, unknown>[]) {

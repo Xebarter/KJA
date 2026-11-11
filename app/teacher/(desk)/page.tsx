@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsGate } from "@/components/academics/ui";
 import { classLabel, kampalaLong, kampalaToday, streamOf, streamQuery } from "@/lib/academics";
 import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
-import { TEACHER_BASE } from "@/lib/teacher";
+import { leadsClass, teacherDsbaVisible, teacherPaperVisible, TEACHER_BASE } from "@/lib/teacher";
 import { requireTeacher } from "@/lib/teacher-access";
 
 export const metadata = { title: "Home" };
@@ -14,6 +14,8 @@ type OpenPaper = {
   subject: string;
   classLabel: string;
   heldOn: string | null;
+  href: string;
+  nursery?: boolean;
 };
 
 type DueHomework = {
@@ -142,15 +144,24 @@ export default async function TeacherHomePage() {
   const allowed = new Set(subjects.map((post) => `${post.classCode}|${post.stream}|${post.subjectId}`));
   const subjectName = new Map(subjects.map((post) => [post.subjectId, post.subjectName]));
 
-  const [papersQuery, homeworkQuery, datesQuery, rollPack] = await Promise.all([
-    term && subjects.length
+  const [papersQuery, dsbaQuery, homeworkQuery, datesQuery, rollPack] = await Promise.all([
+    term && (subjects.length || hasClass)
       ? supabase
           .from("assessments")
-          .select("id, name, class_code, stream, subject_id, status, held_on")
+          .select("id, name, class_code, stream, campus, subject_id, status, held_on")
           .eq("term_id", term.id)
           .eq("status", "open")
           .order("held_on", { ascending: true })
           .limit(40)
+      : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
+    term && hasClass
+      ? supabase
+          .from("developmental_assessments")
+          .select("id, name, class_code, stream, campus, held_on, status")
+          .eq("term_id", term.id)
+          .eq("status", "open")
+          .order("held_on", { ascending: true })
+          .limit(20)
       : Promise.resolve({ data: [] as Record<string, unknown>[], error: null }),
     term && subjects.length
       ? supabase
@@ -186,24 +197,48 @@ export default async function TeacherHomePage() {
   ]);
 
   const paperRows = "error" in papersQuery && papersQuery.error ? [] : papersQuery.data || [];
-  const openPapers: OpenPaper[] = (
+  const primaryOpen: OpenPaper[] = (
     paperRows as {
       id: string;
       name: string;
       class_code: string;
       stream: string | null;
+      campus?: string | null;
       subject_id: string;
       held_on: string | null;
     }[]
   )
-    .filter((row) => allowed.has(`${row.class_code}|${streamOf(row.stream)}|${row.subject_id}`))
+    .filter((row) => teacherPaperVisible(teacher, row))
     .map((row) => ({
       id: row.id,
       name: row.name,
       subject: subjectName.get(row.subject_id) || "Subject",
       classLabel: classLabel(row.class_code, row.stream),
       heldOn: row.held_on,
+      href: `${TEACHER_BASE}/assessments/${row.id}`,
     }));
+  const dsbaRows = "error" in dsbaQuery && dsbaQuery.error ? [] : dsbaQuery.data || [];
+  const dsbaOpen: OpenPaper[] = (
+    dsbaRows as {
+      id: string;
+      name: string;
+      class_code: string;
+      stream: string | null;
+      campus?: string | null;
+      held_on: string | null;
+    }[]
+  )
+    .filter((row) => teacherDsbaVisible(teacher, row))
+    .map((row) => ({
+      id: row.id,
+      name: row.name,
+      subject: "Developmental skills",
+      classLabel: classLabel(row.class_code, row.stream),
+      heldOn: row.held_on,
+      href: `${TEACHER_BASE}/assessments/dsba/${row.id}`,
+      nursery: true,
+    }));
+  const openPapers: OpenPaper[] = [...dsbaOpen, ...primaryOpen];
 
   const homeworkRows = "error" in homeworkQuery && homeworkQuery.error ? [] : homeworkQuery.data || [];
   const dueHomework: DueHomework[] = (
@@ -247,7 +282,6 @@ export default async function TeacherHomePage() {
 
   const waiting = registers.filter((row) => !row.closed && !(row.pupils > 0 && row.done >= row.pupils));
   const primaryRegister = waiting[0];
-  const classKeys = new Set(classes.map((post) => `${post.classCode}|${post.stream}`));
   const registersDone = registers.filter((row) => row.closed || (row.pupils > 0 && row.done >= row.pupils)).length;
   const registerRate = registers.length
     ? Math.round((registersDone / registers.length) * 100)
@@ -266,7 +300,7 @@ export default async function TeacherHomePage() {
   )
     .filter((row) => {
       if (!row.class_code) return true;
-      return classKeys.has(`${row.class_code}|${streamOf(row.stream)}`);
+      return leadsClass(classes, row.class_code, streamOf(row.stream));
     })
     .slice(0, 5)
     .map((row) => ({
@@ -295,12 +329,14 @@ export default async function TeacherHomePage() {
     ...(openPapers.length
       ? [
           {
-            label: openPapers.length === 1 ? openPapers[0].name : "Open markbooks",
+            label: openPapers.length === 1 ? openPapers[0].name : "Open assessments",
             note: openPapers.length === 1
               ? `${openPapers[0].subject} · ${openPapers[0].classLabel}`
-              : "Enter scores while papers are open",
+              : openPapers.some((paper) => paper.nursery)
+                ? "Enter skill codes or scores while papers are open"
+                : "Enter scores while papers are open",
             count: openPapers.length,
-            href: `${TEACHER_BASE}/assessments/${openPapers[0].id}`,
+            href: openPapers[0].href,
             icon: "fa-pen-to-square",
           },
         ]
@@ -332,19 +368,21 @@ export default async function TeacherHomePage() {
   const primaryHref = primaryRegister
     ? `${TEACHER_BASE}/attendance?class=${primaryRegister.classCode}&stream=${streamQuery(primaryRegister.stream)}`
     : openPapers[0]
-      ? `${TEACHER_BASE}/assessments/${openPapers[0].id}`
+      ? openPapers[0].href
       : `${TEACHER_BASE}/assessments`;
-  const primaryLabel = primaryRegister ? "Take register" : openPapers.length ? "Open markbook" : "Assessments";
+  const primaryLabel = primaryRegister ? "Take register" : openPapers.length ? "Open assessment" : "Assessments";
   const primaryIcon = primaryRegister ? "fa-clipboard-user" : "fa-pen-to-square";
 
   const lede = !term
     ? "There is no current term yet. Ask Accounts to open one."
-    : !subjects.length
+    : !subjects.length && !hasClass
       ? "No subjects are assigned to you this term. The academics office can set your posts."
       : waiting.length
         ? `${waiting.length} class${waiting.length === 1 ? "" : "es"} still need today’s register.`
         : openPapers.length
-          ? `${openPapers.length} markbook${openPapers.length === 1 ? "" : "s"} open on your subjects.`
+          ? openPapers.some((paper) => paper.nursery)
+            ? `${openPapers.length} assessment${openPapers.length === 1 ? "" : "s"} open for skill codes or scores.`
+            : `${openPapers.length} markbook${openPapers.length === 1 ? "" : "s"} open on your subjects.`
           : "Your classes and markbooks are up to date.";
 
   const heroPrimary = hasClass
@@ -361,7 +399,7 @@ export default async function TeacherHomePage() {
           : "No classes on the register",
       }
     : {
-        href: openPapers[0] ? `${TEACHER_BASE}/assessments/${openPapers[0].id}` : `${TEACHER_BASE}/assessments`,
+        href: openPapers[0] ? openPapers[0].href : `${TEACHER_BASE}/assessments`,
         rate: openPapers.length === 0 ? 100 : 0,
         done: openPapers.length === 0,
         label: "Markbooks",
@@ -383,8 +421,8 @@ export default async function TeacherHomePage() {
     {
       href: `${TEACHER_BASE}/assessments`,
       value: String(openPapers.length),
-      label: "Markbooks",
-      note: openPapers.length ? "Ready for scores" : "Nothing waiting",
+      label: "Assessments",
+      note: openPapers.length ? "Ready to enter" : "Nothing waiting",
     },
     {
       href: `${TEACHER_BASE}/homework`,
@@ -410,6 +448,7 @@ export default async function TeacherHomePage() {
   const tools = hasClass
     ? [
         { href: `${TEACHER_BASE}/attendance`, icon: "fa-clipboard-user", title: "Attendance", note: "Daily register for your class", tone: "gold" },
+        { href: `${TEACHER_BASE}/reports`, icon: "fa-file-lines", title: "Report cards", note: "Review cards and add your remark", tone: "violet" },
         { href: `${TEACHER_BASE}/chat`, icon: "fa-comments", title: "Chat", note: "Message pupils in your class", tone: "blue" },
         { href: `${TEACHER_BASE}/calendar`, icon: "fa-calendar-days", title: "Calendar", note: "Class dates and school events", tone: "violet" },
         { href: `${TEACHER_BASE}/notices`, icon: "fa-bell", title: "Notices", note: "Post to the Pupils App", tone: "teal" },
@@ -579,8 +618,8 @@ export default async function TeacherHomePage() {
             id="markbooks"
             icon="fa-pen-to-square"
             tone="blue"
-            title="Open markbooks"
-            description="Scores you can still enter this term."
+            title="Open assessments"
+            description="Skill codes and scores you can still enter this term."
             action={{ href: `${TEACHER_BASE}/assessments`, label: "View all" }}
           >
             {openPapers.length ? (
@@ -588,10 +627,10 @@ export default async function TeacherHomePage() {
                 {openPapers.slice(0, 6).map((paper, index) => (
                   <li key={paper.id} style={{ "--i": index } as React.CSSProperties}>
                     <span className="acd-initials" aria-hidden="true">
-                      <i className="fa-solid fa-pen-to-square" />
+                      <i className={`fa-solid ${paper.nursery ? "fa-seedling" : "fa-pen-to-square"}`} />
                     </span>
                     <div>
-                      <Link href={`${TEACHER_BASE}/assessments/${paper.id}`}>{paper.name}</Link>
+                      <Link href={paper.href}>{paper.name}</Link>
                       <small>
                         {paper.subject} · {paper.classLabel}
                         {paper.heldOn ? ` · ${shortDay(paper.heldOn)}` : ""}
@@ -602,7 +641,7 @@ export default async function TeacherHomePage() {
                 ))}
               </ul>
             ) : (
-              <Quiet icon="fa-circle-check">No open markbooks on your subjects.</Quiet>
+              <Quiet icon="fa-circle-check">No open assessments waiting.</Quiet>
             )}
           </Card>
 

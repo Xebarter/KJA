@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { MarkbookDesk } from "@/components/academics/MarkbookDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
@@ -29,12 +29,26 @@ export default async function TeacherMarkbookPage({ params }: { params: Promise<
   const { supabase, user, subjects } = teacher;
   const { data: paper, error } = await supabase
     .from("assessments")
-    .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, term_id, status")
+    .select("id, class_code, stream, campus, subject_id, name, kind, max_score, weight, held_on, term_id, status")
     .eq("id", id)
     .maybeSingle();
   if (error) return <AcademicsGate title="Markbook" state={{ notice: "schema", message: error.message }} />;
-  if (!paper || !teachesPost(subjects, String(paper.class_code), streamOf(paper.stream), String(paper.subject_id))) notFound();
-  const nursery = classSection(paper.class_code) === "nursery";
+  if (
+    !paper ||
+    !teachesPost(
+      subjects,
+      String(paper.class_code),
+      streamOf(paper.stream),
+      String(paper.subject_id),
+      paper.campus ? String(paper.campus) : undefined,
+    )
+  ) {
+    notFound();
+  }
+  if (classSection(paper.class_code) === "nursery") {
+    redirect(`${TEACHER_BASE}/assessments`);
+  }
+  const nursery = false;
   const maxScore = num(paper.max_score) ?? 100;
   const [pupils, scores, subject, bandsQuery] = await Promise.all([
     loadRoll(supabase, user.id, [String(paper.class_code)]).then((rows) =>

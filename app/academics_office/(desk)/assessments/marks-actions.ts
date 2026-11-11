@@ -6,6 +6,17 @@ import { refreshAcademics } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
 import { mergeActivitySkills } from "@/lib/comment-engine/skills";
 import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-workbook";
+import {
+  loadDivisionCatalogue,
+  nurseryDivision,
+  type ProgressCodeRow,
+} from "@/lib/nursery-dsba";
+import {
+  detectNurseryDsbaWorkbook,
+  NurseryDsbaBookError,
+  parseNurseryDsbaWorkbook,
+  resolveNurseryProgressCode,
+} from "@/lib/nursery-dsba-workbook";
 import { isUuid } from "@/lib/students";
 
 export type MarksPreview = {
@@ -16,6 +27,8 @@ export type MarksPreview = {
   issues: { where: string; message: string }[];
   issueCount: number;
   ready: number;
+  /** When true, preview copy talks about progress codes instead of marks. */
+  nursery?: boolean;
 };
 
 export type MarksImportResult = { error?: string; ok?: string; preview?: MarksPreview };
@@ -33,6 +46,18 @@ type PaperRow = {
   status: string | null;
 };
 
+type DsbaPaperRow = {
+  id: string;
+  term_id: string;
+  campus: string;
+  class_code: string;
+  stream: string | null;
+  name: string;
+  kind: string;
+  held_on: string | null;
+  status: string | null;
+};
+
 function shortDay(iso: string | null) {
   if (!iso) return "";
   const [year, month, day] = iso.split("-").map(Number);
@@ -44,6 +69,250 @@ function nf(value: number) {
   return value.toLocaleString("en-GB");
 }
 
+async function importNurseryDsba(
+  auth: Exclude<Awaited<ReturnType<typeof requireAcademics>>, { error: string }>,
+  formData: FormData,
+  bytes: Buffer,
+): Promise<MarksImportResult> {
+  let parsed: Awaited<ReturnType<typeof parseNurseryDsbaWorkbook>>;
+  try {
+    parsed = await parseNurseryDsbaWorkbook(bytes);
+  } catch (error) {
+    return {
+      error: error instanceof NurseryDsbaBookError
+        ? error.message
+        : "That file could not be read. Download a fresh workbook from this page.",
+    };
+  }
+
+  const ids = parsed.assessmentIds.filter(isUuid);
+  const papers: DsbaPaperRow[] = [];
+  for (let index = 0; index < ids.length; index += 80) {
+    const slice = ids.slice(index, index + 80);
+    const result = await auth.supabase
+      .from("developmental_assessments")
+      .select("id, term_id, campus, class_code, stream, name, kind, held_on, status")
+      .in("id", slice);
+    if (result.error) return { error: "The nursery assessments in this workbook could not be checked." };
+    papers.push(...((result.data || []) as DsbaPaperRow[]));
+  }
+  if (!papers.length) return { error: "This workbook does not match any nursery assessments still on the list." };
+  const signature = new Set(papers.map((paper) => `${paper.term_id}|${paper.name}|${paper.kind}|${paper.held_on || ""}`));
+  if (signature.size !== 1) return { error: "This workbook mixes more than one assessment. Download a fresh sheet." };
+
+  if (!auth.office) {
+    if (!auth.staffId) return { error: "This account is not a teacher sign-in." };
+    const termId = papers[0].term_id;
+    const posts = await auth.supabase
+      .from("class_teachers")
+      .select("class_code, stream, campus")
+      .eq("term_id", termId)
+      .eq("staff_id", auth.staffId);
+    if (posts.error) return { error: posts.error.message };
+    const allowed = new Set(
+      (posts.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}`),
+    );
+    const mine = papers.filter((paper) => allowed.has(`${paper.class_code}|${streamOf(paper.stream)}`));
+    if (!mine.length) return { error: "None of the nursery classes in this workbook are assigned to you." };
+    if (mine.length !== papers.length) {
+      return { error: "This workbook includes nursery classes you do not lead. Download a sheet for your class instead." };
+    }
+  }
+
+  const roll = await loadRoll(auth.supabase, auth.user.id, undefined, auth.office ? auth.campuses : undefined);
+  const byPaper = new Map(papers.map((paper) => [paper.id, paper]));
+  const byPupil = new Map(roll.map((pupil) => [pupil.id, pupil]));
+  const sample = papers[0];
+
+  const progressCodes: ProgressCodeRow[] = [];
+  const seenScales = new Set<string>();
+  for (const paper of papers) {
+    const divisionId = nurseryDivision(paper.class_code);
+    if (!divisionId || seenScales.has(divisionId)) continue;
+    seenScales.add(divisionId);
+    const catalogue = await loadDivisionCatalogue(auth.supabase, divisionId);
+    if ("error" in catalogue && catalogue.error) return { error: catalogue.error };
+    const codes = "progressCodes" in catalogue ? catalogue.progressCodes ?? [] : [];
+    for (const code of codes) {
+      if (!progressCodes.some((row) => row.id === code.id)) progressCodes.push(code);
+    }
+  }
+
+  const warnings: string[] = [];
+  const warned = new Set<string>();
+  const issues = parsed.issues.map((issue) => ({
+    where: [issue.sheet, issue.cell, issue.pupil].filter(Boolean).join(" · "),
+    message: issue.message,
+  }));
+  let issueCount = parsed.issueCount;
+  const problem = (where: string, message: string) => {
+    issueCount += 1;
+    if (issues.length < 40) issues.push({ where, message });
+  };
+  for (const gap of parsed.missing) {
+    warnings.push(
+      gap.count === 1
+        ? `${gap.label} is missing 1 pupil from the downloaded roll. Their saved codes stay as they are.`
+        : `${gap.label} is missing ${nf(gap.count)} pupils from the downloaded roll. Their saved codes stay as they are.`,
+    );
+  }
+
+  const tally = new Map(
+    parsed.sheets.map((sheet) => [
+      sheet.name,
+      {
+        label: sheet.label,
+        subjects: [`${sheet.skillCount} ${sheet.skillCount === 1 ? "skill" : "skills"}`],
+        scores: 0,
+        missed: 0,
+        cleared: 0,
+      },
+    ]),
+  );
+
+  const rows: {
+    assessment_id: string;
+    student_id: string;
+    skill_id: string;
+    progress_code_id: string | null;
+    note: string | null;
+  }[] = [];
+  const seen = new Set<string>();
+
+  for (const entry of parsed.entries) {
+    const where = [entry.label, entry.cell, entry.pupil].filter(Boolean).join(" · ");
+    const paper = byPaper.get(entry.assessmentId);
+    if (!paper) {
+      problem(where, "This nursery assessment is no longer on the list.");
+      continue;
+    }
+    const label = classLabel(paper.class_code, paper.stream);
+    if (markbookClosed(paper.status)) {
+      const warning = `${label} is locked, so those skill codes were left unchanged.`;
+      if (!warned.has(warning)) {
+        warned.add(warning);
+        warnings.push(warning);
+      }
+      continue;
+    }
+    const key = `${paper.id}|${entry.studentId}|${entry.skillId}`;
+    if (seen.has(key)) {
+      problem(where, `${entry.pupil || "This pupil"} has two codes for the same skill.`);
+      continue;
+    }
+    const pupil = byPupil.get(entry.studentId);
+    if (!pupil) {
+      problem(where, `${entry.pupil || "This pupil"} is not on the active roll.`);
+      continue;
+    }
+    if ((pupil.class_code || "") !== paper.class_code || streamOf(pupil.stream) !== streamOf(paper.stream)) {
+      problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)}, so this code was not taken.`);
+      continue;
+    }
+    const decision = resolveNurseryProgressCode(entry.raw, progressCodes);
+    if (decision.kind === "bad") {
+      problem(where, decision.message);
+      continue;
+    }
+    seen.add(key);
+    const bucket = tally.get(entry.sheet);
+    if (decision.kind === "clear") {
+      rows.push({
+        assessment_id: paper.id,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: null,
+        note: null,
+      });
+      if (bucket) bucket.cleared += 1;
+    } else {
+      rows.push({
+        assessment_id: paper.id,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: decision.codeId,
+        note: null,
+      });
+      if (bucket) bucket.scores += 1;
+    }
+  }
+
+  const preview: MarksPreview = {
+    name: sample.name,
+    detail: [kindLabel(sample.kind), shortDay(sample.held_on)].filter(Boolean).join(" · "),
+    sheets: [...tally.values()],
+    warnings,
+    issues,
+    issueCount,
+    ready: rows.length,
+    nursery: true,
+  };
+  if (formData.get("intent") !== "commit") return { preview };
+  if (issueCount) return { preview };
+  if (!rows.length) {
+    return {
+      preview,
+      error: warnings[0] || "The workbook has no skill codes to save. Enter a progress code or CLEAR, then upload it again.",
+    };
+  }
+
+  let saved = 0;
+  for (let index = 0; index < rows.length; index += 200) {
+    const slice = rows.slice(index, index + 200);
+    const { error } = await auth.supabase.from("skill_ratings").upsert(slice, {
+      onConflict: "assessment_id,student_id,skill_id",
+    });
+    if (error) {
+      return {
+        error: saved
+          ? "Some skill codes were saved, then the upload stopped. Check the assessments and upload the file again."
+          : error.message,
+      };
+    }
+    saved += slice.length;
+  }
+
+  const submitIds = [...new Set(rows.filter((row) => row.progress_code_id).map((row) => row.assessment_id))];
+  for (let index = 0; index < submitIds.length; index += 80) {
+    const slice = submitIds.slice(index, index + 80);
+    const { error } = await auth.supabase
+      .from("developmental_assessments")
+      .update({ status: "submitted" })
+      .in("id", slice)
+      .eq("status", "open");
+    if (error) {
+      return {
+        error: "The skill codes were saved, but they could not be submitted. Open the developmental markbook and approve when ready.",
+      };
+    }
+  }
+
+  const coded = rows.filter((row) => row.progress_code_id).length;
+  const cleared = rows.filter((row) => !row.progress_code_id).length;
+  const lead = coded
+    ? `Submitted ${nf(coded)} ${coded === 1 ? "skill code" : "skill codes"} for ${sample.name}.`
+    : `Updated ${sample.name}.`;
+  const extra = [
+    cleared ? `${nf(cleared)} ${cleared === 1 ? "saved code was" : "saved codes were"} cleared.` : "",
+    submitIds.length
+      ? auth.office
+        ? "They are submitted on the class marksheet."
+        : "They are submitted for the office to approve."
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  await logAcademics(auth.supabase, auth.user.id, {
+    kind: "marks",
+    body: submitIds.length
+      ? `Submitted nursery skill codes for ${sample.name} from a workbook (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`
+      : `Uploaded nursery skill codes for ${sample.name} (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  return { ok: extra ? `${lead} ${extra}` : lead };
+}
+
 export async function importMarks(formData: FormData): Promise<MarksImportResult> {
   const auth = await requireAcademics("assessments");
   if ("error" in auth) return { error: auth.error };
@@ -52,9 +321,14 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   if (file.size > 8 * 1024 * 1024) return { error: "That workbook is too large." };
   if (!file.name.toLowerCase().endsWith(".xlsx")) return { error: "Upload the Excel workbook (.xlsx) downloaded from this page." };
 
+  const bytes = Buffer.from(await file.arrayBuffer());
+  if (await detectNurseryDsbaWorkbook(bytes)) {
+    return importNurseryDsba(auth, formData, bytes);
+  }
+
   let parsed: Awaited<ReturnType<typeof parseMarksWorkbook>>;
   try {
-    parsed = await parseMarksWorkbook(Buffer.from(await file.arrayBuffer()));
+    parsed = await parseMarksWorkbook(bytes);
   } catch (error) {
     return { error: error instanceof MarksBookError ? error.message : "That file could not be read. Download a fresh workbook from this page." };
   }

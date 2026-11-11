@@ -9,7 +9,8 @@ import { marksheetHref } from "@/lib/marksheet";
 
 export type PaperCard = {
   id: string;
-  href: string;
+  /** Markbook entry URL. Omitted when the teacher can view/download but not mark this paper. */
+  href?: string;
   name: string;
   subject: string;
   classLabel: string;
@@ -96,14 +97,26 @@ function groupSittings(papers: PaperCard[]) {
   return sittings;
 }
 
+function cellsFor(paper: PaperCard) {
+  if (paper.nursery) return Math.max(0, paper.roll * (paper.skillCount || 0));
+  return paper.roll;
+}
+
 function detail(sitting: Sitting) {
-  const maxes = new Set(sitting.papers.map((paper) => paper.maxScore));
-  const weights = new Set(sitting.papers.map((paper) => paper.weight));
+  const nurseryOnly = sitting.papers.length > 0 && sitting.papers.every((paper) => paper.nursery);
+  const primaryPapers = sitting.papers.filter((paper) => !paper.nursery);
+  if (nurseryOnly) {
+    return [sitting.kindLabel, sitting.heldOn, "Developmental skill codes"].filter(Boolean).join(" · ");
+  }
+  const maxes = new Set(primaryPapers.map((paper) => paper.maxScore));
+  const weights = new Set(primaryPapers.map((paper) => paper.weight));
+  const nurseryCount = sitting.papers.length - primaryPapers.length;
   return [
     sitting.kindLabel,
     sitting.heldOn,
     maxes.size === 1 ? `out of ${nf([...maxes][0] ?? 0)}` : "",
-    weights.size === 1 ? `${nf([...weights][0] ?? 0)}% of the total` : "Mixed shares",
+    weights.size === 1 ? `${nf([...weights][0] ?? 0)}% of the total` : primaryPapers.length ? "Mixed shares" : "",
+    nurseryCount ? `${nf(nurseryCount)} nursery ${nurseryCount === 1 ? "class" : "classes"}` : "",
   ].filter(Boolean).join(" · ");
 }
 
@@ -173,8 +186,11 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
             const locked = approved === sitting.papers.length && sitting.papers.length > 0;
             const pending = !locked && approved + waiting === sitting.papers.length;
             const entered = sitting.papers.reduce((sum, paper) => sum + paper.entered, 0);
-            const places = sitting.papers.reduce((sum, paper) => sum + paper.roll, 0);
+            const places = sitting.papers.reduce((sum, paper) => sum + cellsFor(paper), 0);
             const sample = sitting.papers[0];
+            const nurseryOnly = sitting.papers.every((paper) => paper.nursery);
+            const hasPrimary = sitting.papers.some((paper) => !paper.nursery);
+            const primarySample = sitting.papers.find((paper) => !paper.nursery) || sample;
             return (
               <li key={sitting.key} className={open ? "is-open" : ""}>
                 <div className="asm-sitting-row">
@@ -194,7 +210,11 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                     </span>
                     <span className="asm-progress">
                       <span className="asm-progress-bar" aria-hidden="true"><span style={{ width: `${places ? Math.min(100, Math.round((entered / places) * 100)) : 0}%` }} /></span>
-                      <span>{places ? `${nf(entered)} of ${nf(places)} marked` : countLabel(sitting.papers.length, "paper", "papers")}</span>
+                      <span>
+                        {places
+                          ? `${nf(entered)} of ${nf(places)} ${nurseryOnly ? "codes" : "marked"}`
+                          : countLabel(sitting.papers.length, nurseryOnly ? "class" : "paper", nurseryOnly ? "classes" : "papers")}
+                      </span>
                     </span>
                     <em className={`asm-pill${locked ? " is-approved" : pending ? " is-submitted" : ""}`}>
                       {locked
@@ -215,6 +235,7 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                       type="button"
                       className="asm-sheet"
                       onClick={() => window.dispatchEvent(new CustomEvent(MARKS_SHEET_EVENT, { detail: sitting.key }))}
+                      title={nurseryOnly ? "Download developmental skills workbook" : "Download marks workbook"}
                     >
                       Sheet
                     </button>
@@ -231,22 +252,31 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                     <input type="hidden" name="name" value={sample.name} />
                     <input type="hidden" name="kind" value={sample.kind} />
                     <input type="hidden" name="held_on" value={sample.heldOnIso} />
-                    <p>Delete {sitting.name}? This removes {countLabel(sitting.papers.length, "markbook", "markbooks")}{entered ? ` and ${nf(entered)} ${entered === 1 ? "mark" : "marks"}` : ""}.</p>
+                    <p>
+                      Delete {sitting.name}? This removes{" "}
+                      {nurseryOnly
+                        ? countLabel(sitting.papers.length, "developmental assessment", "developmental assessments")
+                        : countLabel(sitting.papers.length, "markbook", "markbooks")}
+                      {entered
+                        ? ` and ${nf(entered)} ${nurseryOnly ? (entered === 1 ? "skill code" : "skill codes") : entered === 1 ? "mark" : "marks"}`
+                        : ""}
+                      .
+                    </p>
                     <button type="submit">Delete assessment</button>
                   </DeskForm>
                 ) : null}
-                {open && office && sample ? (
-                  <DeskForm key={`${sitting.key}-${sample.weight}`} action={setAssessmentShare} className="asm-share-form">
+                {open && office && hasPrimary && primarySample ? (
+                  <DeskForm key={`${sitting.key}-${primarySample.weight}`} action={setAssessmentShare} className="asm-share-form">
                     <input type="hidden" name="term_id" value={termId} />
-                    <input type="hidden" name="name" value={sample.name} />
-                    <input type="hidden" name="kind" value={sample.kind} />
-                    <input type="hidden" name="held_on" value={sample.heldOnIso} />
+                    <input type="hidden" name="name" value={primarySample.name} />
+                    <input type="hidden" name="kind" value={primarySample.kind} />
+                    <input type="hidden" name="held_on" value={primarySample.heldOnIso} />
                     <label>
                       <span>Share of the total</span>
-                      <input name="weight" type="number" min="1" max="100" step="1" defaultValue={sample.weight} aria-label={`Share of the total for ${sitting.name}`} />
+                      <input name="weight" type="number" min="1" max="100" step="1" defaultValue={primarySample.weight || 100} aria-label={`Share of the total for ${sitting.name}`} />
                       <span>%</span>
                     </label>
-                    <p>How much of each subject this set is worth. Prepare the report cards again after saving.</p>
+                    <p>How much of each primary subject this set is worth. Nursery classes use skill codes and are not shared. Prepare the report cards again after saving.</p>
                     <button type="submit">Save share</button>
                   </DeskForm>
                 ) : null}
@@ -256,6 +286,7 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                       const classApproved = group.papers.filter((paper) => paper.status === "approved").length;
                       const classWaiting = group.papers.filter((paper) => paper.status === "submitted").length;
                       const sample = group.papers[0];
+                      const groupNursery = group.papers.every((paper) => paper.nursery);
                       const progress = classApproved === group.papers.length
                         ? "Locked"
                         : classWaiting
@@ -265,29 +296,65 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                           : classApproved
                             ? `${nf(classApproved)} locked`
                             : "Open";
+                      const marksheetLink = sample
+                        ? groupNursery && sample.href
+                          ? sample.href
+                          : marksheetHref({
+                              name: sample.name,
+                              kind: sample.kind,
+                              classCode: sample.classCode,
+                              stream: sample.stream,
+                              heldOn: sample.heldOnIso,
+                            })
+                        : null;
                       return (
-                        <li key={group.label} className="asm-class">
+                        <li key={group.label} className={`asm-class${groupNursery ? " is-nursery" : ""}`}>
                           <div className="asm-class-head">
                             <strong>{group.label}</strong>
                             <span className="asm-class-meta">
-                              <span>{countLabel(group.papers.length, "subject", "subjects")} · {progress}</span>
-                              {office && sample ? (
-                                <Link className="asm-marksheet" href={marksheetHref({ name: sample.name, kind: sample.kind, classCode: sample.classCode, stream: sample.stream, heldOn: sample.heldOnIso })}>
-                                  <i className="fa-solid fa-table-cells" aria-hidden="true" /> Marksheet
+                              <span>
+                                {groupNursery
+                                  ? `${countLabel(group.papers.length, "developmental paper", "developmental papers")} · ${progress}`
+                                  : `${countLabel(group.papers.length, "subject", "subjects")} · ${progress}`}
+                              </span>
+                              {office && marksheetLink ? (
+                                <Link className="asm-marksheet" href={marksheetLink}>
+                                  <i className="fa-solid fa-table-cells" aria-hidden="true" />
+                                  {groupNursery ? "Open marksheet" : "Marksheet"}
                                 </Link>
                               ) : null}
                             </span>
                           </div>
                           <ul className="asm-subjects">
-                            {group.papers.map((paper) => (
-                              <li key={paper.id}>
-                                <Link href={paper.href}>
-                                  <strong>{paper.subject}</strong>
-                                  <em className={`asm-pill is-${paper.status}`}>{paper.status === "approved" ? "Locked" : paper.status === "submitted" ? "Submitted" : "Open"}</em>
-                                  <span className="asm-marks">{paper.roll ? `${nf(paper.entered)} of ${nf(paper.roll)}` : "No pupils on roll"}</span>
-                                </Link>
-                              </li>
-                            ))}
+                            {group.papers.map((paper) => {
+                              const total = cellsFor(paper);
+                              const marksLabel = paper.nursery
+                                ? total
+                                  ? `${nf(paper.entered)} of ${nf(total)} codes`
+                                  : paper.roll
+                                    ? "No skills linked"
+                                    : "No pupils on roll"
+                                : paper.roll
+                                  ? `${nf(paper.entered)} of ${nf(paper.roll)}`
+                                  : "No pupils on roll";
+                              return (
+                                <li key={paper.id}>
+                                  {paper.href ? (
+                                    <Link href={paper.href}>
+                                      <strong>{paper.subject}</strong>
+                                      <em className={`asm-pill is-${paper.status}`}>{paper.status === "approved" ? "Locked" : paper.status === "submitted" ? "Submitted" : "Open"}</em>
+                                      <span className="asm-marks">{marksLabel}</span>
+                                    </Link>
+                                  ) : (
+                                    <span>
+                                      <strong>{paper.subject}</strong>
+                                      <em className={`asm-pill is-${paper.status}`}>{paper.status === "approved" ? "Locked" : paper.status === "submitted" ? "Submitted" : "Open"}</em>
+                                      <span className="asm-marks">{marksLabel}</span>
+                                    </span>
+                                  )}
+                                </li>
+                              );
+                            })}
                           </ul>
                         </li>
                       );

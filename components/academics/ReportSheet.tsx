@@ -1,8 +1,14 @@
-import type { CSSProperties, ReactNode } from "react";
+import { type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { StudentFace } from "@/components/StudentFace";
 import { ReportQr } from "@/components/academics/ReportQr";
 import { classLabel, DEFAULT_GRADE_SCALE, formatShare, num, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
+import {
+  nurseryAgeLabel,
+  nurseryDomainImagePath,
+  nurseryReportClassLabel,
+  nurseryReportPageForDomainSort,
+} from "@/lib/nursery-dsba";
 import { normaliseReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
@@ -31,11 +37,26 @@ export type SheetActivity = {
   comment?: string | null;
 };
 
+export type SheetSkillLine = {
+  skill_id: string;
+  domain_id: string | null;
+  domain_name: string;
+  skill_description: string;
+  progress_code: string | null;
+  progress_label: string | null;
+  domain_sort: number;
+  skill_sort: number;
+};
+
+export type SheetProgressLegend = { code: string; label: string };
+
 export type SheetCard = {
   id: string;
   pupil_name: string;
   student_number: string | null;
   term_label: string;
+  /** Calendar year of the fee term (nursery card identity). */
+  term_year?: number | null;
   report_title?: string | null;
   class_code: string | null;
   stream: string;
@@ -53,13 +74,18 @@ export type SheetCard = {
   status: string;
   student_id?: string | null;
   photo_path?: string | null;
+  date_of_birth?: string | null;
   lines: SheetLine[];
+  /** Nursery Developmental Skills-Based Assessment rows. */
+  skillLines?: SheetSkillLine[];
+  progressLegend?: SheetProgressLegend[];
   activities?: SheetActivity[];
   sets?: ReportSet[];
   scale?: ScaleBand[];
   href?: string;
   fees?: ReportFeeLine[];
   next_starts_on?: string | null;
+  next_ends_on?: string | null;
 };
 
 const ACTIVITY_SLOTS = [1, 2, 3, 4];
@@ -126,14 +152,267 @@ function setColumnVars(sets: ReportSet[]): CSSProperties | undefined {
   } as CSSProperties;
 }
 
+function groupSkillLines(lines: SheetSkillLine[]) {
+  const groups: {
+    domain: string;
+    domainSort: number;
+    image: string | null;
+    skills: SheetSkillLine[];
+  }[] = [];
+  for (const line of [...lines].sort((a, b) => a.domain_sort - b.domain_sort || a.skill_sort - b.skill_sort)) {
+    const last = groups[groups.length - 1];
+    if (last && last.domain === line.domain_name) {
+      last.skills.push(line);
+      continue;
+    }
+    groups.push({
+      domain: line.domain_name,
+      domainSort: line.domain_sort,
+      image: nurseryDomainImagePath({
+        domain_name: line.domain_name,
+        domain_sort: line.domain_sort,
+      }),
+      skills: [line],
+    });
+  }
+  return groups;
+}
+
+function splitLegend(entries: SheetProgressLegend[]) {
+  const mid = Math.ceil(entries.length / 2);
+  return [entries.slice(0, mid), entries.slice(mid)] as const;
+}
+
+function DomainPanels({
+  groups,
+  toneOffset = 0,
+}: {
+  groups: ReturnType<typeof groupSkillLines>;
+  toneOffset?: number;
+}) {
+  return (
+    <div className="acd-nur-domains">
+      {groups.map((group, index) => (
+        <section
+          key={group.domain}
+          className={`acd-nur-domain is-tone-${(index + toneOffset) % 8}`}
+          aria-label={group.domain}
+        >
+          <header className="acd-nur-domain-head">
+            {group.image ? (
+              <img className="acd-nur-domain-art" src={group.image} alt="" />
+            ) : (
+              <span className="acd-nur-domain-art is-fallback" aria-hidden="true" />
+            )}
+            <h3>{group.domain}</h3>
+          </header>
+          <ul className="acd-nur-skills">
+            {group.skills.map((line) => (
+              <li key={line.skill_id}>
+                <span className="acd-nur-skill-copy">{line.skill_description}</span>
+                <span className="acd-nur-skill-code" title={line.progress_label || undefined}>
+                  {line.progress_code || "—"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function SheetMasthead({
+  card,
+  sheetTitle,
+  portrait,
+}: {
+  card: SheetCard;
+  sheetTitle: string;
+  portrait?: ReactNode;
+}) {
+  return (
+    <header className="acd-sheet-mast">
+      <div className="acd-sheet-banner">
+        <img className="acd-sheet-crest" src="/images/icon.png" alt="" />
+        <div className="acd-sheet-brand">
+          <p className="acd-sheet-established">Established 1993</p>
+          <p className="acd-sheet-school">
+            <span className="acd-sheet-kampala">Kampala</span>
+            <span className="acd-sheet-academy">Junior Academy</span>
+          </p>
+          <p className="acd-sheet-contact">
+            <span>P.O. Box 6202</span>
+            <span>info@kja.com</span>
+            <span>+256 392 700 370</span>
+          </p>
+        </div>
+        <div className="acd-sheet-portrait">
+          {portrait ?? (
+            card.student_id ? (
+              <StudentFace id={card.student_id} name={card.pupil_name} photoPath={card.photo_path} className="acd-sheet-face" />
+            ) : (
+              <span className="acd-sheet-seal" aria-hidden="true">{monogram(card.pupil_name)}</span>
+            )
+          )}
+        </div>
+      </div>
+      <div className="acd-sheet-rules" aria-hidden="true" />
+      <div className="acd-sheet-title">
+        <h2><span>{sheetTitle}</span></h2>
+        <p className="acd-sheet-term">{card.term_label}</p>
+      </div>
+    </header>
+  );
+}
+
 export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; nursery: boolean; portrait?: ReactNode; qr?: ReactNode }) {
   const place = classLabel(card.class_code, card.stream);
   const sheetTitle = normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
-  const scored = card.lines.some((line) => line.score !== null);
+  const dsba = nursery && (card.skillLines?.length || 0) > 0;
+  const scored = !dsba && card.lines.some((line) => line.score !== null);
   const columns = 1 + (sets.length || 1) + (nursery ? 0 : 1) + 2;
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
   const setVars = setColumnVars(sets);
+  const skillGroups = groupSkillLines(card.skillLines || []);
+
+  if (dsba) {
+    const page1Groups = skillGroups.filter((group) => nurseryReportPageForDomainSort(group.domainSort) === 1);
+    const page2Groups = skillGroups.filter((group) => nurseryReportPageForDomainSort(group.domainSort) === 2);
+    const legend = card.progressLegend?.length ? card.progressLegend : [];
+    const [legendLeft, legendRight] = splitLegend(legend);
+    const classCodeLabel = nurseryReportClassLabel(card.class_code, card.stream);
+    const age = nurseryAgeLabel(card.date_of_birth) || "—";
+    const year = card.term_year != null ? String(card.term_year) : (card.term_label.match(/\b(20\d{2})\b/)?.[1] || "—");
+
+    return (
+      <article className="acd-sheet is-nursery-dsba" aria-label={`${card.pupil_name}, ${sheetTitle}`}>
+        <div className="acd-sheet-page acd-sheet-page-1">
+          <div className="acd-sheet-edge">
+            <div className="acd-sheet-watermark" aria-hidden="true">
+              <img src="/images/icon.png" alt="" />
+            </div>
+            <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} />
+
+            <section className="acd-sheet-identity acd-nur-identity" aria-label="Pupil details">
+              <div className="acd-sheet-pupil">
+                <p className="acd-sheet-kicker">Pupil</p>
+                <h3>{card.href ? <Link href={card.href}>{card.pupil_name}</Link> : card.pupil_name}</h3>
+                {card.student_number ? <p className="acd-sheet-place">{card.student_number}</p> : null}
+              </div>
+              <dl className="acd-nur-meta">
+                <div>
+                  <dt>Class teacher</dt>
+                  <dd>{card.class_teacher_name || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Class</dt>
+                  <dd>{classCodeLabel || "—"}</dd>
+                </div>
+                <div>
+                  <dt>Age</dt>
+                  <dd>{age}</dd>
+                </div>
+                <div>
+                  <dt>Year</dt>
+                  <dd>{year}</dd>
+                </div>
+              </dl>
+            </section>
+
+            <section className="acd-nur-record" aria-label="Developmental skills page 1">
+              <DomainPanels groups={page1Groups} />
+            </section>
+
+            <section className="acd-nur-legend" aria-label="Progress codes">
+              <p className="acd-sheet-kicker">Progress codes</p>
+              <div className="acd-nur-legend-grid">
+                {[legendLeft, legendRight].map((column, index) => (
+                  <table key={index} className="acd-nur-legend-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Code</th>
+                        <th scope="col">Meaning</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {column.map((entry) => (
+                        <tr key={entry.code}>
+                          <th scope="row">{entry.code}</th>
+                          <td>{entry.label}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ))}
+              </div>
+            </section>
+          </div>
+        </div>
+
+        <div className="acd-sheet-page acd-sheet-page-2">
+          <div className="acd-sheet-edge">
+            <div className="acd-sheet-watermark" aria-hidden="true">
+              <img src="/images/icon.png" alt="" />
+            </div>
+            <p className="acd-nur-continued">
+              {card.pupil_name}
+              {classCodeLabel ? ` · ${classCodeLabel}` : ""}
+              {" · continued"}
+            </p>
+
+            <section className="acd-nur-record" aria-label="Developmental skills page 2">
+              <DomainPanels groups={page2Groups} toneOffset={page1Groups.length} />
+            </section>
+
+            <section className="acd-sheet-report acd-nur-comment">
+              <h3>
+                <span>Class teacher&apos;s comment</span>
+                {card.class_teacher_name ? <em>{card.class_teacher_name}</em> : null}
+              </h3>
+              <p className={card.class_teacher_comment ? "has-copy" : "is-blank"}>{card.class_teacher_comment || ""}</p>
+            </section>
+
+            <section className="acd-nur-signs" aria-label="Signatures">
+              <div>
+                <p className="acd-nur-sign-label">Head of section</p>
+                <div className="acd-nur-sign-line" aria-hidden="true" />
+                <p className="acd-nur-sign-hint">Signature</p>
+              </div>
+              <div>
+                <p className="acd-nur-sign-label">Principal</p>
+                <div className="acd-nur-sign-line" aria-hidden="true" />
+                <p className="acd-nur-sign-hint">Signature</p>
+              </div>
+            </section>
+
+            <section className="acd-nur-closing" aria-label="Next term, fees, and online report">
+              <div className="acd-nur-dates">
+                <div>
+                  <h3>Next term begins on</h3>
+                  <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "—"}</p>
+                </div>
+                <div>
+                  <h3>End on</h3>
+                  <p className="acd-sheet-next">{formatReportDate(card.next_ends_on) || "—"}</p>
+                </div>
+              </div>
+              <div className="acd-nur-fees-qr">
+                <section className="acd-sheet-fees" aria-label="School fees for next term">
+                  <div>
+                    <h3>School fees for next term</h3>
+                    <FeeLines lines={card.fees ?? []} />
+                  </div>
+                </section>
+                {qr ?? <ReportQr id={card.id} />}
+              </div>
+            </section>
+          </div>
+        </div>
+      </article>
+    );
+  }
 
   return (
     <article className="acd-sheet" aria-label={`${card.pupil_name}, ${sheetTitle}`}>
@@ -141,37 +420,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
         <div className="acd-sheet-watermark" aria-hidden="true">
           <img src="/images/icon.png" alt="" />
         </div>
-        <header className="acd-sheet-mast">
-          <div className="acd-sheet-banner">
-            <img className="acd-sheet-crest" src="/images/icon.png" alt="" />
-            <div className="acd-sheet-brand">
-              <p className="acd-sheet-established">Established 1993</p>
-              <p className="acd-sheet-school">
-                <span className="acd-sheet-kampala">Kampala</span>
-                <span className="acd-sheet-academy">Junior Academy</span>
-              </p>
-              <p className="acd-sheet-contact">
-                <span>P.O. Box 6202</span>
-                <span>info@kja.com</span>
-                <span>+256 392 700 370</span>
-              </p>
-            </div>
-            <div className="acd-sheet-portrait">
-              {portrait ?? (
-                card.student_id ? (
-                  <StudentFace id={card.student_id} name={card.pupil_name} photoPath={card.photo_path} className="acd-sheet-face" />
-                ) : (
-                  <span className="acd-sheet-seal" aria-hidden="true">{monogram(card.pupil_name)}</span>
-                )
-              )}
-            </div>
-          </div>
-          <div className="acd-sheet-rules" aria-hidden="true" />
-          <div className="acd-sheet-title">
-            <h2><span>{sheetTitle}</span></h2>
-            <p className="acd-sheet-term">{card.term_label}</p>
-          </div>
-        </header>
+        <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} />
 
         <section className="acd-sheet-identity">
           <div className="acd-sheet-pupil">
@@ -184,14 +433,23 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               <dt>{nursery ? "Overall" : "Average"}</dt>
               <dd>{formatScore(card.overall_score, nursery)}</dd>
             </div>
-            <div>
-              <dt>AGG</dt>
-              <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "-"}</dd>
-            </div>
-            <div className={figureTone(card.overall_grade, card.overall_score)}>
-              <dt>Grade</dt>
-              <dd>{card.overall_grade || "-"}</dd>
-            </div>
+            {!nursery ? (
+              <>
+                <div>
+                  <dt>AGG</dt>
+                  <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "-"}</dd>
+                </div>
+                <div className={figureTone(card.overall_grade, card.overall_score)}>
+                  <dt>Grade</dt>
+                  <dd>{card.overall_grade || "-"}</dd>
+                </div>
+              </>
+            ) : (
+              <div>
+                <dt>Progress</dt>
+                <dd>Bands</dd>
+              </div>
+            )}
             <div className="is-attendance">
               <dt>Attendance</dt>
               <dd className="acd-sheet-tick" aria-label="Attendance recorded">
@@ -218,7 +476,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                   ))}
                   <th className="is-num is-score">{sets.length ? "Total" : nursery ? "Progress" : "Score"}</th>
                   {!nursery ? <th className="is-num is-grade">Grade</th> : null}
-                  <th className="is-note">Teacher's comment</th>
+                  <th className="is-note">Teacher&apos;s comment</th>
                   <th className="is-sign">Initials</th>
                 </tr>
               </thead>
@@ -305,7 +563,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
 
           <section className="acd-sheet-report">
             <h3>
-              <span>Class teacher's report</span>
+              <span>Class teacher&apos;s report</span>
               {card.class_teacher_name ? <em>{card.class_teacher_name}</em> : null}
             </h3>
             <p className={card.class_teacher_comment ? "has-copy" : "is-blank"}>{card.class_teacher_comment || ""}</p>
@@ -313,7 +571,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
 
           <section className="acd-sheet-closing" aria-label="Headteacher comment and next-term fees">
             <div className="acd-sheet-principal">
-              <h3><span>Headteacher's comment</span></h3>
+              <h3><span>Headteacher&apos;s comment</span></h3>
               <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
             </div>
             {qr ?? <ReportQr id={card.id} />}

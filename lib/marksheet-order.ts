@@ -8,6 +8,10 @@ export type MarksheetSort =
   | "worst"
   | "number"
   | "gaps"
+  | "academic-high"
+  | "academic-low"
+  | "other-high"
+  | "other-low"
   | `subject-high:${string}`
   | `subject-low:${string}`;
 
@@ -17,12 +21,28 @@ export type MarksheetOrderRow = {
   number: string;
   roll: number;
   average: number | null;
+  /** Weighted average across Academic (core) subjects only. */
+  academicAverage: number | null;
+  /** Weighted average across Other (cocurricular) subjects only. */
+  otherAverage: number | null;
   gaps: number;
   /** Percent per subject id. Null when the mark is blank or the pupil was absent. */
   percents: Record<string, number | null>;
 };
 
-const PLAIN = new Set<MarksheetSort>(["roll", "name-asc", "name-desc", "best", "worst", "number", "gaps"]);
+const PLAIN = new Set<MarksheetSort>([
+  "roll",
+  "name-asc",
+  "name-desc",
+  "best",
+  "worst",
+  "number",
+  "gaps",
+  "academic-high",
+  "academic-low",
+  "other-high",
+  "other-low",
+]);
 
 export function parseMarksheetSort(value: string | null | undefined, subjectIds: ReadonlySet<string>): MarksheetSort {
   const raw = (value || "").trim();
@@ -32,7 +52,58 @@ export function parseMarksheetSort(value: string | null | undefined, subjectIds:
   return "roll";
 }
 
-export function marksheetSortChoices(subjects: { id: string; name: string }[]) {
+export type MarksheetSortSubject = {
+  id: string;
+  name: string;
+  kind?: string | null;
+  /** Catalogue subject id — used to combine the same subject across sittings. */
+  subjectId?: string;
+};
+
+/** One arrange target per catalogue subject (falls back to column id). */
+export function marksheetArrangeKey(subject: Pick<MarksheetSortSubject, "id" | "subjectId">) {
+  return subject.subjectId || subject.id;
+}
+
+function dedupeSortSubjects(subjects: MarksheetSortSubject[]) {
+  const seen = new Set<string>();
+  const unique: MarksheetSortSubject[] = [];
+  for (const subject of subjects) {
+    const key = marksheetArrangeKey(subject);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    unique.push({ ...subject, id: key });
+  }
+  return unique;
+}
+
+function subjectSortRows(subjects: MarksheetSortSubject[]) {
+  return subjects.flatMap((subject) => [
+    { value: `subject-high:${subject.id}` as MarksheetSort, label: `${subject.name}, highest first` },
+    { value: `subject-low:${subject.id}` as MarksheetSort, label: `${subject.name}, lowest first` },
+  ]);
+}
+
+export function marksheetSortChoices(subjects: MarksheetSortSubject[]) {
+  const unique = dedupeSortSubjects(subjects);
+  const academic = unique.filter((subject) => subject.kind !== "cocurricular");
+  const extras = unique.filter((subject) => subject.kind === "cocurricular");
+  const academicChoices: { value: MarksheetSort; label: string }[] = [];
+  const extraChoices: { value: MarksheetSort; label: string }[] = [];
+  if (academic.length) {
+    academicChoices.push(
+      { value: "academic-high", label: "All academic, highest first" },
+      { value: "academic-low", label: "All academic, lowest first" },
+      ...subjectSortRows(academic),
+    );
+  }
+  if (extras.length) {
+    extraChoices.push(
+      { value: "other-high", label: "All extras, highest first" },
+      { value: "other-low", label: "All extras, lowest first" },
+      ...subjectSortRows(extras),
+    );
+  }
   return {
     classChoices: [
       { value: "roll" as const, label: "Roll order" },
@@ -43,10 +114,10 @@ export function marksheetSortChoices(subjects: { id: string; name: string }[]) {
       { value: "number" as const, label: "Student number" },
       { value: "gaps" as const, label: "Most gaps first" },
     ],
-    subjectChoices: subjects.flatMap((subject) => [
-      { value: `subject-high:${subject.id}` as MarksheetSort, label: `${subject.name}, highest first` },
-      { value: `subject-low:${subject.id}` as MarksheetSort, label: `${subject.name}, lowest first` },
-    ]),
+    academicChoices,
+    extraChoices,
+    /** @deprecated Prefer academicChoices / extraChoices. Kept for older callers. */
+    subjectChoices: [...academicChoices, ...extraChoices],
   };
 }
 
@@ -59,6 +130,10 @@ export function marksheetSortLabel(sort: MarksheetSort, subjectName = "") {
     case "worst": return "Worst performed to best";
     case "number": return "Student number";
     case "gaps": return "Most gaps first";
+    case "academic-high": return "All academic, highest first";
+    case "academic-low": return "All academic, lowest first";
+    case "other-high": return "All extras, highest first";
+    case "other-low": return "All extras, lowest first";
     default:
       return sort.startsWith("subject-high:") ? `${subjectName}, highest first` : `${subjectName}, lowest first`;
   }
@@ -82,6 +157,10 @@ export function marksheetSortSlug(sort: MarksheetSort, subjectName = "") {
     case "worst": return "worst-to-best";
     case "number": return "student-number";
     case "gaps": return "most-gaps";
+    case "academic-high": return "academic-highest";
+    case "academic-low": return "academic-lowest";
+    case "other-high": return "other-highest";
+    case "other-low": return "other-lowest";
     default: {
       const name = marksheetFileSlug(subjectName || "subject") || "subject";
       return sort.startsWith("subject-high:") ? `${name}-highest` : `${name}-lowest`;
@@ -155,6 +234,18 @@ export function compareMarksheet(left: MarksheetOrderRow, right: MarksheetOrderR
     case "gaps":
       diff = right.gaps - left.gaps;
       break;
+    case "academic-high":
+      diff = compareDesc(left.academicAverage, right.academicAverage);
+      break;
+    case "academic-low":
+      diff = compareAsc(left.academicAverage, right.academicAverage);
+      break;
+    case "other-high":
+      diff = compareDesc(left.otherAverage, right.otherAverage);
+      break;
+    case "other-low":
+      diff = compareAsc(left.otherAverage, right.otherAverage);
+      break;
     default: {
       const id = subjectIdOf(sort);
       const high = sort.startsWith("subject-high:");
@@ -168,6 +259,34 @@ export function compareMarksheet(left: MarksheetOrderRow, right: MarksheetOrderR
 
 export function arrangeMarksheet<T extends MarksheetOrderRow>(rows: T[], sort: MarksheetSort) {
   return [...rows].sort((left, right) => compareMarksheet(left, right, sort));
+}
+
+/** Subjects shown for the active arrange choice. Class sorts keep every column. */
+export function marksheetVisibleSubjects<T extends { id: string; kind?: string | null; subjectId?: string }>(
+  subjects: T[],
+  sort: MarksheetSort,
+): T[] {
+  if (sort === "academic-high" || sort === "academic-low") {
+    return subjects.filter((subject) => subject.kind !== "cocurricular");
+  }
+  if (sort === "other-high" || sort === "other-low") {
+    return subjects.filter((subject) => subject.kind === "cocurricular");
+  }
+  if (sort.startsWith("subject-high:") || sort.startsWith("subject-low:")) {
+    const id = subjectIdOf(sort);
+    return subjects.filter((subject) => subject.id === id || subject.subjectId === id);
+  }
+  return subjects;
+}
+
+/** Display / rank average for the active arrange filter. */
+export function marksheetDisplayAverage(row: MarksheetOrderRow, sort: MarksheetSort): number | null {
+  if (sort === "academic-high" || sort === "academic-low") return row.academicAverage;
+  if (sort === "other-high" || sort === "other-low") return row.otherAverage;
+  if (sort.startsWith("subject-high:") || sort.startsWith("subject-low:")) {
+    return row.percents[subjectIdOf(sort)] ?? null;
+  }
+  return row.average;
 }
 
 export type MarksheetTone = "blank" | "missed" | "low" | "mid" | "high";

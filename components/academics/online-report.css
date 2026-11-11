@@ -485,12 +485,161 @@ body:has(.kor) {
 }
 
 .kor-subjects,
-.kor-coco {
+.kor-coco,
+.kor-skills {
   list-style: none;
   margin: 0;
   padding: 0;
   display: grid;
   gap: 0.7rem;
+}
+
+.kor-skill-domain {
+  padding: 0.85rem 0.85rem 0.9rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #f4fffb, #fff);
+  border: 1px solid rgba(46, 196, 164, 0.18);
+}
+
+.kor-skill-domain h3 {
+  margin: 0 0 0.55rem;
+  color: var(--kor-navy);
+  font-size: 0.95rem;
+  font-weight: 800;
+}
+
+.kor-skill-domain > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.kor-skill-domain > ul > li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.4rem 0;
+  border-top: 1px solid rgba(15, 61, 104, 0.06);
+}
+
+.kor-skill-domain > ul > li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.kor-skill-copy {
+  color: var(--kor-ink);
+  font-size: 0.88rem;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.kor-skill-code {
+  display: grid;
+  justify-items: end;
+  gap: 0.12rem;
+  flex: none;
+  text-align: right;
+}
+
+.kor-skill-code strong {
+  display: inline-grid;
+  place-items: center;
+  min-width: 2.35rem;
+  padding: 0.22rem 0.45rem;
+  border-radius: 999px;
+  background: rgba(46, 196, 164, 0.14);
+  color: #0f6b45;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.kor-skill-code small {
+  color: var(--kor-soft);
+  font-size: 0.72rem;
+  font-weight: 650;
+}
+
+.kor-teacher-line {
+  margin: 0.35rem 0 0;
+  color: var(--kor-soft);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.kor-nur-skills {
+  gap: 0.85rem;
+}
+
+.kor-skill-domain-head {
+  display: grid;
+  grid-template-columns: 3rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  margin-bottom: 0.55rem;
+}
+
+.kor-skill-domain-head img,
+.kor-skill-domain-fallback {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 0.85rem;
+  object-fit: contain;
+  background: #fff;
+  border: 1px solid rgba(15, 61, 104, 0.08);
+}
+
+.kor-skill-domain-fallback {
+  display: block;
+  background: radial-gradient(circle at 30% 30%, #9ad9f0, #e8f7fc);
+}
+
+.kor-skill-domain-head h3 {
+  margin: 0;
+}
+
+.kor-skill-domain.is-tone-0 { background: linear-gradient(180deg, #fff1ec, #fff); border-color: rgba(240, 120, 90, 0.22); }
+.kor-skill-domain.is-tone-1 { background: linear-gradient(180deg, #eaf7fc, #fff); border-color: rgba(58, 167, 201, 0.22); }
+.kor-skill-domain.is-tone-2 { background: linear-gradient(180deg, #eaf8f1, #fff); border-color: rgba(76, 175, 122, 0.22); }
+.kor-skill-domain.is-tone-3 { background: linear-gradient(180deg, #fff7e4, #fff); border-color: rgba(232, 163, 23, 0.24); }
+.kor-skill-domain.is-tone-4 { background: linear-gradient(180deg, #fceef5, #fff); border-color: rgba(196, 93, 138, 0.22); }
+.kor-skill-domain.is-tone-5 { background: linear-gradient(180deg, #e8f7f4, #fff); border-color: rgba(47, 158, 143, 0.22); }
+.kor-skill-domain.is-tone-6 { background: linear-gradient(180deg, #fff0e3, #fff); border-color: rgba(232, 155, 92, 0.24); }
+.kor-skill-domain.is-tone-7 { background: linear-gradient(180deg, #eef1fc, #fff); border-color: rgba(91, 127, 199, 0.22); }
+
+.kor-nur-sign-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.kor-nur-sign-grid > div {
+  display: grid;
+  gap: 0.55rem;
+  padding: 0.85rem;
+  border-radius: 1rem;
+  background: linear-gradient(180deg, #f3f7ff, #fff);
+  border: 1px dashed rgba(91, 127, 199, 0.35);
+}
+
+.kor-nur-sign-grid strong {
+  color: var(--kor-navy);
+  font-size: 0.86rem;
+}
+
+.kor-nur-sign-line {
+  display: block;
+  min-height: 2rem;
+  border-bottom: 1.5px solid rgba(15, 61, 104, 0.35);
+}
+
+@media (max-width: 560px) {
+  .kor-nur-sign-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .kor-subject {

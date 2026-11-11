@@ -161,6 +161,21 @@ html:has(.acr-page) { scroll-behavior: smooth; }
   border-color: var(--admin-gold);
   box-shadow: 0 0 0 3px rgba(253, 163, 27, .18);
 }
+.acr-workbook-download {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .35rem;
+  min-width: 0;
+}
+.acr-workbook-error {
+  margin: 0;
+  color: #9a3040;
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.acr-workbook-error i { margin-right: .3rem; }
 .acr-workbook-btn {
   display: inline-flex;
   align-items: center;
@@ -168,20 +183,29 @@ html:has(.acr-page) { scroll-behavior: smooth; }
   gap: .45rem;
   min-height: 40px;
   padding: .5rem 1.05rem;
+  border: 0;
   border-radius: 999px;
   background: var(--admin-navy);
   color: #fff;
+  font: inherit;
   font-size: .86rem;
   font-weight: 700;
+  cursor: pointer;
   text-decoration: none;
   box-shadow: 0 8px 18px -14px rgba(25, 35, 43, .7);
   transition: background-color .16s ease, transform .16s ease, box-shadow .16s ease;
 }
-.acr-workbook-btn:hover {
+.acr-workbook-btn:hover:not(:disabled) {
   background: #24303a;
   color: #fff;
   transform: translateY(-1px);
   box-shadow: 0 12px 22px -14px rgba(25, 35, 43, .78);
+}
+.acr-workbook-btn:disabled {
+  opacity: .72;
+  cursor: wait;
+  transform: none;
+  box-shadow: none;
 }
 .acr-workbook-btn:focus-visible { outline: 2px solid var(--admin-gold); outline-offset: 2px; }
 .acr-workbook-btn i { font-size: .76rem; color: var(--admin-gold); }

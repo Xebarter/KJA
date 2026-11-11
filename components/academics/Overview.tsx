@@ -519,7 +519,7 @@ export async function Overview({ supabase, profile, office, campuses }: Session)
       ? supabase.from("report_cards").select("id, student_id, status, published_at, class_code, stream").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
     term
-      ? supabase.from("class_teachers").select("class_code, stream").eq("term_id", term.id)
+      ? supabase.from("class_teachers").select("class_code, stream, role").eq("term_id", term.id)
       : Promise.resolve({ data: [], error: null }),
   ]);
   if (!Array.isArray(roll)) {
@@ -540,7 +540,11 @@ export async function Overview({ supabase, profile, office, campuses }: Session)
   const cards = (cardsResult.data || []) as OverviewLight["drafts"];
   const drafts = cards.filter((card) => card.status === "draft");
   const published = cards.filter((card) => card.status === "published");
-  const taught = new Set((teachersResult.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}`));
+  const taught = new Set(
+    (teachersResult.data || [])
+      .filter((row) => ((row as { role?: string | null }).role || "lead") !== "assistant")
+      .map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}`),
+  );
   const untaught = term ? groups.filter((group) => !taught.has(`${group.code}|${group.stream}`)) : [];
   const attendanceRate = markedCount.count ? Math.round(((presentCount.count ?? 0) / markedCount.count) * 100) : null;
   const firstName = profile.full_name?.trim().split(/\s+/)[0] || "";

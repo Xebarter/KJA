@@ -30,12 +30,19 @@ import {
 import { levelFromBand } from "@/lib/comment-engine/analyse";
 import { classifyPercentage, DEFAULT_SETTINGS } from "@/lib/comment-engine/bands";
 import { mergeActivitySkills, skillsFromJson } from "@/lib/comment-engine/skills";
+import { operationalCampus } from "@/lib/campuses";
+import {
+  groupSkillsByDomain,
+  loadDivisionCatalogue,
+  nurseryDivision,
+  type ProgressLegendEntry,
+} from "@/lib/nursery-dsba";
 import { normaliseReportTitle } from "@/lib/report-title";
 import { fetchAll } from "@/lib/students";
 
 export { DEFAULT_REPORT_TITLE, normaliseReportTitle } from "@/lib/report-title";
 
-type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null };
+type Pupil = { id: string; full_name: string; class_code: string | null; stream: string | null; campus?: string | null };
 
 type Assessment = {
   id: string;
@@ -79,6 +86,8 @@ export type ReportSitting = {
   kindLabel: string;
   share: number;
   papers: number;
+  /** Nursery DSBA sittings use one developmental assessment id as the key. */
+  dsba?: boolean;
 };
 
 /** Sittings already set for this class, with each share of the subject total. */
@@ -110,6 +119,26 @@ export async function loadReportSittings(
   input: { termId: string; classCode: string; stream: string; campus?: string },
 ): Promise<ReportSitting[]> {
   const stream = streamOf(input.stream);
+  if (classSection(input.classCode) === "nursery") {
+    let query = supabase
+      .from("developmental_assessments")
+      .select("id, name, kind")
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", stream);
+    if (input.campus) query = query.eq("campus", input.campus);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    return ((data || []) as { id: string; name: string; kind: string }[]).map((row) => ({
+      key: String(row.id),
+      label: String(row.name || "Assessment"),
+      kind: String(row.kind || ""),
+      kindLabel: kindLabel(String(row.kind || "")),
+      share: 100,
+      papers: 1,
+      dsba: true,
+    }));
+  }
   let query = supabase
     .from("assessments")
     .select("name, kind, weight")
@@ -133,15 +162,15 @@ export async function loadTermReportSittings(
   supabase: SupabaseClient,
   termId: string,
 ): Promise<Record<string, ReportSitting[]>> {
-  const { data, error } = await supabase
-    .from("assessments")
-    .select("name, kind, weight, class_code, stream, campus")
-    .eq("term_id", termId);
+  const [{ data, error }, dsbaQuery] = await Promise.all([
+    supabase.from("assessments").select("name, kind, weight, class_code, stream, campus").eq("term_id", termId),
+    supabase.from("developmental_assessments").select("id, name, kind, class_code, stream, campus").eq("term_id", termId),
+  ]);
   if (error) throw new Error(error.message);
   const papers = new Map<string, { name: string; kind: string; weight: number }[]>();
   for (const row of (data || []) as Record<string, unknown>[]) {
     const classCode = String(row.class_code || "");
-    if (!classCode) continue;
+    if (!classCode || classSection(classCode) === "nursery") continue;
     const key = reportSittingKey(classCode, String(row.stream || ""), String(row.campus || ""));
     const list = papers.get(key) || [];
     list.push({
@@ -153,6 +182,25 @@ export async function loadTermReportSittings(
   }
   const out: Record<string, ReportSitting[]> = {};
   for (const [key, rows] of papers) out[key] = sittingsFromPapers(rows);
+
+  if (!dsbaQuery.error) {
+    for (const row of (dsbaQuery.data || []) as Record<string, unknown>[]) {
+      const classCode = String(row.class_code || "");
+      if (!classCode) continue;
+      const key = reportSittingKey(classCode, String(row.stream || ""), String(row.campus || ""));
+      const list = out[key] || [];
+      list.push({
+        key: String(row.id),
+        label: String(row.name || "Assessment"),
+        kind: String(row.kind || ""),
+        kindLabel: kindLabel(String(row.kind || "")),
+        share: 100,
+        papers: 1,
+        dsba: true,
+      });
+      out[key] = list;
+    }
+  }
   return out;
 }
 
@@ -166,6 +214,211 @@ function planFromSelection(papers: Assessment[], selected: { key: string; share:
       return { ...known, share, weight: share };
     })
     .filter((set): set is PlannedSet => Boolean(set));
+}
+
+/**
+ * Nursery DSBA: freeze skill progress codes from one developmental assessment onto report cards.
+ * `sets` keys are developmental_assessment ids; the first chosen sitting wins (no weighted blend).
+ */
+async function prepareNurseryDsbaReports(
+  supabase: SupabaseClient,
+  input: {
+    termId: string;
+    classCode: string;
+    stream: string;
+    sets?: { key: string; share: number }[];
+    reportTitle?: string;
+  },
+) {
+  const stream = streamOf(input.stream);
+  const divisionId = nurseryDivision(input.classCode);
+  if (!divisionId) throw new Error("This class is not a nursery division.");
+
+  const [pupils, teacher, cards, catalogue, assessmentsQuery] = await Promise.all([
+    fetchAll<Pupil>((from, to) =>
+      supabase
+        .from("student_directory")
+        .select("id, full_name, class_code, stream, campus")
+        .eq("status", "active")
+        .eq("class_code", input.classCode)
+        .order("id")
+        .range(from, to),
+    ),
+    supabase
+      .from("class_teachers")
+      .select("staff_id, teaching_staff(full_name)")
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", stream)
+      .eq("role", "lead")
+      .maybeSingle(),
+    supabase
+      .from("report_cards")
+      .select("id, student_id, status, class_teacher_comment, head_comment, conduct")
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", stream),
+    loadDivisionCatalogue(supabase, divisionId),
+    supabase
+      .from("developmental_assessments")
+      .select("id, name, kind, status")
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", stream),
+  ]);
+
+  if ("error" in catalogue) throw new Error(catalogue.error);
+  if (teacher.error) throw new Error(teacher.error.message);
+  if (cards.error) throw new Error(cards.error.message);
+  if (assessmentsQuery.error) throw new Error(assessmentsQuery.error.message);
+
+  const roster = pupils.filter((pupil) => streamOf(pupil.stream) === stream);
+  if (!roster.length) return { prepared: 0 };
+
+  const sittings = ((assessmentsQuery.data || []) as { id: string; name: string; kind: string; status: string }[]);
+  const chosenId = input.sets?.length
+    ? input.sets.map((set) => set.key).find((key) => sittings.some((row) => row.id === key))
+    : sittings.find((row) => row.status === "approved")?.id || sittings[0]?.id;
+  if (!chosenId) throw new Error("Set a developmental assessment for this class before generating report cards.");
+  const sitting = sittings.find((row) => row.id === chosenId);
+  if (!sitting) throw new Error("Choose a developmental assessment that belongs to this class.");
+
+  const grouped = groupSkillsByDomain(catalogue.domains, catalogue.skills);
+  const skillList = grouped.flatMap((row) =>
+    row.skills.map((skill) => ({
+      skill,
+      domain: row.domain,
+    })),
+  );
+  if (!skillList.length) throw new Error("No developmental skills are configured for this nursery division.");
+
+  const pupilIds = roster.map((pupil) => pupil.id);
+  const rosterIds = new Set(pupilIds);
+  const relevantCards = ((cards.data || []) as ExistingCard[]).filter((card) => rosterIds.has(card.student_id));
+
+  const [ratingRows, attendanceRows] = await Promise.all([
+    fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null }>((from, to) =>
+      supabase
+        .from("skill_ratings")
+        .select("student_id, skill_id, progress_code_id")
+        .eq("assessment_id", chosenId)
+        .order("student_id")
+        .range(from, to),
+    ),
+    fetchAll<Attendance>((from, to) =>
+      supabase
+        .from("attendance")
+        .select("student_id, attended_on, status")
+        .eq("term_id", input.termId)
+        .in("student_id", pupilIds)
+        .order("attended_on")
+        .range(from, to),
+    ),
+  ]);
+
+  const codeById = new Map(catalogue.progressCodes.map((code) => [code.id, code]));
+  const ratingMap = new Map(
+    ratingRows.map((row) => [`${row.student_id}|${row.skill_id}`, row.progress_code_id ? String(row.progress_code_id) : null]),
+  );
+  const opened = new Set(attendanceRows.map((row) => row.attended_on));
+  const presentByPupil = new Map<string, number>();
+  for (const row of attendanceRows) {
+    if (row.status !== "present" && row.status !== "late") continue;
+    presentByPupil.set(row.student_id, (presentByPupil.get(row.student_id) || 0) + 1);
+  }
+
+  const teacherName = staffName(teacher.data?.teaching_staff);
+  const existing = new Map(((cards.data || []) as ExistingCard[]).map((card) => [card.student_id, card]));
+  const drafts = roster.filter((pupil) => {
+    const prior = existing.get(pupil.id);
+    return !(prior && (prior.status === "approved" || prior.status === "published"));
+  });
+  if (!drafts.length) return { prepared: 0 };
+
+  const legend: ProgressLegendEntry[] = catalogue.legend;
+  const now = new Date().toISOString();
+  const reportTitle = input.reportTitle !== undefined ? normaliseReportTitle(input.reportTitle) : undefined;
+  const savedCards = await writeChunks(
+    drafts.map((pupil) => ({
+      student_id: pupil.id,
+      term_id: input.termId,
+      class_code: input.classCode,
+      stream,
+      campus: operationalCampus(pupil.campus),
+      class_teacher_name: teacherName,
+      days_present: presentByPupil.get(pupil.id) || 0,
+      days_opened: opened.size,
+      overall_score: null,
+      overall_position: null,
+      overall_aggregate: null,
+      overall_grade: null,
+      progress_legend: legend,
+      ...(reportTitle !== undefined ? { report_title: reportTitle } : {}),
+      updated_at: now,
+    })),
+    async (slice) => {
+      const withLegend = await supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }).select("id, student_id");
+      if (!withLegend.error) return withLegend;
+      if (!/progress_legend|overall_aggregate|overall_grade|schema cache/i.test(withLegend.error.message)) return withLegend;
+      const legacy = slice.map(({ progress_legend: _p, overall_aggregate: _a, overall_grade: _g, ...row }) => row);
+      return supabase.from("report_cards").upsert(legacy, { onConflict: "student_id,term_id" }).select("id, student_id");
+    },
+  );
+
+  const cardId = new Map(savedCards.map((card) => [String(card.student_id), String(card.id)]));
+  const cardIds = [...cardId.values()];
+  const skillLines: Record<string, unknown>[] = [];
+  for (const pupil of drafts) {
+    const id = cardId.get(pupil.id);
+    if (!id) throw new Error("A report card could not be saved.");
+    for (const entry of skillList) {
+      const codeId = ratingMap.get(`${pupil.id}|${entry.skill.id}`) || null;
+      const code = codeId ? codeById.get(codeId) : null;
+      skillLines.push({
+        report_card_id: id,
+        skill_id: entry.skill.id,
+        domain_id: entry.domain.id,
+        domain_name: entry.domain.name,
+        skill_description: entry.skill.description,
+        progress_code: code?.code ?? null,
+        progress_label: code?.label ?? null,
+        domain_sort: entry.domain.sort_order,
+        skill_sort: entry.skill.sort_order,
+      });
+    }
+  }
+
+  await deleteChunks(cardIds, (slice) => supabase.from("report_skill_lines").delete().in("report_card_id", slice));
+  if (skillLines.length) {
+    await writeChunks(skillLines, (slice) =>
+      supabase.from("report_skill_lines").upsert(slice, { onConflict: "report_card_id,skill_id" }),
+    );
+  }
+
+  // Clear legacy subject lines on nursery drafts so old mark-based cards do not linger.
+  if (relevantCards.length) {
+    const draftIds = drafts.map((pupil) => cardId.get(pupil.id)).filter((id): id is string => Boolean(id));
+    if (draftIds.length) {
+      await deleteChunks(draftIds, (slice) => supabase.from("report_lines").delete().in("report_card_id", slice));
+      await deleteChunks(draftIds, (slice) => supabase.from("report_line_parts").delete().in("report_card_id", slice));
+      await deleteChunks(draftIds, (slice) => supabase.from("report_card_activities").delete().in("report_card_id", slice));
+    }
+  }
+
+  const expectedRatings = drafts.length * skillList.length;
+  const rated = drafts.reduce((sum, pupil) => {
+    let count = 0;
+    for (const entry of skillList) {
+      if (ratingMap.get(`${pupil.id}|${entry.skill.id}`)) count += 1;
+    }
+    return sum + count;
+  }, 0);
+  const warning =
+    expectedRatings > 0 && rated < expectedRatings
+      ? `${rated.toLocaleString("en-GB")} of ${expectedRatings.toLocaleString("en-GB")} skill codes were filled; blank skills print empty on the card.`
+      : undefined;
+
+  return { prepared: drafts.length, warning };
 }
 
 /**
@@ -186,13 +439,16 @@ export async function prepareClassReports(
 ) {
   const stream = streamOf(input.stream);
   const section = classSection(input.classCode);
+  if (section === "nursery") {
+    return prepareNurseryDsbaReports(supabase, input);
+  }
   const markSection = gradeBandSection(input.classCode);
 
   const [pupils, subjects, bands, divisions, assessments, teacher, cards] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
       supabase
         .from("student_directory")
-        .select("id, full_name, class_code, stream")
+        .select("id, full_name, class_code, stream, campus")
         .eq("status", "active")
         .eq("class_code", input.classCode)
         .order("id")
@@ -213,6 +469,7 @@ export async function prepareClassReports(
       .eq("term_id", input.termId)
       .eq("class_code", input.classCode)
       .eq("stream", stream)
+      .eq("role", "lead")
       .maybeSingle(),
     supabase
       .from("report_cards")
@@ -383,6 +640,7 @@ export async function prepareClassReports(
       term_id: input.termId,
       class_code: input.classCode,
       stream,
+      campus: operationalCampus(row.pupil.campus),
       class_teacher_name: teacherName,
       days_present: row.present,
       days_opened: opened.size,
@@ -553,6 +811,42 @@ export async function classMarkbooksReady(
   input: { termId: string; classCode: string; stream: string },
 ) {
   const stream = streamOf(input.stream);
+  if (classSection(input.classCode) === "nursery") {
+    const [pupils, papers] = await Promise.all([
+      fetchAll<Pupil>((from, to) =>
+        supabase
+          .from("student_directory")
+          .select("id, full_name, class_code, stream")
+          .eq("status", "active")
+          .eq("class_code", input.classCode)
+          .order("id")
+          .range(from, to),
+      ),
+      supabase
+        .from("developmental_assessments")
+        .select("id, name, status")
+        .eq("term_id", input.termId)
+        .eq("class_code", input.classCode)
+        .eq("stream", stream),
+    ]);
+    if (papers.error) throw new Error(papers.error.message);
+    const roster = pupils.filter((pupil) => streamOf(pupil.stream) === stream);
+    if (!roster.length) return "No active pupils in this class.";
+    const sittings = (papers.data || []) as { id: string; name: string; status: string }[];
+    if (!sittings.length) {
+      return "Set a developmental assessment for this nursery class before generating report cards.";
+    }
+    const open = sittings.find((paper) => paper.status !== "submitted" && paper.status !== "approved");
+    if (open) {
+      return `"${open.name}" is still open. Submit skill codes, then lock the sitting before report cards.`;
+    }
+    const unlocked = sittings.find((paper) => paper.status !== "approved");
+    if (unlocked) {
+      return `"${unlocked.name}" is submitted but not locked. Lock it on Assessments before generating nursery report cards.`;
+    }
+    return null;
+  }
+
   const [pupils, subjects, papers] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
       supabase
@@ -596,6 +890,77 @@ export async function classMarkbooksReady(
     if (missing) return `Marks are still missing for ${subject.name}.`;
   }
   return null;
+}
+
+/** Nursery DSBA skill lines frozen on report cards. */
+export async function loadReportSkillLines(supabase: SupabaseClient, cardIds: string[]) {
+  const grouped = new Map<
+    string,
+    {
+      skill_id: string;
+      domain_id: string | null;
+      domain_name: string;
+      skill_description: string;
+      progress_code: string | null;
+      progress_label: string | null;
+      domain_sort: number;
+      skill_sort: number;
+    }[]
+  >();
+  if (!cardIds.length) return grouped;
+  try {
+    for (let index = 0; index < cardIds.length; index += 80) {
+      const slice = cardIds.slice(index, index + 80);
+      const rows = await fetchAll<{
+        report_card_id: string;
+        skill_id: string;
+        domain_id: string | null;
+        domain_name: string;
+        skill_description: string;
+        progress_code: string | null;
+        progress_label: string | null;
+        domain_sort: number | string | null;
+        skill_sort: number | string | null;
+      }>((from, to) =>
+        supabase
+          .from("report_skill_lines")
+          .select("report_card_id, skill_id, domain_id, domain_name, skill_description, progress_code, progress_label, domain_sort, skill_sort")
+          .in("report_card_id", slice)
+          .order("domain_sort")
+          .range(from, to),
+      );
+      for (const row of rows) {
+        const list = grouped.get(row.report_card_id) || [];
+        list.push({
+          skill_id: String(row.skill_id),
+          domain_id: row.domain_id ? String(row.domain_id) : null,
+          domain_name: String(row.domain_name || "Domain"),
+          skill_description: String(row.skill_description || ""),
+          progress_code: row.progress_code ? String(row.progress_code) : null,
+          progress_label: row.progress_label ? String(row.progress_label) : null,
+          domain_sort: Number(row.domain_sort) || 0,
+          skill_sort: Number(row.skill_sort) || 0,
+        });
+        grouped.set(row.report_card_id, list);
+      }
+    }
+  } catch {
+    return grouped;
+  }
+  return grouped;
+}
+
+export function parseProgressLegend(value: unknown): ProgressLegendEntry[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const code = typeof (entry as { code?: unknown }).code === "string" ? (entry as { code: string }).code.trim() : "";
+      const label = typeof (entry as { label?: unknown }).label === "string" ? (entry as { label: string }).label.trim() : "";
+      if (!code || !label) return null;
+      return { code, label };
+    })
+    .filter((entry): entry is ProgressLegendEntry => Boolean(entry));
 }
 
 /** Parts saved on report cards, keyed by card id and subject id. An unmigrated database returns none. */

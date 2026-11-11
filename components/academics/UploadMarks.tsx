@@ -197,6 +197,13 @@ export function UploadMarks({
     : [];
   const subjectCount = chosen.length;
   const pupilCount = chosenClasses.reduce((sum, group) => sum + group.roll, 0);
+  const sittingNurseryOnly = Boolean(
+    sitting?.classes.length && sitting.classes.every((group) => group.nursery || group.papers.every((paper) => paper.nursery)),
+  );
+  const chosenNurseryOnly = chosen.length > 0 && chosen.every((paper) => paper.nursery);
+  const skillPlaces = chosenNurseryOnly
+    ? chosen.reduce((sum, paper) => sum + paper.roll * (paper.skillCount || 0), 0)
+    : 0;
   const sittingHasOther = Boolean(sitting?.classes.some((group) => group.papers.some((paper) => paper.subjectKind === "cocurricular")));
   const catalogueNames = otherCatalogue.map((subject) => subject.name).slice(0, 6);
 
@@ -273,15 +280,29 @@ export function UploadMarks({
     setPicked((current) => on ? [...new Set([...current, ...ids])] : current.filter((id) => !ids.includes(id)));
   }
 
-  let scope = "Choose one subject, a whole stream, or several streams.";
-  if (chosenClasses.length === 1 && subjectCount === 1) scope = `${chosenClasses[0].label} · ${chosenClasses[0].papers[0].subject}`;
-  else if (chosenClasses.length === 1) scope = `${chosenClasses[0].label} · ${nf(subjectCount)} subjects`;
-  else if (chosenClasses.length) scope = `${nf(chosenClasses.length)} streams · ${nf(subjectCount)} subjects`;
-  if (subjectCount) scope += ` · ${nf(pupilCount)} ${pupilCount === 1 ? "pupil" : "pupils"}`;
+  let scope = sittingNurseryOnly
+    ? "Choose one nursery class, or several streams in this sitting."
+    : "Choose one subject, a whole stream, or several streams.";
+  if (chosenNurseryOnly) {
+    if (chosenClasses.length === 1) {
+      const skills = chosenClasses[0].papers[0]?.skillCount || 0;
+      scope = `${chosenClasses[0].label} · ${nf(skills)} ${skills === 1 ? "skill" : "skills"}`;
+    } else if (chosenClasses.length) {
+      scope = `${nf(chosenClasses.length)} nursery streams`;
+    }
+    if (subjectCount) scope += ` · ${nf(pupilCount)} ${pupilCount === 1 ? "pupil" : "pupils"}`;
+    if (skillPlaces) scope += ` · ${nf(skillPlaces)} code ${skillPlaces === 1 ? "cell" : "cells"}`;
+  } else {
+    if (chosenClasses.length === 1 && subjectCount === 1) scope = `${chosenClasses[0].label} · ${chosenClasses[0].papers[0].subject}`;
+    else if (chosenClasses.length === 1) scope = `${chosenClasses[0].label} · ${nf(subjectCount)} subjects`;
+    else if (chosenClasses.length) scope = `${nf(chosenClasses.length)} streams · ${nf(subjectCount)} subjects`;
+    if (subjectCount) scope += ` · ${nf(pupilCount)} ${pupilCount === 1 ? "pupil" : "pupils"}`;
+  }
   const otherChosen = chosen.filter((paper) => paper.subjectKind === "cocurricular");
   const otherWithoutSkills = otherChosen.filter((paper) => paper.skillCount < 1);
   const otherWithSkills = otherChosen.filter((paper) => paper.skillCount > 0);
   const handed = preview?.sheets.reduce((sum, sheet) => sum + sheet.scores + sheet.missed, 0) ?? 0;
+  const previewNursery = Boolean(preview?.nursery || chosenNurseryOnly);
 
   async function download() {
     if (!chosen.length || busy) return;
@@ -317,7 +338,10 @@ export function UploadMarks({
         setError("Your session may have expired. Sign in again, then download the workbook.");
         return;
       }
-      const filename = filenameFromDisposition(response.headers.get("content-disposition"), "KJA marks.xlsx");
+      const filename = filenameFromDisposition(
+        response.headers.get("content-disposition"),
+        chosenNurseryOnly ? "KJA nursery skills.xlsx" : "KJA marks.xlsx",
+      );
       const outcome = await saveClientDownload(blob, filename);
       if (outcome === "canceled") {
         setOk("Save cancelled — choose Download workbook again when you want the file.");
@@ -380,16 +404,29 @@ export function UploadMarks({
 
   const allOn = available.length > 0 && available.every((paper) => picked.includes(paper.id));
   const someOn = available.some((paper) => picked.includes(paper.id));
-  const busyLabel = busy === "download" ? "Preparing the workbook" : busy === "read" ? "Reading the workbook" : busy === "save" ? "Submitting marks" : "Working";
+  const busyLabel =
+    busy === "download"
+      ? "Preparing the workbook"
+      : busy === "read"
+        ? "Reading the workbook"
+        : busy === "save"
+          ? previewNursery || sittingNurseryOnly
+            ? "Submitting skill codes"
+            : "Submitting marks"
+          : "Working";
 
   return (
-    <section className="asm-card asm-sheet-card" id="marks-sheet" aria-label="Upload marks">
+    <section className="asm-card asm-sheet-card" id="marks-sheet" aria-label={sittingNurseryOnly ? "Upload developmental skills" : "Upload marks"}>
       <header className="asm-card-head">
         <div className="asm-card-title">
-          <span className="asm-card-icon" aria-hidden="true"><i className="fa-solid fa-file-excel" /></span>
+          <span className="asm-card-icon" aria-hidden="true"><i className={`fa-solid ${sittingNurseryOnly ? "fa-seedling" : "fa-file-excel"}`} /></span>
           <div>
-            <h2>Marks workbook</h2>
-            <p>Download a sheet, fill the white cells, then bring it back here.</p>
+            <h2>{sittingNurseryOnly ? "Developmental skills workbook" : "Marks workbook"}</h2>
+            <p>
+              {sittingNurseryOnly
+                ? "Download one sheet per nursery class with every skill, fill progress codes, then bring it back here."
+                : "Download a sheet, fill the white cells, then bring it back here."}
+            </p>
           </div>
         </div>
       </header>
@@ -398,8 +435,12 @@ export function UploadMarks({
           <div className="asm-step">
             <span>1</span>
             <div>
-              <h3>Choose the papers</h3>
-              <p>Academic marks and each Other subject (with skills) for the report card.</p>
+              <h3>{sittingNurseryOnly ? "Choose the classes" : "Choose the papers"}</h3>
+              <p>
+                {sittingNurseryOnly
+                  ? "Each nursery stream gets one developmental skills sheet for this sitting."
+                  : "Academic marks and each Other subject (with skills) for the report card."}
+              </p>
             </div>
           </div>
           <label className="ofc-field">
@@ -420,7 +461,7 @@ export function UploadMarks({
                   disabled={!available.length || busy !== ""}
                   onChange={(event) => toggleAll(event.target.checked)}
                 />
-                <span>All open markbooks</span>
+                <span>{sittingNurseryOnly ? "All open nursery classes" : "All open markbooks"}</span>
               </label>
               {sitting.classes.map((group) => {
                 const open = group.papers.filter((paper) => paper.status === "open" && group.roll);
@@ -429,8 +470,10 @@ export function UploadMarks({
                 for (const paper of group.papers) names.set(paper.subject, (names.get(paper.subject) || 0) + 1);
                 const academic = group.papers.filter((paper) => paper.subjectKind !== "cocurricular");
                 const other = group.papers.filter((paper) => paper.subjectKind === "cocurricular");
+                const nurseryGroup = group.nursery || group.papers.every((paper) => paper.nursery);
+                const skillCount = group.papers[0]?.skillCount || 0;
                 return (
-                  <div key={group.label} className="asm-stream">
+                  <div key={group.label} className={`asm-stream${nurseryGroup ? " is-nursery" : ""}`}>
                     <label className="asm-master">
                       <input
                         type="checkbox"
@@ -443,12 +486,15 @@ export function UploadMarks({
                         <strong>{group.label}</strong>
                         <small>
                           {group.roll ? `${nf(group.roll)} ${group.roll === 1 ? "pupil" : "pupils"}` : "No pupils on roll"}
-                          {group.nursery ? " · Progress bands" : ""}
-                          {other.length ? ` · ${nf(other.length)} Other` : ""}
+                          {nurseryGroup
+                            ? ` · ${skillCount ? `${nf(skillCount)} skills` : "Developmental skills"}`
+                            : other.length
+                              ? ` · ${nf(other.length)} Other`
+                              : ""}
                         </small>
                       </span>
                     </label>
-                    {academic.length ? (
+                    {!nurseryGroup && academic.length ? (
                       <div className="asm-chip-block">
                         <p className="asm-chip-label">Academic</p>
                         <div className="asm-chips">
@@ -468,7 +514,7 @@ export function UploadMarks({
                         </div>
                       </div>
                     ) : null}
-                    {other.length ? (
+                    {!nurseryGroup && other.length ? (
                       <div className="asm-chip-block is-other">
                         <p className="asm-chip-label">Other <em>marks and skills for the co-curricular table</em></p>
                         <div className="asm-chips">
@@ -493,8 +539,16 @@ export function UploadMarks({
               })}
             </div>
           ) : null}
-          <p className="asm-note">{available.length ? scope : office ? "Every markbook in this assessment is locked. Unlock one on the class marksheet before downloading a sheet." : "Every markbook in this assessment is locked."}</p>
-          {sitting && !sittingHasOther && otherCatalogue.length ? (
+          <p className="asm-note">
+            {available.length
+              ? scope
+              : office
+                ? sittingNurseryOnly
+                  ? "Every developmental assessment in this sitting is locked. Unlock one before downloading a sheet."
+                  : "Every markbook in this assessment is locked. Unlock one on the class marksheet before downloading a sheet."
+                : "Every markbook in this assessment is locked."}
+          </p>
+          {!sittingNurseryOnly && sitting && !sittingHasOther && otherCatalogue.length ? (
             <p className="asm-note is-hint">
               {otherPaperCount === 0 ? (
                 <>
@@ -507,12 +561,12 @@ export function UploadMarks({
               )}
             </p>
           ) : null}
-          {otherWithSkills.length ? (
+          {!sittingNurseryOnly && otherWithSkills.length ? (
             <p className="asm-note">
               Other subjects include Skills acquired columns (Yes for each skill set on the Subjects page).
             </p>
           ) : null}
-          {otherWithoutSkills.length ? (
+          {!sittingNurseryOnly && otherWithoutSkills.length ? (
             <p className="asm-note is-hint">
               {otherWithoutSkills.length === 1
                 ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet. The workbook has a Major skills learnt column (up to 4 skills on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`
@@ -521,7 +575,7 @@ export function UploadMarks({
           ) : null}
           <button type="button" className="asm-commit" disabled={!chosen.length || busy !== ""} onClick={download}>
             <i className={`fa-solid ${busy === "download" ? "fa-spinner fa-spin" : "fa-file-arrow-down"}`} aria-hidden="true" />
-            {busy === "download" ? "Preparing the workbook" : "Download workbook"}
+            {busy === "download" ? "Preparing the workbook" : sittingNurseryOnly ? "Download skills workbook" : "Download workbook"}
           </button>
         </div>
         <div className="asm-upload-file">
@@ -529,7 +583,11 @@ export function UploadMarks({
             <span>2</span>
             <div>
               <h3>Return the workbook</h3>
-              <p>Drop the completed Excel file. A dialog asks you to submit it.</p>
+              <p>
+                {sittingNurseryOnly
+                  ? "Drop the completed skills workbook. A dialog asks you to submit the progress codes."
+                  : "Drop the completed Excel file. A dialog asks you to submit it."}
+              </p>
             </div>
           </div>
           <label
@@ -572,7 +630,11 @@ export function UploadMarks({
                   <li key={`${sheet.label}-${index}`}>
                     <strong>{sheet.label}</strong>
                     <small>{sheet.subjects.join(" · ")}</small>
-                    <em>{nf(sheet.scores)} {sheet.scores === 1 ? "mark" : "marks"}{sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}{sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}</em>
+                    <em>
+                      {previewNursery
+                        ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
+                        : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`}
+                    </em>
                   </li>
                 ))}
               </ul>
@@ -580,7 +642,10 @@ export function UploadMarks({
               {preview.warnings.map((warning) => <p key={warning} className="asm-warn">{warning}</p>)}
               {preview.issueCount ? (
                 <>
-                  <p className="asm-warn">{nf(preview.issueCount)} {preview.issueCount === 1 ? "cell needs" : "cells need"} a correction before these marks can be submitted.</p>
+                  <p className="asm-warn">
+                    {nf(preview.issueCount)} {preview.issueCount === 1 ? "cell needs" : "cells need"} a correction before{" "}
+                    {previewNursery ? "these skill codes" : "these marks"} can be submitted.
+                  </p>
                   <ul className="asm-issues">
                     {preview.issues.map((issue) => (
                       <li key={`${issue.where}-${issue.message}`}>
@@ -594,7 +659,7 @@ export function UploadMarks({
               {preview.ready && !preview.issueCount ? (
                 <button type="button" className="asm-commit" disabled={busy !== ""} onClick={() => setAskSubmit(true)}>
                   <i className="fa-solid fa-paper-plane" aria-hidden="true" />
-                  Submit marks
+                  {previewNursery ? "Submit skill codes" : "Submit marks"}
                 </button>
               ) : null}
             </div>
@@ -614,7 +679,7 @@ export function UploadMarks({
           <div className="asm-dialog" role="dialog" aria-modal="true" aria-labelledby="marks-submit-title">
             <header>
               <p>Workbook</p>
-              <h2 id="marks-submit-title">Submit these marks</h2>
+              <h2 id="marks-submit-title">{previewNursery ? "Submit these skill codes" : "Submit these marks"}</h2>
               <span>{preview.name}{preview.detail ? ` · ${preview.detail}` : ""}</span>
             </header>
             <ul>
@@ -622,11 +687,23 @@ export function UploadMarks({
                 <li key={`${sheet.label}-${index}`}>
                   <strong>{sheet.label}</strong>
                   <small>{sheet.subjects.join(" · ")}</small>
-                  <em>{nf(sheet.scores)} {sheet.scores === 1 ? "mark" : "marks"}{sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}{sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}</em>
+                  <em>
+                    {previewNursery
+                      ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
+                      : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`}
+                  </em>
                 </li>
               ))}
             </ul>
-            <p>{handed ? "Every mark in this workbook is handed in. It shows as submitted on the class marksheet, and it stays locked until the office unlocks it." : "This workbook only clears saved marks. Nothing new will be submitted."}</p>
+            <p>
+              {handed
+                ? previewNursery
+                  ? "Every skill code in this workbook is handed in. The sitting shows as submitted until the office unlocks it."
+                  : "Every mark in this workbook is handed in. It shows as submitted on the class marksheet, and it stays locked until the office unlocks it."
+                : previewNursery
+                  ? "This workbook only clears saved skill codes. Nothing new will be submitted."
+                  : "This workbook only clears saved marks. Nothing new will be submitted."}
+            </p>
             {preview.warnings.map((warning) => <p key={warning} className="asm-warn">{warning}</p>)}
             {error ? <p className="acd-feedback is-error" role="alert"><i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {error}</p> : null}
             <footer>

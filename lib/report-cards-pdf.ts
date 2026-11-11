@@ -18,7 +18,7 @@ import {
 } from "@/lib/academics";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
-import { cardSets, loadReportParts, loadSubjectInitials } from "@/lib/academics-reports";
+import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
 import { normaliseReportTitle } from "@/lib/report-title";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import { fetchAll } from "@/lib/students";
@@ -65,11 +65,25 @@ export type StreamReportCard = {
   overall_position: number | null;
   status: string;
   lines: StreamReportLine[];
+  skillLines?: {
+    skill_id: string;
+    domain_id: string | null;
+    domain_name: string;
+    skill_description: string;
+    progress_code: string | null;
+    progress_label: string | null;
+    domain_sort: number;
+    skill_sort: number;
+  }[];
+  progressLegend?: { code: string; label: string }[];
   activities: StreamReportActivity[];
   sets?: ReportSet[];
   scale: ScaleBand[];
   fees?: { name: string; amount: number }[];
   next_starts_on?: string | null;
+  next_ends_on?: string | null;
+  term_year?: number | null;
+  date_of_birth?: string | null;
 };
 
 type CardRow = {
@@ -192,9 +206,10 @@ export async function loadStreamReportCards(
   input: { termId: string; classCode: string; stream: string; termLabel: string },
 ): Promise<StreamReportCard[]> {
   const cardSelect =
-    "id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, cocurricular_comment, conduct, days_present, days_opened, overall_score, overall_aggregate, overall_grade, overall_position, status, grade_rules, report_title";
+    "id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, cocurricular_comment, conduct, days_present, days_opened, overall_score, overall_aggregate, overall_grade, overall_position, status, grade_rules, progress_legend, report_title";
   const cardSelectLegacy = cardSelect
     .replace(", overall_aggregate, overall_grade", "")
+    .replace(", progress_legend", "")
     .replace(", report_title", "");
   const cards = await fetchAll<CardRow>((from, to) =>
     supabase
@@ -221,14 +236,15 @@ export async function loadStreamReportCards(
   const cardIds = cards.map((card) => card.id);
   const pupilIds = [...new Set(cards.map((card) => card.student_id))];
   const markSection = gradeBandSection(input.classCode);
-  const [pupils, lines, parts, initials, bands, closing, activities] = await Promise.all([
-    rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null; campus: string | null }>(pupilIds, (slice, from, to) =>
-      supabase.from("students").select("id, full_name, student_number, photo_path, campus").in("id", slice).range(from, to),
+  const [pupils, lines, parts, skillLinesByCard, initials, bands, closing, activities] = await Promise.all([
+    rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null; campus: string | null; date_of_birth: string | null }>(pupilIds, (slice, from, to) =>
+      supabase.from("students").select("id, full_name, student_number, photo_path, campus, date_of_birth").in("id", slice).range(from, to),
     ),
     rowsIn<LineRow>(cardIds, (slice, from, to) =>
       supabase.from("report_lines").select("report_card_id, subject_id, subject_name, score, grade, position, teacher_comment").in("report_card_id", slice).range(from, to),
     ),
     loadReportParts(supabase, cardIds),
+    loadReportSkillLines(supabase, cardIds),
     loadSubjectInitials(supabase, input),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(input.classCode)).order("sort_order"),
     loadClassClosing(supabase, { termId: input.termId, classCode: input.classCode }),
@@ -293,11 +309,16 @@ export async function loadStreamReportCards(
         overall_position: num(card.overall_position),
         status: card.status,
         lines: (byCard.get(card.id) || []).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
+        skillLines: skillLinesByCard.get(card.id) || [],
+        progressLegend: parseProgressLegend((card as { progress_legend?: unknown }).progress_legend),
         activities: (activitiesByCard.get(card.id) || []).sort((a, b) => a.slot - b.slot),
         sets: cardSets(card.id, byCard.get(card.id) || [], parts),
         scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
         fees: closing.feesFor(pupil?.campus ?? null),
         next_starts_on: closing.nextStartsOn,
+        next_ends_on: closing.nextEndsOn,
+        term_year: closing.termYear,
+        date_of_birth: pupil?.date_of_birth || null,
       };
     })
     .sort((a, b) => a.pupil_name.localeCompare(b.pupil_name) || a.id.localeCompare(b.id));

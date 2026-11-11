@@ -8,7 +8,7 @@ import { serviceClient } from "@/lib/supabase/service";
 export type ReportFeeLine = { name: string; amount: number };
 export { formatReportDate, formatReportMoney, nextTermSlot } from "@/lib/report-format";
 
-type TermRow = { id: string; year: number; term: number; starts_on: string | null };
+type TermRow = { id: string; year: number; term: number; starts_on: string | null; ends_on: string | null };
 type ItemRow = { name?: string; kind?: string; sort_order?: number; active?: boolean };
 type RateRow = {
   term_id: string;
@@ -19,6 +19,8 @@ type RateRow = {
 
 const empty = {
   nextStartsOn: null as string | null,
+  nextEndsOn: null as string | null,
+  termYear: null as number | null,
   feesFor: (_campus: string | null) => [] as ReportFeeLine[],
 };
 
@@ -34,7 +36,7 @@ export async function loadClassClosing(
 ) {
   if (!input.classCode) return empty;
   const db = serviceClient() ?? supabase;
-  const { data: terms, error } = await db.from("fee_terms").select("id, year, term, starts_on");
+  const { data: terms, error } = await db.from("fee_terms").select("id, year, term, starts_on, ends_on");
   if (error || !terms) return empty;
   const current = (terms as TermRow[]).find((term) => term.id === input.termId);
   if (!current) return empty;
@@ -50,10 +52,12 @@ export async function loadClassClosing(
   const published = await publishedFees(input.classCode);
   return {
     nextStartsOn: next?.starts_on ? String(next.starts_on).slice(0, 10) : null,
+    nextEndsOn: next?.ends_on ? String(next.ends_on).slice(0, 10) : null,
+    termYear: Number.isFinite(Number(current.year)) ? Number(current.year) : null,
     feesFor(campus: string | null) {
       const upcoming = next ? linesFor(rows.filter((row) => row.term_id === next.id), campus) : [];
-      const current = linesFor(rows.filter((row) => row.term_id === input.termId), campus);
-      const listed = upcoming.length ? upcoming : current;
+      const currentLines = linesFor(rows.filter((row) => row.term_id === input.termId), campus);
+      const listed = upcoming.length ? upcoming : currentLines;
       return listed.length ? listed : published(campus);
     },
   };
@@ -64,7 +68,12 @@ export async function loadReportClosing(
   input: { termId: string; classCode: string | null; campus?: string | null },
 ) {
   const closing = await loadClassClosing(supabase, input);
-  return { fees: closing.feesFor(input.campus ?? null), nextStartsOn: closing.nextStartsOn };
+  return {
+    fees: closing.feesFor(input.campus ?? null),
+    nextStartsOn: closing.nextStartsOn,
+    nextEndsOn: closing.nextEndsOn,
+    termYear: closing.termYear,
+  };
 }
 
 const NURSERY = SCHOOL_CLASSES.filter((entry) => entry.section === "nursery").map((entry) => entry.code);

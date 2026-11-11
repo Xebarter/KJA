@@ -3,20 +3,6 @@
 .grd-page { display: grid; gap: 1.15rem; }
 .grd-desk { display: grid; gap: 1rem; }
 
-.grd-status {
-  display: flex; gap: .85rem; align-items: flex-start;
-  padding: 1rem 1.15rem; border-radius: 16px;
-  border: 1px solid #e6e1d6; background: #fff;
-  box-shadow: 0 1px 2px rgba(25, 35, 43, .04);
-}
-.grd-status.is-ok { border-color: #cfe6d6; background: linear-gradient(180deg, #f7fcf8, #f3faf5); }
-.grd-status.is-warn { border-color: #ecd9b0; background: linear-gradient(180deg, #fffdf8, #fbf6eb); }
-.grd-status > i { margin-top: .15rem; font-size: 1.1rem; }
-.grd-status.is-ok > i { color: #127238; }
-.grd-status.is-warn > i { color: #8a5a12; }
-.grd-status strong { display: block; color: #19232b; font-size: 1rem; letter-spacing: -.01em; }
-.grd-status p { margin: .25rem 0 0; color: #6d6458; font-size: .88rem; line-height: 1.5; max-width: 48rem; }
-
 .grd-tabs {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -497,6 +483,163 @@
   line-height: 1.4;
 }
 
+/* ---------------------------------------------------------------- nursery progress (marksheet-inspired) */
+
+.grd-nursery {
+  --grd-ink: #19232b;
+  --grd-soft: #5d6670;
+  --grd-mute: #6d6458;
+  --grd-line: rgba(25, 35, 43, 0.08);
+  --grd-accent: #fda31b;
+  --grd-sky: #1d56b0;
+  --grd-mint: #127238;
+  display: grid;
+  gap: 1rem;
+  animation: grd-nursery-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@keyframes grd-nursery-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+
+.grd-nursery-panel {
+  display: grid;
+  gap: 0.9rem;
+  padding: 1.15rem 1.2rem 1.2rem;
+  border: 1px solid var(--grd-line);
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 14px 34px -24px rgba(25, 35, 43, 0.45);
+}
+
+.grd-nursery-panel-head h3 {
+  margin: 0;
+  color: var(--grd-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.grd-nursery-panel-head p {
+  margin: 0.2rem 0 0;
+  color: var(--grd-soft);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.grd-nursery-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12.5rem), 1fr));
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.grd-nursery-legend li {
+  --tone-bg: #e7f2ff;
+  --tone-edge: #3b82f6;
+  --tone-ink: #1d4f91;
+  --tone-soft: #4a6f9a;
+  position: relative;
+  display: grid;
+  gap: 0.2rem;
+  padding: 0.85rem 0.95rem 0.85rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--tone-edge) 28%, white);
+  border-radius: 14px;
+  background: var(--tone-bg);
+  box-shadow: 0 10px 22px -18px color-mix(in srgb, var(--tone-edge) 55%, transparent);
+  transition: transform 0.16s ease, box-shadow 0.16s ease;
+}
+
+.grd-nursery-legend li::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 14px 0 0 14px;
+  background: var(--tone-edge);
+}
+
+.grd-nursery-legend li[data-tone="0"] { --tone-bg: #e7f2ff; --tone-edge: #3b82f6; --tone-ink: #1d4f91; --tone-soft: #4a6f9a; }
+.grd-nursery-legend li[data-tone="1"] { --tone-bg: #e5f8ef; --tone-edge: #22a06b; --tone-ink: #0f6b45; --tone-soft: #3d7d5f; }
+.grd-nursery-legend li[data-tone="2"] { --tone-bg: #fff0e0; --tone-edge: #e8923a; --tone-ink: #9a5408; --tone-soft: #a56a2d; }
+.grd-nursery-legend li[data-tone="3"] { --tone-bg: #fdecf1; --tone-edge: #e45d7a; --tone-ink: #a8324d; --tone-soft: #a85a6d; }
+.grd-nursery-legend li[data-tone="4"] { --tone-bg: #e3f6f3; --tone-edge: #14a39a; --tone-ink: #0a6f69; --tone-soft: #3a7f7a; }
+.grd-nursery-legend li[data-tone="5"] { --tone-bg: #fbf6d9; --tone-edge: #d4b00e; --tone-ink: #7a6800; --tone-soft: #85763a; }
+.grd-nursery-legend li[data-tone="6"] { --tone-bg: #eaefff; --tone-edge: #5b6fe0; --tone-ink: #3546b0; --tone-soft: #5a66a8; }
+.grd-nursery-legend li[data-tone="7"] { --tone-bg: #ffe9e3; --tone-edge: #e56b4a; --tone-ink: #a83d22; --tone-soft: #a86450; }
+
+.grd-nursery-legend li:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 26px -18px color-mix(in srgb, var(--tone-edge) 60%, transparent);
+}
+
+.grd-nursery-legend strong {
+  color: var(--tone-ink);
+  font-size: 0.98rem;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+.grd-nursery-legend span {
+  color: var(--tone-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  line-height: 1.35;
+}
+
+.grd-nursery-empty {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  padding: 2rem 1rem;
+  border: 1px dashed rgba(25, 35, 43, 0.14);
+  border-radius: 16px;
+  background: #f4f7fb;
+  text-align: center;
+}
+
+.grd-nursery-empty > span {
+  display: grid;
+  place-items: center;
+  width: 2.85rem;
+  height: 2.85rem;
+  border-radius: 14px;
+  background: #fff;
+  color: var(--grd-sky);
+  box-shadow: 0 8px 18px -14px rgba(25, 35, 43, 0.4);
+}
+
+.grd-nursery-empty h3 {
+  margin: 0;
+  color: var(--grd-ink);
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.grd-nursery-empty p {
+  margin: 0;
+  color: var(--grd-soft);
+  font-size: 0.88rem;
+}
+
+.grd-nursery-ledger {
+  margin: 0;
+  padding: 0;
+}
+
+.grd-nursery-ledger .grd-form {
+  border-color: rgba(25, 35, 43, 0.08);
+  background: #f8fafc;
+}
+
+.grd-nursery-ledger .grd-form.is-new {
+  background: #f3faf6;
+  border-color: rgba(18, 114, 56, 0.16);
+}
+
 .grd-page a:focus-visible,
 .grd-page button:focus-visible,
 .grd-page input:focus-visible { outline: 2px solid #c9a227; outline-offset: 2px; }
@@ -521,6 +664,7 @@
   .grd-tabs { grid-template-columns: 1fr; }
   .grd-panel-head { flex-direction: column; }
   .grd-panel-meta { justify-items: start; }
+  .grd-nursery-panel { padding: 1rem; }
   .grd-head { display: none; }
   .grd-form { grid-template-columns: 1fr 1fr; padding: .75rem .7rem; align-items: end; }
   .grd-form .ofc-field:first-of-type { grid-column: 1 / -1; }
@@ -528,4 +672,13 @@
   .grd-save, .grd-remove { justify-self: flex-start; }
   .grd-next-form { flex-direction: column; align-items: stretch; }
   .grd-save-lg { width: 100%; justify-content: center; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grd-nursery,
+  .grd-nursery-legend li {
+    animation: none;
+    transition: none;
+  }
+  .grd-nursery-legend li:hover { transform: none; }
 }

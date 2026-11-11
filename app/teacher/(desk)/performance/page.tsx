@@ -144,14 +144,44 @@ export default async function TeacherPerformancePage({
     );
   }
 
-  const posts: PerfPost[] = subjects.map((post) => ({
+  // Nursery uses developmental skill codes, not % markbooks — keep Performance on primary posts only.
+  const primarySubjects = subjects.filter((post) => classSection(post.classCode) !== "nursery");
+  if (!primarySubjects.length) {
+    return (
+      <div className="app-page ofc-page tch-page perf-page">
+        <header className="tch-hero">
+          <p className="tch-hero-kicker">
+            <i className="fa-solid fa-chart-column" aria-hidden="true" />
+            {term.label}
+          </p>
+          <h1>Performance</h1>
+          <p className="tch-hero-lede">
+            Nursery classes use developmental assessments with progress codes, not subject mark averages.
+          </p>
+          <div className="tch-hero-actions">
+            <Link className="tch-hero-btn is-primary" href={`${TEACHER_BASE}/assessments`}>
+              <i className="fa-solid fa-seedling" aria-hidden="true" />
+              Developmental assessments
+            </Link>
+          </div>
+        </header>
+        <Empty icon="fa-seedling" title="Nursery uses skill codes">
+          Open Assessments to enter or review developmental progress codes. Class teachers lead that markbook; subject averages do not apply.
+        </Empty>
+      </div>
+    );
+  }
+
+  const posts: PerfPost[] = primarySubjects.map((post) => ({
     key: postKey(post.classCode, post.stream, post.subjectId),
     subjectName: post.subjectName,
     label: post.label,
   }));
-  const selected = subjects.find((post) => postKey(post.classCode, post.stream, post.subjectId) === query.post) || subjects[0];
+  const selected =
+    primarySubjects.find((post) => postKey(post.classCode, post.stream, post.subjectId) === query.post) ||
+    primarySubjects[0];
   const selectedKey = postKey(selected.classCode, selected.stream, selected.subjectId);
-  const nursery = classSection(selected.classCode) === "nursery";
+  const nursery = false;
   const markSection = gradeBandSection(selected.classCode);
   const kindFilter = ASSESSMENT_KINDS.some((entry) => entry.value === query.kind) ? String(query.kind) : "";
 

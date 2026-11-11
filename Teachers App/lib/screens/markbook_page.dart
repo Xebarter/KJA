@@ -371,6 +371,19 @@ class _MarkbookPageState extends State<MarkbookPage> {
     final bands = _nurseryBands(portal);
     final bandById = {for (final band in bands) band.id: band};
     final pupils = portal.pupilsIn(current.classCode, current.stream);
+    if (nursery) {
+      return Scaffold(
+        appBar: AppBar(title: Text(current.name)),
+        body: const Center(
+          child: EmptyNote(
+            icon: Icons.spa_rounded,
+            title: 'Developmental skills',
+            message:
+                'Nursery classes now use Developmental Skills-Based Assessment. Enter progress codes for each skill on the teacher desk website.',
+          ),
+        ),
+      );
+    }
     if (pupils.isEmpty) {
       return Scaffold(
         appBar: AppBar(title: Text(current.name)),

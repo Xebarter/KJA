@@ -3,7 +3,7 @@ import { AgingBar, ColumnChart, notReady } from "@/components/accounts/ui";
 import { PrintButton } from "@/components/office/client";
 import { ACCOUNTS_BASE, loadTerms, requireAccounts } from "@/lib/accounts";
 import { amount, day, hrefWith, overdueText, percent, ugx, ugxShort } from "@/lib/accounts-format";
-import { WorkbookExport } from "@/components/accounts/WorkbookExport";
+import { WorkbookDownloadButton, WorkbookExport } from "@/components/accounts/WorkbookExport";
 import { defaultWorkbookDates, loadAccountsReport, rateText, reportSelection, type AccountsReport, type ReportClass } from "@/lib/accounts-reports";
 import { StudentFace } from "@/components/StudentFace";
 import { isClassCode, pick, studentStatusInfo } from "@/lib/students";
@@ -240,7 +240,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
           </p>
         </div>
         <div className="aov-actions">
-          <a
+          <WorkbookDownloadButton
             className="aov-btn is-primary"
             href={hrefWith(`${ACCOUNTS_BASE}/reports/export`, {
               ...filters,
@@ -250,7 +250,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             })}
           >
             <i className="fa-solid fa-file-excel" aria-hidden="true" /> Excel workbook
-          </a>
+          </WorkbookDownloadButton>
           <PrintButton label="Print" className="aov-btn" />
           <Link className="aov-btn" href={`${ACCOUNTS_BASE}/debtors`}>
             <i className="fa-solid fa-hand-holding-dollar" aria-hidden="true" /> Debtors

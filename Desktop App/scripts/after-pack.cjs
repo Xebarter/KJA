@@ -8,7 +8,7 @@
  */
 const { cpSync, existsSync, rmSync } = require("node:fs");
 const { join } = require("node:path");
-const { repairStandaloneDist } = require("./repair-standalone.cjs");
+const { repairStandaloneDist, repairStandaloneNodeModules } = require("./repair-standalone.cjs");
 
 function copyFresh(src, dest, label) {
   if (!existsSync(src)) {
@@ -44,5 +44,7 @@ exports.default = async function afterPack(context) {
     rmSync(wrongStatic, { recursive: true, force: true });
   }
 
-  repairStandaloneDist(distDir);
+  repairStandaloneDist(distDir, { websiteRoot, standaloneRoot: standalone });
+  // Belt-and-braces: restore packages whose module-sync files tracing dropped.
+  repairStandaloneNodeModules(standalone, websiteRoot);
 };

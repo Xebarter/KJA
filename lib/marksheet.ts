@@ -22,6 +22,8 @@ export type SittingPaper = {
   weight: number;
   status: string | null;
   heldOn: string | null;
+  /** Catalogue kind from subjects.kind. */
+  kind?: "core" | "cocurricular";
 };
 
 export type SittingColumn = {
@@ -30,6 +32,7 @@ export type SittingColumn = {
   sort: number;
   maxScore: number;
   weight: number;
+  kind?: "core" | "cocurricular";
   papers: SittingPaper[];
 };
 
@@ -46,6 +49,7 @@ export function sittingColumns(papers: SittingPaper[]): SittingColumn[] {
         sort: paper.sort,
         maxScore: paper.maxScore,
         weight: paper.weight,
+        kind: paper.kind || "core",
         papers: [paper],
       });
       continue;
@@ -65,6 +69,9 @@ export function marksheetHref(input: {
   stream: string;
   heldOn: string;
   combine?: boolean;
+  campus?: string;
+  /** Defaults to academics office marksheet. Pass teacher path for class-teacher desk. */
+  basePath?: string;
 }) {
   const params = new URLSearchParams({
     name: input.name,
@@ -74,20 +81,47 @@ export function marksheetHref(input: {
   });
   if (input.heldOn) params.set("held", input.heldOn);
   if (input.combine) params.set("combine", "1");
-  return `${ACADEMICS_BASE}/assessments/marksheet?${params.toString()}`;
+  if (input.campus) params.set("campus", input.campus);
+  const base = input.basePath || `${ACADEMICS_BASE}/assessments/marksheet`;
+  return `${base}?${params.toString()}`;
 }
 
-export function marksheetExportHref(input: MarksheetQuery & { sort: string }) {
+export function marksheetExportHref(input: {
+  name?: string;
+  kind?: string;
+  held?: string;
+  classCode: string;
+  stream: string;
+  combine?: boolean;
+  sort: string;
+  format?: "xlsx" | "pdf";
+  campus?: string;
+  /** Multi-assessment combined worksheet (class teacher). */
+  assessmentsCombined?: boolean;
+  sittings?: CombinedSitting[];
+  /** Defaults to academics office export. Pass teacher export path for class-teacher desk. */
+  basePath?: string;
+}) {
   const params = new URLSearchParams({
-    name: input.name,
-    kind: input.kind,
     class: input.classCode,
     stream: input.stream || "-",
     sort: input.sort,
   });
-  if (input.held) params.set("held", input.held);
-  if (input.combine) params.set("combine", "1");
-  return `${ACADEMICS_BASE}/assessments/marksheet/export?${params.toString()}`;
+  if (input.assessmentsCombined && input.sittings && input.sittings.length >= 2) {
+    params.set("mode", "combined");
+    for (const sitting of input.sittings) {
+      params.append("s", encodeCombinedSitting(sitting));
+    }
+  } else {
+    params.set("name", input.name || "");
+    params.set("kind", input.kind || "");
+    if (input.held) params.set("held", input.held);
+    if (input.combine) params.set("combine", "1");
+  }
+  if (input.campus) params.set("campus", input.campus);
+  if (input.format === "pdf") params.set("format", "pdf");
+  const base = input.basePath || `${ACADEMICS_BASE}/assessments/marksheet/export`;
+  return `${base}?${params.toString()}`;
 }
 
 export function readMarksheetQuery(input: {
@@ -110,4 +144,90 @@ export function readMarksheetQuery(input: {
     && (!held || /^\d{4}-\d{2}-\d{2}$/.test(held));
   if (!valid || stream === null) return null;
   return { name, kind, held, classCode, stream, combine: input.combine === "1" };
+}
+
+/** One assessment sitting in a combined marksheet URL or form payload. */
+export type CombinedSitting = {
+  name: string;
+  kind: string;
+  held: string;
+};
+
+export type CombinedMarksheetQuery = {
+  classCode: string;
+  stream: string;
+  sittings: CombinedSitting[];
+};
+
+/** Encode a sitting as name|kind|held for combined marksheet query params. */
+export function encodeCombinedSitting(sitting: CombinedSitting) {
+  return `${sitting.name}|${sitting.kind}|${sitting.held}`;
+}
+
+/** Parse a sitting token from query/form. Returns null when invalid. */
+export function parseCombinedSitting(raw: string): CombinedSitting | null {
+  const parts = raw.split("|");
+  if (parts.length < 2) return null;
+  const name = (parts[0] || "").trim().slice(0, 200);
+  const kind = (parts[1] || "").trim();
+  const held = (parts[2] || "").trim();
+  if (name.length < 2) return null;
+  if (!ASSESSMENT_KINDS.some((entry) => entry.value === kind)) return null;
+  if (held && !/^\d{4}-\d{2}-\d{2}$/.test(held)) return null;
+  return { name, kind, held };
+}
+
+export function sittingKey(sitting: Pick<CombinedSitting, "name" | "kind" | "held">) {
+  return `${sitting.name}\u001f${sitting.kind}\u001f${sitting.held}`;
+}
+
+/** Class marksheet that stacks two or more assessment sittings in one worksheet. */
+export function combinedMarksheetHref(input: {
+  classCode: string;
+  stream: string;
+  campus?: string;
+  sittings: CombinedSitting[];
+  basePath?: string;
+}) {
+  const params = new URLSearchParams({
+    class: input.classCode,
+    stream: input.stream || "-",
+    mode: "combined",
+  });
+  if (input.campus) params.set("campus", input.campus);
+  for (const sitting of input.sittings) {
+    params.append("s", encodeCombinedSitting(sitting));
+  }
+  const base = input.basePath || `${ACADEMICS_BASE}/assessments/marksheet`;
+  return `${base}?${params.toString()}`;
+}
+
+export function readCombinedMarksheetQuery(input: {
+  mode?: string | null;
+  classCode?: string | null;
+  stream?: string | null;
+  sittings?: string | string[] | null;
+}): CombinedMarksheetQuery | null {
+  if ((input.mode || "").trim() !== "combined") return null;
+  const classCode = (input.classCode || "").trim();
+  const stream = streamFromQuery(input.stream ?? undefined);
+  if (!isClassCode(classCode) || stream === null) return null;
+
+  const rawList = Array.isArray(input.sittings)
+    ? input.sittings
+    : input.sittings
+      ? [input.sittings]
+      : [];
+  const seen = new Set<string>();
+  const sittings: CombinedSitting[] = [];
+  for (const raw of rawList) {
+    const sitting = parseCombinedSitting(String(raw || ""));
+    if (!sitting) continue;
+    const key = sittingKey(sitting);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    sittings.push(sitting);
+  }
+  if (sittings.length < 2) return null;
+  return { classCode, stream, sittings };
 }

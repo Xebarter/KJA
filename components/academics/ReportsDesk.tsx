@@ -2,6 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { prepareAdmissionsNurseryReports } from "@/app/admissions_office/(office)/report-cards/actions";
+import {
+  cancelTeacherReportPreparation,
+  generateTeacherClassComments,
+  prepareTeacherReports,
+  reopenTeacherReports,
+} from "@/app/teacher/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { Empty } from "@/components/academics/ui";
@@ -9,6 +16,8 @@ import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE, classLabel, streamQuery, type ClassGroup } from "@/lib/academics";
 import { reportSittingKey, type ReportSitting } from "@/lib/academics-reports";
 import type { RollPupil } from "@/lib/academics-roll";
+import { OFFICE_BASE } from "@/lib/office-nav";
+import { TEACHER_BASE } from "@/lib/teacher";
 
 export type ReportCardRow = {
   id: string;
@@ -21,13 +30,22 @@ export type ReportCardRow = {
 };
 
 type Selection = { code: string; stream: string };
+type DeskMode = "office" | "class" | "admissions";
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
-function scoreLabel(value: number | null | undefined) {
+function nurseryBandLabel(score: number) {
+  if (score >= 75) return "Exceeding";
+  if (score >= 50) return "Secure";
+  if (score >= 25) return "Developing";
+  return "Beginning";
+}
+
+function scoreLabel(value: number | null | undefined, nursery: boolean) {
   if (value === null || value === undefined) return null;
   const number = Number(value);
   if (!Number.isFinite(number)) return null;
+  if (nursery) return nurseryBandLabel(number);
   return number.toLocaleString("en-GB", { maximumFractionDigits: 1 });
 }
 
@@ -44,8 +62,8 @@ function sexLabel(sex: string | null) {
   return "";
 }
 
-function classHref(code: string, stream: string) {
-  return `${ACADEMICS_BASE}/reports?class=${encodeURIComponent(code)}&stream=${encodeURIComponent(streamQuery(stream))}`;
+function classHref(basePath: string, code: string, stream: string) {
+  return `${basePath}?class=${encodeURIComponent(code)}&stream=${encodeURIComponent(streamQuery(stream))}`;
 }
 
 function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
@@ -72,13 +90,19 @@ export function ReportsDesk({
   groups,
   cards,
   sittingsByClass,
+  basePath = `${ACADEMICS_BASE}/reports`,
+  mode = "office",
 }: {
   termLabel: string | null;
   termId: string | null;
   groups: ClassGroup<RollPupil>[];
   cards: ReportCardRow[];
   sittingsByClass: Record<string, ReportSitting[]>;
+  basePath?: string;
+  mode?: DeskMode;
 }) {
+  const classMode = mode === "class";
+  const admissionsMode = mode === "admissions";
   const [selection, setSelection] = useState<Selection | null>(null);
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
@@ -87,13 +111,16 @@ export function ReportsDesk({
     setSelection(selectionFromUrl(groupsRef.current));
   }, []);
 
-  const selectClass = useCallback((next: Selection | null, mode: "push" | "replace" = "push") => {
-    setSelection(next);
-    const url = next ? classHref(next.code, next.stream) : `${ACADEMICS_BASE}/reports`;
-    if (`${window.location.pathname}${window.location.search}` === url) return;
-    if (mode === "replace") window.history.replaceState(null, "", url);
-    else window.history.pushState(null, "", url);
-  }, []);
+  const selectClass = useCallback(
+    (next: Selection | null, historyMode: "push" | "replace" = "push") => {
+      setSelection(next);
+      const url = next ? classHref(basePath, next.code, next.stream) : basePath;
+      if (`${window.location.pathname}${window.location.search}` === url) return;
+      if (historyMode === "replace") window.history.replaceState(null, "", url);
+      else window.history.pushState(null, "", url);
+    },
+    [basePath],
+  );
 
   useEffect(() => {
     const onPop = () => {
@@ -110,7 +137,11 @@ export function ReportsDesk({
   const drafts = selectedCards.filter((card) => card.status === "draft").length;
   const approved = selectedCards.filter((card) => card.status === "approved").length;
   const published = selectedCards.filter((card) => card.status === "published").length;
-  const sittings = selected ? sittingsByClass[reportSittingKey(selected.code, selected.stream)] || [] : [];
+  const sittings = selected
+    ? sittingsByClass[reportSittingKey(selected.code, selected.stream, selected.campus)] ||
+      sittingsByClass[reportSittingKey(selected.code, selected.stream)] ||
+      []
+    : [];
   const onRoll = useMemo(() => new Set(groups.flatMap((group) => group.pupils.map((pupil) => pupil.id))), [groups]);
   const waiting = useMemo(
     () =>
@@ -135,7 +166,12 @@ export function ReportsDesk({
   if (!termId || !termLabel) {
     return (
       <div className="app-page ofc-page rpt-page">
-        <PageHeader kicker="Assessment" icon="fa-file-lines" title="Report cards" description="Report cards need a current term." />
+        <PageHeader
+          kicker={admissionsMode ? "Nursery" : classMode ? "My class" : "Assessment"}
+          icon={admissionsMode ? "fa-seedling" : "fa-file-lines"}
+          title={admissionsMode ? "Nursery report cards" : "Report cards"}
+          description="Report cards need a current term."
+        />
         <Empty title="No current term" />
       </div>
     );
@@ -144,21 +180,27 @@ export function ReportsDesk({
   return (
     <div className="app-page ofc-page rpt-page">
       <PageHeader
-        kicker="Assessment"
-        icon="fa-file-lines"
-        title={selected ? classLabel(selected.code, selected.stream) : "Report cards"}
+        kicker={admissionsMode ? "Nursery" : classMode ? "My class" : "Assessment"}
+        icon={admissionsMode ? "fa-seedling" : "fa-file-lines"}
+        title={selected ? classLabel(selected.code, selected.stream) : admissionsMode ? "Nursery report cards" : "Report cards"}
         description={
           selected
-            ? <>{termLabel} · <strong>{nf(selected.pupils.length)}</strong> on this report.</>
+            ? admissionsMode
+              ? <>{termLabel} · developmental report cards · <strong>{nf(selected.pupils.length)}</strong> on roll.</>
+              : <>{termLabel} · <strong>{nf(selected.pupils.length)}</strong> on this report.</>
             : draftTotal
               ? <>{termLabel}. <strong>{nf(draftTotal)}</strong> {draftTotal === 1 ? "report card is" : "report cards are"} still in draft.</>
-              : <>{termLabel}. Generate a class, preview every card, then post it for parents.</>
+              : admissionsMode
+                ? <>{termLabel}. Generate nursery developmental cards and download PDFs. Academics posts them for parents.</>
+                : classMode
+                ? <>{termLabel}. Open a stream to review cards and add your remark.</>
+                : <>{termLabel}. Generate a class, preview every card, then post it for parents.</>
         }
         actions={
           selected ? (
             <a
               className="admin-hero-btn"
-              href={`${ACADEMICS_BASE}/reports`}
+              href={basePath}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                 event.preventDefault();
@@ -176,7 +218,7 @@ export function ReportsDesk({
             <span aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
             <div>
               <strong>{nf(draftTotal)} {draftTotal === 1 ? "draft" : "drafts"}</strong>
-              <p>Open a class to preview and post its report cards.</p>
+              <p>{classMode ? "Open a class to review cards and add your remark." : "Open a class to preview and post its report cards."}</p>
             </div>
           </div>
           {waiting.length ? (
@@ -184,7 +226,7 @@ export function ReportsDesk({
               {waiting.map(({ group, drafts: count }) => (
                 <li key={`${group.code}-${group.stream}`}>
                   <a
-                    href={classHref(group.code, group.stream)}
+                    href={classHref(basePath, group.code, group.stream)}
                     onClick={(event) => {
                       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                       event.preventDefault();
@@ -209,11 +251,11 @@ export function ReportsDesk({
           </div>
           <div className={drafts ? "is-warn" : ""}>
             <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
-            <span className="rpt-stat-copy"><span>Draft</span><strong>{nf(drafts)}</strong><small>Still with the office</small></span>
+            <span className="rpt-stat-copy"><span>Draft</span><strong>{nf(drafts)}</strong><small>{classMode ? "Open for remarks" : "Still with the office"}</small></span>
           </div>
           <div className={approved ? "is-warn" : ""}>
             <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-stamp" /></span>
-            <span className="rpt-stat-copy"><span>Approved</span><strong>{nf(approved)}</strong><small>Ready to post</small></span>
+            <span className="rpt-stat-copy"><span>Approved</span><strong>{nf(approved)}</strong><small>{classMode ? "Still editable" : "Ready to post"}</small></span>
           </div>
           <div className={selected.pupils.length && published === selected.pupils.length ? "is-ok" : ""}>
             <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-circle-check" /></span>
@@ -228,7 +270,7 @@ export function ReportsDesk({
               <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
               <div>
                 <h2>Classes</h2>
-                <p>Open one stream at a time.</p>
+                <p>{classMode ? "Your streams this term." : "Open one stream at a time."}</p>
               </div>
             </div>
           </header>
@@ -246,7 +288,7 @@ export function ReportsDesk({
                       <li key={`${group.code}-${group.stream}`}>
                         <a
                           className={`${on ? "is-on" : ""}${open ? " is-draft" : ""}`}
-                          href={classHref(group.code, group.stream)}
+                          href={classHref(basePath, group.code, group.stream)}
                           aria-current={on ? "page" : undefined}
                           onClick={(event) => {
                             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
@@ -276,7 +318,19 @@ export function ReportsDesk({
               <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
               <div>
                 <h2>{selected ? classLabel(selected.code, selected.stream) : "Choose a class"}</h2>
-                <p>{selected ? "Generate the cards, preview them, then post." : "Pick a stream from the list."}</p>
+                <p>
+                  {selected
+                    ? admissionsMode
+                      ? "Pick a locked developmental sitting, generate the cards, then download the PDF."
+                      : selected.section === "nursery"
+                      ? classMode
+                        ? "Pick a locked developmental sitting, generate the cards, then add leadership remarks."
+                        : "Pick a locked developmental sitting, generate the cards, then post for parents."
+                      : classMode
+                        ? "Generate the cards, review them, then add your remarks."
+                        : "Generate the cards, preview them, then post."
+                    : "Pick a stream from the list."}
+                </p>
               </div>
             </div>
           </header>
@@ -290,17 +344,39 @@ export function ReportsDesk({
                 cards={selectedCards.length}
                 sittings={sittings}
                 reportTitle={selectedCards.find((card) => card.report_title)?.report_title}
+                {...(admissionsMode
+                  ? {
+                      showPost: false,
+                      showRemarkTools: false,
+                      prepareAction: prepareAdmissionsNurseryReports,
+                      pdfHref: `${OFFICE_BASE}/report-cards/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}`,
+                    }
+                  : classMode
+                    ? {
+                        showPost: false,
+                        prepareAction: prepareTeacherReports,
+                        regenerateAction: generateTeacherClassComments,
+                        cancelAction: cancelTeacherReportPreparation,
+                        reopenAction: reopenTeacherReports,
+                        pdfHref: `${TEACHER_BASE}/reports/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}`,
+                      }
+                    : {})}
               />
               {selected.pupils.length ? (
                 <ul className="rpt-roll">
                   {selected.pupils.map((pupil, index) => {
                     const card = byPupil.get(pupil.id);
-                    const score = scoreLabel(card?.overall_score);
+                    const nursery = selected.section === "nursery";
+                    const score = scoreLabel(card?.overall_score, nursery);
                     return (
                       <li key={pupil.id} className={card ? `is-${card.status}` : ""}>
                         <StudentFace id={pupil.id} name={pupil.full_name} photoPath={pupil.photo_path} className="rpt-face" />
                         <span className="rpt-who">
-                          {card ? <Link href={`${ACADEMICS_BASE}/reports/${card.id}`}>{pupil.full_name}</Link> : <strong>{pupil.full_name}</strong>}
+                          {card && !admissionsMode ? (
+                            <Link href={`${basePath}/${card.id}`}>{pupil.full_name}</Link>
+                          ) : (
+                            <strong>{pupil.full_name}</strong>
+                          )}
                           <small>{[String(index + 1).padStart(2, "0"), pupil.student_number, sexLabel(pupil.sex)].filter(Boolean).join(" · ")}</small>
                         </span>
                         <strong className={score ? "rpt-score" : "rpt-score is-empty"}>{score ?? "-"}</strong>
@@ -311,7 +387,9 @@ export function ReportsDesk({
                 </ul>
               ) : <p className="rpt-quiet">No active pupils in this stream.</p>}
             </>
-          ) : <p className="rpt-quiet">Pick a class to generate its report cards.</p>}
+          ) : (
+            <p className="rpt-quiet">{classMode ? "Pick a class to review its report cards." : "Pick a class to generate its report cards."}</p>
+          )}
         </section>
       </div>
     </div>

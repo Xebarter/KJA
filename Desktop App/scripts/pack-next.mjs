@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
-const { repairStandaloneDist } = require("./repair-standalone.cjs");
+const { repairStandaloneDist, repairStandaloneNodeModules } = require("./repair-standalone.cjs");
 
 /** Must match Desktop App/src/shared/ports.ts - baked into the client bundle. */
 const PROXY_URL = "http://127.0.0.1:47321";
@@ -115,7 +115,10 @@ if ((result.status ?? 1) !== 0) {
 }
 
 // Heal standalone quirks before electron-builder copies resources.
+const standaloneRoot = join(root, ".next-desktop", "standalone");
 repairStandaloneDist(join(root, ".next-desktop"));
-repairStandaloneDist(join(root, ".next-desktop", "standalone", ".next-desktop"));
+repairStandaloneDist(join(standaloneRoot, ".next-desktop"), { websiteRoot: root, standaloneRoot });
+// Node modules live on the standalone root (not under .next-desktop).
+repairStandaloneNodeModules(standaloneRoot, root);
 console.log("[pack-next] Standalone desks repaired.");
 process.exit(0);
