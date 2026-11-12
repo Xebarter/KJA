@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -42,8 +43,8 @@ export function StudentLoginPanel({
             type="button"
             className="ofc-portal-btn is-ghost"
             disabled={pending}
-            onClick={() => {
-              if (!confirm(`Revoke the portal login for ${studentName}?`)) return;
+            onClick={async () => {
+              if (!(await askConfirm(`Revoke the portal login for ${studentName}?`))) return;
               start(async () => {
                 setError("");
                 setOk("");

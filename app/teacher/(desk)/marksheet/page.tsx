@@ -288,18 +288,22 @@ export default async function TeacherMarksheetPage({
       if (!divisionId) {
         return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: "This class is not a nursery division." }} />;
       }
-      const [pupils, ratingsQuery, catalogue] = await Promise.all([
+      const [pupils, ratingRows, catalogue] = await Promise.all([
         loadRoll(supabase, user.id, [paper.class_code], [current.campus]).then((rows) =>
           rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
         ),
-        supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id, numeric_value").eq("assessment_id", paper.id),
+        fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
+          supabase
+            .from("skill_ratings")
+            .select("student_id, skill_id, progress_code_id, numeric_value")
+            .eq("assessment_id", paper.id)
+            .order("student_id")
+            .range(from, to),
+        ),
         loadDivisionCatalogue(supabase, divisionId),
       ]);
       if ("error" in catalogue) {
         return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: catalogue.error }} />;
-      }
-      if (ratingsQuery.error) {
-        return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: ratingsQuery.error.message }} />;
       }
       if (!pupils.length) {
         return (
@@ -319,7 +323,7 @@ export default async function TeacherMarksheetPage({
       }
       const grouped = groupSkillsByDomain(catalogue.domains, catalogue.skills);
       const ratings: Record<string, string> = {};
-      for (const row of ratingsQuery.data || []) {
+      for (const row of ratingRows) {
         if (row.progress_code_id) ratings[`${row.student_id}|${row.skill_id}`] = String(row.progress_code_id);
         else if (row.numeric_value !== null && row.numeric_value !== undefined) {
           ratings[`${row.student_id}|${row.skill_id}`] = String(row.numeric_value);

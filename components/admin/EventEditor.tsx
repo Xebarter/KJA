@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -381,7 +382,7 @@ export function EventEditor({ record }: { record: Article }) {
                 className="app-danger-btn"
                 disabled={saving}
                 onClick={async () => {
-                  if (!window.confirm(`Delete “${form.title || "this event"}”? This can't be undone.`)) return;
+                  if (!(await askConfirm(`Delete “${form.title || "this event"}”? This can't be undone.`))) return;
                   try {
                     await deleteRecord("events", record.id!);
                     router.push("/admin/content/events");

@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -202,8 +203,8 @@ export function EventsManager({ events, editable, today }: { events: Article[]; 
     });
   };
 
-  const remove = (row: Row) => {
-    if (!row.id || !window.confirm(`Delete “${row.title}”? This can't be undone.`)) return;
+  const remove = async (row: Row) => {
+    if (!row.id || !(await askConfirm(`Delete “${row.title}”? This can't be undone.`))) return;
     setBusy(row.id);
     startTransition(async () => {
       try {

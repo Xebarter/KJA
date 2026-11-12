@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { AppConfirmHost } from "@/components/AppConfirm";
+import "@/components/app-confirm.css";
 import "./kja.css";
 
 export const metadata: Metadata = {
@@ -16,7 +18,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link rel="stylesheet" href="/css/fonts.css" />
         <link rel="stylesheet" href="/css/main.css" />
       </head>
-      <body>{children}</body>
+      <body>
+        {children}
+        <AppConfirmHost />
+      </body>
     </html>
   );
 }

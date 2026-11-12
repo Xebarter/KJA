@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -247,7 +248,7 @@ export function AlumniEventEditor({ record }: { record: AlumniEventRow }) {
               label="Delete event"
               disabled={saving}
               onDelete={async () => {
-                if (!window.confirm(`Delete “${form.title || "this event"}”? This can't be undone.`)) return;
+                if (!(await askConfirm(`Delete “${form.title || "this event"}”? This can't be undone.`))) return;
                 try {
                   await deleteRecord("alumni_events", record.id!);
                   setBaseline(JSON.stringify(form));

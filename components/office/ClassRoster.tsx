@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -114,10 +115,10 @@ export function ClassRoster({ rows, streams, classCode, showStream, initialQuery
     : mode === "house" ? [...HOUSES.map((value) => ({ value, label: value })), { value: "", label: "No house" }]
     : SCHOOL_CLASSES.filter((entry) => entry.code !== classCode).map((entry) => ({ value: entry.code, label: `${entry.code} · ${entry.name}` }));
 
-  const apply = () => {
+  const apply = async () => {
     const chosen = target || (mode === "class_code" ? options[0].value : "");
     const label = options.find((option) => option.value === chosen)?.label ?? "none";
-    if (!window.confirm(`${MODE_LABELS[mode]}: ${label} for ${selected.size} pupil${selected.size === 1 ? "" : "s"}?`)) return;
+    if (!(await askConfirm(`${MODE_LABELS[mode]}: ${label} for ${selected.size} pupil${selected.size === 1 ? "" : "s"}?`))) return;
     const change: BulkChange = { [mode]: chosen };
     run(() => bulkUpdateStudents([...selected], change), () => setSelected(new Set()));
   };

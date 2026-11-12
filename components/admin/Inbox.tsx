@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -130,7 +131,7 @@ export function MessageList({ rows }: { rows: MessageRow[] }) {
     else next.add(id);
     return next;
   });
-  const done = () => setSelected(new Set());
+  const done = async () => setSelected(new Set());
 
   return (
     <>
@@ -157,8 +158,8 @@ export function MessageList({ rows }: { rows: MessageRow[] }) {
                 type="button"
                 className="is-danger"
                 disabled={pending}
-                onClick={() => {
-                  if (!window.confirm(`Delete ${selected.size} message${selected.size === 1 ? "" : "s"}? This can't be undone.`)) return;
+                onClick={async () => {
+                  if (!(await askConfirm(`Delete ${selected.size} message${selected.size === 1 ? "" : "s"}? This can't be undone.`))) return;
                   run(() => deleteMessages(list), () => { done(); });
                 }}
                 title="Delete"
@@ -220,7 +221,7 @@ export function ReaderActions({ id, unread, email, closeHref }: { id: string; un
         disabled={pending}
         title={unread ? "Mark as read" : "Mark as unread"}
         aria-label={unread ? "Mark as read" : "Mark as unread"}
-        onClick={() => {
+        onClick={async () => {
           opened.current = id;
           run(() => setMessagesRead([id], unread ? true : false));
         }}
@@ -233,8 +234,8 @@ export function ReaderActions({ id, unread, email, closeHref }: { id: string; un
         disabled={pending}
         title="Delete message"
         aria-label="Delete message"
-        onClick={() => {
-          if (!window.confirm("Delete this message? This can't be undone.")) return;
+        onClick={async () => {
+          if (!(await askConfirm("Delete this message? This can't be undone."))) return;
           run(() => deleteMessages([id]), () => router.push(closeHref));
         }}
       >
@@ -271,11 +272,11 @@ export function SubscriberTable({ rows }: { rows: SubscriberRow[] }) {
     else next.add(id);
     return next;
   });
-  const remove = (targets: SubscriberRow[]) => {
+  const remove = async (targets: SubscriberRow[]) => {
     const text = targets.length === 1
       ? `Remove ${targets[0].email} from the newsletter list?`
       : `Remove ${targets.length} subscribers from the newsletter list?`;
-    if (!window.confirm(text)) return;
+    if (!(await askConfirm(text))) return;
     run(() => deleteSubscribers(targets.map((row) => row.id)), () => { setSelected(new Set()); });
   };
 

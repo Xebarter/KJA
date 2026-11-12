@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, useTransition } from "react";
@@ -93,8 +94,8 @@ export function useApplicationActions(context: WorkspaceContext, onMoved?: (id: 
     void run(item.id, () => bulkUpdateApplications([item.id], { read }));
   }, [run]);
 
-  const remove = useCallback((item: ApplicationItem) => {
-    if (!window.confirm(`Delete the application for ${item.child}? This cannot be undone.`)) return;
+  const remove = useCallback(async (item: ApplicationItem) => {
+    if (!(await askConfirm(`Delete the application for ${item.child}? This cannot be undone.`))) return;
     void run(item.id, () => deleteApplications([item.id]));
   }, [run]);
 

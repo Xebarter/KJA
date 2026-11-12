@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -121,8 +122,8 @@ export function GalleryManager({ items, editable }: { items: GalleryItem[]; edit
     });
   };
 
-  const remove = (row: GalleryItem) => {
-    if (!row.id || !window.confirm(`Remove “${decodeEntities(row.title)}” from the gallery? This can't be undone.`)) return;
+  const remove = async (row: GalleryItem) => {
+    if (!row.id || !(await askConfirm(`Remove “${decodeEntities(row.title)}” from the gallery? This can't be undone.`))) return;
     setBusy(row.id);
     startTransition(async () => {
       try {

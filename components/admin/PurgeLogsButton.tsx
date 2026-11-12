@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useState, useTransition } from "react";
 import { purgeOldLogs } from "@/app/admin/(panel)/logs/actions";
@@ -13,8 +14,8 @@ export function PurgeLogsButton({ className = "admin-btn admin-btn-ghost" }: { c
         type="button"
         className={className}
         disabled={pending}
-        onClick={() => {
-          if (!window.confirm("Remove log entries older than one year? This cannot be undone.")) return;
+        onClick={async () => {
+          if (!(await askConfirm("Remove log entries older than one year? This cannot be undone."))) return;
           setMessage(null);
           start(async () => {
             const result = await purgeOldLogs();

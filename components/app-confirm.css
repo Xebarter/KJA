@@ -1,0 +1,131 @@
+/* Premium in-app confirm — replaces native window.confirm */
+
+dialog.kja-confirm {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  width: min(26.5rem, calc(100vw - 1.5rem));
+  max-width: calc(100vw - 1.5rem);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  background: transparent;
+  color: #14212b;
+  box-shadow: 0 28px 60px rgba(15, 35, 48, 0.28);
+}
+dialog.kja-confirm::backdrop {
+  background: rgba(12, 24, 32, 0.52);
+  backdrop-filter: blur(4px);
+}
+.kja-confirm-card {
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem 1.25rem 1.15rem;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 18px;
+  background: #fff;
+}
+.kja-confirm-icon {
+  display: grid;
+  place-items: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 14px;
+  font-size: 1.15rem;
+}
+.kja-confirm.is-default .kja-confirm-icon {
+  background: #e5f5fb;
+  color: #2b8aab;
+}
+.kja-confirm.is-warn .kja-confirm-icon {
+  background: #fff3d6;
+  color: #b8860b;
+}
+.kja-confirm.is-danger .kja-confirm-icon {
+  background: #ffe8e1;
+  color: #c4472d;
+}
+.kja-confirm-copy h2 {
+  margin: 0;
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: 1.2rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: #14212b;
+}
+.kja-confirm-copy p {
+  margin: 0.4rem 0 0;
+  color: #5f6f7a;
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+.kja-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.15rem;
+}
+.kja-confirm-cancel,
+.kja-confirm-ok {
+  min-height: 2.45rem;
+  padding: 0 1rem;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease, transform 0.12s ease;
+}
+.kja-confirm-cancel {
+  border: 1px solid rgba(26, 42, 51, 0.14);
+  background: #fff;
+  color: #1a2a33;
+}
+.kja-confirm-cancel:hover {
+  border-color: rgba(26, 42, 51, 0.28);
+  background: #f6f8f9;
+}
+.kja-confirm-ok {
+  border: 0;
+  color: #fff;
+}
+.kja-confirm.is-default .kja-confirm-ok {
+  background: #2b8aab;
+}
+.kja-confirm.is-default .kja-confirm-ok:hover {
+  background: #247898;
+}
+.kja-confirm.is-warn .kja-confirm-ok {
+  background: #c4920f;
+}
+.kja-confirm.is-warn .kja-confirm-ok:hover {
+  background: #a67c0a;
+}
+.kja-confirm.is-danger .kja-confirm-ok {
+  background: #c4472d;
+}
+.kja-confirm.is-danger .kja-confirm-ok:hover {
+  background: #a83b26;
+}
+.kja-confirm-cancel:active,
+.kja-confirm-ok:active {
+  transform: translateY(1px);
+}
+.kja-confirm-cancel:focus-visible,
+.kja-confirm-ok:focus-visible {
+  outline: 2px solid #c9a227;
+  outline-offset: 2px;
+}
+
+@media (max-width: 420px) {
+  .kja-confirm-actions {
+    flex-direction: column-reverse;
+  }
+  .kja-confirm-cancel,
+  .kja-confirm-ok {
+    width: 100%;
+  }
+}

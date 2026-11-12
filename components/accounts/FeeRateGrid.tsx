@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
@@ -52,8 +53,8 @@ export function FeeRateGrid({
     return () => window.removeEventListener("beforeunload", warn);
   }, [dirty]);
 
-  const go = (next: { term?: string; campus?: string }) => {
-    if (dirty && !window.confirm("You have unsaved fee changes. Leave without saving?")) return;
+  const go = async (next: { term?: string; campus?: string }) => {
+    if (dirty && !(await askConfirm("You have unsaved fee changes. Leave without saving?"))) return;
     const params = new URLSearchParams({ term: next.term ?? termId });
     const place = next.campus ?? campus;
     if (place) params.set("campus", place);
@@ -187,9 +188,9 @@ export function FeeRateGrid({
                 type="button"
                 className="admin-btn admin-btn-ghost set-tool-btn"
                 disabled={!copyFrom || pending}
-                onClick={() => {
+                onClick={async () => {
                   const from = terms.find((term) => term.id === copyFrom)?.label;
-                  if (!window.confirm(`Replace every rate in this term with the rates from ${from}?`)) return;
+                  if (!(await askConfirm(`Replace every rate in this term with the rates from ${from}?`))) return;
                   run(() => copyRates(copyFrom, termId), () => setCopyFrom(""));
                 }}
               >

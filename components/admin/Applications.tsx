@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -460,8 +461,8 @@ export function DeleteNoteButton({ noteId, applicationId }: { noteId: string; ap
       type="button"
       className="app-link-btn is-danger"
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm("Delete this note?")) return;
+      onClick={async () => {
+        if (!(await askConfirm("Delete this note?"))) return;
         startTransition(async () => {
           const outcome = await deleteApplicationNote(noteId, applicationId);
           if (outcome.error) window.alert(outcome.error);
@@ -483,8 +484,8 @@ export function DeleteApplicationButton({ id, child }: { id: string; child: stri
       type="button"
       className="app-danger-btn"
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm(`Delete the application for ${child}? This cannot be undone.`)) return;
+      onClick={async () => {
+        if (!(await askConfirm(`Delete the application for ${child}? This cannot be undone.`))) return;
         startTransition(async () => {
           const outcome = await deleteApplications([id]);
           if (outcome.error) window.alert(outcome.error);

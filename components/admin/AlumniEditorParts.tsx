@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useEffect, useRef, useState } from "react";
 import { uploadMedia } from "@/app/actions";
@@ -35,10 +36,10 @@ export function useUnsavedGuard(dirty: boolean) {
       event.preventDefault();
       event.returnValue = "";
     };
-    const onClick = (event: MouseEvent) => {
+    const onClick = async (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank") return;
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!(await askConfirm("You have unsaved changes. Leave without saving?"))) {
         event.preventDefault();
         event.stopPropagation();
       }

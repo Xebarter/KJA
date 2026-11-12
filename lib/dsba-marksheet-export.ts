@@ -15,7 +15,7 @@ import {
   nurseryDsbaWorkbookFilename,
   type NurseryDsbaBookInput,
 } from "@/lib/nursery-dsba-workbook";
-import { className, isUuid } from "@/lib/students";
+import { className, fetchAll, isUuid } from "@/lib/students";
 
 function shortDay(iso: string | null) {
   if (!iso) return "Date not set";
@@ -66,17 +66,23 @@ export async function loadDsbaMarksheetExportBundle(input: {
   const divisionId = nurseryDivision(paper.class_code);
   if (!divisionId) return { error: "This class is not a nursery division.", status: 400 } as const;
 
-  const [pupils, ratingsQuery, catalogue, termQuery] = await Promise.all([
+  const [pupils, ratingRows, catalogue, termQuery] = await Promise.all([
     loadRoll(input.supabase, input.userId, [paper.class_code], input.campuses).then((rows) =>
       rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
     ),
-    input.supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id, numeric_value").eq("assessment_id", paper.id),
+    fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
+      input.supabase
+        .from("skill_ratings")
+        .select("student_id, skill_id, progress_code_id, numeric_value")
+        .eq("assessment_id", paper.id)
+        .order("student_id")
+        .range(from, to),
+    ),
     loadDivisionCatalogue(input.supabase, divisionId),
     input.supabase.from("fee_terms").select("label").eq("id", paper.term_id).maybeSingle(),
   ]);
 
   if ("error" in catalogue) return { error: catalogue.error, status: 500 } as const;
-  if (ratingsQuery.error) return { error: ratingsQuery.error.message, status: 500 } as const;
 
   const grouped = groupSkillsByDomain(catalogue.domains, catalogue.skills);
   const domainFilter = (input.domainFilter || "").trim();
@@ -96,7 +102,7 @@ export async function loadDsbaMarksheetExportBundle(input: {
   const codeById = new Map(catalogue.progressCodes.map((row) => [row.id, row]));
   const codes: Record<string, string> = {};
   const ratings: NurseryDsbaBookInput["ratings"] = [];
-  for (const row of ratingsQuery.data || []) {
+  for (const row of ratingRows) {
     let display: string | null = null;
     if (row.progress_code_id) {
       display = codeById.get(String(row.progress_code_id))?.code || null;

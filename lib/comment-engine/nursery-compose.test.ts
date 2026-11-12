@@ -38,6 +38,8 @@ describe("nurseryTierForCode", () => {
     expect(nurseryTierForCode("S")).toBe("solid");
     expect(nurseryTierForCode("P")).toBe("growing");
     expect(nurseryTierForCode("I")).toBe("growing");
+    expect(nurseryTierForCode("+")).toBe("growing");
+    expect(nurseryTierForCode("-")).toBe("growing");
     expect(nurseryTierForCode("+/-")).toBe("growing");
     expect(nurseryTierForCode("D")).toBe("developing");
     expect(nurseryTierForCode("NP")).toBe("support");

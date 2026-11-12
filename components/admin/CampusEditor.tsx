@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -119,10 +120,10 @@ export function CampusEditor({ record, insight }: { record: CampusRow; insight: 
       event.preventDefault();
       event.returnValue = "";
     };
-    const onClick = (event: MouseEvent) => {
+    const onClick = async (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank") return;
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!(await askConfirm("You have unsaved changes. Leave without saving?"))) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -489,7 +490,7 @@ export function CampusEditor({ record, insight }: { record: CampusRow; insight: 
                 className="app-danger-btn"
                 disabled={saving}
                 onClick={async () => {
-                  if (!window.confirm(`Delete KJA ${form.title || "this campus"}? Its page and cards disappear from the website. This can't be undone.`)) return;
+                  if (!(await askConfirm(`Delete KJA ${form.title || "this campus"}? Its page and cards disappear from the website. This can't be undone.`))) return;
                   try {
                     await deleteRecord("campuses", record.id!);
                     setBaseline(JSON.stringify(form));

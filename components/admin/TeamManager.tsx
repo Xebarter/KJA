@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
@@ -348,12 +349,12 @@ export function TeamManager({
     });
   }
 
-  function removeMember(person: TeamPerson) {
+  async function removeMember(person: TeamPerson) {
     if (person.fullAdmin && adminCount <= 1) return;
     const text = person.isYou
       ? "Remove your own access? You will leave the dashboards."
       : `Remove access for ${person.name}? A login created here is deleted. A parent account keeps the parent portal.`;
-    if (!window.confirm(text)) return;
+    if (!(await askConfirm(text))) return;
     setRemoving(person.id);
     run("list", () => removeTeamMember(person.id), () => {
       if (editing?.id === person.id) resetForm();

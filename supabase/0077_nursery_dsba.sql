@@ -290,12 +290,13 @@ join (
     ('nursery', 'S', 'Satisfactory Progress', 2),
     ('nursery', 'D', 'Developing', 3),
     ('nursery', 'NP', 'Needs more practice', 4),
-    ('nursery', '+/-', 'Stronger / weaker', 5),
-    ('nursery', 'P', 'Progressing', 6),
-    ('nursery', 'A', 'Area needs growth', 7),
-    ('nursery', 'I', 'Improving', 8),
-    ('nursery', 'NA', 'Not applicable', 9),
-    ('nursery', 'NT', 'Not taught', 10)
+    ('nursery', '+', 'Stronger', 5),
+    ('nursery', '-', 'Weaker', 6),
+    ('nursery', 'P', 'Progressing', 7),
+    ('nursery', 'A', 'Area needs growth', 8),
+    ('nursery', 'I', 'Improving', 9),
+    ('nursery', 'NA', 'Not applicable', 10),
+    ('nursery', 'NT', 'Not taught', 11)
 ) as v(scale_key, code, label, sort_order) on v.scale_key = s.key
 on conflict (scale_id, code) do update set label = excluded.label, sort_order = excluded.sort_order;
 

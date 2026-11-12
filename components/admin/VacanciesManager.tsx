@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -438,8 +439,8 @@ export function VacanciesManager({
                               data-act="Delete"
                               title="Delete"
                               disabled={pending}
-                              onClick={() => {
-                                if (!window.confirm(`Delete “${row.title}”? This can't be undone.`)) return;
+                              onClick={async () => {
+                                if (!(await askConfirm(`Delete “${row.title}”? This can't be undone.`))) return;
                                 run(row.id!, () => deleteVacancy(row.id!), (list) => list.filter((entry) => entry.id !== row.id));
                               }}
                             >

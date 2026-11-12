@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -83,7 +84,7 @@ export function RecordForm({ table, fields, record }: { table: string; fields: F
         <button className="admin-btn" type="submit">Save</button>
         {record?.id ? (
           <button className="admin-btn admin-btn-ghost" type="button" onClick={async () => {
-            if (!confirm("Delete this item?")) return;
+            if (!(await askConfirm("Delete this item?"))) return;
             await deleteRecord(table, String(record.id));
             router.push(`/admin/content/${table}`);
             router.refresh();

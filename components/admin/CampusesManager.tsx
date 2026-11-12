@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -27,9 +28,9 @@ export function CampusesManager({ campuses, sectionCount, editable }: { campuses
     { facilities: 0, clubs: 0, photos: 0 },
   );
 
-  const togglePublished = (row: CampusCardData, next: boolean) => {
+  const togglePublished = async (row: CampusCardData, next: boolean) => {
     if (!row.id) return;
-    if (!next && !window.confirm(`Hide ${row.title} from the website? Its page and campus cards disappear until you show it again.`)) return;
+    if (!next && !(await askConfirm(`Hide ${row.title} from the website? Its page and campus cards disappear until you show it again.`))) return;
     setBusy(row.id);
     startTransition(async () => {
       const data = new FormData();

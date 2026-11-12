@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -23,7 +24,7 @@ export function ExpenseActions({ id, status, refNo, amount, payee, canDecide, ca
   const [dialog, setDialog] = useState<"" | "approve" | "reject" | "pay">("");
   const [note, setNote] = useState("");
   const { result, setResult, pending, run } = useOfficeAction();
-  const open = (which: "approve" | "reject" | "pay") => {
+  const open = async (which: "approve" | "reject" | "pay") => {
     setResult(null);
     setNote("");
     setDialog(which);
@@ -51,8 +52,8 @@ export function ExpenseActions({ id, status, refNo, amount, payee, canDecide, ca
             type="button"
             className="admin-btn admin-btn-ghost"
             disabled={pending}
-            onClick={() => {
-              if (!window.confirm(`Withdraw ${refNo}? It will be deleted.`)) return;
+            onClick={async () => {
+              if (!(await askConfirm(`Withdraw ${refNo}? It will be deleted.`))) return;
               run(() => withdrawExpense(id), () => router.push(`${ACCOUNTS_BASE}/expenses`));
             }}
           >

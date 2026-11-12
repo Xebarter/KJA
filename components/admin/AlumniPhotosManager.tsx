@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -164,7 +165,7 @@ export function AlumniPhotosManager({ photos, editable }: { photos: AlumniPhotoR
   };
 
   const remove = async (row: AlumniPhotoRow) => {
-    if (!row.id || !window.confirm(`Delete “${row.title || "this photo"}” from the alumni gallery? This can't be undone.`)) return;
+    if (!row.id || !(await askConfirm(`Delete “${row.title || "this photo"}” from the alumni gallery? This can't be undone.`))) return;
     setBusy(row.id);
     try {
       await deleteRecord("alumni_photos", row.id);

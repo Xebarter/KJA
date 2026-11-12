@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -236,8 +237,8 @@ export function JobApplicationsBoard({
     setSelected((current) => new Set([...current].filter((id) => listed.some((row) => row.id === id))));
   }, [listed]);
 
-  const run = (task: () => Promise<JobActionResult>, update?: (list: BoardApplicant[]) => BoardApplicant[], confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+  const run = async (task: () => Promise<JobActionResult>, update?: (list: BoardApplicant[]) => BoardApplicant[], confirmText?: string) => {
+    if (confirmText && !(await askConfirm(confirmText))) return;
     const previous = rows;
     if (update) setRows(update);
     startTransition(async () => {

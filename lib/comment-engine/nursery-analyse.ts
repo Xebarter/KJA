@@ -150,7 +150,17 @@ export function nurseryTierForCode(raw: string | null | undefined): NurseryTier 
   if (!code || SKIP.has(code)) return "skip";
   if (code === "M") return "mastery";
   if (code === "S") return "solid";
-  if (code === "P" || code === "I" || code === "+/-" || code === "+/−" || code === "±") return "growing";
+  if (
+    code === "P" ||
+    code === "I" ||
+    code === "+" ||
+    code === "-" ||
+    code === "+/-" ||
+    code === "+/−" ||
+    code === "±"
+  ) {
+    return "growing";
+  }
   if (code === "D") return "developing";
   if (code === "NP" || code === "A") return "support";
   // Numeric or unknown letters: treat as developing if present

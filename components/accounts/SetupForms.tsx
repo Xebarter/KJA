@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -202,7 +203,10 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
                           text="Remove"
                           danger
                           disabled={pending}
-                          onClick={() => window.confirm(`Remove ${entry.label}? Its fee rates go too.`) && run(() => deleteTerm(entry.id))}
+                          onClick={async () => {
+                            if (!(await askConfirm(`Remove ${entry.label}? Its fee rates go too.`))) return;
+                            await run(() => deleteTerm(entry.id));
+                          }}
                         />
                       ) : null}
                     </div>
@@ -428,7 +432,10 @@ export function DiscountsManager({ rules, usage }: { rules: DiscountRule[]; usag
                           text="Remove"
                           danger
                           disabled={pending}
-                          onClick={() => window.confirm(`Remove ${entry.name}? Pupils who already have it keep it.`) && run(() => deleteDiscountRule(entry.id))}
+                          onClick={async () => {
+                            if (!(await askConfirm(`Remove ${entry.name}? Pupils who already have it keep it.`))) return;
+                            await run(() => deleteDiscountRule(entry.id));
+                          }}
                         />
                       </div>
                     </td>

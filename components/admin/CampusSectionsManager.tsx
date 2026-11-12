@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -92,10 +93,10 @@ export function CampusSectionsManager({ sections, campuses, editable }: { sectio
     });
   };
 
-  const remove = (row: SectionRow) => {
+  const remove = async (row: SectionRow) => {
     if (!row.id) return;
     const twin = isDupe(row) ? " Another entry has a very similar title, so this may be a duplicate." : "";
-    if (!window.confirm(`Delete “${row.title}”?${twin} This can't be undone.`)) return;
+    if (!(await askConfirm(`Delete “${row.title}”?${twin} This can't be undone.`))) return;
     setBusy(row.id);
     startTransition(async () => {
       try {

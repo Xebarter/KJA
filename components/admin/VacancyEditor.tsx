@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -138,10 +139,10 @@ export function VacancyEditor({
       event.preventDefault();
       event.returnValue = "";
     };
-    const onClick = (event: MouseEvent) => {
+    const onClick = async (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank") return;
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!(await askConfirm("You have unsaved changes. Leave without saving?"))) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -162,8 +163,8 @@ export function VacancyEditor({
     return uploadMedia(data);
   };
 
-  const insertTemplate = () => {
-    if (words > 0 && !window.confirm("Replace the current description with the job advert template?")) return;
+  const insertTemplate = async () => {
+    if (words > 0 && !(await askConfirm("Replace the current description with the job advert template?"))) return;
     setEditorHtml(VACANCY_TEMPLATE);
     setBody(VACANCY_TEMPLATE);
     setBodyDirty(true);
@@ -526,7 +527,7 @@ export function VacancyEditor({
                   className="app-link-btn"
                   disabled={saving}
                   onClick={async () => {
-                    if (dirty && !window.confirm("Duplicate the last saved version? Your unsaved changes here will be lost.")) return;
+                    if (dirty && !(await askConfirm("Duplicate the last saved version? Your unsaved changes here will be lost."))) return;
                     const result = await duplicateVacancy(record.id!);
                     if (result.error || !result.id) {
                       setFeedback({ error: result.error ?? "Could not duplicate this vacancy." });
@@ -549,7 +550,7 @@ export function VacancyEditor({
                 className="app-danger-btn"
                 disabled={saving}
                 onClick={async () => {
-                  if (!window.confirm(`Delete “${form.title || "this vacancy"}”? This can't be undone.`)) return;
+                  if (!(await askConfirm(`Delete “${form.title || "this vacancy"}”? This can't be undone.`))) return;
                   const result = await deleteVacancy(record.id!);
                   if (result.error) {
                     setFeedback({ error: result.error });

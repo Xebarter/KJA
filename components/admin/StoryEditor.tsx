@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -177,7 +178,7 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
         setResult({ error: "Give the story a title before saving." });
         return;
       }
-      if (moving && !window.confirm(`Move this story to ${STORY_SOURCES[sourceForTable(next.table)!].label}? Its web address will change to ${storyPath(next.table, next.slug)}.`)) return;
+      if (moving && !(await askConfirm(`Move this story to ${STORY_SOURCES[sourceForTable(next.table)!].label}? Its web address will change to ${storyPath(next.table, next.slug)}.`))) return;
       setSaving(true);
       setResult(null);
       const data = new FormData();
@@ -247,10 +248,10 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
       event.preventDefault();
       event.returnValue = "";
     };
-    const onClick = (event: MouseEvent) => {
+    const onClick = async (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank" || link.dataset.safe !== undefined) return;
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!(await askConfirm("You have unsaved changes. Leave without saving?"))) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -624,7 +625,7 @@ export function StoryEditor({ record, mode, suggestions }: { record: StoryRecord
                 className="is-danger"
                 disabled={saving}
                 onClick={async () => {
-                  if (!window.confirm(`Delete “${form.title || "this story"}”? This can't be undone.`)) return;
+                  if (!(await askConfirm(`Delete “${form.title || "this story"}”? This can't be undone.`))) return;
                   const outcome = await deleteStory(record.table, record.id!);
                   if (outcome.error) {
                     setResult(outcome);

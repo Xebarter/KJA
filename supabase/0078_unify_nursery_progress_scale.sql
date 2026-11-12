@@ -77,7 +77,11 @@ begin
     delete from public.progress_scales where id = scale2_id;
   end if;
 
-  -- Ensure the full ten-code catalogue exists on nursery.
+  -- Drop the old combined indicator if a prior run left it behind.
+  delete from public.progress_codes
+  where scale_id = nursery_id and code in ('+/-', '+/−', '±');
+
+  -- Ensure the nursery catalogue includes separate + and - indicators.
   insert into public.progress_codes (scale_id, code, label, sort_order)
   select nursery_id, v.code, v.label, v.sort_order
   from (
@@ -86,12 +90,13 @@ begin
       ('S', 'Satisfactory Progress', 2),
       ('D', 'Developing', 3),
       ('NP', 'Needs more practice', 4),
-      ('+/-', 'Stronger / weaker', 5),
-      ('P', 'Progressing', 6),
-      ('A', 'Area needs growth', 7),
-      ('I', 'Improving', 8),
-      ('NA', 'Not applicable', 9),
-      ('NT', 'Not taught', 10)
+      ('+', 'Stronger', 5),
+      ('-', 'Weaker', 6),
+      ('P', 'Progressing', 7),
+      ('A', 'Area needs growth', 8),
+      ('I', 'Improving', 9),
+      ('NA', 'Not applicable', 10),
+      ('NT', 'Not taught', 11)
   ) as v(code, label, sort_order)
   on conflict (scale_id, code) do update
     set label = excluded.label,

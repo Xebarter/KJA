@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -89,8 +90,8 @@ export function ActionButton({
         type="button"
         className={className}
         disabled={pending}
-        onClick={() => {
-          if (confirm && !window.confirm(confirm)) return;
+        onClick={async () => {
+          if (confirm && !(await askConfirm(confirm))) return;
           run(action);
         }}
       >

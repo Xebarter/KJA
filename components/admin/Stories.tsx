@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -344,8 +345,8 @@ export function StoriesManager({
                           type="button"
                           className="is-danger"
                           disabled={pending}
-                          onClick={() => {
-                            if (!window.confirm(`Delete “${row.title}”? This can't be undone.`)) return;
+                          onClick={async () => {
+                            if (!(await askConfirm(`Delete “${row.title}”? This can't be undone.`))) return;
                             run(row, () => deleteStory(row.table, row.id!), () => null);
                           }}
                         >

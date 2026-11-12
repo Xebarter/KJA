@@ -300,8 +300,9 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   headers.forEach((header) => {
     const cell = sheet.getCell(headerRow, header.col);
     cell.value = header.text;
-    const tinted = header.paletteIndex !== null;
-    const palette = tinted ? MARKSHEET_GROUP_PALETTE[header.paletteIndex] : null;
+    const paletteIndex = header.paletteIndex;
+    const tinted = paletteIndex !== null;
+    const palette = tinted ? MARKSHEET_GROUP_PALETTE[paletteIndex] : null;
     paint(cell, {
       font: font(10, tinted ? palette!.ink : WHITE, true),
       fill: solid(tinted ? palette!.headerSoft : NAVY),

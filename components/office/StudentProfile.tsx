@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -156,8 +157,8 @@ export function DeleteStudentNote({ noteId, studentId }: { noteId: string; stude
       type="button"
       className="app-link-btn"
       disabled={pending}
-      onClick={() => {
-        if (window.confirm("Delete this note?")) run(() => deleteStudentNote(noteId, studentId));
+      onClick={async () => {
+        if (await askConfirm("Delete this note?")) run(() => deleteStudentNote(noteId, studentId));
       }}
     >
       {pending ? "Deleting…" : "Delete"}

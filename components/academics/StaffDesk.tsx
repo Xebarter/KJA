@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useEffect, useMemo, useState, useTransition, type CSSProperties } from "react";
 import Link from "next/link";
@@ -1517,16 +1518,12 @@ function DeleteTeacher({
   const [pending, startTransition] = useTransition();
   const load = loadOf(member);
 
-  function run() {
+  async function run() {
     const loadNote = load
       ? ` Their current class/subject posts will be cleared.`
       : "";
     const loginNote = member.profile_id ? " Their sign-in will be revoked." : "";
-    if (
-      !confirm(
-        `Remove ${member.full_name} from the staff list?${loadNote}${loginNote} Homework, resources, schemes, and markbooks they created stay on the system.`,
-      )
-    ) {
+    if (!(await askConfirm(`Remove ${member.full_name} from the staff list?${loadNote}${loginNote} Homework, resources, schemes, and markbooks they created stay on the system.`))) {
       return;
     }
     const data = new FormData();
@@ -1596,8 +1593,8 @@ function LoginActions({
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
-  function run(action: SaveStaff, data: FormData, confirmMessage?: string) {
-    if (confirmMessage && !confirm(confirmMessage)) return;
+  async function run(action: SaveStaff, data: FormData, confirmMessage?: string) {
+    if (confirmMessage && !(await askConfirm(confirmMessage))) return;
     setError("");
     startTransition(async () => {
       let outcome: Awaited<ReturnType<SaveStaff>>;

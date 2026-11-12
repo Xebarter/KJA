@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -61,8 +62,8 @@ function CampusSectionsPanel({
     [rows, kind, campusSlug],
   );
 
-  const remove = (row: SectionRow) => {
-    if (!row.id || !window.confirm(`Delete “${row.title}”? This can't be undone.`)) return;
+  const remove = async (row: SectionRow) => {
+    if (!row.id || !(await askConfirm(`Delete “${row.title}”? This can't be undone.`))) return;
     setBusy(row.id);
     startTransition(async () => {
       try {

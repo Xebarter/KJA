@@ -25,8 +25,8 @@ export const MARKSHEET_GROUP_PALETTE = [
   { header: "FF9A3040", headerSoft: "FFF5DCE1", body: "FFFDF4F5", bodyAlt: "FFF8E8EB", ink: "FF7A2432" },
 ] as const;
 
-export function marksheetSubjectGroups(
-  subjects: Array<{ groupKey?: string; groupLabel?: string }>,
+export function marksheetSubjectGroups<T extends { groupKey?: string; groupLabel?: string }>(
+  subjects: readonly T[],
 ): MarksheetSubjectGroup[] {
   const groups: MarksheetSubjectGroup[] = [];
   let paletteCursor = 0;

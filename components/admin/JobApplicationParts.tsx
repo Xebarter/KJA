@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
@@ -33,8 +34,8 @@ export function StageActions({ id, stage }: { id: string; stage: JobStage }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<JobActionResult | null>(null);
   const next = NEXT_STEP[stage];
-  const go = (target: JobStage, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+  const go = async (target: JobStage, confirmText?: string) => {
+    if (confirmText && !(await askConfirm(confirmText))) return;
     startTransition(async () => {
       const outcome = await setJobStage([id], target);
       setResult(outcome.error ? outcome : null);
@@ -240,8 +241,8 @@ export function DeleteJobNoteButton({ noteId, applicationId }: { noteId: string;
       type="button"
       className="app-link-btn is-danger"
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm("Delete this note?")) return;
+      onClick={async () => {
+        if (!(await askConfirm("Delete this note?"))) return;
         startTransition(async () => {
           const outcome = await deleteJobNote(noteId, applicationId);
           if (outcome.error) window.alert(outcome.error);
@@ -262,8 +263,8 @@ export function DeleteJobApplicationButton({ id, name }: { id: string; name: str
       type="button"
       className="app-danger-btn"
       disabled={pending}
-      onClick={() => {
-        if (!window.confirm(`Delete ${name}'s application and their documents? This cannot be undone.`)) return;
+      onClick={async () => {
+        if (!(await askConfirm(`Delete ${name}'s application and their documents? This cannot be undone.`))) return;
         startTransition(async () => {
           const outcome = await deleteJobApplications([id]);
           if (outcome.error) window.alert(outcome.error);

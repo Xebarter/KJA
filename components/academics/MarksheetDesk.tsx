@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -645,9 +646,11 @@ export function MarksheetDesk({
             className={`msh-streams${identity.combine ? " is-on" : ""}`}
             href={sittingHref(!identity.combine)}
             aria-pressed={identity.combine}
-            onClick={(event) => {
+            onClick={async (event) => {
               if (!dirty) return;
-              if (!window.confirm("Leave without saving these marks?")) event.preventDefault();
+              event.preventDefault();
+              if (!(await askConfirm("Leave without saving these marks?"))) return;
+              window.location.assign((event.currentTarget as HTMLAnchorElement).href);
             }}
           >
             <i className="fa-solid fa-layer-group" aria-hidden="true" /> All streams

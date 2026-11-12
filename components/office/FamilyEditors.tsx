@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useState } from "react";
 import {
@@ -200,8 +201,8 @@ export function GuardianEditor({ familyId, guardians }: { familyId: string; guar
                   type="button"
                   className="ofc-fam-act is-danger"
                   disabled={pending}
-                  onClick={() => {
-                    if (window.confirm(`Remove ${guardian.full_name} from this family? Their phone numbers stay in the contact list.`)) run(() => deleteGuardian(guardian.id, familyId));
+                  onClick={async () => {
+                    if (await askConfirm(`Remove ${guardian.full_name} from this family? Their phone numbers stay in the contact list.`)) run(() => deleteGuardian(guardian.id, familyId));
                   }}
                 >
                   <i className="fa-regular fa-trash-can" aria-hidden="true" /> Remove
@@ -337,8 +338,8 @@ export function ContactEditor({ familyId, contacts }: { familyId: string; contac
                     disabled={pending}
                     title="Remove"
                     aria-label={`Remove ${shown}`}
-                    onClick={() => {
-                      if (window.confirm(`Remove ${shown} from this family's contacts?`)) run(() => deleteContact(contact.id, familyId));
+                    onClick={async () => {
+                      if (await askConfirm(`Remove ${shown} from this family's contacts?`)) run(() => deleteContact(contact.id, familyId));
                     }}
                   >
                     <i className="fa-regular fa-trash-can" aria-hidden="true" />

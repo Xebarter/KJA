@@ -99,7 +99,7 @@ Nursery cards print only **Class teacher’s comment**. Generation reads frozen 
 |------|-------|-------------------|
 | Mastery | `M` | Outstanding features (named first) |
 | Solid | `S` | Steady strength; backs outstanding when M is scarce |
-| Growing | `P`, `I`, `+/-` | Progressing language |
+| Growing | `P`, `I`, `+`, `-` | Progressing language |
 | Developing | `D` | Soft next-step focus |
 | Support | `NP`, `A` | Gentle practice focus |
 | Skip | `NA`, `NT`, blank | Ignored for naming |

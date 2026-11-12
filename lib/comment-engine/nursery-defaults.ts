@@ -102,7 +102,7 @@ export const NURSERY_COMMENT_RULES = [
   {
     id: "nursery_growing",
     title: "Growing",
-    detail: "Many P, I, or +/- codes. Praise determination and keep practice playful.",
+    detail: "Many P, I, +, or - codes. Praise determination and keep practice playful.",
     review: false,
   },
   {

@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -285,8 +286,8 @@ export function AlumniProfileEditor({ record }: { record: AlumniProfileRow }) {
                   <button
                     type="button"
                     className="app-link-btn"
-                    onClick={() => {
-                      if (window.confirm("Switch to the interview format? You'll answer the six questions instead, and the current story is replaced when you save.")) setAnswers(ALUMNI_QUESTIONS.map(() => ""));
+                    onClick={async () => {
+                      if (await askConfirm("Switch to the interview format? You'll answer the six questions instead, and the current story is replaced when you save.")) setAnswers(ALUMNI_QUESTIONS.map(() => ""));
                     }}
                   >
                     Switch to interview format
@@ -347,7 +348,7 @@ export function AlumniProfileEditor({ record }: { record: AlumniProfileRow }) {
               label="Delete profile"
               disabled={saving}
               onDelete={async () => {
-                if (!window.confirm(`Delete ${form.name || "this profile"}? This can't be undone.`)) return;
+                if (!(await askConfirm(`Delete ${form.name || "this profile"}? This can't be undone.`))) return;
                 try {
                   await deleteRecord("alumni_profiles", record.id!);
                   setBaseline(JSON.stringify(form));

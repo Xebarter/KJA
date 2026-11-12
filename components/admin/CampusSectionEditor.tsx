@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -97,10 +98,10 @@ export function CampusSectionEditor({
       event.preventDefault();
       event.returnValue = "";
     };
-    const onClick = (event: MouseEvent) => {
+    const onClick = async (event: MouseEvent) => {
       const link = (event.target as HTMLElement).closest("a[href]") as HTMLAnchorElement | null;
       if (!link || link.target === "_blank") return;
-      if (!window.confirm("You have unsaved changes. Leave without saving?")) {
+      if (!(await askConfirm("You have unsaved changes. Leave without saving?"))) {
         event.preventDefault();
         event.stopPropagation();
       }
@@ -319,7 +320,7 @@ export function CampusSectionEditor({
                 className="app-danger-btn"
                 disabled={saving}
                 onClick={async () => {
-                  if (!window.confirm(`Delete “${form.title || "this section"}”? This can't be undone.`)) return;
+                  if (!(await askConfirm(`Delete “${form.title || "this section"}”? This can't be undone.`))) return;
                   try {
                     await deleteRecord("campus_sections", record.id!);
                     setBaseline(JSON.stringify(form));

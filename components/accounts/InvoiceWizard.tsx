@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -217,15 +218,15 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
 
           <Feedback result={result} />
           <div className="acc-wizard-foot">
-            <button type="button" className="admin-btn admin-btn-ghost" onClick={() => { setStep(0); setResult(null); }}>
+            <button type="button" className="admin-btn admin-btn-ghost" onClick={async () => { setStep(0); setResult(null); }}>
               <i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back
             </button>
             <button
               type="button"
               className="admin-btn"
               disabled={pending || !totals.toBill}
-              onClick={() => {
-                if (!window.confirm(`Create ${totals.toBill} ${status === "draft" ? "draft " : ""}invoices for ${chosen?.label} totalling ${ugx(totals.net)}?`)) return;
+              onClick={async () => {
+                if (!(await askConfirm(`Create ${totals.toBill} ${status === "draft" ? "draft " : ""}invoices for ${chosen?.label} totalling ${ugx(totals.net)}?`))) return;
                 runRpc(false);
               }}
             >

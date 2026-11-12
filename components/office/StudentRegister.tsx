@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -283,10 +284,10 @@ export function StudentTable({ rows, exportHref }: { rows: RegisterRow[]; export
     : kind === "campus" ? [...CAMPUS_OPTIONS.map((campus) => ({ value: campus, label: campus })), { value: "", label: "No campus" }]
     : STUDENT_STATUSES.map((status) => ({ value: status.value, label: status.label }));
 
-  const apply = () => {
+  const apply = async () => {
     const chosen = value || (kind === "class_code" || kind === "status" ? options[0].value : "");
     const label = options.find((option) => option.value === chosen)?.label ?? chosen;
-    if (!window.confirm(`${BULK_LABELS[kind]}: ${label || "none"} for ${selected.size} student${selected.size === 1 ? "" : "s"}?`)) return;
+    if (!(await askConfirm(`${BULK_LABELS[kind]}: ${label || "none"} for ${selected.size} student${selected.size === 1 ? "" : "s"}?`))) return;
     const change: BulkChange = { [kind]: chosen };
     run(() => bulkUpdateStudents([...selected], change), () => setSelected(new Set()));
   };

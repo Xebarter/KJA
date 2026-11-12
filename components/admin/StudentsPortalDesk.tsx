@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { DateField } from "@/components/ui/DateField";
 
@@ -258,8 +259,8 @@ export function StudentsPortalDesk({ students }: { students: PortalStudentRow[] 
                           type="button"
                           className="admin-btn admin-btn-ghost"
                           disabled={pending}
-                          onClick={() => {
-                            if (!confirm(`Revoke the portal login for ${row.full_name}?`)) return;
+                          onClick={async () => {
+                            if (!(await askConfirm(`Revoke the portal login for ${row.full_name}?`))) return;
                             setBusyId(row.id);
                             run(() => revokeAdminStudentLogin(row.id), undefined, "Revoking login");
                           }}

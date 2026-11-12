@@ -174,9 +174,11 @@ export async function loadMarksheetExportPayload(input: {
   const term = termPack.term;
   const nursery = classSection(input.query.classCode) === "nursery";
   const campus = input.campusFilter ? operationalCampus(input.campusFilter) : null;
-  const assessmentsCombined = isAssessmentsCombinedQuery(input.query);
-  const sittings: CombinedSitting[] = assessmentsCombined ? input.query.sittings : [];
-  const sittingOrder = assessmentsCombined
+  const combinedQuery = isAssessmentsCombinedQuery(input.query) ? input.query : null;
+  const singleQuery = isAssessmentsCombinedQuery(input.query) ? null : input.query;
+  const assessmentsCombined = combinedQuery !== null;
+  const sittings: CombinedSitting[] = combinedQuery ? combinedQuery.sittings : [];
+  const sittingOrder = combinedQuery
     ? new Map(sittings.map((sitting, index) => [sittingKey(sitting), index]))
     : null;
 
@@ -185,12 +187,12 @@ export async function loadMarksheetExportPayload(input: {
     .select("id, subject_id, stream, campus, name, kind, max_score, weight, held_on, subjects(name, sort_order, kind)")
     .eq("term_id", term.id)
     .eq("class_code", input.query.classCode);
-  if (assessmentsCombined) {
+  if (combinedQuery) {
     papersRequest = papersRequest.eq("stream", input.query.stream);
-  } else {
-    papersRequest = papersRequest.eq("name", input.query.name).eq("kind", input.query.kind);
-    if (!input.query.combine) papersRequest = papersRequest.eq("stream", input.query.stream);
-    papersRequest = input.query.held ? papersRequest.eq("held_on", input.query.held) : papersRequest.is("held_on", null);
+  } else if (singleQuery) {
+    papersRequest = papersRequest.eq("name", singleQuery.name).eq("kind", singleQuery.kind);
+    if (!singleQuery.combine) papersRequest = papersRequest.eq("stream", singleQuery.stream);
+    papersRequest = singleQuery.held ? papersRequest.eq("held_on", singleQuery.held) : papersRequest.is("held_on", null);
   }
 
   const [papersQuery, roll, bandsQuery] = await Promise.all([
@@ -237,8 +239,7 @@ export async function loadMarksheetExportPayload(input: {
     return true;
   });
   const combined =
-    !assessmentsCombined &&
-    input.query.combine &&
+    Boolean(singleQuery?.combine) &&
     new Set(classRoll.map((pupil) => streamOf(pupil.stream))).size > 1;
   const sitting = assessmentsCombined
     ? loaded
@@ -404,22 +405,22 @@ export async function loadMarksheetExportPayload(input: {
     return percents.length ? Math.round((percents.reduce((sum, value) => sum + value, 0) / percents.length) * 10) / 10 : null;
   });
 
-  const combinedNames = assessmentsCombined ? sittings.map((sitting) => sitting.name).join(" · ") : "";
-  const sheetLabel = assessmentsCombined
+  const combinedNames = combinedQuery ? sittings.map((sitting) => sitting.name).join(" · ") : "";
+  const sheetLabel = combinedQuery
     ? classLabel(input.query.classCode, input.query.stream)
     : combined
       ? `${classLabel(input.query.classCode)} all streams`
       : classLabel(input.query.classCode, input.query.stream);
-  const classLabelText = assessmentsCombined
+  const classLabelText = combinedQuery
     ? classLabel(input.query.classCode, input.query.stream)
     : combined
       ? classLabel(input.query.classCode)
       : classLabel(input.query.classCode, input.query.stream);
-  const exportName = assessmentsCombined ? combinedNames || "Combined" : input.query.name;
-  const exportKindLabel = assessmentsCombined ? "Combined" : kindLabel(input.query.kind);
-  const exportHeldLabel = assessmentsCombined
+  const exportName = combinedQuery ? combinedNames || "Combined" : singleQuery?.name || "Assessment";
+  const exportKindLabel = combinedQuery ? "Combined" : kindLabel(singleQuery?.kind || "");
+  const exportHeldLabel = combinedQuery
     ? `${sittings.length} assessments`
-    : shortDay(sitting[0]?.heldOn || (!assessmentsCombined ? input.query.held : null) || null);
+    : shortDay(sitting[0]?.heldOn || singleQuery?.held || null);
   const sortLabel = marksheetSortLabel(sort, sortSubject?.name || "");
   const logo = await readMarksheetLogo();
 
@@ -457,7 +458,7 @@ export async function loadMarksheetExportPayload(input: {
     filenameBase: marksheetExportFilename({
       classLabel: sheetLabel,
       name: exportName,
-      held: assessmentsCombined ? "combined" : input.query.held,
+      held: combinedQuery ? "combined" : singleQuery?.held || "",
       sort,
       subjectName: sortSubject?.name || "",
       format: "xlsx",

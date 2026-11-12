@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import { useState } from "react";
 import { DeskForm } from "@/components/academics/Form";
@@ -181,8 +182,8 @@ export function DeleteSchemeButton({ schemeId, title }: { schemeId: string; titl
       <button
         className="sch-ghost-btn is-danger"
         type="submit"
-        onClick={(event) => {
-          if (!window.confirm(`Delete “${title}”? This cannot be undone.`)) event.preventDefault();
+        onClick={async (event) => {
+          if (!(await askConfirm(`Delete “${title}”? This cannot be undone.`))) event.preventDefault();
         }}
       >
         <i className="fa-solid fa-trash" aria-hidden="true" /> Delete scheme

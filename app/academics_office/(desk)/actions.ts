@@ -2997,7 +2997,10 @@ export async function saveSkillRatings(formData: FormData): Promise<Result> {
     .maybeSingle();
   if (paperError) return { error: dsbaSchemaHint(paperError.message) };
   if (!paper) return { error: "This developmental assessment could not be found." };
-  if (markbookClosed(paper.status)) return { error: "This assessment is locked. Reopen it before changing codes." };
+  // Submitted stays editable; only office-approved sittings are frozen.
+  if (String(paper.status || "") === "approved") {
+    return { error: "This assessment is locked. Reopen it before changing codes." };
+  }
 
   if (!opened.auth.office) {
     const allowed = await teachesClass(opened.auth, {

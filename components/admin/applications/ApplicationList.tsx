@@ -1,4 +1,5 @@
 "use client";
+import { askConfirm } from "@/components/AppConfirm";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -90,8 +91,8 @@ export function ApplicationList({ items, context, exportHref }: { items: Applica
 
   const chosen = items.filter((item) => selected.has(item.id));
   const emails = [...new Set(chosen.map((item) => item.email).filter(Boolean))];
-  const bulk = (task: () => Promise<ActionResult>, confirmText?: string) => {
-    if (confirmText && !window.confirm(confirmText)) return;
+  const bulk = async (task: () => Promise<ActionResult>, confirmText?: string) => {
+    if (confirmText && !(await askConfirm(confirmText))) return;
     startBulk(async () => {
       const result = await task();
       actions.announce(result);
