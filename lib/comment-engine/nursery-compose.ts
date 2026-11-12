@@ -92,13 +92,19 @@ function renderNurseryTemplate(template: CommentTemplate, placeholders: Record<s
   return cleaned || null;
 }
 
-/** Prefer trait-aware compose stems over thin desk list templates when social/music signals exist. */
+/** Prefer trait-aware compose stems over thin desk list templates when social/music/family signals exist. */
 function preferComposeStems(role: string, profile: NurseryDevProfile): boolean {
   const { traits } = profile;
   if (role === "nursery_overview" && traits.socialWarmth) return true;
   if (
     role === "nursery_strengths" &&
-    (traits.enjoysRhymes || traits.socialWarmth || traits.likesTeachers || traits.talksEasily || traits.likesBooks)
+    (traits.enjoysRhymes ||
+      traits.socialWarmth ||
+      traits.likesTeachers ||
+      traits.talksEasily ||
+      traits.likesBooks ||
+      traits.namesParents ||
+      traits.knowsPhone)
   ) {
     return true;
   }
@@ -251,18 +257,43 @@ function strengthsStems(
     traitLines.push(`${first} talks easily with teachers and friends.`);
   }
 
+  // Living-skills identity (e.g. Names parents / Gives parents phone contact)
+  if (traits.namesParents && traits.knowsPhone) {
+    if (She && her) {
+      traitLines.push(`${She} confidently names ${her} parents and can share the family phone contact.`);
+      traitLines.push(`${She} knows ${her} parents well and can give the family phone number.`);
+    } else {
+      traitLines.push(`${first} confidently names parents and can share the family phone contact.`);
+      traitLines.push(`${first} knows parents well and can give the family phone number.`);
+    }
+  } else if (traits.namesParents) {
+    if (She && her) {
+      traitLines.push(`${She} confidently names ${her} parents.`);
+      traitLines.push(`${She} knows ${her} parents' names clearly.`);
+    } else {
+      traitLines.push(`${first} confidently names parents.`);
+      traitLines.push(`${first} knows parents' names clearly.`);
+    }
+  } else if (traits.knowsPhone) {
+    if (She && her) {
+      traitLines.push(`${She} can share the family phone contact when asked.`);
+    } else {
+      traitLines.push(`${first} can share the family phone contact when asked.`);
+    }
+  }
+
   if (traitLines.length) return traitLines;
 
   if (outstanding) {
     return [
-      `${first} shows lovely confidence with ${outstanding}.`,
+      `${first} is doing especially well at ${outstanding}.`,
       `A real highlight for ${first} has been ${outstanding}.`,
       she && her
         ? `${She} shows particular strength in ${outstanding}.`
         : `${first} has shown outstanding features in ${outstanding}.`,
       strongDomains
         ? `${first} shines in ${strongDomains}, especially through ${outstanding}.`
-        : `We are particularly proud of ${first}'s work with ${outstanding}.`,
+        : `We are particularly proud of ${first}'s progress with ${outstanding}.`,
     ];
   }
   if (strongDomains) {

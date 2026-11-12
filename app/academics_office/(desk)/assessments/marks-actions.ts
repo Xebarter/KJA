@@ -353,7 +353,12 @@ async function importNurseryDsba(
       ? `Submitted nursery skill values for ${sample.name} from a workbook (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`
       : `Uploaded nursery skill values for ${sample.name} (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`,
   });
-  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  refreshAcademics(
+    `${ACADEMICS_BASE}/assessments`,
+    `${ACADEMICS_BASE}/assessments/marksheet`,
+    `/teacher/marksheet`,
+    `/teacher/assessments`,
+  );
   return { ok: extra ? `${lead} ${extra}` : lead };
 }
 

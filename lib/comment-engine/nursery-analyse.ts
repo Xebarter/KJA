@@ -43,6 +43,10 @@ export type NurseryTraits = {
   enjoysRhymes: boolean;
   talksEasily: boolean;
   likesBooks: boolean;
+  /** Functional/living: names mother/father. */
+  namesParents: boolean;
+  /** Functional/living: can give a parent/family phone contact. */
+  knowsPhone: boolean;
 };
 
 export type NurseryDevProfile = {
@@ -102,6 +106,19 @@ const PARENT_PHRASE_BY_KEY: Record<string, string> = {
   "is helpful in class i.e. puts away toys": "helping tidy up",
   "is able to stay on a task": "staying on a task",
   "is able to work independently": "working independently",
+  // Functional / living skills — keep as gerunds so stems read naturally
+  "recites full name": "saying a full name",
+  "tells his/her gender": "saying boy or girl",
+  "tells his/her likes & dislikes": "talking about likes and dislikes",
+  "tells his/her likes and dislikes": "talking about likes and dislikes",
+  "knows area of residence": "talking about home",
+  "asks and answers questions": "asking and answering questions",
+  "names parents": "naming parents",
+  "gives parents phone contact": "sharing the family phone number",
+  "gives parents' phone contact": "sharing the family phone number",
+  "knows parents phone contact": "sharing the family phone number",
+  "knows parents' phone contact": "sharing the family phone number",
+  "gives parents phone number": "sharing the family phone number",
 };
 
 const DOMAIN_PHRASE: Record<string, string> = {
@@ -141,8 +158,59 @@ export function nurseryTierForCode(raw: string | null | undefined): NurseryTier 
   return "growing";
 }
 
+/** Turn a leading finite verb into a gerund so list phrases fit stems. */
+function toGerundPhrase(raw: string): string {
+  const words = raw.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!words.length) return raw;
+  const verb = words[0];
+  const rest = words.slice(1).join(" ");
+  const irregular: Record<string, string> = {
+    is: "being",
+    has: "having",
+    does: "doing",
+    goes: "going",
+    names: "naming",
+    gives: "giving",
+    tells: "telling",
+    knows: "knowing",
+    asks: "asking",
+    answers: "answering",
+    recites: "reciting",
+    writes: "writing",
+    holds: "holding",
+    follows: "following",
+    counts: "counting",
+    hops: "hopping",
+    shares: "sharing",
+    plays: "playing",
+    likes: "liking",
+    listens: "listening",
+    meets: "meeting",
+    feels: "feeling",
+    paints: "painting",
+    colours: "colouring",
+    colors: "coloring",
+    balances: "balancing",
+    claps: "clapping",
+    enters: "entering",
+  };
+  let gerund = irregular[verb];
+  if (!gerund && /ies$/.test(verb) && verb.length > 3) {
+    gerund = `${verb.slice(0, -3)}ying`;
+  } else if (!gerund && /[^aeiou][aeiou][^aeiou]$/.test(verb) && !/([aeiou])\1/.test(verb.slice(-2))) {
+    // hop → hopping; skip for longer verbs like "color"
+    if (verb.length <= 4) gerund = `${verb}${verb.slice(-1)}ing`;
+  } else if (!gerund && /e$/.test(verb) && verb.length > 2) {
+    gerund = `${verb.slice(0, -1)}ing`;
+  } else if (!gerund && /s$/.test(verb) && !/ss$/.test(verb) && verb.length > 2) {
+    gerund = `${verb.slice(0, -1)}ing`;
+  }
+  if (!gerund) return raw.trim().toLowerCase();
+  return rest ? `${gerund} ${rest}` : gerund;
+}
+
 /** Short parent-facing skill label from a catalogue description. */
-export function shortNurserySkillLabel(description: string, maxWords = 5): string {
+export function shortNurserySkillLabel(description: string, maxWords = 6): string {
   const mapped = parentPhraseForSkill(description);
   if (mapped && mapped !== description.trim().toLowerCase()) return mapped;
   const cleaned = description
@@ -154,9 +222,10 @@ export function shortNurserySkillLabel(description: string, maxWords = 5): strin
     .replace(/\s+/g, " ")
     .trim();
   if (!cleaned) return "this skill";
-  const words = cleaned.split(" ");
-  if (words.length <= maxWords) return cleaned.toLowerCase();
-  return `${words.slice(0, maxWords).join(" ").toLowerCase()}`;
+  const gerund = toGerundPhrase(cleaned);
+  const words = gerund.split(" ");
+  if (words.length <= maxWords) return gerund;
+  return `${words.slice(0, maxWords).join(" ")}`;
 }
 
 /** Curated parent phrase when known; otherwise null (caller may fall back). */
@@ -168,6 +237,10 @@ export function parentPhraseForSkill(description: string): string | null {
   if (/gets along/.test(key) && /children|friend|classmate/.test(key)) return "playing with classmates";
   if (/likes\s+teachers/.test(key)) return "getting on with teachers";
   if (/likes\s+singing/.test(key)) return "singing";
+  if (/names?\s+parents?/.test(key)) return "naming parents";
+  if (/phone/.test(key) && /parent|family|home/.test(key)) return "sharing the family phone number";
+  if (/recites?\s+(full\s+)?name/.test(key)) return "saying a full name";
+  if (/area of residence|where\s+.+\s+lives|home address/.test(key)) return "talking about home";
   return null;
 }
 
@@ -188,6 +261,8 @@ function emptyTraits(): NurseryTraits {
     enjoysRhymes: false,
     talksEasily: false,
     likesBooks: false,
+    namesParents: false,
+    knowsPhone: false,
   };
 }
 
@@ -209,6 +284,12 @@ function traitsFromSkills(skills: NurseryNamedSkill[]): NurseryTraits {
     }
     if (skillMatches(desc, /picture books/, /pretend to read/)) {
       traits.likesBooks = true;
+    }
+    if (skillMatches(desc, /names?\s+parents?/)) {
+      traits.namesParents = true;
+    }
+    if (skillMatches(desc, /phone/) && skillMatches(desc, /parent|family|home|contact|number/)) {
+      traits.knowsPhone = true;
     }
   }
   return traits;

@@ -2961,7 +2961,7 @@ export async function saveProgressCode(formData: FormData): Promise<Result> {
   if (formData.get("intent") === "delete" && id) {
     const { error } = await opened.auth.supabase.from("progress_codes").delete().eq("id", id);
     if (error) return { error: dsbaSchemaHint(error.message) };
-    refreshAcademics(`${ACADEMICS_BASE}/settings`);
+    refreshAcademics(`${ACADEMICS_BASE}/settings`, `${ACADEMICS_BASE}/assessments/marksheet`, `/teacher/marksheet`);
     return { ok: "Progress code removed." };
   }
   const code = text(formData, "code", 8);
@@ -2981,7 +2981,7 @@ export async function saveProgressCode(formData: FormData): Promise<Result> {
         : dsbaSchemaHint(error.message),
     };
   }
-  refreshAcademics(`${ACADEMICS_BASE}/settings`);
+  refreshAcademics(`${ACADEMICS_BASE}/settings`, `${ACADEMICS_BASE}/assessments/marksheet`, `/teacher/marksheet`);
   return { ok: id ? "Progress code updated." : "Progress code added." };
 }
 

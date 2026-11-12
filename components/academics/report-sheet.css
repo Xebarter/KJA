@@ -1559,7 +1559,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     height: 297mm;
     max-width: 100%;
     margin: 0 auto;
-    padding: 3.5mm 0 0;
+    padding: 3mm 0 0;
     /* Visible so shell print cannot crop the progress-codes block; PDF HTML still fits A4. */
     overflow: visible;
     break-inside: avoid;
@@ -1571,7 +1571,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   }
   article.acd-sheet.is-nursery-dsba .acd-sheet-page + .acd-sheet-page {
     margin-top: 0;
-    padding-top: 3.5mm;
+    padding-top: 3mm;
     border-top: 0;
   }
   article.acd-sheet.is-nursery-dsba .acd-sheet-edge {
@@ -1635,12 +1635,27 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     padding: .35rem .45rem .4rem;
     gap: .35rem;
   }
-  article.acd-sheet.is-nursery-dsba .acd-nur-record { padding-left: 0; padding-right: 0; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-record {
+    padding-left: 0;
+    padding-right: 0;
+    padding-top: .35rem;
+    padding-bottom: .12rem;
+  }
   article.acd-sheet.is-nursery-dsba .acd-nur-domains {
     grid-template-columns: 1fr 1fr;
-    gap: .4rem .5rem;
+    gap: .34rem .42rem;
   }
-  article.acd-sheet.is-nursery-dsba .acd-nur-domain-col { gap: .4rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-col { gap: .34rem; }
+  /* Slightly thinner domain headers so Progress codes stay on page 1. */
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-head {
+    grid-template-columns: 2.35rem minmax(0, 1fr);
+    gap: .38rem;
+    padding: .3rem .42rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-art {
+    width: 2.35rem;
+    height: 2.35rem;
+  }
   article.acd-sheet.is-nursery-dsba .acd-nur-legend {
     flex-shrink: 0;
     margin-top: .12rem;
@@ -1671,6 +1686,26 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     grid-template-columns: 5.2rem minmax(0, 1fr) 5.2rem;
     padding-left: 1.2rem;
     padding-right: 1.2rem;
+  }
+  /* Nursery only: barely shorter masthead so Progress codes fit on page 1. */
+  article.acd-sheet.is-nursery-dsba .acd-sheet-banner {
+    grid-template-columns: 4.85rem minmax(0, 1fr) 4.85rem;
+    padding: .95rem 1.2rem .88rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-crest {
+    width: 4.85rem;
+    height: 4.85rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-portrait {
+    width: 4.15rem;
+    height: 5.2rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-rules {
+    height: 6px;
+    background:
+      linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 42%, var(--sheet-red)) 0 0 / 100% 3px no-repeat,
+      linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 42%, var(--sheet-red-deep)) 0 4px / 100% 1.5px no-repeat,
+      var(--sheet-cream);
   }
   article.acd-sheet .acd-sheet-edge {
     height: 100%;

@@ -37,10 +37,10 @@ export function nurseryClassTeacherTemplates(configId = "nursery-defaults"): Com
     { id: "nov-incomplete-1", role: "nursery_overview", group: "nursery_incomplete", sort: 60, text: "We are still gathering a full picture of {first_name}'s nursery progress this term." },
 
     // Strengths — parent phrases via outstanding_skills; social/music often composed in code
-    { id: "nst-mastery-1", role: "nursery_strengths", group: "nursery_mastery", sort: 110, text: "{first_name} shows lovely confidence with {outstanding_skills}." },
+    { id: "nst-mastery-1", role: "nursery_strengths", group: "nursery_mastery", sort: 110, text: "{first_name} is doing especially well at {outstanding_skills}." },
     { id: "nst-mastery-2", role: "nursery_strengths", group: "nursery_mastery", sort: 111, text: "A real highlight for {first_name} has been {outstanding_skills}." },
     { id: "nst-solid-1", role: "nursery_strengths", group: "nursery_solid", sort: 120, text: "A real highlight for {first_name} has been {outstanding_skills}." },
-    { id: "nst-solid-2", role: "nursery_strengths", group: "nursery_solid", sort: 121, text: "{first_name} shows lovely confidence with {outstanding_skills}." },
+    { id: "nst-solid-2", role: "nursery_strengths", group: "nursery_solid", sort: 121, text: "{first_name} is doing especially well at {outstanding_skills}." },
     { id: "nst-growing-1", role: "nursery_strengths", group: "nursery_growing", sort: 125, text: "{first_name} is becoming more confident when trying new things." },
     { id: "nst-mixed-1", role: "nursery_strengths", group: "nursery_mixed", sort: 130, text: "{first_name} shines in {strong_domains}, especially through {outstanding_skills}." },
     { id: "nst-mixed-2", role: "nursery_strengths", group: "nursery_mixed", sort: 131, text: "{first_name} shows particular strength in {outstanding_skills}." },

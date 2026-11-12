@@ -60,10 +60,10 @@ begin
     ('class_teacher', 'nursery_overview', 'nursery_support', '{first_name} is learning bravely this term and benefits from extra practice with a caring adult.', 51),
     ('class_teacher', 'nursery_overview', 'nursery_incomplete', 'We are still gathering a full picture of {first_name}''s nursery progress this term.', 60),
 
-    ('class_teacher', 'nursery_strengths', 'nursery_mastery', '{first_name} shows lovely confidence with {outstanding_skills}.', 110),
+    ('class_teacher', 'nursery_strengths', 'nursery_mastery', '{first_name} is doing especially well at {outstanding_skills}.', 110),
     ('class_teacher', 'nursery_strengths', 'nursery_mastery', 'A real highlight for {first_name} has been {outstanding_skills}.', 111),
     ('class_teacher', 'nursery_strengths', 'nursery_solid', 'A real highlight for {first_name} has been {outstanding_skills}.', 120),
-    ('class_teacher', 'nursery_strengths', 'nursery_solid', '{first_name} shows lovely confidence with {outstanding_skills}.', 121),
+    ('class_teacher', 'nursery_strengths', 'nursery_solid', '{first_name} is doing especially well at {outstanding_skills}.', 121),
     ('class_teacher', 'nursery_strengths', 'nursery_growing', '{first_name} is becoming more confident when trying new things.', 125),
     ('class_teacher', 'nursery_strengths', 'nursery_mixed', '{first_name} shines in {strong_domains}, especially through {outstanding_skills}.', 130),
     ('class_teacher', 'nursery_strengths', 'nursery_mixed', '{first_name} shows particular strength in {outstanding_skills}.', 131),

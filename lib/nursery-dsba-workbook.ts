@@ -666,9 +666,11 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
           type: "list",
           allowBlank: true,
           formulae: [listRef],
+          // Warning (not stop) so codes added in Grading after download can still be typed/pasted.
+          errorStyle: "warning",
           showErrorMessage: true,
           errorTitle: "Progress code",
-          error: "Choose a progress code from the list, CLEAR, or leave blank.",
+          error: "Prefer a code from the list. New Grading codes are accepted on upload if they exist in the live catalogue.",
           showInputMessage: true,
           promptTitle: skill.domainName,
           prompt: `${skill.description}\n\nPick a code, CLEAR, or leave blank.`,
@@ -963,14 +965,12 @@ export async function parseNurseryDsbaWorkbook(bytes: Uint8Array): Promise<Parse
   }
 
   while (row < 20000 && plain(keys!.getCell(row, 1).value) !== "CODES" && plain(keys!.getCell(row, 1).value) !== "PUPILS") row += 1;
-  const codeByToken = new Map<string, string>();
+  // Skip embedded CODES snapshot (kept for older workbooks / tooling). Live catalogue validates at commit.
   if (plain(keys!.getCell(row, 1).value) === "CODES") {
     row += 2;
     while (row < 20000) {
       const code = plain(keys!.getCell(row, 1).value);
       if (!code || code === "PUPILS") break;
-      const codeId = plain(keys!.getCell(row, 2).value);
-      if (UUID.test(codeId)) codeByToken.set(code.toLowerCase(), codeId);
       row += 1;
     }
   }
@@ -1084,18 +1084,16 @@ export async function parseNurseryDsbaWorkbook(bytes: Uint8Array): Promise<Parse
           });
           continue;
         }
-        if (!codeByToken.has(raw.toLowerCase()) && !codeByToken.has(upper.toLowerCase())) {
-          // Accept exact code match case-insensitively even if keys were trimmed oddly
-          const matched = [...codeByToken.keys()].find((token) => token === raw.toLowerCase());
-          if (!matched) {
-            add({
-              sheet: paper.label,
-              cell: `${columnLetter(skill.column)}${pupilRow}`,
-              pupil: pupilName,
-              message: `Choose a progress code from the list, CLEAR, or leave blank.`,
-            });
-            continue;
-          }
+        // Accept any short progress token here. Commit validates against the live nursery
+        // catalogue so codes added in Grading after download still import.
+        if (!/^[A-Za-z0-9+/±\-]{1,8}$/.test(raw.trim())) {
+          add({
+            sheet: paper.label,
+            cell: `${columnLetter(skill.column)}${pupilRow}`,
+            pupil: pupilName,
+            message: `Choose a progress code from the list, CLEAR, or leave blank.`,
+          });
+          continue;
         }
         entries.push({
           sheet: paper.sheet,

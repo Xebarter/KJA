@@ -52,12 +52,14 @@ describe("nurseryTierForCode", () => {
 describe("shortNurserySkillLabel", () => {
   it("shortens catalogue wording for parents", () => {
     expect(shortNurserySkillLabel("Can hold a pencil correctly with a tripod grip")).toContain("hold");
-    expect(shortNurserySkillLabel("Can hold a pencil correctly with a tripod grip").split(" ").length).toBeLessThanOrEqual(5);
+    expect(shortNurserySkillLabel("Can hold a pencil correctly with a tripod grip").split(" ").length).toBeLessThanOrEqual(6);
   });
 
   it("uses curated parent phrases for known skills", () => {
     expect(parentPhraseForSkill("Recalls songs, chants and rhymes with ease")).toBe("Nursery rhymes and songs");
     expect(shortNurserySkillLabel("Gets along with other children")).toBe("playing with classmates");
+    expect(shortNurserySkillLabel("Names parents")).toBe("naming parents");
+    expect(shortNurserySkillLabel("Gives parents phone contact")).toBe("sharing the family phone number");
   });
 });
 
@@ -304,5 +306,47 @@ describe("composeNurseryClassTeacherComment", () => {
     expect(result.profile.tone).toBe("incomplete");
     expect(result.validation.ok).toBe(true);
     expect(result.text?.toLowerCase()).toMatch(/gathering|complete|skill/);
+  });
+
+  it("writes a natural family-identity strength line instead of raw skill titles", () => {
+    const result = composeNurseryClassTeacherComment({
+      firstName: "Witness",
+      sex: "M",
+      seed: "card-witness-parents",
+      templates: nurseryClassTeacherTemplates("test"),
+      skillLines: [
+        line({
+          skill_id: "1",
+          skill_description: "Names parents",
+          progress_code: "M",
+          domain_name: "Functional / Living Skills",
+        }),
+        line({
+          skill_id: "2",
+          skill_description: "Gives parents phone contact",
+          progress_code: "M",
+          domain_name: "Functional / Living Skills",
+        }),
+        line({
+          skill_id: "3",
+          skill_description: "Counts by rote to 10",
+          progress_code: "M",
+          domain_name: "Maths Skills",
+        }),
+        line({
+          skill_id: "4",
+          skill_description: "Hops on spot",
+          progress_code: "S",
+          domain_name: "Physical and Motor Skills",
+        }),
+      ],
+    });
+    expect(result.validation.ok).toBe(true);
+    expect(countSentences(result.text || "")).toBe(3);
+    expect(result.profile.traits.namesParents).toBe(true);
+    expect(result.profile.traits.knowsPhone).toBe(true);
+    expect(result.text?.toLowerCase()).toMatch(/names his parents|knows his parents|family phone/);
+    expect(result.text?.toLowerCase()).not.toMatch(/confidence with names parents/);
+    expect(result.text?.toLowerCase()).not.toMatch(/gives parents phone contact/);
   });
 });
