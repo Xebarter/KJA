@@ -1,4 +1,5 @@
 import { classLabel } from "@/lib/academics";
+import { buildNurseryDevProfile } from "./nursery-analyse";
 import { generateCommentsForReport } from "./generate";
 import type { CommentConfig, GeneratedUnit, ReportInput } from "./types";
 import { validateConfiguration } from "./config";
@@ -45,6 +46,37 @@ export const SAMPLE_REPORT: ReportInput = {
     },
     { slot: 3, activityName: null, level: null },
     { slot: 4, activityName: null, level: null },
+  ],
+};
+
+/** Nursery sample with mixed progress codes for the Comments desk Nursery mode. */
+export const SAMPLE_NURSERY_REPORT: ReportInput = {
+  reportId: "preview-nursery",
+  studentId: "preview-nursery",
+  firstName: "Amina",
+  sex: "F",
+  classCode: "Baby",
+  stream: "A",
+  termId: "preview",
+  nursery: true,
+  subjects: [],
+  activities: [
+    { slot: 1, activityName: null, level: null },
+    { slot: 2, activityName: null, level: null },
+    { slot: 3, activityName: null, level: null },
+    { slot: 4, activityName: null, level: null },
+  ],
+  skillLines: [
+    { skill_id: "1", domain_id: "d1", domain_name: "Language Skills", skill_description: "Listens to short stories and answers questions", progress_code: "M", progress_label: "Strong mastery", domain_sort: 1, skill_sort: 1 },
+    { skill_id: "2", domain_id: "d1", domain_name: "Language Skills", skill_description: "Likes to look at picture books", progress_code: "S", progress_label: "Satisfactory Progress", domain_sort: 1, skill_sort: 2 },
+    { skill_id: "3", domain_id: "d2", domain_name: "Maths Skills", skill_description: "Counts by rote to 10", progress_code: "M", progress_label: "Strong mastery", domain_sort: 2, skill_sort: 1 },
+    { skill_id: "4", domain_id: "d2", domain_name: "Maths Skills", skill_description: "Recognizes numbers up to 5", progress_code: "D", progress_label: "Developing", domain_sort: 2, skill_sort: 2 },
+    { skill_id: "5", domain_id: "d3", domain_name: "Personal & Social Development", skill_description: "Gets along with other children", progress_code: "M", progress_label: "Strong mastery", domain_sort: 3, skill_sort: 1 },
+    { skill_id: "6", domain_id: "d3", domain_name: "Personal & Social Development", skill_description: "Likes teachers", progress_code: "M", progress_label: "Strong mastery", domain_sort: 3, skill_sort: 2 },
+    { skill_id: "7", domain_id: "d3", domain_name: "Personal & Social Development", skill_description: "Shares with others", progress_code: "NP", progress_label: "Needs more practice", domain_sort: 3, skill_sort: 3 },
+    { skill_id: "8", domain_id: "d4", domain_name: "Physical and Motor Skills", skill_description: "Hops on spot", progress_code: "P", progress_label: "Progressing", domain_sort: 4, skill_sort: 1 },
+    { skill_id: "9", domain_id: "d5", domain_name: "Music", skill_description: "Recalls songs, chants and rhymes with ease", progress_code: "M", progress_label: "Strong mastery", domain_sort: 5, skill_sort: 1 },
+    { skill_id: "10", domain_id: "d5", domain_name: "Music", skill_description: "Likes singing", progress_code: "S", progress_label: "Satisfactory Progress", domain_sort: 5, skill_sort: 2 },
   ],
 };
 
@@ -131,6 +163,43 @@ export function buildSamplePreview(config: CommentConfig): CommentPreview {
     warnings: validateConfiguration(config).length,
     sections,
   };
+}
+
+/** Nursery Comments-desk preview from progress-code skill lines. */
+export function buildNurserySamplePreview(config: CommentConfig): CommentPreview {
+  const result = generateCommentsForReport(SAMPLE_NURSERY_REPORT, config);
+  const klass = result.units.find((unit) => unit.commentType === "class_teacher");
+  const profile = buildNurseryDevProfile(SAMPLE_NURSERY_REPORT.skillLines || []);
+  const marks = (SAMPLE_NURSERY_REPORT.skillLines || [])
+    .filter((row) => row.progress_code && row.progress_code !== "NA" && row.progress_code !== "NT")
+    .map((row) => `${row.progress_code}:${row.skill_description.replace(/^Can\s+/i, "").slice(0, 28)}`)
+    .slice(0, 6)
+    .join(" · ");
+
+  return {
+    learner: SAMPLE_NURSERY_REPORT.firstName,
+    klass: classLabel(SAMPLE_NURSERY_REPORT.classCode, SAMPLE_NURSERY_REPORT.stream),
+    academic: phraseTone(profile.tone),
+    cocurricular: `${profile.ratedSkills} skills coded`,
+    marks: marks || "No progress codes on the sample",
+    warnings: profile.tone === "incomplete" ? 1 : 0,
+    sections: [
+      {
+        id: "class_teacher",
+        title: "Class teacher",
+        lines: [klass ? lineFrom(klass, null) : { label: null, text: "No nursery comment produced.", tone: "bad" }],
+      },
+    ],
+  };
+}
+
+function phraseTone(tone: string) {
+  if (tone === "mastery") return "Strong mastery";
+  if (tone === "solid") return "Solid progress";
+  if (tone === "growing") return "Growing";
+  if (tone === "support") return "Needs support";
+  if (tone === "incomplete") return "Incomplete";
+  return "Mixed progress";
 }
 
 export function previewPlainText(sample: CommentPreview) {

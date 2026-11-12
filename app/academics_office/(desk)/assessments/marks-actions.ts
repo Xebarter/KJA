@@ -9,7 +9,9 @@ import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-w
 import {
   loadDivisionCatalogue,
   nurseryDivision,
+  parseSkillNumericValue,
   type ProgressCodeRow,
+  type SkillValueKind,
 } from "@/lib/nursery-dsba";
 import {
   detectNurseryDsbaWorkbook,
@@ -125,6 +127,7 @@ async function importNurseryDsba(
   const sample = papers[0];
 
   const progressCodes: ProgressCodeRow[] = [];
+  const skillKindById = new Map<string, SkillValueKind>();
   const seenScales = new Set<string>();
   for (const paper of papers) {
     const divisionId = nurseryDivision(paper.class_code);
@@ -135,6 +138,10 @@ async function importNurseryDsba(
     const codes = "progressCodes" in catalogue ? catalogue.progressCodes ?? [] : [];
     for (const code of codes) {
       if (!progressCodes.some((row) => row.id === code.id)) progressCodes.push(code);
+    }
+    const skills = "skills" in catalogue ? catalogue.skills ?? [] : [];
+    for (const skill of skills) {
+      skillKindById.set(skill.id, skill.value_kind === "number" ? "number" : "progress_code");
     }
   }
 
@@ -175,6 +182,7 @@ async function importNurseryDsba(
     student_id: string;
     skill_id: string;
     progress_code_id: string | null;
+    numeric_value: number | null;
     note: string | null;
   }[] = [];
   const seen = new Set<string>();
@@ -188,7 +196,7 @@ async function importNurseryDsba(
     }
     const label = classLabel(paper.class_code, paper.stream);
     if (markbookClosed(paper.status)) {
-      const warning = `${label} is locked, so those skill codes were left unchanged.`;
+      const warning = `${label} is locked, so those skill values were left unchanged.`;
       if (!warned.has(warning)) {
         warned.add(warning);
         warnings.push(warning);
@@ -197,7 +205,7 @@ async function importNurseryDsba(
     }
     const key = `${paper.id}|${entry.studentId}|${entry.skillId}`;
     if (seen.has(key)) {
-      problem(where, `${entry.pupil || "This pupil"} has two codes for the same skill.`);
+      problem(where, `${entry.pupil || "This pupil"} has two values for the same skill.`);
       continue;
     }
     const pupil = byPupil.get(entry.studentId);
@@ -206,7 +214,41 @@ async function importNurseryDsba(
       continue;
     }
     if ((pupil.class_code || "") !== paper.class_code || streamOf(pupil.stream) !== streamOf(paper.stream)) {
-      problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)}, so this code was not taken.`);
+      problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)}, so this value was not taken.`);
+      continue;
+    }
+    const valueKind = skillKindById.get(entry.skillId) || "progress_code";
+    const upper = entry.raw.trim().toUpperCase();
+    const clearing = upper === "CLEAR" || upper === "REMOVE";
+    seen.add(key);
+    const bucket = tally.get(entry.sheet);
+    if (clearing) {
+      rows.push({
+        assessment_id: paper.id,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: null,
+        numeric_value: null,
+        note: null,
+      });
+      if (bucket) bucket.cleared += 1;
+      continue;
+    }
+    if (valueKind === "number") {
+      const numeric = parseSkillNumericValue(entry.raw);
+      if (numeric === null) {
+        problem(where, "Enter a whole number (for example 50), CLEAR, or leave blank.");
+        continue;
+      }
+      rows.push({
+        assessment_id: paper.id,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: null,
+        numeric_value: numeric,
+        note: null,
+      });
+      if (bucket) bucket.scores += 1;
       continue;
     }
     const decision = resolveNurseryProgressCode(entry.raw, progressCodes);
@@ -214,14 +256,13 @@ async function importNurseryDsba(
       problem(where, decision.message);
       continue;
     }
-    seen.add(key);
-    const bucket = tally.get(entry.sheet);
     if (decision.kind === "clear") {
       rows.push({
         assessment_id: paper.id,
         student_id: entry.studentId,
         skill_id: entry.skillId,
         progress_code_id: null,
+        numeric_value: null,
         note: null,
       });
       if (bucket) bucket.cleared += 1;
@@ -231,6 +272,7 @@ async function importNurseryDsba(
         student_id: entry.studentId,
         skill_id: entry.skillId,
         progress_code_id: decision.codeId,
+        numeric_value: null,
         note: null,
       });
       if (bucket) bucket.scores += 1;
@@ -252,7 +294,7 @@ async function importNurseryDsba(
   if (!rows.length) {
     return {
       preview,
-      error: warnings[0] || "The workbook has no skill codes to save. Enter a progress code or CLEAR, then upload it again.",
+      error: warnings[0] || "The workbook has no skill values to save. Enter a progress code or number, or CLEAR, then upload it again.",
     };
   }
 
@@ -265,14 +307,16 @@ async function importNurseryDsba(
     if (error) {
       return {
         error: saved
-          ? "Some skill codes were saved, then the upload stopped. Check the assessments and upload the file again."
+          ? "Some skill values were saved, then the upload stopped. Check the assessments and upload the file again."
           : error.message,
       };
     }
     saved += slice.length;
   }
 
-  const submitIds = [...new Set(rows.filter((row) => row.progress_code_id).map((row) => row.assessment_id))];
+  const filled = (row: { progress_code_id: string | null; numeric_value: number | null }) =>
+    Boolean(row.progress_code_id || (row.numeric_value !== null && row.numeric_value !== undefined));
+  const submitIds = [...new Set(rows.filter(filled).map((row) => row.assessment_id))];
   for (let index = 0; index < submitIds.length; index += 80) {
     const slice = submitIds.slice(index, index + 80);
     const { error } = await auth.supabase
@@ -282,18 +326,18 @@ async function importNurseryDsba(
       .eq("status", "open");
     if (error) {
       return {
-        error: "The skill codes were saved, but they could not be submitted. Open the developmental markbook and approve when ready.",
+        error: "The skill values were saved, but they could not be submitted. Open the developmental markbook and approve when ready.",
       };
     }
   }
 
-  const coded = rows.filter((row) => row.progress_code_id).length;
-  const cleared = rows.filter((row) => !row.progress_code_id).length;
+  const coded = rows.filter(filled).length;
+  const cleared = rows.filter((row) => !filled(row)).length;
   const lead = coded
-    ? `Submitted ${nf(coded)} ${coded === 1 ? "skill code" : "skill codes"} for ${sample.name}.`
+    ? `Submitted ${nf(coded)} ${coded === 1 ? "skill value" : "skill values"} for ${sample.name}.`
     : `Updated ${sample.name}.`;
   const extra = [
-    cleared ? `${nf(cleared)} ${cleared === 1 ? "saved code was" : "saved codes were"} cleared.` : "",
+    cleared ? `${nf(cleared)} ${cleared === 1 ? "saved value was" : "saved values were"} cleared.` : "",
     submitIds.length
       ? auth.office
         ? "They are submitted on the class marksheet."
@@ -306,8 +350,8 @@ async function importNurseryDsba(
   await logAcademics(auth.supabase, auth.user.id, {
     kind: "marks",
     body: submitIds.length
-      ? `Submitted nursery skill codes for ${sample.name} from a workbook (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`
-      : `Uploaded nursery skill codes for ${sample.name} (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`,
+      ? `Submitted nursery skill values for ${sample.name} from a workbook (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`
+      : `Uploaded nursery skill values for ${sample.name} (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`,
   });
   refreshAcademics(`${ACADEMICS_BASE}/assessments`);
   return { ok: extra ? `${lead} ${extra}` : lead };

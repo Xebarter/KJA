@@ -67,12 +67,20 @@ export type DevelopmentalDomainRow = {
   divisions: NurseryDivisionId[];
 };
 
+export const SKILL_VALUE_KINDS = ["progress_code", "number"] as const;
+export type SkillValueKind = (typeof SKILL_VALUE_KINDS)[number];
+
+export function isSkillValueKind(value: string | null | undefined): value is SkillValueKind {
+  return SKILL_VALUE_KINDS.includes(value as SkillValueKind);
+}
+
 export type DevelopmentalSkillRow = {
   id: string;
   domain_id: string;
   description: string;
   sort_order: number;
   active: boolean;
+  value_kind: SkillValueKind;
   divisions: NurseryDivisionId[];
 };
 
@@ -94,6 +102,7 @@ export type SkillRatingRow = {
   student_id: string;
   skill_id: string;
   progress_code_id: string | null;
+  numeric_value: number | null;
   note: string | null;
 };
 
@@ -159,14 +168,26 @@ export function mapSkill(
   row: Record<string, unknown>,
   divisions: NurseryDivisionId[] = [],
 ): DevelopmentalSkillRow {
+  const kind = String(row.value_kind || "progress_code");
   return {
     id: String(row.id),
     domain_id: String(row.domain_id),
     description: String(row.description || ""),
     sort_order: Number(row.sort_order) || 0,
     active: row.active !== false,
+    value_kind: isSkillValueKind(kind) ? kind : "progress_code",
     divisions,
   };
+}
+
+/** Parse a posted marksheet/workbook cell for a number skill (positive whole number). */
+export function parseSkillNumericValue(raw: string | null | undefined): number | null {
+  const text = String(raw ?? "").trim();
+  if (!text) return null;
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  if (!Number.isInteger(value) || value < 0) return null;
+  return value;
 }
 
 export function mapDevelopmentalAssessment(row: Record<string, unknown>): DevelopmentalAssessmentRow {
@@ -261,7 +282,7 @@ export function groupSkillsByDomain(
 export function missingNurseryDsbaSchema(message: string | null | undefined) {
   return Boolean(
     message &&
-      /developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|progress_codes|nursery_divisions|domain_division_links|skill_division_links|progress_legend|0077_nursery_dsba|0078_unify_nursery_progress_scale|0081_developmental_assessments_campus|operational_campus/i.test(
+      /developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|progress_codes|nursery_divisions|domain_division_links|skill_division_links|progress_legend|value_kind|numeric_value|0077_nursery_dsba|0078_unify_nursery_progress_scale|0081_developmental_assessments_campus|0082_nursery_skill_value_kind|operational_campus/i.test(
         message,
       ),
   );

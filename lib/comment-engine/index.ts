@@ -22,6 +22,15 @@ export { loadActiveCommentConfig, validateConfiguration } from "./config";
 export { defaultCommentConfig } from "./defaults";
 export { parseSkillLabels, mergeActivitySkills, skillsFromJson, joinSkillNames } from "./skills";
 export {
+  buildNurseryDevProfile,
+  nurseryTierForCode,
+  parentPhraseForSkill,
+  shortNurserySkillLabel,
+} from "./nursery-analyse";
+export { composeNurseryClassTeacherComment, generateNurseryClassTeacherUnit } from "./nursery-compose";
+export { nurseryClassTeacherTemplates, NURSERY_COMMENT_RULES } from "./nursery-defaults";
+export { nurseryGenderSlots } from "./nursery-gender";
+export {
   loadReportInput,
   applyGeneration,
   generateAndSaveReportComments,

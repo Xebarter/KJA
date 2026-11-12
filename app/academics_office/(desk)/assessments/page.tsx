@@ -79,7 +79,7 @@ export default async function AssessmentsPage() {
             .from("skill_ratings")
             .select("assessment_id, id.count(), developmental_assessments!inner(term_id)")
             .eq("developmental_assessments.term_id", term.id)
-            .not("progress_code_id", "is", null),
+            .or("progress_code_id.not.is.null,numeric_value.not.is.null"),
           "assessment_id",
           "count",
         ).then((map) => map ?? new Map<string, number>())

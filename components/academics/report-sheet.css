@@ -1088,7 +1088,9 @@ article.acd-sheet.is-nursery-dsba {
   --nur-teal: #2f9e8f;
   --nur-apricot: #e89b5c;
   --nur-indigo: #5b7fc7;
-  max-width: 860px;
+  /* Lock to A4 width so the on-page preview matches the PDF. */
+  width: min(100%, 210mm);
+  max-width: 210mm;
   padding: 10px 6px 6px;
   background:
     radial-gradient(circle at 12% 8%, rgba(58, 167, 201, .12), transparent 42%),
@@ -1114,52 +1116,107 @@ article.acd-sheet.is-nursery-dsba .acd-sheet-banner {
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-identity {
   display: grid;
-  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
-  gap: .75rem 1rem;
-  align-items: end;
-  margin: 0 1.1rem;
-  padding: .55rem 0 .45rem;
+  grid-template-columns: minmax(0, .9fr) minmax(0, 1.4fr);
+  gap: .35rem .85rem;
+  align-items: center;
+  /* Same body inset as print/PDF. */
+  margin: 0 8mm;
+  padding: .28rem 0 .28rem;
   border-bottom: 2px solid rgba(58, 167, 201, .28);
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-identity .acd-sheet-kicker {
+  color: var(--sheet-green-deep);
+  font-family: Roboto, "Segoe UI", sans-serif;
+  font-size: .68rem;
+  letter-spacing: .16em;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-identity .acd-sheet-pupil {
+  min-width: 0;
+  max-width: 100%;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-identity .acd-sheet-pupil h3 {
+  /* Font size is set inline to fit long names on one line (screen + PDF). */
+  margin: .12rem 0 0;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  font-family: Cinzel, Georgia, "Times New Roman", serif !important;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: .045em;
+  line-height: 1.15;
+  text-transform: uppercase;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-identity .acd-sheet-pupil h3 a {
+  display: inline;
+  white-space: nowrap;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-identity .acd-sheet-place {
+  font-family: Roboto, "Segoe UI", sans-serif;
+  font-size: .72rem;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-meta {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .35rem .7rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .3rem .4rem;
   margin: 0;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-meta > div {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: .2rem .35rem;
   min-width: 0;
-  padding: .35rem .55rem;
-  border-radius: .7rem;
+  padding: .22rem .4rem;
+  border-radius: .55rem;
   background: rgba(255, 255, 255, .78);
   border: 1px solid rgba(58, 167, 201, .22);
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-meta dt {
   margin: 0;
+  flex: none;
+  font-family: Roboto, "Segoe UI", sans-serif;
   font-size: .62rem;
-  letter-spacing: .08em;
+  letter-spacing: .06em;
   text-transform: uppercase;
   color: var(--sheet-muted);
 }
+article.acd-sheet.is-nursery-dsba .acd-nur-meta dt::after {
+  content: ":";
+}
 article.acd-sheet.is-nursery-dsba .acd-nur-meta dd {
-  margin: .1rem 0 0;
+  margin: 0;
+  min-width: 0;
+  font-family: Roboto, "Segoe UI", sans-serif !important;
   font-weight: 700;
   font-size: .92rem;
+  line-height: 1.15;
   color: var(--sheet-ink);
+  overflow-wrap: anywhere;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-record {
   position: relative;
   z-index: 1;
-  padding: .45rem 1rem .2rem;
+  padding: .45rem 8mm .2rem;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-domains {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .55rem .65rem;
+  align-items: start;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-domain-col {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  min-width: 0;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain {
   --domain-accent: var(--nur-sky);
   --domain-soft: #e8f6fb;
+  position: relative;
+  isolation: isolate;
   break-inside: avoid;
   page-break-inside: avoid;
   border: 1.5px solid color-mix(in srgb, var(--domain-accent) 42%, #fff);
@@ -1168,6 +1225,22 @@ article.acd-sheet.is-nursery-dsba .acd-nur-domain {
     linear-gradient(165deg, color-mix(in srgb, var(--domain-soft) 88%, #fff) 0%, #fff 70%);
   overflow: hidden;
   box-shadow: 0 6px 14px rgba(21, 32, 40, .04);
+}
+/* Decorative copy of the header art; <img> so print/PDF inlining can rewrite src. */
+article.acd-sheet.is-nursery-dsba .acd-nur-domain-bg {
+  position: absolute;
+  inset: 8% 5% 4%;
+  z-index: 0;
+  width: auto;
+  height: auto;
+  max-width: 90%;
+  max-height: 86%;
+  margin: auto;
+  object-fit: contain;
+  pointer-events: none;
+  opacity: .34;
+  mix-blend-mode: multiply;
+  user-select: none;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain.is-tone-0 { --domain-accent: var(--nur-coral); --domain-soft: #ffe8e1; }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain.is-tone-1 { --domain-accent: var(--nur-sky); --domain-soft: #e5f5fb; }
@@ -1178,6 +1251,8 @@ article.acd-sheet.is-nursery-dsba .acd-nur-domain.is-tone-5 { --domain-accent: v
 article.acd-sheet.is-nursery-dsba .acd-nur-domain.is-tone-6 { --domain-accent: var(--nur-apricot); --domain-soft: #ffeeda; }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain.is-tone-7 { --domain-accent: var(--nur-indigo); --domain-soft: #e9eefc; }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain-head {
+  position: relative;
+  z-index: 1;
   display: grid;
   grid-template-columns: 2.6rem minmax(0, 1fr);
   gap: .45rem;
@@ -1201,12 +1276,14 @@ article.acd-sheet.is-nursery-dsba .acd-nur-domain-art.is-fallback {
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain-head h3 {
   margin: 0;
-  font-size: .78rem;
+  font-size: .92rem;
   line-height: 1.2;
   letter-spacing: .01em;
   color: color-mix(in srgb, var(--domain-accent) 55%, #152028);
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-skills {
+  position: relative;
+  z-index: 1;
   list-style: none;
   margin: 0;
   padding: .2rem .35rem .35rem;
@@ -1218,29 +1295,29 @@ article.acd-sheet.is-nursery-dsba .acd-nur-skills li {
   align-items: start;
   padding: .18rem .2rem;
   border-bottom: 1px dotted rgba(21, 32, 40, .12);
-  font-size: .68rem;
-  line-height: 1.25;
+  font-size: .82rem;
+  line-height: 1.28;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-skills li:last-child { border-bottom: 0; }
 article.acd-sheet.is-nursery-dsba .acd-nur-skill-copy { min-width: 0; }
 article.acd-sheet.is-nursery-dsba .acd-nur-skill-code {
   display: inline-grid;
   place-items: center;
-  min-width: 1.55rem;
-  padding: .08rem .28rem;
+  min-width: 1.7rem;
+  padding: .1rem .3rem;
   border-radius: .45rem;
   background: color-mix(in srgb, var(--domain-accent) 16%, #fff);
   border: 1px solid color-mix(in srgb, var(--domain-accent) 35%, #fff);
   color: color-mix(in srgb, var(--domain-accent) 45%, #152028);
   font-weight: 800;
-  font-size: .66rem;
+  font-size: .78rem;
   letter-spacing: .02em;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-legend {
   position: relative;
   z-index: 1;
-  margin: .35rem 1rem .85rem;
-  padding: .45rem .55rem .55rem;
+  margin: .25rem 8mm .85rem;
+  padding: .3rem .4rem .35rem;
   border-radius: .85rem;
   border: 1.5px solid rgba(232, 163, 23, .45);
   background: linear-gradient(180deg, #fff8e4, #fff);
@@ -1250,37 +1327,43 @@ article.acd-sheet.is-nursery-dsba .acd-nur-legend .acd-sheet-kicker {
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: .45rem .7rem;
+  /* Match the PDF/print packing so the on-page sheet looks the same. */
+  grid-template-columns: repeat(auto-fit, minmax(6.5rem, 1fr));
+  gap: .2rem .45rem;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
-  font-size: .68rem;
+  font-size: .7rem;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-table th,
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-table td {
-  padding: .18rem .3rem;
+  padding: .13rem .22rem;
   border-bottom: 1px solid rgba(232, 163, 23, .28);
   text-align: left;
   vertical-align: top;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-table thead th {
-  font-size: .6rem;
-  letter-spacing: .06em;
+  font-size: .66rem;
+  letter-spacing: .04em;
   text-transform: uppercase;
   color: var(--sheet-muted);
   background: rgba(255, 243, 196, .55);
 }
+article.acd-sheet.is-nursery-dsba .acd-nur-legend-table thead th:first-child,
 article.acd-sheet.is-nursery-dsba .acd-nur-legend-table tbody th {
-  width: 2.4rem;
+  width: 3.2rem;
+  white-space: nowrap;
+}
+article.acd-sheet.is-nursery-dsba .acd-nur-legend-table tbody th {
   font-weight: 800;
   color: #9a6a08;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-continued {
   position: relative;
   z-index: 1;
-  margin: .35rem 1rem .15rem;
+  margin: .35rem 8mm .15rem;
   font-size: .72rem;
   font-weight: 700;
   letter-spacing: .04em;
@@ -1290,7 +1373,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-continued {
 article.acd-sheet.is-nursery-dsba .acd-nur-comment {
   position: relative;
   z-index: 1;
-  margin: .45rem 1rem .35rem;
+  margin: .45rem 8mm .35rem;
   padding: .55rem .65rem .6rem;
   border-radius: .85rem;
   border: 1.5px solid rgba(76, 175, 122, .35);
@@ -1329,7 +1412,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-signs {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: .7rem;
-  margin: .35rem 1rem;
+  margin: .35rem 8mm;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-signs > div {
   padding: .45rem .55rem .5rem;
@@ -1360,7 +1443,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-closing {
   z-index: 1;
   display: grid;
   gap: .55rem;
-  margin: .4rem 1rem .9rem;
+  margin: .4rem 8mm .9rem;
   padding: .55rem .6rem .65rem;
   border-radius: .85rem;
   border: 1.5px solid rgba(240, 120, 90, .35);
@@ -1372,7 +1455,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-dates {
   gap: .55rem;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-dates h3,
-article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr h3 {
+article.acd-sheet.is-nursery-dsba .acd-nur-fees h3 {
   margin: 0 0 .2rem;
   font-size: .68rem;
   letter-spacing: .05em;
@@ -1384,13 +1467,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-dates .acd-sheet-next {
   font-size: .86rem;
   font-weight: 700;
 }
-article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: .65rem;
-  align-items: end;
-}
-article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
+article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   margin: 0;
   border: 0;
   background: transparent;
@@ -1399,12 +1476,20 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
 @media (max-width: 760px) {
   article.acd-sheet.is-nursery-dsba .acd-nur-identity,
   article.acd-sheet.is-nursery-dsba .acd-nur-domains,
-  article.acd-sheet.is-nursery-dsba .acd-nur-legend-grid,
   article.acd-sheet.is-nursery-dsba .acd-nur-signs,
-  article.acd-sheet.is-nursery-dsba .acd-nur-dates,
-  article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr,
-  article.acd-sheet.is-nursery-dsba .acd-nur-meta {
+  article.acd-sheet.is-nursery-dsba .acd-nur-dates {
     grid-template-columns: 1fr;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-meta {
+    grid-template-columns: 1fr 1fr;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-col {
+    gap: .45rem;
+  }
+}
+@media print {
+  article.acd-sheet.is-nursery-dsba .acd-nur-meta {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
 
@@ -1412,7 +1497,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
 @media print {
   html, body {
     width: 100% !important;
-    overflow: hidden !important;
+    overflow: visible !important;
   }
   html, body, .admin-shell, .account-shell, .admin-main, .account-main, .app-page, .ov {
     height: auto !important;
@@ -1420,6 +1505,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
     margin: 0 !important;
     padding: 0 !important;
     background: #fff !important;
+    overflow: visible !important;
   }
   .admin-side, .admin-topbar, .admin-nav-scrim, .account-side, .account-topbar, .acd-noprint { display: none !important; }
   /* Collapse the office grid so an empty sidebar track cannot shove the sheet right. */
@@ -1429,13 +1515,20 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
     max-width: none !important;
     grid-template-columns: none !important;
     grid-template-rows: none !important;
+    overflow: visible !important;
   }
-  .admin-main, .account-main { margin: 0 !important; padding: 0 !important; width: 100% !important; }
-  .rpt-print-pack, .rpt-print-sheets, .rpt-preview, .rpt-detail {
+  .admin-main, .account-main {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+  .rpt-print-pack, .rpt-print-sheets, .rpt-preview, .rpt-detail, .rpt-detail-layout, .rpt-page {
     width: 100% !important;
     max-width: none !important;
     margin: 0 !important;
     padding: 0 !important;
+    overflow: visible !important;
   }
   article.acd-sheet {
     box-sizing: border-box;
@@ -1467,7 +1560,8 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
     max-width: 100%;
     margin: 0 auto;
     padding: 3.5mm 0 0;
-    overflow: hidden;
+    /* Visible so shell print cannot crop the progress-codes block; PDF HTML still fits A4. */
+    overflow: visible;
     break-inside: avoid;
     page-break-inside: avoid;
   }
@@ -1482,6 +1576,14 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
   }
   article.acd-sheet.is-nursery-dsba .acd-sheet-edge {
     height: 100%;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: visible;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-sheet-edge {
+    justify-content: flex-start;
+    gap: 0;
   }
   article.acd-sheet.is-nursery-dsba .acd-nur-identity,
   article.acd-sheet.is-nursery-dsba .acd-nur-record,
@@ -1493,10 +1595,69 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees-qr .acd-sheet-fees {
     margin-left: 8mm;
     margin-right: 8mm;
   }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-continued {
+    margin-top: .2rem;
+    margin-bottom: .1rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-record {
+    padding-top: .15rem;
+    padding-bottom: .1rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-domains {
+    gap: .3rem .45rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-domain-col {
+    gap: .3rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-comment {
+    margin-top: .25rem;
+    margin-bottom: .2rem;
+    padding: .35rem .5rem .4rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-comment p {
+    min-height: 2.2rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-signs {
+    margin-top: .2rem;
+    margin-bottom: .2rem;
+    gap: .45rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-signs > div {
+    padding: .3rem .45rem .35rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-sign-line {
+    margin: .55rem 0 .15rem;
+    min-height: .85rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-closing {
+    margin-top: .2rem;
+    margin-bottom: .35rem;
+    padding: .35rem .45rem .4rem;
+    gap: .35rem;
+  }
   article.acd-sheet.is-nursery-dsba .acd-nur-record { padding-left: 0; padding-right: 0; }
-  article.acd-sheet.is-nursery-dsba .acd-nur-domains { gap: .4rem .5rem; }
-  article.acd-sheet.is-nursery-dsba .acd-nur-skills li { font-size: .62rem; padding: .12rem .15rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domains {
+    grid-template-columns: 1fr 1fr;
+    gap: .4rem .5rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-col { gap: .4rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-legend {
+    flex-shrink: 0;
+    margin-top: .12rem;
+    margin-bottom: .28rem;
+    padding: .2rem .32rem .22rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-legend-table {
+    font-size: .68rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-legend-table thead th {
+    font-size: .64rem;
+  }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-head h3 { font-size: .88rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-skills li { font-size: .78rem; padding: .14rem .18rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-skill-code { font-size: .74rem; }
   article.acd-sheet.is-nursery-dsba .acd-nur-domain,
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-bg,
   article.acd-sheet.is-nursery-dsba .acd-nur-legend,
   article.acd-sheet.is-nursery-dsba .acd-nur-comment,
   article.acd-sheet.is-nursery-dsba .acd-nur-signs > div,

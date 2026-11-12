@@ -50,7 +50,7 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
     loadRoll(supabase, user.id, [paper.class_code], office ? (campusFilter ? [campusFilter] : campuses) : undefined).then((rows) =>
       rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
     ),
-    supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id").eq("assessment_id", id),
+    supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id, numeric_value").eq("assessment_id", id),
     loadDivisionCatalogue(supabase, divisionId),
     supabase.from("fee_terms").select("label").eq("id", paper.term_id).maybeSingle(),
   ]);
@@ -89,6 +89,9 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
   const ratings: Record<string, string> = {};
   for (const row of ratingsQuery.data || []) {
     if (row.progress_code_id) ratings[`${row.student_id}|${row.skill_id}`] = String(row.progress_code_id);
+    else if (row.numeric_value !== null && row.numeric_value !== undefined) {
+      ratings[`${row.student_id}|${row.skill_id}`] = String(row.numeric_value);
+    }
   }
 
   const phase = paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open";
@@ -107,6 +110,7 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
           id: skill.id,
           description: skill.description,
           sort: skill.sort_order,
+          value_kind: skill.value_kind,
         })),
       }))}
       progressCodes={catalogue.progressCodes}

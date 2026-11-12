@@ -194,6 +194,7 @@ async function prepareNurseryDsbaWorkbookResponse(
         domainSort: group.domain.sort_order,
         description: skill.description,
         sort: skill.sort_order,
+        value_kind: skill.value_kind,
       })),
     );
     if (!skills.length) {
@@ -227,17 +228,32 @@ async function prepareNurseryDsbaWorkbookResponse(
       student_id: string;
       skill_id: string;
       progress_code_id: string | null;
+      numeric_value: number | null;
     }>((from, to) =>
       auth.supabase
         .from("skill_ratings")
-        .select("assessment_id, student_id, skill_id, progress_code_id")
+        .select("assessment_id, student_id, skill_id, progress_code_id, numeric_value")
         .in("assessment_id", slice)
-        .not("progress_code_id", "is", null)
+        .or("progress_code_id.not.is.null,numeric_value.not.is.null")
         .order("assessment_id")
         .range(from, to),
-    ).catch(() => [] as { assessment_id: string; student_id: string; skill_id: string; progress_code_id: string | null }[]);
+    ).catch(
+      () =>
+        [] as {
+          assessment_id: string;
+          student_id: string;
+          skill_id: string;
+          progress_code_id: string | null;
+          numeric_value: number | null;
+        }[],
+    );
     for (const row of ratingRows) {
-      const code = row.progress_code_id ? codeById.get(row.progress_code_id) || null : null;
+      const code = row.progress_code_id
+        ? codeById.get(row.progress_code_id) || null
+        : row.numeric_value !== null && row.numeric_value !== undefined
+          ? String(row.numeric_value)
+          : null;
+      if (!code) continue;
       ratings.push({
         assessmentId: row.assessment_id,
         studentId: row.student_id,

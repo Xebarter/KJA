@@ -379,7 +379,7 @@ class _MarkbookPageState extends State<MarkbookPage> {
             icon: Icons.spa_rounded,
             title: 'Developmental skills',
             message:
-                'Nursery classes now use Developmental Skills-Based Assessment. Enter progress codes for each skill on the teacher desk website.',
+                'Nursery classes now use Developmental Skills-Based Assessment. Enter progress codes or numbers for each skill on the teacher desk website.',
           ),
         ),
       );

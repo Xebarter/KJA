@@ -297,10 +297,10 @@ async function prepareNurseryDsbaReports(
   const relevantCards = ((cards.data || []) as ExistingCard[]).filter((card) => rosterIds.has(card.student_id));
 
   const [ratingRows, attendanceRows] = await Promise.all([
-    fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null }>((from, to) =>
+    fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
       supabase
         .from("skill_ratings")
-        .select("student_id, skill_id, progress_code_id")
+        .select("student_id, skill_id, progress_code_id, numeric_value")
         .eq("assessment_id", chosenId)
         .order("student_id")
         .range(from, to),
@@ -318,7 +318,13 @@ async function prepareNurseryDsbaReports(
 
   const codeById = new Map(catalogue.progressCodes.map((code) => [code.id, code]));
   const ratingMap = new Map(
-    ratingRows.map((row) => [`${row.student_id}|${row.skill_id}`, row.progress_code_id ? String(row.progress_code_id) : null]),
+    ratingRows.map((row) => [
+      `${row.student_id}|${row.skill_id}`,
+      {
+        progress_code_id: row.progress_code_id ? String(row.progress_code_id) : null,
+        numeric_value: row.numeric_value !== null && row.numeric_value !== undefined ? Number(row.numeric_value) : null,
+      },
+    ]),
   );
   const opened = new Set(attendanceRows.map((row) => row.attended_on));
   const presentByPupil = new Map<string, number>();
@@ -372,16 +378,20 @@ async function prepareNurseryDsbaReports(
     const id = cardId.get(pupil.id);
     if (!id) throw new Error("A report card could not be saved.");
     for (const entry of skillList) {
-      const codeId = ratingMap.get(`${pupil.id}|${entry.skill.id}`) || null;
-      const code = codeId ? codeById.get(codeId) : null;
+      const rating = ratingMap.get(`${pupil.id}|${entry.skill.id}`) || null;
+      const code = rating?.progress_code_id ? codeById.get(rating.progress_code_id) : null;
+      const numeric =
+        rating?.numeric_value !== null && rating?.numeric_value !== undefined && Number.isFinite(rating.numeric_value)
+          ? String(rating.numeric_value)
+          : null;
       skillLines.push({
         report_card_id: id,
         skill_id: entry.skill.id,
         domain_id: entry.domain.id,
         domain_name: entry.domain.name,
         skill_description: entry.skill.description,
-        progress_code: code?.code ?? null,
-        progress_label: code?.label ?? null,
+        progress_code: numeric ?? code?.code ?? null,
+        progress_label: numeric ? null : code?.label ?? null,
         domain_sort: entry.domain.sort_order,
         skill_sort: entry.skill.sort_order,
       });

@@ -65,6 +65,45 @@ export const COMMENT_TABS: {
   },
 ];
 
+/** Nursery Comments desk: class-teacher bank from progress codes + tone rules. */
+export const NURSERY_COMMENT_TABS: {
+  id: "class_teacher" | "rules";
+  label: string;
+  icon: string;
+  hint: string;
+  tokens?: string[];
+}[] = [
+  {
+    id: "class_teacher",
+    label: "Class teacher",
+    icon: "fa-seedling",
+    hint: "Three nursery sentences: overview, outstanding features, then a gentle next step. Built from progress codes (M, S, D, NP, …).",
+    tokens: [
+      "{first_name}",
+      "{girl_boy}",
+      "{she_he}",
+      "{her_his}",
+      "{outstanding_skills}",
+      "{focus_skills}",
+      "{strong_domains}",
+      "{focus_domains}",
+    ],
+  },
+  {
+    id: "rules",
+    label: "Rules",
+    icon: "fa-list-check",
+    hint: "Tone is chosen from the child’s progress-code mix. Outstanding skills prefer M, then S; next steps prefer NP and A.",
+  },
+];
+
+export function isNurseryTemplate(template: Pick<DeskTemplate, "role" | "group">) {
+  return Boolean(
+    (template.role && template.role.startsWith("nursery_")) ||
+      (template.group && template.group.startsWith("nursery_")),
+  );
+}
+
 const PHRASE: Record<string, string> = {
   excellent: "Excellent",
   very_good: "Very good",
@@ -97,6 +136,15 @@ const PHRASE: Record<string, string> = {
   named: "Named subjects",
   balanced: "Balanced",
   other: "Other",
+  nursery_overview: "Nursery opening",
+  nursery_strengths: "Outstanding features",
+  nursery_next_step: "Nursery next step",
+  nursery_mastery: "Strong mastery",
+  nursery_solid: "Solid progress",
+  nursery_growing: "Growing",
+  nursery_mixed: "Mixed picture",
+  nursery_support: "Needs support",
+  nursery_incomplete: "Incomplete codes",
 };
 
 const RULE_TITLE: Record<string, string> = {
@@ -108,7 +156,18 @@ const RULE_TITLE: Record<string, string> = {
 const GROUP_ORDER: Record<string, string[]> = {
   subject_teacher: ["excellent", "very_good", "good", "fair", "needs_improvement", "weak"],
   cocurricular: ["skill_highlight", "skill_progress", "highlight", "strong", "mixed", "skill_gap", "support", "incomplete"],
-  class_teacher: ["academic_overview", "strengths", "balanced_performance", "improvement", "reinforcement", "next_step", "incomplete_data"],
+  class_teacher: [
+    "academic_overview",
+    "strengths",
+    "balanced_performance",
+    "improvement",
+    "reinforcement",
+    "next_step",
+    "incomplete_data",
+    "nursery_overview",
+    "nursery_strengths",
+    "nursery_next_step",
+  ],
   headteacher: ["incomplete_data", "support_both", "academic_strong_cocurricular_weak", "academic_weak_cocurricular_strong", "strong_both", "mixed_performance", "balanced_good", "fallback"],
 };
 

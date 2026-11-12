@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { PrintButton } from "@/components/academics/Form";
+import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
 import { formatScore, ordinal, ReportSheet, type SheetActivity, type SheetCard } from "@/components/academics/ReportSheet";
 import { ReportRemarksEditor } from "@/components/academics/ReportRemarksEditor";
 import { AcademicsGate } from "@/components/academics/ui";
@@ -197,7 +197,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <Link className="admin-hero-btn" href={back}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back to class</Link>
             {previous ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports/${previous.id}`} aria-label={`Previous report, ${previous.name}`} title={previous.name}><i className="fa-solid fa-chevron-left" aria-hidden="true" /> Previous</Link> : null}
             {next ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports/${next.id}`} aria-label={`Next report, ${next.name}`} title={next.name}>Next <i className="fa-solid fa-chevron-right" aria-hidden="true" /></Link> : null}
-            <PrintButton className="admin-hero-btn is-primary" icon label="Print card" />
+            <PrintReportCardButton href={`${ACADEMICS_BASE}/reports/${id}/pdf`} />
           </>
         }
       />

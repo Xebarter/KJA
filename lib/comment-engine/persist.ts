@@ -1,10 +1,19 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { classSection } from "@/lib/academics";
+import { loadReportSkillLines } from "@/lib/academics-reports";
 import { subjectPercent } from "./bands";
 import { loadActiveCommentConfig } from "./config";
 import { generateCommentsForReport } from "./generate";
 import { learnerFirstName } from "./names";
 import { skillsFromJson } from "./skills";
-import type { ActivityInput, ActivityLevel, GenerationResult, ReportInput, SubjectResultInput } from "./types";
+import type {
+  ActivityInput,
+  ActivityLevel,
+  GenerationResult,
+  NurserySkillLineInput,
+  ReportInput,
+  SubjectResultInput,
+} from "./types";
 
 const LEVELS = new Set(["Excellent", "Good", "Fair", "Needs support"]);
 
@@ -17,9 +26,11 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
   if (error) throw new Error(error.message);
   if (!card) throw new Error("This report card could not be found.");
 
-  const [{ data: pupil, error: pupilError }, { data: lines, error: lineError }, { data: activities, error: activityError }] =
+  const nursery = classSection(String(card.class_code)) === "nursery";
+
+  const [{ data: pupil, error: pupilError }, { data: lines, error: lineError }, { data: activities, error: activityError }, skillMap] =
     await Promise.all([
-      supabase.from("students").select("full_name, preferred_name, given_names").eq("id", card.student_id).maybeSingle(),
+      supabase.from("students").select("full_name, preferred_name, given_names, sex").eq("id", card.student_id).maybeSingle(),
       supabase
         .from("report_lines")
         .select("subject_id, subject_name, score, max_score")
@@ -29,9 +40,24 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
         .select("slot, activity_name, level, score, max_score, skills")
         .eq("report_card_id", reportId)
         .order("slot"),
+      nursery ? loadReportSkillLines(supabase, [reportId]) : Promise.resolve(new Map()),
     ]);
   if (pupilError) throw new Error(pupilError.message);
   if (lineError) throw new Error(lineError.message);
+
+  const skillLines: NurserySkillLineInput[] = nursery
+    ? (skillMap.get(reportId) || []).map((row) => ({
+        skill_id: row.skill_id,
+        domain_id: row.domain_id,
+        domain_name: row.domain_name,
+        skill_description: row.skill_description,
+        progress_code: row.progress_code,
+        progress_label: row.progress_label,
+        domain_sort: row.domain_sort,
+        skill_sort: row.skill_sort,
+      }))
+    : [];
+
   if (activityError) {
     // Older DBs without 0026 still work with name + level only.
     if (/score|skills|max_score|42703/i.test(activityError.message)) {
@@ -41,60 +67,68 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
         .eq("report_card_id", reportId)
         .order("slot");
       if (fallback.error) throw new Error(fallback.error.message);
-      return finishReportInput(card, pupil, lines || [], fallback.data || []);
+      return finishReportInput(card, pupil, lines || [], fallback.data || [], { nursery, skillLines });
     }
     throw new Error(activityError.message);
   }
 
-  return finishReportInput(card, pupil, lines || [], activities || []);
+  return finishReportInput(card, pupil, lines || [], activities || [], { nursery, skillLines });
 }
 
 function finishReportInput(
   card: { id: unknown; student_id: unknown; class_code: unknown; stream: unknown; term_id: unknown },
-  pupil: { full_name?: string | null; preferred_name?: string | null; given_names?: string | null } | null,
+  pupil: { full_name?: string | null; preferred_name?: string | null; given_names?: string | null; sex?: string | null } | null,
   lines: { subject_id: unknown; subject_name?: unknown; score?: unknown; max_score?: unknown }[],
   activities: { slot: unknown; activity_name?: unknown; level?: unknown; score?: unknown; max_score?: unknown; skills?: unknown }[],
+  nurseryBits: { nursery: boolean; skillLines: NurserySkillLineInput[] } = { nursery: false, skillLines: [] },
 ): ReportInput {
   const firstName = learnerFirstName(pupil || {});
-  const subjects: SubjectResultInput[] = lines.map((line, index) => {
-    const score = line.score == null ? null : Number(line.score);
-    const maxScore = line.max_score == null ? null : Number(line.max_score);
-    const percent = subjectPercent(score, maxScore);
-    return {
-      subjectId: String(line.subject_id),
-      subjectName: String(line.subject_name || "Subject"),
-      score,
-      maxScore,
-      percent,
-      status: percent == null ? "missing" : "assessed",
-      sortOrder: index,
-    };
-  });
+  const subjects: SubjectResultInput[] = nurseryBits.nursery
+    ? []
+    : lines.map((line, index) => {
+        const score = line.score == null ? null : Number(line.score);
+        const maxScore = line.max_score == null ? null : Number(line.max_score);
+        const percent = subjectPercent(score, maxScore);
+        return {
+          subjectId: String(line.subject_id),
+          subjectName: String(line.subject_name || "Subject"),
+          score,
+          maxScore,
+          percent,
+          status: percent == null ? "missing" : "assessed",
+          sortOrder: index,
+        };
+      });
 
-  const activityRows: ActivityInput[] = [1, 2, 3, 4].map((slot) => {
-    const row = activities.find((item) => Number(item.slot) === slot);
-    const level = row?.level && LEVELS.has(String(row.level)) ? (String(row.level) as ActivityLevel) : null;
-    const score = row && "score" in row && row.score != null ? Number(row.score) : null;
-    const maxScore = row && "max_score" in row && row.max_score != null ? Number(row.max_score) : null;
-    return {
-      slot,
-      activityName: row?.activity_name ? String(row.activity_name) : null,
-      level,
-      score: Number.isFinite(score as number) ? score : null,
-      maxScore: Number.isFinite(maxScore as number) ? maxScore : null,
-      skills: skillsFromJson(row && "skills" in row ? row.skills : []),
-    };
-  });
+  const activityRows: ActivityInput[] = nurseryBits.nursery
+    ? [1, 2, 3, 4].map((slot) => ({ slot, activityName: null, level: null, score: null, maxScore: null, skills: [] }))
+    : [1, 2, 3, 4].map((slot) => {
+        const row = activities.find((item) => Number(item.slot) === slot);
+        const level = row?.level && LEVELS.has(String(row.level)) ? (String(row.level) as ActivityLevel) : null;
+        const score = row && "score" in row && row.score != null ? Number(row.score) : null;
+        const maxScore = row && "max_score" in row && row.max_score != null ? Number(row.max_score) : null;
+        return {
+          slot,
+          activityName: row?.activity_name ? String(row.activity_name) : null,
+          level,
+          score: Number.isFinite(score as number) ? score : null,
+          maxScore: Number.isFinite(maxScore as number) ? maxScore : null,
+          skills: skillsFromJson(row && "skills" in row ? row.skills : []),
+        };
+      });
 
   return {
     reportId: String(card.id),
     studentId: String(card.student_id),
     firstName,
+    sex: pupil?.sex ?? null,
     classCode: String(card.class_code),
     stream: String(card.stream || ""),
     termId: String(card.term_id),
     subjects,
     activities: activityRows,
+    nursery: nurseryBits.nursery,
+    skillLines: nurseryBits.skillLines,
   };
 }
 
@@ -218,7 +252,7 @@ export async function generateClassReportComments(
 ): Promise<{ processed: number; succeeded: number; failed: number; skipped: number; errors: { reportId: string; messages: string[] }[] }> {
   const { data: cards, error } = await supabase
     .from("report_cards")
-    .select("id, student_id, class_code, stream, term_id, class_teacher_comment, head_comment, cocurricular_comment")
+    .select("id, student_id, class_code, stream, campus, term_id, class_teacher_comment, head_comment, cocurricular_comment")
     .eq("term_id", input.termId)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream)
@@ -229,6 +263,7 @@ export async function generateClassReportComments(
     student_id: string;
     class_code: string | null;
     stream: string | null;
+    campus: string | null;
     term_id: string;
     class_teacher_comment: string | null;
     head_comment: string | null;
@@ -241,16 +276,18 @@ export async function generateClassReportComments(
 
   const reportIds = drafts.map((card) => card.id);
   const studentIds = [...new Set(drafts.map((card) => card.student_id))];
-  const [pupils, lines, activities] = await Promise.all([
-    fetchIn<{ id: string; full_name?: string | null; preferred_name?: string | null; given_names?: string | null }>(
+  const nurseryClass = classSection(input.classCode) === "nursery";
+  const [pupils, lines, activities, skillMap] = await Promise.all([
+    fetchIn<{ id: string; full_name?: string | null; preferred_name?: string | null; given_names?: string | null; sex?: string | null }>(
       studentIds,
-      (slice) => supabase.from("students").select("id, full_name, preferred_name, given_names").in("id", slice),
+      (slice) => supabase.from("students").select("id, full_name, preferred_name, given_names, sex").in("id", slice),
     ),
     fetchIn<{ report_card_id: string; subject_id: string; subject_name?: string | null; score?: unknown; max_score?: unknown; teacher_comment?: string | null }>(
       reportIds,
       (slice) => supabase.from("report_lines").select("report_card_id, subject_id, subject_name, score, max_score, teacher_comment").in("report_card_id", slice),
     ),
     loadActivities(supabase, reportIds),
+    nurseryClass ? loadReportSkillLines(supabase, reportIds) : Promise.resolve(new Map()),
   ]);
   const pupilById = new Map(pupils.map((pupil) => [String(pupil.id), pupil]));
   const linesByCard = groupBy(lines, (line) => String(line.report_card_id));
@@ -272,31 +309,44 @@ export async function generateClassReportComments(
   for (const card of drafts) {
     const reportId = String(card.id);
     const cardLines = linesByCard.get(reportId) || [];
-    if (options.onlyBlank && !isBlankCard(card, cardLines)) {
+    if (options.onlyBlank && !isBlankCard(card, cardLines, nurseryClass)) {
       skipped += 1;
       continue;
     }
+    const skillLines: NurserySkillLineInput[] = nurseryClass
+      ? (skillMap.get(reportId) || []).map((row) => ({
+          skill_id: row.skill_id,
+          domain_id: row.domain_id,
+          domain_name: row.domain_name,
+          skill_description: row.skill_description,
+          progress_code: row.progress_code,
+          progress_label: row.progress_label,
+          domain_sort: row.domain_sort,
+          skill_sort: row.skill_sort,
+        }))
+      : [];
     const reportInput = finishReportInput(
       card,
       pupilById.get(String(card.student_id)) || null,
       cardLines,
       activitiesByCard.get(reportId) || [],
+      { nursery: nurseryClass, skillLines },
     );
     const result = generateCommentsForReport(reportInput, config);
     const messages: string[] = [];
     const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
     const headUnit = result.units.find((unit) => unit.commentType === "headteacher");
     const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
-    if (cocoUnit && !cocoUnit.text && (cocoUnit.status === "needs_review" || cocoUnit.status === "failed")) {
+    if (!nurseryClass && cocoUnit && !cocoUnit.text && (cocoUnit.status === "needs_review" || cocoUnit.status === "failed")) {
       messages.push(...(cocoUnit.validation.errors.length ? cocoUnit.validation.errors : [cocoUnit.explanation]));
     }
     writtenIds.push(reportId);
+    // Update by id — do not upsert on (student_id, term_id); campus is NOT NULL and must not be dropped.
     cardWrites.push({
-      student_id: card.student_id,
-      term_id: card.term_id,
+      id: reportId,
       class_teacher_comment: classUnit?.text || card.class_teacher_comment,
-      head_comment: headUnit?.text || card.head_comment,
-      cocurricular_comment: cocoUnit?.text || card.cocurricular_comment,
+      head_comment: nurseryClass ? card.head_comment : headUnit?.text || card.head_comment,
+      cocurricular_comment: nurseryClass ? card.cocurricular_comment : cocoUnit?.text || card.cocurricular_comment,
       updated_at: now,
     });
     const knownLines = new Map(cardLines.map((line) => [String(line.subject_id), line]));
@@ -342,7 +392,13 @@ export async function generateClassReportComments(
 
   await Promise.all([
     cardWrites.length
-      ? writeRows(cardWrites, (slice) => supabase.from("report_cards").upsert(slice, { onConflict: "student_id,term_id" }))
+      ? mapPool(cardWrites, 8, async (row) => {
+          const id = String(row.id || "");
+          if (!id) return;
+          const { id: _id, ...patch } = row;
+          const { error: cardWriteError } = await supabase.from("report_cards").update(patch).eq("id", id).eq("status", "draft");
+          if (cardWriteError) throw new Error(cardWriteError.message);
+        })
       : Promise.resolve(),
     lineWrites.length
       ? writeRows(lineWrites, (slice) => supabase.from("report_lines").upsert(slice, { onConflict: "report_card_id,subject_id" }))
@@ -366,8 +422,15 @@ export async function generateClassReportComments(
 export async function draftNeedsComments(
   supabase: SupabaseClient,
   reportId: string,
-  card?: { class_teacher_comment?: string | null; head_comment?: string | null; cocurricular_comment?: string | null },
+  card?: {
+    class_code?: string | null;
+    class_teacher_comment?: string | null;
+    head_comment?: string | null;
+    cocurricular_comment?: string | null;
+  },
 ) {
+  const nursery = classSection(card?.class_code) === "nursery";
+  if (nursery) return !card?.class_teacher_comment?.trim();
   const hasCardCopy = Boolean(
     card?.class_teacher_comment?.trim() || card?.head_comment?.trim() || card?.cocurricular_comment?.trim(),
   );
@@ -391,7 +454,7 @@ export async function ensureDraftReportComments(
 ): Promise<{ result: GenerationResult; apply: { ok: boolean; errors: string[] } } | null> {
   const { data: card, error } = await supabase
     .from("report_cards")
-    .select("id, status, class_teacher_comment, head_comment, cocurricular_comment")
+    .select("id, status, class_code, class_teacher_comment, head_comment, cocurricular_comment")
     .eq("id", reportId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -464,7 +527,9 @@ function auditRow(reportId: string, actorId: string, item: GenerationResult["uni
 function isBlankCard(
   card: { class_teacher_comment?: string | null; head_comment?: string | null; cocurricular_comment?: string | null },
   lines: { teacher_comment?: string | null }[],
+  nursery = false,
 ) {
+  if (nursery) return !card.class_teacher_comment?.trim();
   if (card.class_teacher_comment?.trim() || card.head_comment?.trim() || card.cocurricular_comment?.trim()) return false;
   return !lines.some((line) => Boolean(line.teacher_comment?.trim()));
 }

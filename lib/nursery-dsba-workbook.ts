@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
-import type { ProgressCodeRow } from "@/lib/nursery-dsba";
+import type { ProgressCodeRow, SkillValueKind } from "@/lib/nursery-dsba";
+import { parseSkillNumericValue } from "@/lib/nursery-dsba";
 
 const SCHOOL = "Kampala Junior Academy";
 const DOMAIN_ROW = 8;
@@ -55,6 +56,7 @@ export type NurseryDsbaBookSkill = {
   domainSort: number;
   description: string;
   sort: number;
+  value_kind?: SkillValueKind;
 };
 
 export type NurseryDsbaBookPupil = {
@@ -136,7 +138,7 @@ type BuiltSheet = {
   assessmentId: string;
   skillCount: number;
   pupils: number;
-  skillColumns: { column: number; skillId: string; description: string }[];
+  skillColumns: { column: number; skillId: string; description: string; valueKind: SkillValueKind }[];
   pupilRows: { row: number; pupil: NurseryDsbaBookPupil }[];
 };
 
@@ -333,8 +335,8 @@ function writeCover(sheet: ExcelJS.Worksheet, input: NurseryDsbaBookInput, built
 
   const steps = [
     "Open the class tab for your stream. Every skill for that class is on one sheet.",
-    "Click a skill cell and choose a progress code from the dropdown.",
-    "Leave a cell blank to keep a saved code. Type CLEAR to remove a saved code.",
+    "Click a skill cell: pick a progress code from the list, or type a whole number where the skill asks for one.",
+    "Leave a cell blank to keep a saved value. Type CLEAR to remove a saved value.",
     "Do not insert or delete rows or columns. Upload this file on Assessments when finished.",
   ];
 
@@ -536,7 +538,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
     6,
     2,
     lastCol,
-    "Click a skill cell → choose a progress code from the list. Blank keeps a saved code. CLEAR removes it. See the Cover sheet for the full code key.",
+    "Progress-code skills use the dropdown. Number skills take a whole number (for example 50). Blank keeps a saved value. CLEAR removes it. See Cover for the code key.",
     {
       font: font(10, INK),
       fill: solid(GOLD_SOFT),
@@ -636,7 +638,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
       const column = FIRST_SKILL_COL + skillIndex;
       const cell = sheet.getCell(row, column);
       const saved = savedCode(input, paper.id, pupil.id, skill.id);
-      if (saved) cell.value = saved;
+      if (saved) cell.value = skill.value_kind === "number" && /^\d+$/.test(saved) ? Number(saved) : saved;
       const tone = DOMAIN_TONES[tones.get(skill.domainId) || 0];
       const fill = index % 2 ? solid(tone.soft) : zebra;
       paint(cell, {
@@ -646,17 +648,32 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
         border: hairline(),
       });
       cell.protection = { locked: false };
-      cell.dataValidation = {
-        type: "list",
-        allowBlank: true,
-        formulae: [listRef],
-        showErrorMessage: true,
-        errorTitle: "Progress code",
-        error: "Choose a progress code from the list, CLEAR, or leave blank.",
-        showInputMessage: true,
-        promptTitle: skill.domainName,
-        prompt: `${skill.description}\n\nPick a code, CLEAR, or leave blank.`,
-      };
+      if (skill.value_kind === "number") {
+        cell.dataValidation = {
+          type: "whole",
+          operator: "greaterThanOrEqual",
+          formulae: [0],
+          allowBlank: true,
+          showErrorMessage: true,
+          errorTitle: "Number",
+          error: "Enter a whole number (for example 50), CLEAR, or leave blank.",
+          showInputMessage: true,
+          promptTitle: skill.domainName,
+          prompt: `${skill.description}\n\nType a whole number, CLEAR, or leave blank.`,
+        };
+      } else {
+        cell.dataValidation = {
+          type: "list",
+          allowBlank: true,
+          formulae: [listRef],
+          showErrorMessage: true,
+          errorTitle: "Progress code",
+          error: "Choose a progress code from the list, CLEAR, or leave blank.",
+          showInputMessage: true,
+          promptTitle: skill.domainName,
+          prompt: `${skill.description}\n\nPick a code, CLEAR, or leave blank.`,
+        };
+      }
     });
   });
 
@@ -667,7 +684,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
     note,
     2,
     lastCol,
-    "Tip: freeze panes keep pupil names in view while you scroll across skills. Upload this workbook on Assessments when the codes are complete.",
+    "Tip: freeze panes keep pupil names in view while you scroll across skills. Upload this workbook on Assessments when values are complete.",
     {
       font: font(9, MUTED, false, true),
       fill: solid(SKY_SOFT),
@@ -715,6 +732,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
         column: FIRST_SKILL_COL + index,
         skillId: skill.id,
         description: skill.description,
+        valueKind: skill.value_kind === "number" ? "number" : "progress_code",
       })),
       pupilRows,
     } satisfies BuiltSheet,
@@ -753,13 +771,13 @@ function writeKeys(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput, buil
   row += 2;
   sheet.getCell(row, 1).value = "SKILLS";
   row += 1;
-  ["sheet", "col", "assessment_id", "skill_id", "description"].forEach((header, index) => {
+  ["sheet", "col", "assessment_id", "skill_id", "description", "value_kind"].forEach((header, index) => {
     sheet.getCell(row, index + 1).value = header;
   });
   built.forEach((entry) => {
     entry.skillColumns.forEach((skill) => {
       row += 1;
-      [entry.sheetName, skill.column, entry.assessmentId, skill.skillId, skill.description].forEach((value, index) => {
+      [entry.sheetName, skill.column, entry.assessmentId, skill.skillId, skill.description, skill.valueKind].forEach((value, index) => {
         sheet.getCell(row, index + 1).value = value;
       });
     });
@@ -914,13 +932,22 @@ export async function parseNurseryDsbaWorkbook(bytes: Uint8Array): Promise<Parse
     throw new NurseryDsbaBookError("This workbook is missing its skill list. Download a fresh one.");
   }
   row += 2;
-  const skills: { sheet: string; column: number; assessmentId: string; skillId: string; description: string; label: string }[] = [];
+  const skills: {
+    sheet: string;
+    column: number;
+    assessmentId: string;
+    skillId: string;
+    description: string;
+    label: string;
+    valueKind: SkillValueKind;
+  }[] = [];
   while (row < 20000) {
     const sheet = plain(keys!.getCell(row, 1).value);
     if (!sheet || sheet === "CODES" || sheet === "PUPILS") break;
     const column = Number(plain(keys!.getCell(row, 2).value));
     const assessmentId = plain(keys!.getCell(row, 3).value);
     const skillId = plain(keys!.getCell(row, 4).value);
+    const valueKindRaw = plain(keys!.getCell(row, 6).value).toLowerCase();
     if (Number.isInteger(column) && UUID.test(assessmentId) && UUID.test(skillId)) {
       skills.push({
         sheet,
@@ -929,6 +956,7 @@ export async function parseNurseryDsbaWorkbook(bytes: Uint8Array): Promise<Parse
         skillId,
         description: plain(keys!.getCell(row, 5).value) || "Skill",
         label: papers.find((paper) => paper.sheet === sheet)?.label || sheet,
+        valueKind: valueKindRaw === "number" ? "number" : "progress_code",
       });
     }
     row += 1;
@@ -1029,6 +1057,30 @@ export async function parseNurseryDsbaWorkbook(bytes: Uint8Array): Promise<Parse
             studentId,
             pupil: pupilName || pupilMap.get(studentId) || "",
             raw: "CLEAR",
+          });
+          continue;
+        }
+        if (skill.valueKind === "number") {
+          const numeric = parseSkillNumericValue(raw);
+          if (numeric === null) {
+            add({
+              sheet: paper.label,
+              cell: `${columnLetter(skill.column)}${pupilRow}`,
+              pupil: pupilName,
+              message: "Enter a whole number (for example 50), CLEAR, or leave blank.",
+            });
+            continue;
+          }
+          entries.push({
+            sheet: paper.sheet,
+            label: paper.label,
+            cell: `${columnLetter(skill.column)}${pupilRow}`,
+            assessmentId: paper.assessmentId,
+            skillId: skill.skillId,
+            skillLabel: skill.description,
+            studentId,
+            pupil: pupilName || pupilMap.get(studentId) || "",
+            raw: String(numeric),
           });
           continue;
         }

@@ -5,7 +5,8 @@ import { friendlyCheck, templateReadout, toRuleCard, type DeskRule, type DeskTem
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
 import { openAcademics } from "@/lib/academics-access";
 import { loadActiveCommentConfig, validateConfiguration } from "@/lib/comment-engine";
-import { buildSamplePreview } from "@/lib/comment-engine/preview";
+import { NURSERY_COMMENT_RULES } from "@/lib/comment-engine/nursery-defaults";
+import { buildNurserySamplePreview, buildSamplePreview } from "@/lib/comment-engine/preview";
 import "./comments.css";
 
 export const metadata = { title: "Comments" };
@@ -80,13 +81,29 @@ export default async function CommentsSetupPage() {
     sampleError = error instanceof Error ? error.message : "The sample report could not be built.";
   }
 
+  let nurserySample = null;
+  let nurserySampleError: string | null = null;
+  try {
+    nurserySample = buildNurserySamplePreview(config);
+  } catch (error) {
+    nurserySampleError = error instanceof Error ? error.message : "The nursery sample report could not be built.";
+  }
+
+  const nurseryRules: DeskRule[] = NURSERY_COMMENT_RULES.map((rule) => ({
+    id: rule.id,
+    commentType: "class_teacher",
+    title: rule.title,
+    detail: rule.detail,
+    review: rule.review,
+  }));
+
   return (
     <div className="app-page ofc-page cmt-page">
       <PageHeader
         kicker="Setup"
         icon="fa-comments"
         title="Comments"
-        description={<>Lines used when staff generate draft report comments. <strong>{config.name}</strong> · v{config.version}</>}
+        description={<>Primary mark banks and nursery progress-code remarks. <strong>{config.name}</strong> · v{config.version}</>}
       />
       <section className="cmt-strip" aria-label="Comment bank">
         <div className={errors.length ? "is-warn" : "is-ok"}>
@@ -141,8 +158,11 @@ export default async function CommentsSetupPage() {
       <CommentsDesk
         templates={templates}
         rules={rules}
+        nurseryRules={nurseryRules}
         sample={sample}
+        nurserySample={nurserySample}
         sampleError={sampleError}
+        nurserySampleError={nurserySampleError}
         saveAction={saveCommentTemplate}
         previewAction={previewCommentEngine}
       />

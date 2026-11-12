@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PrintButton } from "@/components/academics/Form";
+import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
 import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet";
 import { classSection, gradeBandSection, gradeBandSectionsToLoad, num, scaleBands } from "@/lib/academics";
 import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
@@ -112,7 +112,9 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     <div className="ov">
       <p className="acd-noprint"><Link href="/account/reports">All reports</Link></p>
       <ReportSheet card={sheet} nursery={nursery} />
-      <div className="acd-noprint"><PrintButton label="Print report" /></div>
+      <div className="acd-noprint">
+        <PrintReportCardButton href={`/account/reports/${id}/pdf`} label="Print report" className="admin-btn admin-btn-ghost" icon={false} />
+      </div>
     </div>
   );
 }

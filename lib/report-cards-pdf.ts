@@ -324,6 +324,134 @@ export async function loadStreamReportCards(
     .sort((a, b) => a.pupil_name.localeCompare(b.pupil_name) || a.id.localeCompare(b.id));
 }
 
+/** One card (or a few) assembled the same way as a stream pack — used for single-card print HTML. */
+export async function loadReportCardsByIds(
+  supabase: SupabaseClient,
+  input: { cardIds: string[]; termLabel?: string },
+): Promise<StreamReportCard[]> {
+  const ids = [...new Set(input.cardIds.filter(Boolean))];
+  if (!ids.length) return [];
+  const cardSelect =
+    "id, term_id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, cocurricular_comment, conduct, days_present, days_opened, overall_score, overall_aggregate, overall_grade, overall_position, status, grade_rules, progress_legend, report_title, fee_terms(label, year)";
+  const cardSelectLegacy = cardSelect
+    .replace(", overall_aggregate, overall_grade", "")
+    .replace(", progress_legend", "")
+    .replace(", report_title", "");
+  type PackedCard = CardRow & {
+    term_id: string;
+    progress_legend?: unknown;
+    fee_terms?: { label?: string | null; year?: number | null } | { label?: string | null; year?: number | null }[] | null;
+  };
+  const primary = await supabase.from("report_cards").select(cardSelect).in("id", ids);
+  const packed = primary.error
+    ? await supabase.from("report_cards").select(cardSelectLegacy).in("id", ids)
+    : primary;
+  if (packed.error) throw new Error(packed.error.message);
+  const cards = (packed.data || []) as unknown as PackedCard[];
+  if (!cards.length) return [];
+
+  const cardIds = cards.map((card) => card.id);
+  const pupilIds = [...new Set(cards.map((card) => card.student_id))];
+  const first = cards[0];
+  const classCode = String(first.class_code || "");
+  const stream = first.stream || "";
+  const termId = first.term_id;
+  const feeTerm = Array.isArray(first.fee_terms) ? first.fee_terms[0] : first.fee_terms;
+  const termLabel = input.termLabel || feeTerm?.label || "Term";
+  const markSection = gradeBandSection(classCode);
+
+  const [pupils, lines, parts, skillLinesByCard, initials, bands, closing, activities] = await Promise.all([
+    rowsIn<{ id: string; full_name: string | null; student_number: string | null; photo_path: string | null; campus: string | null; date_of_birth: string | null }>(pupilIds, (slice, from, to) =>
+      supabase.from("students").select("id, full_name, student_number, photo_path, campus, date_of_birth").in("id", slice).range(from, to),
+    ),
+    rowsIn<LineRow>(cardIds, (slice, from, to) =>
+      supabase.from("report_lines").select("report_card_id, subject_id, subject_name, score, grade, position, teacher_comment").in("report_card_id", slice).range(from, to),
+    ),
+    loadReportParts(supabase, cardIds),
+    loadReportSkillLines(supabase, cardIds),
+    loadSubjectInitials(supabase, { termId, classCode, stream }),
+    supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(classCode)).order("sort_order"),
+    loadClassClosing(supabase, { termId, classCode }),
+    rowsIn<{ report_card_id: string; slot: number; activity_name: string | null; level: string | null; comment?: string | null }>(cardIds, (slice, from, to) =>
+      supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level, comment").in("report_card_id", slice).range(from, to),
+    ).catch(async () =>
+      rowsIn<{ report_card_id: string; slot: number; activity_name: string | null; level: string | null }>(cardIds, (slice, from, to) =>
+        supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level").in("report_card_id", slice).range(from, to),
+      ),
+    ),
+  ]);
+
+  const names = new Map(pupils.map((pupil) => [pupil.id, pupil]));
+  const byCard = new Map<string, StreamReportLine[]>();
+  for (const line of lines) {
+    const list = byCard.get(line.report_card_id) || [];
+    list.push({
+      subject_id: String(line.subject_id),
+      subject_name: String(line.subject_name || "Subject"),
+      score: num(line.score),
+      grade: line.grade ?? null,
+      position: num(line.position),
+      teacher_comment: line.teacher_comment ?? null,
+      teacher_initials: initials.get(String(line.subject_id)) || null,
+      parts: parts.get(`${line.report_card_id}:${line.subject_id}`) ?? [],
+    });
+    byCard.set(line.report_card_id, list);
+  }
+  const activitiesByCard = new Map<string, StreamReportActivity[]>();
+  for (const row of activities) {
+    const list = activitiesByCard.get(row.report_card_id) || [];
+    list.push({
+      slot: Number(row.slot),
+      activity_name: row.activity_name ?? null,
+      level: row.level ?? null,
+      comment: "comment" in row ? row.comment ?? null : null,
+    });
+    activitiesByCard.set(row.report_card_id, list);
+  }
+
+  const order = new Map(ids.map((id, index) => [id, index]));
+  return cards
+    .map((card) => {
+      const pupil = names.get(card.student_id);
+      const term = Array.isArray(card.fee_terms) ? card.fee_terms[0] : card.fee_terms;
+      return {
+        id: card.id,
+        student_id: card.student_id,
+        photo_path: pupil?.photo_path || null,
+        pupil_name: pupil?.full_name || "Pupil",
+        student_number: pupil?.student_number || null,
+        term_label: term?.label || termLabel,
+        report_title: card.report_title ?? null,
+        class_code: card.class_code,
+        stream: card.stream || "",
+        class_teacher_name: card.class_teacher_name,
+        class_teacher_comment: card.class_teacher_comment,
+        head_comment: card.head_comment,
+        cocurricular_comment: card.cocurricular_comment,
+        conduct: card.conduct,
+        days_present: num(card.days_present),
+        days_opened: num(card.days_opened),
+        overall_score: num(card.overall_score),
+        overall_aggregate: num(card.overall_aggregate),
+        overall_grade: card.overall_grade ?? null,
+        overall_position: num(card.overall_position),
+        status: card.status,
+        lines: (byCard.get(card.id) || []).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
+        skillLines: skillLinesByCard.get(card.id) || [],
+        progressLegend: parseProgressLegend(card.progress_legend),
+        activities: (activitiesByCard.get(card.id) || []).sort((a, b) => a.slot - b.slot),
+        sets: cardSets(card.id, byCard.get(card.id) || [], parts),
+        scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
+        fees: closing.feesFor(pupil?.campus ?? null),
+        next_starts_on: closing.nextStartsOn,
+        next_ends_on: closing.nextEndsOn,
+        term_year: term?.year ?? closing.termYear,
+        date_of_birth: pupil?.date_of_birth || null,
+      };
+    })
+    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+}
+
 export async function loadReportCardPhotos(cards: Pick<StreamReportCard, "id" | "photo_path">[]) {
   const photos = new Map<string, Uint8Array>();
   const storage = serviceClient();

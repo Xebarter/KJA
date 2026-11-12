@@ -276,8 +276,8 @@ export function ReportRemarksEditor({
                   <p>
                     {nursery
                       ? classTeacherName
-                        ? `Signed as ${classTeacherName}. Summarise this pupil’s developmental progress.`
-                        : "Summarise this pupil’s developmental progress for the nursery report."
+                        ? `Signed as ${classTeacherName}. Auto comments name outstanding skills from progress codes; edit freely.`
+                        : "Auto comments celebrate mastery and suggest a gentle next step from progress codes. Edit freely."
                       : classTeacherName
                         ? `Signed as ${classTeacherName}.`
                         : "How this pupil worked this term."}
@@ -294,7 +294,11 @@ export function ReportRemarksEditor({
                   rows={4}
                   value={teacherNote}
                   onChange={(event) => setTeacherNote(event.target.value)}
-                  placeholder="One or two sentences that name the child and their effort this term"
+                  placeholder={
+                    nursery
+                      ? "Three sentences: overall progress, outstanding skills, then a gentle next step"
+                      : "One or two sentences that name the child and their effort this term"
+                  }
                 />
               </label>
             </section>

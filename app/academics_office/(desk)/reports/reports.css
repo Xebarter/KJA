@@ -640,12 +640,28 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
   gap: 1.15rem;
   align-items: start;
 }
-.rpt-detail article.acd-sheet { max-width: none; margin: 0; }
+/* Keep the on-page sheet at A4 width so it matches the downloaded PDF layout. */
+.rpt-detail article.acd-sheet {
+  box-sizing: border-box;
+  width: min(100%, 210mm);
+  max-width: 210mm;
+  margin: 0;
+}
 .rpt-detail button.admin-hero-btn {
   font: inherit;
   font-size: .92rem;
   font-weight: 600;
   cursor: pointer;
+}
+.rpt-print-card {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .35rem;
+}
+.rpt-print-card .acd-feedback {
+  max-width: 16rem;
+  margin: 0;
 }
 .rpt-detail .rpt-strip .is-word .rpt-stat-copy strong {
   font-size: 1.2rem;
@@ -1645,6 +1661,23 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
   .rpt-detail .rpt-pager,
   .rpt-detail .rpt-strip,
   .rpt-detail .rpt-editor { display: none !important; }
+  /* Match the bare PDF pack: one full-width sheet, no side column reserved for remarks. */
+  .rpt-page,
+  .rpt-detail,
+  .rpt-detail-layout {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+  .rpt-detail article.acd-sheet {
+    box-sizing: border-box;
+    width: 210mm;
+    max-width: 100%;
+    margin: 0 auto;
+  }
 }
 @media (prefers-reduced-motion: reduce) {
   .rpt-roll li, .rpt-directory a, .rpt-remark input { transition: none; }

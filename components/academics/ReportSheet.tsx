@@ -178,9 +178,78 @@ function groupSkillLines(lines: SheetSkillLine[]) {
   return groups;
 }
 
-function splitLegend(entries: SheetProgressLegend[]) {
-  const mid = Math.ceil(entries.length / 2);
-  return [entries.slice(0, mid), entries.slice(mid)] as const;
+/** Same column packing the printed/PDF nursery sheet uses. */
+function chunkLegend(entries: SheetProgressLegend[], columns: number) {
+  if (!entries.length) return [] as SheetProgressLegend[][];
+  const size = Math.ceil(entries.length / Math.max(1, columns));
+  const chunks: SheetProgressLegend[][] = [];
+  for (let index = 0; index < entries.length; index += size) {
+    chunks.push(entries.slice(index, index + size));
+  }
+  return chunks;
+}
+
+/**
+ * Shrink nursery pupil name so it stays on one line in the identity column.
+ * Length-based (no client measure) so Playwright PDF matches the screen.
+ */
+function nurseryPupilNameStyle(name: string): CSSProperties {
+  const text = name.trim().toUpperCase();
+  const maxRem = 1.05;
+  const minRem = 0.52;
+  // Pupil column on A4 ≈ 270px; Cinzel caps + tracking ≈ 0.78em per character.
+  const availPx = 270;
+  const tracking = 0.045;
+  const charFactor = 0.78;
+  let sizePx = maxRem * 16;
+  const minPx = minRem * 16;
+  while (sizePx > minPx) {
+    const width = text.length * sizePx * charFactor * (1 + tracking);
+    if (width <= availPx) break;
+    sizePx -= 0.25;
+  }
+  return {
+    fontSize: `${Math.max(minPx, sizePx) / 16}rem`,
+    whiteSpace: "nowrap",
+  };
+}
+
+function ProgressCodesTable({ entries }: { entries: SheetProgressLegend[] }) {
+  if (!entries.length) return null;
+  return (
+    <table className="acd-nur-legend-table">
+      <thead>
+        <tr>
+          <th scope="col">Code</th>
+          <th scope="col">Meaning</th>
+        </tr>
+      </thead>
+      <tbody>
+        {entries.map((entry) => (
+          <tr key={entry.code}>
+            <th scope="row">{entry.code}</th>
+            <td>{entry.label}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+/** Pack domain cards into columns by always appending to the currently shortest stack. */
+function packDomainColumns<T extends { skills: unknown[] }>(groups: T[], columnCount = 2) {
+  const columns = Array.from({ length: columnCount }, () => [] as { group: T; tone: number }[]);
+  const heights = Array.from({ length: columnCount }, () => 0);
+  groups.forEach((group, index) => {
+    let best = 0;
+    for (let col = 1; col < columnCount; col += 1) {
+      if (heights[col] < heights[best]) best = col;
+    }
+    columns[best].push({ group, tone: index });
+    // Header costs a little more than one skill row.
+    heights[best] += 3 + group.skills.length;
+  });
+  return columns;
 }
 
 function DomainPanels({
@@ -190,33 +259,41 @@ function DomainPanels({
   groups: ReturnType<typeof groupSkillLines>;
   toneOffset?: number;
 }) {
+  const columns = packDomainColumns(groups, 2);
   return (
     <div className="acd-nur-domains">
-      {groups.map((group, index) => (
-        <section
-          key={group.domain}
-          className={`acd-nur-domain is-tone-${(index + toneOffset) % 8}`}
-          aria-label={group.domain}
-        >
-          <header className="acd-nur-domain-head">
-            {group.image ? (
-              <img className="acd-nur-domain-art" src={group.image} alt="" />
-            ) : (
-              <span className="acd-nur-domain-art is-fallback" aria-hidden="true" />
-            )}
-            <h3>{group.domain}</h3>
-          </header>
-          <ul className="acd-nur-skills">
-            {group.skills.map((line) => (
-              <li key={line.skill_id}>
-                <span className="acd-nur-skill-copy">{line.skill_description}</span>
-                <span className="acd-nur-skill-code" title={line.progress_label || undefined}>
-                  {line.progress_code || "—"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </section>
+      {columns.map((column, colIndex) => (
+        <div key={colIndex} className="acd-nur-domain-col">
+          {column.map(({ group, tone }) => (
+            <section
+              key={group.domain}
+              className={`acd-nur-domain is-tone-${(tone + toneOffset) % 8}${group.image ? " has-art" : ""}`}
+              aria-label={group.domain}
+            >
+              {group.image ? (
+                <img className="acd-nur-domain-bg" src={group.image} alt="" aria-hidden="true" />
+              ) : null}
+              <header className="acd-nur-domain-head">
+                {group.image ? (
+                  <img className="acd-nur-domain-art" src={group.image} alt="" />
+                ) : (
+                  <span className="acd-nur-domain-art is-fallback" aria-hidden="true" />
+                )}
+                <h3>{group.domain}</h3>
+              </header>
+              <ul className="acd-nur-skills">
+                {group.skills.map((line) => (
+                  <li key={line.skill_id}>
+                    <span className="acd-nur-skill-copy">{line.skill_description}</span>
+                    <span className="acd-nur-skill-code" title={line.progress_label || undefined}>
+                      {line.progress_code || "—"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          ))}
+        </div>
       ))}
     </div>
   );
@@ -281,7 +358,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
     const page1Groups = skillGroups.filter((group) => nurseryReportPageForDomainSort(group.domainSort) === 1);
     const page2Groups = skillGroups.filter((group) => nurseryReportPageForDomainSort(group.domainSort) === 2);
     const legend = card.progressLegend?.length ? card.progressLegend : [];
-    const [legendLeft, legendRight] = splitLegend(legend);
+    const legendChunks = chunkLegend(legend, Math.min(5, Math.max(2, legend.length)));
     const classCodeLabel = nurseryReportClassLabel(card.class_code, card.stream);
     const age = nurseryAgeLabel(card.date_of_birth) || "—";
     const year = card.term_year != null ? String(card.term_year) : (card.term_label.match(/\b(20\d{2})\b/)?.[1] || "—");
@@ -298,14 +375,12 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <section className="acd-sheet-identity acd-nur-identity" aria-label="Pupil details">
               <div className="acd-sheet-pupil">
                 <p className="acd-sheet-kicker">Pupil</p>
-                <h3>{card.href ? <Link href={card.href}>{card.pupil_name}</Link> : card.pupil_name}</h3>
+                <h3 style={nurseryPupilNameStyle(card.pupil_name)}>
+                  {card.href ? <Link href={card.href}>{card.pupil_name}</Link> : card.pupil_name}
+                </h3>
                 {card.student_number ? <p className="acd-sheet-place">{card.student_number}</p> : null}
               </div>
               <dl className="acd-nur-meta">
-                <div>
-                  <dt>Class teacher</dt>
-                  <dd>{card.class_teacher_name || "—"}</dd>
-                </div>
                 <div>
                   <dt>Class</dt>
                   <dd>{classCodeLabel || "—"}</dd>
@@ -313,6 +388,10 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                 <div>
                   <dt>Age</dt>
                   <dd>{age}</dd>
+                </div>
+                <div>
+                  <dt>Class teacher</dt>
+                  <dd>{card.class_teacher_name || "—"}</dd>
                 </div>
                 <div>
                   <dt>Year</dt>
@@ -328,23 +407,8 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <section className="acd-nur-legend" aria-label="Progress codes">
               <p className="acd-sheet-kicker">Progress codes</p>
               <div className="acd-nur-legend-grid">
-                {[legendLeft, legendRight].map((column, index) => (
-                  <table key={index} className="acd-nur-legend-table">
-                    <thead>
-                      <tr>
-                        <th scope="col">Code</th>
-                        <th scope="col">Meaning</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {column.map((entry) => (
-                        <tr key={entry.code}>
-                          <th scope="row">{entry.code}</th>
-                          <td>{entry.label}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                {legendChunks.map((column, index) => (
+                  <ProgressCodesTable key={index} entries={column} />
                 ))}
               </div>
             </section>
@@ -387,7 +451,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               </div>
             </section>
 
-            <section className="acd-nur-closing" aria-label="Next term, fees, and online report">
+            <section className="acd-nur-closing" aria-label="Next term and fees">
               <div className="acd-nur-dates">
                 <div>
                   <h3>Next term begins on</h3>
@@ -398,15 +462,12 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                   <p className="acd-sheet-next">{formatReportDate(card.next_ends_on) || "—"}</p>
                 </div>
               </div>
-              <div className="acd-nur-fees-qr">
-                <section className="acd-sheet-fees" aria-label="School fees for next term">
-                  <div>
-                    <h3>School fees for next term</h3>
-                    <FeeLines lines={card.fees ?? []} />
-                  </div>
-                </section>
-                {qr ?? <ReportQr id={card.id} />}
-              </div>
+              <section className="acd-sheet-fees acd-nur-fees" aria-label="School fees for next term">
+                <div>
+                  <h3>School fees for next term</h3>
+                  <FeeLines lines={card.fees ?? []} />
+                </div>
+              </section>
             </section>
           </div>
         </div>

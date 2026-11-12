@@ -123,6 +123,37 @@
 .cmt-alerts li + li { margin-top: .35rem; }
 
 .cmt-desk { display: grid; gap: 1.15rem; }
+.cmt-section-switch {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: .35rem;
+  padding: .3rem;
+  border: 1px solid #e6e1d6;
+  border-radius: 999px;
+  background: #fff;
+  width: fit-content;
+}
+.cmt-section-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  height: 2.05rem;
+  padding: 0 .95rem;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #6d6458;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+.cmt-section-switch button:hover { background: #f7f4ee; color: #19232b; }
+.cmt-section-switch button.is-on {
+  background: #19232b;
+  color: #fff;
+}
+.cmt-section-switch button.is-on:hover { background: #24323c; }
 .cmt-tabs {
   display: flex;
   gap: .25rem;

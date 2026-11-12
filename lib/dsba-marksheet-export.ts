@@ -70,7 +70,7 @@ export async function loadDsbaMarksheetExportBundle(input: {
     loadRoll(input.supabase, input.userId, [paper.class_code], input.campuses).then((rows) =>
       rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
     ),
-    input.supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id").eq("assessment_id", paper.id),
+    input.supabase.from("skill_ratings").select("student_id, skill_id, progress_code_id, numeric_value").eq("assessment_id", paper.id),
     loadDivisionCatalogue(input.supabase, divisionId),
     input.supabase.from("fee_terms").select("label").eq("id", paper.term_id).maybeSingle(),
   ]);
@@ -89,6 +89,7 @@ export async function loadDsbaMarksheetExportBundle(input: {
       domainName: row.domain.name,
       domainSort: row.domain.sort_order,
       sort: skill.sort_order,
+      value_kind: skill.value_kind,
     })),
   );
 
@@ -96,15 +97,19 @@ export async function loadDsbaMarksheetExportBundle(input: {
   const codes: Record<string, string> = {};
   const ratings: NurseryDsbaBookInput["ratings"] = [];
   for (const row of ratingsQuery.data || []) {
-    if (!row.progress_code_id) continue;
-    const code = codeById.get(String(row.progress_code_id));
-    if (!code) continue;
-    codes[`${row.student_id}|${row.skill_id}`] = code.code;
+    let display: string | null = null;
+    if (row.progress_code_id) {
+      display = codeById.get(String(row.progress_code_id))?.code || null;
+    } else if (row.numeric_value !== null && row.numeric_value !== undefined) {
+      display = String(row.numeric_value);
+    }
+    if (!display) continue;
+    codes[`${row.student_id}|${row.skill_id}`] = display;
     ratings.push({
       assessmentId: paper.id,
       studentId: String(row.student_id),
       skillId: String(row.skill_id),
-      code: code.code,
+      code: display,
     });
   }
 
@@ -134,6 +139,7 @@ export async function loadDsbaMarksheetExportBundle(input: {
           domainSort: skill.domainSort,
           description: skill.description,
           sort: skill.sort,
+          value_kind: skill.value_kind,
         })),
       },
     ],

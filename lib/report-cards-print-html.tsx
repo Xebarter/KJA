@@ -150,6 +150,11 @@ function inlineNurseryArt(html: string, art: Map<string, string>) {
   let next = html;
   for (const [fileUrl, data] of art) {
     next = next.replaceAll(`src="${fileUrl}"`, `src="${data}"`);
+    // Style/background url() forms (quoted, HTML-escaped, or bare).
+    next = next.replaceAll(`url("${fileUrl}")`, `url("${data}")`);
+    next = next.replaceAll(`url('${fileUrl}')`, `url('${data}')`);
+    next = next.replaceAll(`url(&quot;${fileUrl}&quot;)`, `url(&quot;${data}&quot;)`);
+    next = next.replaceAll(`url(${fileUrl})`, `url(${data})`);
   }
   return next;
 }

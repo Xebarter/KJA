@@ -10,9 +10,9 @@ import {
 import { DeskForm } from "@/components/academics/Form";
 import { StudentFace } from "@/components/StudentFace";
 import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
-import type { ProgressCodeRow } from "@/lib/nursery-dsba";
+import type { ProgressCodeRow, SkillValueKind } from "@/lib/nursery-dsba";
 
-export type DsbaMshSkill = { id: string; description: string; sort: number };
+export type DsbaMshSkill = { id: string; description: string; sort: number; value_kind?: SkillValueKind };
 export type DsbaMshDomain = { id: string; name: string; sort: number; skills: DsbaMshSkill[] };
 export type DsbaMshPupil = {
   id: string;
@@ -213,8 +213,14 @@ export function DevelopmentalMarksheetDesk({
   const gapCount = places - entered;
   const sortLabel = SORT_CHOICES.find((row) => row.id === sort)?.label || "Arrange";
 
-  function setCode(pupilId: string, skillId: string, codeId: string) {
-    setEntries((current) => ({ ...current, [cellKey(pupilId, skillId)]: codeId }));
+  function setCell(pupilId: string, skillId: string, value: string) {
+    setEntries((current) => ({ ...current, [cellKey(pupilId, skillId)]: value }));
+  }
+
+  function displayValue(skill: { id: string; value_kind?: SkillValueKind }, raw: string) {
+    if (!raw) return "—";
+    if (skill.value_kind === "number") return raw;
+    return codeById.get(raw)?.code || "—";
   }
 
   function close() {
@@ -273,7 +279,7 @@ export function DevelopmentalMarksheetDesk({
     }
   }
 
-  function onFieldKeyDown(event: React.KeyboardEvent<HTMLSelectElement>, row: number, col: number) {
+  function onFieldKeyDown(event: React.KeyboardEvent<HTMLSelectElement | HTMLInputElement>, row: number, col: number) {
     const root = gridRef.current;
     if (!root) return;
     let nextRow = row;
@@ -284,7 +290,9 @@ export function DevelopmentalMarksheetDesk({
     else if (event.key === "ArrowLeft") nextCol -= 1;
     else return;
     event.preventDefault();
-    const target = root.querySelector<HTMLSelectElement>(`select.msh-field[data-row="${nextRow}"][data-col="${nextCol}"]`);
+    const target = root.querySelector<HTMLSelectElement | HTMLInputElement>(
+      `.msh-field[data-row="${nextRow}"][data-col="${nextCol}"]`,
+    );
     target?.focus();
   }
 
@@ -314,7 +322,7 @@ export function DevelopmentalMarksheetDesk({
             <dd>{nf(pupils.length)}</dd>
           </div>
           <div>
-            <dt>Codes in</dt>
+            <dt>Entered</dt>
             <dd>
               {nf(entered)}
               <small> / {nf(places)}</small>
@@ -540,37 +548,55 @@ export function DevelopmentalMarksheetDesk({
                   {visibleSkills.map((skill, col) => {
                     const key = cellKey(pupil.id, skill.id);
                     const value = entries[key] || "";
-                    const code = value ? codeById.get(value) : null;
+                    const printed = displayValue(skill, value);
                     const tone = skillTone.get(skill.id);
                     const groupClass = tone === undefined ? "" : ` is-g${tone}`;
+                    const numeric = skill.value_kind === "number";
                     if (locked) {
                       return (
                         <td key={skill.id} className={`msh-mark${value ? "" : " is-blank"}${groupClass}`}>
-                          <span className="msh-dsba-print">{code?.code || "—"}</span>
+                          <span className="msh-dsba-print">{printed}</span>
                         </td>
                       );
                     }
                     return (
-                      <td key={skill.id} className={`msh-mark${value ? "" : " is-blank"}${groupClass}`} data-print={code?.code || "—"}>
-                        <select
-                          className="msh-field"
-                          data-row={lineSlot}
-                          data-col={col}
-                          disabled={exporting}
-                          value={value}
-                          aria-label={`${pupil.name} · ${skill.description}`}
-                          onChange={(event) => setCode(pupil.id, skill.id, event.target.value)}
-                          onKeyDown={(event) => onFieldKeyDown(event, lineSlot, col)}
-                        >
-                          <option value="">—</option>
-                          {progressCodes.map((row) => (
-                            <option key={row.id} value={row.id}>
-                              {row.code}
-                            </option>
-                          ))}
-                        </select>
+                      <td key={skill.id} className={`msh-mark${value ? "" : " is-blank"}${groupClass}`} data-print={printed}>
+                        {numeric ? (
+                          <input
+                            className="msh-field"
+                            type="number"
+                            inputMode="numeric"
+                            min={0}
+                            step={1}
+                            data-row={lineSlot}
+                            data-col={col}
+                            disabled={exporting}
+                            value={value}
+                            aria-label={`${pupil.name} · ${skill.description}`}
+                            onChange={(event) => setCell(pupil.id, skill.id, event.target.value.replace(/[^\d]/g, ""))}
+                            onKeyDown={(event) => onFieldKeyDown(event, lineSlot, col)}
+                          />
+                        ) : (
+                          <select
+                            className="msh-field"
+                            data-row={lineSlot}
+                            data-col={col}
+                            disabled={exporting}
+                            value={value}
+                            aria-label={`${pupil.name} · ${skill.description}`}
+                            onChange={(event) => setCell(pupil.id, skill.id, event.target.value)}
+                            onKeyDown={(event) => onFieldKeyDown(event, lineSlot, col)}
+                          >
+                            <option value="">—</option>
+                            {progressCodes.map((row) => (
+                              <option key={row.id} value={row.id}>
+                                {row.code}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <span className="msh-dsba-print" aria-hidden="true">
-                          {code?.code || "—"}
+                          {printed}
                         </span>
                       </td>
                     );
@@ -580,7 +606,7 @@ export function DevelopmentalMarksheetDesk({
               {visibleCount ? null : (
                 <tr>
                   <td className="msh-empty" colSpan={columns}>
-                    {search.trim() ? "No pupil matches that search." : "Every pupil in this view has codes entered."}
+                    {search.trim() ? "No pupil matches that search." : "Every pupil in this view has values entered."}
                   </td>
                 </tr>
               )}
@@ -592,11 +618,11 @@ export function DevelopmentalMarksheetDesk({
           <p>
             {locked
               ? phase === "approved"
-                ? "Locked by the office. Codes cannot be edited."
+                ? "Locked by the office. Values cannot be edited."
                 : "Submitted · waiting for the office to lock."
               : dirty
                 ? "Unsaved changes on this sheet."
-                : "Progress codes save for every domain, including filters you are not viewing."}
+                : "Values save for every domain, including filters you are not viewing. Number skills take a whole number."}
             {" "}
             Legend: {progressCodes.map((row) => `${row.code} = ${row.label}`).join(" · ")}
           </p>
@@ -604,7 +630,7 @@ export function DevelopmentalMarksheetDesk({
             {!locked ? (
               <>
                 <button className="msh-go" type="submit">
-                  Save codes
+                  Save
                 </button>
                 <button className="msh-go" type="submit" name="intent" value="submit">
                   Save &amp; submit

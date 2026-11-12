@@ -1,4 +1,5 @@
 import { DEFAULT_SETTINGS } from "./bands";
+import { nurseryClassTeacherTemplates } from "./nursery-defaults";
 import { SUBJECT_SCORE_COMMENTS } from "./subject-score-comments";
 import type { CommentConfig, CommentRule, CommentTemplate } from "./types";
 
@@ -132,7 +133,7 @@ export function defaultCommentConfig(): CommentConfig {
 
     t({ id: "ct-in", comment_type: "class_teacher", sentence_role: "incomplete_data", template_group: "incomplete", template_text: "Comments will be completed once all subject results are recorded.", exact_sentences: 1 }),
 
-
+    ...nurseryClassTeacherTemplates("default"),
 
     t({ id: "h-i", comment_type: "headteacher", template_group: "incomplete_data", template_text: "Evidence remains incomplete so further careful review of this report is required.", exact_words: 12 }),
 

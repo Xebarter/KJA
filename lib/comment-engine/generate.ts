@@ -1,6 +1,7 @@
 import { buildPerformanceProfile } from "./analyse";
 import { classifyLevel, classifyPercentage, subjectPercent } from "./bands";
 import { composeCocurricularComment } from "./cocurricular-compose";
+import { generateNurseryClassTeacherUnit } from "./nursery-compose";
 import { actionGroup, evaluateRules, overviewGroup, sentencePlan, wantsReview } from "./rules";
 import { buildPlaceholders, filterTemplates, hashPick, pickTemplate, renderTemplate, seedFor } from "./templates";
 import type {
@@ -500,7 +501,31 @@ export function generateCommentsForReport(input: ReportInput, config: CommentCon
     const profile = buildPerformanceProfile(input, config.settings);
     return {
       profile,
-      units: [fail("cocurricular", null, "Learner middle name is required for co-curricular comments.")],
+      units: [
+        input.nursery
+          ? fail("class_teacher", null, "Learner name is required for nursery class-teacher comments.")
+          : fail("cocurricular", null, "Learner middle name is required for co-curricular comments."),
+      ],
+      configVersion: config.version,
+      engineVersion: ENGINE_VERSION,
+    };
+  }
+
+  if (input.nursery) {
+    const profile = buildPerformanceProfile({ ...input, subjects: [], activities: [] }, config.settings);
+    return {
+      profile,
+      units: [
+        generateNurseryClassTeacherUnit(
+          {
+            firstName: input.firstName,
+            sex: input.sex,
+            skillLines: input.skillLines || [],
+            reportId: input.reportId,
+          },
+          config,
+        ),
+      ],
       configVersion: config.version,
       engineVersion: ENGINE_VERSION,
     };

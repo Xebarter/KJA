@@ -39,7 +39,7 @@ import {
   loadActiveCommentConfig,
   validateComment,
 } from "@/lib/comment-engine";
-import { buildSamplePreview, previewPlainText, type CommentPreview } from "@/lib/comment-engine/preview";
+import { buildNurserySamplePreview, buildSamplePreview, previewPlainText, type CommentPreview } from "@/lib/comment-engine/preview";
 import { renderAlertEmail } from "@/lib/email/layout";
 import { emailSetupProblem, sendEmail } from "@/lib/email/send";
 import { getContent } from "@/lib/content";
@@ -60,8 +60,11 @@ import { isSubjectBand, spanForBands } from "@/lib/subject-bands";
 import { notifyStudentParents } from "@/lib/parent-notify";
 import {
   isNurseryDivisionId,
+  isSkillValueKind,
   mapDomain,
   mapSkill,
+  NURSERY_DIVISION_IDS,
+  parseSkillNumericValue,
   type NurseryDivisionId,
 } from "@/lib/nursery-dsba";
 
@@ -2078,14 +2081,15 @@ export async function saveCommentTemplate(formData: FormData): Promise<Result> {
   return { ok: "Template saved." };
 }
 
-export async function previewCommentEngine(_formData?: FormData): Promise<Result> {
+export async function previewCommentEngine(formData?: FormData): Promise<Result & { sample?: CommentPreview }> {
   const opened = await gate("comments");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
   try {
+    const mode = String(formData?.get("mode") || "primary").trim().toLowerCase();
     const config = (await loadActiveCommentConfig(opened.auth.supabase)) || defaultCommentConfig();
-    const sample = buildSamplePreview(config);
+    const sample = mode === "nursery" ? buildNurserySamplePreview(config) : buildSamplePreview(config);
     return { ok: "Preview ready.", preview: previewPlainText(sample), sample };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Preview failed." };
@@ -2861,8 +2865,8 @@ export async function saveDevelopmentalDomain(formData: FormData): Promise<Resul
   const code = text(formData, "code", 20).toUpperCase().replace(/[^A-Z0-9-]/g, "");
   if (!id && code.length < 2) return { error: "Enter a short domain code." };
   if (name.length < 2) return { error: "Enter the domain name." };
-  const divisions = formData.getAll("division").map(String).filter(isNurseryDivisionId);
-  if (!divisions.length) return { error: "Choose at least one nursery division." };
+  // Domains are shared across every nursery section.
+  const divisions: NurseryDivisionId[] = [...NURSERY_DIVISION_IDS];
   const sortOrder = num(text(formData, "sort_order", 6)) ?? 50;
   const active = formData.get("active") !== "0";
   const row = { name, sort_order: sortOrder, active };
@@ -2922,10 +2926,12 @@ export async function saveDevelopmentalSkill(formData: FormData): Promise<Result
   if (!isUuid(domainId)) return { error: "Choose a domain for this skill." };
   if (description.length < 2) return { error: "Enter the skill description." };
   const divisions = formData.getAll("division").map(String).filter(isNurseryDivisionId);
-  if (!divisions.length) return { error: "Choose at least one nursery division." };
+  if (!divisions.length) return { error: "Choose at least one nursery section." };
+  const valueKindRaw = text(formData, "value_kind", 20) || "progress_code";
+  if (!isSkillValueKind(valueKindRaw)) return { error: "Choose whether teachers enter a progress code or a number." };
   const sortOrder = num(text(formData, "sort_order", 6)) ?? 50;
   const active = formData.get("active") !== "0";
-  const row = { domain_id: domainId, description, sort_order: sortOrder, active };
+  const row = { domain_id: domainId, description, sort_order: sortOrder, active, value_kind: valueKindRaw };
   const query = id
     ? opened.auth.supabase.from("developmental_skills").update(row).eq("id", id).select("*").single()
     : opened.auth.supabase.from("developmental_skills").insert(row).select("*").single();
@@ -3003,33 +3009,74 @@ export async function saveSkillRatings(formData: FormData): Promise<Result> {
     if (!allowed) return { error: "Only the class teacher can enter these skill codes." };
   }
 
-  const rows: { assessment_id: string; student_id: string; skill_id: string; progress_code_id: string | null; note: string | null }[] = [];
+  const pending: { studentId: string; skillId: string; raw: string }[] = [];
   for (const [key, value] of formData.entries()) {
     if (!key.startsWith("rating:")) continue;
     const parts = key.slice("rating:".length).split("|");
     if (parts.length !== 2) continue;
     const [studentId, skillId] = parts;
     if (!isUuid(studentId) || !isUuid(skillId)) continue;
-    const raw = String(value).trim();
-    rows.push({
-      assessment_id: assessmentId,
-      student_id: studentId,
-      skill_id: skillId,
-      progress_code_id: isUuid(raw) ? raw : null,
-      note: null,
-    });
+    pending.push({ studentId, skillId, raw: String(value).trim() });
   }
-  if (!rows.length) return { error: "There are no skill ratings to save." };
+  if (!pending.length) return { error: "There are no skill ratings to save." };
+
+  const skillIds = [...new Set(pending.map((row) => row.skillId))];
+  const { data: skillMeta, error: skillMetaError } = await opened.auth.supabase
+    .from("developmental_skills")
+    .select("id, value_kind")
+    .in("id", skillIds);
+  if (skillMetaError) return { error: dsbaSchemaHint(skillMetaError.message) };
+  const kindById = new Map(
+    (skillMeta || []).map((row) => [String(row.id), isSkillValueKind(String(row.value_kind)) ? String(row.value_kind) : "progress_code"]),
+  );
+
+  const rows: {
+    assessment_id: string;
+    student_id: string;
+    skill_id: string;
+    progress_code_id: string | null;
+    numeric_value: number | null;
+    note: string | null;
+  }[] = [];
+  for (const entry of pending) {
+    const kind = kindById.get(entry.skillId) || "progress_code";
+    if (kind === "number") {
+      const numeric = entry.raw ? parseSkillNumericValue(entry.raw) : null;
+      if (entry.raw && numeric === null) {
+        return { error: "Number skills need a whole number (for example 50)." };
+      }
+      rows.push({
+        assessment_id: assessmentId,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: null,
+        numeric_value: numeric,
+        note: null,
+      });
+    } else {
+      if (entry.raw && !isUuid(entry.raw)) {
+        return { error: "Choose a progress code from the list for coded skills." };
+      }
+      rows.push({
+        assessment_id: assessmentId,
+        student_id: entry.studentId,
+        skill_id: entry.skillId,
+        progress_code_id: entry.raw && isUuid(entry.raw) ? entry.raw : null,
+        numeric_value: null,
+        note: null,
+      });
+    }
+  }
 
   const submitting = formData.get("intent") === "submit";
   if (submitting) {
-    const skillIds = [...new Set(rows.map((row) => row.skill_id))];
     const studentIds = [...new Set(rows.map((row) => row.student_id))];
     for (const studentId of studentIds) {
       for (const skillId of skillIds) {
         const row = rows.find((entry) => entry.student_id === studentId && entry.skill_id === skillId);
-        if (!row?.progress_code_id) {
-          return { error: "Choose a progress code for every skill before submitting." };
+        const filled = Boolean(row?.progress_code_id || (row?.numeric_value !== null && row?.numeric_value !== undefined));
+        if (!filled) {
+          return { error: "Enter a progress code or number for every skill before submitting." };
         }
       }
     }

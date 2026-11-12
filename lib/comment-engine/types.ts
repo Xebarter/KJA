@@ -126,15 +126,31 @@ export type ActivityInput = {
   skills?: ActivitySkill[];
 };
 
+export type NurserySkillLineInput = {
+  skill_id: string;
+  domain_id: string | null;
+  domain_name: string;
+  skill_description: string;
+  progress_code: string | null;
+  progress_label: string | null;
+  domain_sort?: number;
+  skill_sort?: number;
+};
+
 export type ReportInput = {
   reportId: string;
   studentId: string;
   firstName: string;
+  /** Pupil sex from students.sex (`M` / `F`); used for nursery gendered wording. */
+  sex?: string | null;
   classCode: string;
   stream: string;
   termId: string;
   subjects: SubjectResultInput[];
   activities: ActivityInput[];
+  /** When true, generate only nursery class-teacher comments from skill lines. */
+  nursery?: boolean;
+  skillLines?: NurserySkillLineInput[];
 };
 
 export type SubjectProfileRow = {

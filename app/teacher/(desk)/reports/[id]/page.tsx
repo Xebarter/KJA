@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { generateTeacherReportComments, saveTeacherReport } from "@/app/teacher/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
-import { PrintButton } from "@/components/academics/Form";
+import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
 import { formatScore, ordinal, ReportSheet, type SheetActivity, type SheetCard } from "@/components/academics/ReportSheet";
 import { ReportRemarksEditor } from "@/components/academics/ReportRemarksEditor";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
@@ -255,7 +255,7 @@ export default async function TeacherReportPage({ params }: { params: Promise<{ 
                 Next <i className="fa-solid fa-chevron-right" aria-hidden="true" />
               </Link>
             ) : null}
-            <PrintButton className="admin-hero-btn is-primary" icon label="Print card" />
+            <PrintReportCardButton href={`${TEACHER_BASE}/reports/${id}/pdf`} />
           </>
         }
       />

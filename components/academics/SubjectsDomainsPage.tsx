@@ -40,8 +40,8 @@ export function SubjectsDomainsPage({
           </p>
           <h1>Subjects / Domains</h1>
           <p className="asb-banner-lede">
-            Primary keeps subjects and marks. Nursery uses developmental domains and skills for Skills-Based Assessment
-            reports.
+            Primary keeps subjects and marks. Nursery uses shared domains with section-specific skills for Skills-Based
+            Assessment reports.
           </p>
           <div className="asb-banner-meta" aria-hidden="true">
             <span className="asb-chip">{primaryActive} primary subjects</span>
