@@ -1,4 +1,4 @@
-/** Gender / pronoun slots for nursery class-teacher comments. */
+/** Gender / pronoun slots for report-card comments (nursery + primary). */
 
 export type NurseryGenderSlots = {
   known: boolean;
@@ -9,8 +9,20 @@ export type NurseryGenderSlots = {
   Her_His: string;
 };
 
-/** Map students.sex (`M`/`F`) to comment placeholders. Unknown → neutral "child", empty pronouns. */
-export function nurseryGenderSlots(sex: string | null | undefined): NurseryGenderSlots {
+export type CommentGenderOptions = {
+  /** Word used when sex is unknown. Nursery: "child"; primary: "learner". */
+  unknownChildWord?: string;
+  /** When sex is unknown: empty pronouns (nursery) or they/their (primary). */
+  unknownPronouns?: "empty" | "they";
+};
+
+/** Map students.sex (`M`/`F`) to comment placeholders. */
+export function commentGenderSlots(
+  sex: string | null | undefined,
+  options: CommentGenderOptions = {},
+): NurseryGenderSlots {
+  const unknownChild = options.unknownChildWord ?? "child";
+  const unknownPronouns = options.unknownPronouns ?? "empty";
   const code = (sex || "").trim().toUpperCase();
   if (code === "F" || code === "FEMALE" || code === "GIRL") {
     return {
@@ -32,12 +44,32 @@ export function nurseryGenderSlots(sex: string | null | undefined): NurseryGende
       Her_His: "His",
     };
   }
+  if (unknownPronouns === "they") {
+    return {
+      known: false,
+      girl_boy: unknownChild,
+      she_he: "they",
+      her_his: "their",
+      She_He: "They",
+      Her_His: "Their",
+    };
+  }
   return {
     known: false,
-    girl_boy: "child",
+    girl_boy: unknownChild,
     she_he: "",
     her_his: "",
     She_He: "",
     Her_His: "",
   };
+}
+
+/** Nursery default: unknown → "child" and empty pronouns (name-led sentences). */
+export function nurseryGenderSlots(sex: string | null | undefined): NurseryGenderSlots {
+  return commentGenderSlots(sex, { unknownChildWord: "child", unknownPronouns: "empty" });
+}
+
+/** Primary default: unknown → "learner" and they/their so desk templates always render. */
+export function primaryGenderSlots(sex: string | null | undefined): NurseryGenderSlots {
+  return commentGenderSlots(sex, { unknownChildWord: "learner", unknownPronouns: "they" });
 }

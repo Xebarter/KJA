@@ -19,6 +19,7 @@ export const SAMPLE_REPORT: ReportInput = {
   reportId: "preview",
   studentId: "preview",
   firstName: "Amina",
+  sex: "F",
   classCode: "P4",
   stream: "A",
   termId: "preview",

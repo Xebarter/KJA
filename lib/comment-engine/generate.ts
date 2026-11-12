@@ -77,6 +77,7 @@ function generateActivityComments(input: ReportInput, config: CommentConfig, pro
     for (let attempt = 0; attempt < 6; attempt++) {
       const candidate = composeCocurricularComment({
         firstName: input.firstName,
+        sex: input.sex,
         activityName: name,
         score,
         band,
@@ -107,6 +108,7 @@ function generateActivityComments(input: ReportInput, config: CommentConfig, pro
       const template = pickTemplate(pool, seed);
       const placeholders = buildPlaceholders({
         firstName: input.firstName,
+        sex: input.sex,
         profile,
         activityName: name,
         acquiredSkills: acquired,
@@ -242,7 +244,10 @@ function generateSubjectComments(input: ReportInput, config: CommentConfig, prof
       units.push(fail("subject_teacher", subject.subjectId, `No two-word template for mark ${score}.`));
       continue;
     }
-    const rendered = renderTemplate(picked.template.template_text, buildPlaceholders({ firstName: input.firstName, profile }));
+    const rendered = renderTemplate(
+      picked.template.template_text,
+      buildPlaceholders({ firstName: input.firstName, sex: input.sex, profile }),
+    );
     if (rendered.error) {
       units.push(fail("subject_teacher", subject.subjectId, rendered.error));
       continue;
@@ -282,6 +287,7 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
   if (profile.cocurricularComplete) {
     const composed = composeCocurricularComment({
       firstName: input.firstName,
+      sex: input.sex,
       activityName,
       score: profile.cocurricularScore,
       band: profile.cocurricularBand,
@@ -337,7 +343,7 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
 
   const rendered = renderTemplate(
     template.template_text,
-    buildPlaceholders({ firstName: input.firstName, profile, activityName }),
+    buildPlaceholders({ firstName: input.firstName, sex: input.sex, profile, activityName }),
   );
   if (rendered.error) return fail("cocurricular", null, rendered.error, [match.rule.id]);
 
@@ -354,7 +360,7 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
     const fallbackPool = filterTemplates(config.templates, { type: "cocurricular", group: "strong" });
     const fallback = pickTemplate(fallbackPool, seedFor(input, "coco:strong-fallback", config.version));
     if (fallback) {
-      const again = renderTemplate(fallback.template_text, buildPlaceholders({ firstName: input.firstName, profile }));
+      const again = renderTemplate(fallback.template_text, buildPlaceholders({ firstName: input.firstName, sex: input.sex, profile }));
       if (!again.error) {
         const recheck = validateComment(again.text, {
           minWords: settings.min_words,
@@ -391,12 +397,27 @@ function generateCocurricular(input: ReportInput, config: CommentConfig, profile
   });
 }
 
+function preferGenderedTemplates(pool: CommentTemplate[], sex: string | null | undefined): CommentTemplate[] {
+  if (!pool.length) return pool;
+  const code = (sex || "").trim().toUpperCase();
+  const known =
+    code === "F" || code === "M" || code === "FEMALE" || code === "MALE" || code === "GIRL" || code === "BOY";
+  if (known) {
+    const gendered = pool.filter((row) => /\{(girl_boy|she_he|her_his)\}/i.test(row.template_text));
+    return gendered.length ? gendered : pool;
+  }
+  // Avoid they + singular verb lines ("They shows…") when sex is unknown.
+  const safe = pool.filter((row) => !/\{she_he\}/i.test(row.template_text));
+  return safe.length ? safe : pool;
+}
+
 function pickSentenceTemplate(
   config: CommentConfig,
   role: string,
   group: string | null,
   seed: string,
   profile: PerformanceProfile,
+  sex?: string | null,
 ): CommentTemplate | null {
   let pool = filterTemplates(config.templates, { type: "class_teacher", role, group });
   if (!pool.length && (role === "strengths" || role === "improvement")) {
@@ -412,7 +433,7 @@ function pickSentenceTemplate(
   if (!pool.length) {
     pool = filterTemplates(config.templates, { type: "class_teacher", role });
   }
-  return pickTemplate(pool, seed);
+  return pickTemplate(preferGenderedTemplates(pool, sex), seed);
 }
 
 function generateClassTeacher(input: ReportInput, config: CommentConfig, profile: PerformanceProfile): GeneratedUnit {
@@ -422,7 +443,7 @@ function generateClassTeacher(input: ReportInput, config: CommentConfig, profile
   const roles = sentencePlan(match.actions) || ["academic_overview", "balanced_performance", "reinforcement"];
   const overview = overviewGroup(match.actions);
   const review = wantsReview(match.actions);
-  const placeholders = buildPlaceholders({ firstName: input.firstName, profile });
+  const placeholders = buildPlaceholders({ firstName: input.firstName, sex: input.sex, profile });
   const sentences: string[] = [];
   const templateIds: string[] = [];
 
@@ -447,6 +468,7 @@ function generateClassTeacher(input: ReportInput, config: CommentConfig, profile
       effectiveRole === "academic_overview" ? overview : group,
       seedFor(input, `class:${effectiveRole}`, config.version),
       profile,
+      input.sex,
     );
     if (!template) return fail("class_teacher", null, `Missing class-teacher template for ${effectiveRole}.`, [match.rule.id]);
     const rendered = renderTemplate(template.template_text, placeholders);
@@ -481,7 +503,7 @@ function generateHeadteacher(input: ReportInput, config: CommentConfig, profile:
   const pool = filterTemplates(config.templates, { type: "headteacher", group });
   const template = pickTemplate(pool, seedFor(input, `head:${group}`, config.version));
   if (!template) return fail("headteacher", null, `No headteacher template for ${group}.`, [match.rule.id]);
-  const rendered = renderTemplate(template.template_text, buildPlaceholders({ firstName: input.firstName, profile }));
+  const rendered = renderTemplate(template.template_text, buildPlaceholders({ firstName: input.firstName, sex: input.sex, profile }));
   if (rendered.error) return fail("headteacher", null, rendered.error, [match.rule.id]);
   const validation = validateComment(rendered.text, { exactWords: config.settings.headteacher.exact_words });
   return unit({

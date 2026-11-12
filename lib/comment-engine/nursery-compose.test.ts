@@ -70,6 +70,16 @@ describe("nurseryGenderSlots", () => {
   });
 });
 
+describe("primaryGenderSlots", () => {
+  it("uses learner and they when sex is unknown", async () => {
+    const { primaryGenderSlots } = await import("./nursery-gender");
+    expect(primaryGenderSlots("F").girl_boy).toBe("girl");
+    expect(primaryGenderSlots(null).girl_boy).toBe("learner");
+    expect(primaryGenderSlots(null).she_he).toBe("they");
+    expect(primaryGenderSlots(null).her_his).toBe("their");
+  });
+});
+
 describe("buildNurseryDevProfile", () => {
   it("names outstanding M skills and skips NA/NT", () => {
     const profile = buildNurseryDevProfile([

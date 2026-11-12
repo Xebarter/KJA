@@ -1,9 +1,13 @@
+import { primaryGenderSlots } from "./nursery-gender";
 import { joinSkillNames } from "./skills";
 import type { CommentTemplate, PerformanceProfile, ReportInput } from "./types";
 
 const ALLOWED = new Set([
   "first_name",
   "middle_name",
+  "girl_boy",
+  "she_he",
+  "her_his",
   "strongest_subjects",
   "weakest_subjects",
   "activity_name",
@@ -39,6 +43,7 @@ export function joinSubjectNames(names: string[]): string {
 export type PlaceholderContext = {
   firstName: string;
   profile: PerformanceProfile;
+  sex?: string | null;
   activityName?: string | null;
   acquiredSkills?: string[];
   focusSkills?: string[];
@@ -58,9 +63,13 @@ export function buildPlaceholders(ctx: PlaceholderContext): Record<string, strin
       ? ctx.profile.skillFocus
       : ctx.profile.missingSkills;
   const cocoBand = ctx.cocurricularBand ?? ctx.profile.cocurricularBand;
+  const gender = primaryGenderSlots(ctx.sex);
   return {
     first_name: ctx.firstName,
     middle_name: ctx.firstName,
+    girl_boy: gender.girl_boy,
+    she_he: gender.she_he,
+    her_his: gender.her_his,
     strongest_subjects: joinSubjectNames(ctx.profile.strongestSubjects.map((row) => row.subjectName)),
     weakest_subjects: joinSubjectNames(ctx.profile.weakestSubjects.map((row) => row.subjectName)),
     activity_name: (ctx.activityName || top?.activityName || "").trim(),
@@ -73,15 +82,19 @@ export function buildPlaceholders(ctx: PlaceholderContext): Record<string, strin
 
 export function renderTemplate(templateText: string, placeholders: Record<string, string>): { text: string; error?: string } {
   const used = new Set<string>();
-  const text = templateText.replace(/\{([a-z_]+)\}/gi, (_, key: string) => {
+  const text = templateText.replace(/\{([A-Za-z_]+)\}/g, (_, key: string) => {
     const code = key.toLowerCase();
     used.add(code);
     if (!ALLOWED.has(code)) return `{${key}}`;
-    return placeholders[code] ?? "";
+    let value = placeholders[code] ?? "";
+    if (value && /^[A-Z]/.test(key)) {
+      value = value.charAt(0).toUpperCase() + value.slice(1);
+    }
+    return value;
   });
   for (const key of used) {
     if (!ALLOWED.has(key)) return { text, error: `Unsupported placeholder {${key}}.` };
-    if (!placeholders[key]?.trim() && templateText.includes(`{${key}}`)) {
+    if (!placeholders[key]?.trim() && /\{[A-Za-z_]*\}/.test(templateText) && new RegExp(`\\{${key}\\}`, "i").test(templateText)) {
       return { text, error: `Missing value for {${key}}.` };
     }
   }

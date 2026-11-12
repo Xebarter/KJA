@@ -29,7 +29,7 @@ export {
 } from "./nursery-analyse";
 export { composeNurseryClassTeacherComment, generateNurseryClassTeacherUnit } from "./nursery-compose";
 export { nurseryClassTeacherTemplates, NURSERY_COMMENT_RULES } from "./nursery-defaults";
-export { nurseryGenderSlots } from "./nursery-gender";
+export { commentGenderSlots, nurseryGenderSlots, primaryGenderSlots } from "./nursery-gender";
 export {
   loadReportInput,
   applyGeneration,

@@ -111,26 +111,25 @@ export function defaultCommentConfig(): CommentConfig {
     t({ id: "c-sg", comment_type: "cocurricular", template_group: "skill_gap", template_text: "{first_name} has needed more practice in {skills_focus} this term and should keep improving that skill next term.", min_words: 12, max_words: 22, exact_sentences: 1 }),
     t({ id: "c-i", comment_type: "cocurricular", template_group: "incomplete", template_text: "{first_name} has limited co-curricular records available for comment this term.", min_words: 12, max_words: 22, exact_sentences: 1 }),
 
-    t({ id: "ct-o-s", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "strong", template_text: "{first_name} has produced strong academic results this term.", exact_sentences: 1 }),
-
-    t({ id: "ct-o-g", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "good", template_text: "{first_name} has made good academic progress this term.", exact_sentences: 1 }),
-
-    t({ id: "ct-o-f", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "fair", template_text: "{first_name} has shown fair academic progress this term.", exact_sentences: 1 }),
-
-    t({ id: "ct-o-u", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "support", template_text: "{first_name} needs continued academic support this term.", exact_sentences: 1 }),
-
+    t({ id: "ct-o-s", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "strong", template_text: "{first_name} has produced strong academic results this term.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-o-s2", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "strong", template_text: "{first_name} is a capable {girl_boy} who has produced strong academic results this term.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-o-g", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "good", template_text: "{first_name} has made good academic progress this term.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-o-g2", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "good", template_text: "{first_name} is a hardworking {girl_boy} who has made good academic progress this term.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-o-f", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "fair", template_text: "{first_name} has shown fair academic progress this term.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-o-f2", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "fair", template_text: "{first_name} is a determined {girl_boy} who has shown fair academic progress this term.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-o-u", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "support", template_text: "{first_name} needs continued academic support this term.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-o-u2", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "support", template_text: "{first_name} is still finding {her_his} feet academically and needs continued support this term.", exact_sentences: 1, sort_order: 2 }),
     t({ id: "ct-o-i", comment_type: "class_teacher", sentence_role: "academic_overview", template_group: "incomplete", template_text: "Academic results for {first_name} are incomplete this term.", exact_sentences: 1 }),
-
-    t({ id: "ct-st", comment_type: "class_teacher", sentence_role: "strengths", template_group: "named", template_text: "Particular strength is shown in {strongest_subjects}.", exact_sentences: 1 }),
-
-    t({ id: "ct-bal", comment_type: "class_teacher", sentence_role: "balanced_performance", template_group: "balanced", template_text: "Performance is steady across the subjects assessed.", exact_sentences: 1 }),
-
-    t({ id: "ct-im", comment_type: "class_teacher", sentence_role: "improvement", template_group: "named", template_text: "Further attention is needed in {weakest_subjects}.", exact_sentences: 1 }),
-
-    t({ id: "ct-re", comment_type: "class_teacher", sentence_role: "reinforcement", template_group: "strong", template_text: "Maintaining this standard next term will serve {first_name} well.", exact_sentences: 1 }),
-
-    t({ id: "ct-nx", comment_type: "class_teacher", sentence_role: "next_step", template_group: "support", template_text: "Regular practice and support will help {first_name} improve.", exact_sentences: 1 }),
-
+    t({ id: "ct-st", comment_type: "class_teacher", sentence_role: "strengths", template_group: "named", template_text: "Particular strength is shown in {strongest_subjects}.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-st2", comment_type: "class_teacher", sentence_role: "strengths", template_group: "named", template_text: "{She_He} shows particular strength in {strongest_subjects}.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-bal", comment_type: "class_teacher", sentence_role: "balanced_performance", template_group: "balanced", template_text: "Performance is steady across the subjects assessed.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-bal2", comment_type: "class_teacher", sentence_role: "balanced_performance", template_group: "balanced", template_text: "{She_He} has kept a steady standard across the subjects assessed.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-im", comment_type: "class_teacher", sentence_role: "improvement", template_group: "named", template_text: "Further attention is needed in {weakest_subjects}.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-im2", comment_type: "class_teacher", sentence_role: "improvement", template_group: "named", template_text: "{She_He} needs further attention in {weakest_subjects}.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-re", comment_type: "class_teacher", sentence_role: "reinforcement", template_group: "strong", template_text: "Maintaining this standard next term will serve {first_name} well.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-re2", comment_type: "class_teacher", sentence_role: "reinforcement", template_group: "strong", template_text: "Keeping this standard next term will serve {her_his} progress well.", exact_sentences: 1, sort_order: 2 }),
+    t({ id: "ct-nx", comment_type: "class_teacher", sentence_role: "next_step", template_group: "support", template_text: "Regular practice and support will help {first_name} improve.", exact_sentences: 1, sort_order: 1 }),
+    t({ id: "ct-nx2", comment_type: "class_teacher", sentence_role: "next_step", template_group: "support", template_text: "Regular practice and support will help {her_his} academic progress.", exact_sentences: 1, sort_order: 2 }),
     t({ id: "ct-in", comment_type: "class_teacher", sentence_role: "incomplete_data", template_group: "incomplete", template_text: "Comments will be completed once all subject results are recorded.", exact_sentences: 1 }),
 
     ...nurseryClassTeacherTemplates("default"),

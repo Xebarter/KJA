@@ -141,7 +141,7 @@ export type ReportInput = {
   reportId: string;
   studentId: string;
   firstName: string;
-  /** Pupil sex from students.sex (`M` / `F`); used for nursery gendered wording. */
+  /** Pupil sex from students.sex (`M` / `F`); used for gendered nursery and primary wording. */
   sex?: string | null;
   classCode: string;
   stream: string;

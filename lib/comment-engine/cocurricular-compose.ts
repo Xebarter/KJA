@@ -1,9 +1,12 @@
+import { primaryGenderSlots } from "./nursery-gender";
 import type { CommentBandCode } from "./types";
 import { joinSkillNames } from "./skills";
 import { countWords, validateComment } from "./validate";
 
 export type CocurricularComposeInput = {
   firstName: string;
+  /** students.sex (`M` / `F`) for mid-sentence pronouns. */
+  sex?: string | null;
   /** Named activity for a slot comment; omit for the overall co-curricular summary. */
   activityName?: string | null;
   score: number | null;
@@ -45,6 +48,8 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
   const first = input.firstName.trim();
   if (!first) return null;
 
+  const gender = primaryGenderSlots(input.sex);
+  const her = gender.known ? gender.her_his : "";
   const score = clampScore(input.score);
   const band = bandFromScore(score, input.band);
   const activity = (input.activityName || "").trim();
@@ -63,12 +68,22 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has acquired ${acquired} ${inActivity} this term and should continue setting that example next term.`,
         `${first} has demonstrated ${acquired} with maturity ${inActivity} this term and should keep that enthusiasm next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has excelled ${inActivity} this term, showing ${acquired}, and should keep setting that example for ${her} classmates next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has excelled ${inActivity} this term with outstanding commitment and should keep that energy next term.`,
         `${first} has participated exceptionally well ${inActivity} this term and should continue leading by example next term.`,
         `${first} has made an outstanding contribution ${inActivity} this term and should keep encouraging others next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has shown outstanding commitment ${inActivity} this term and should keep bringing that energy to ${her} peers next term.`,
+        );
+      }
     }
   } else if (band === "very_good") {
     if (acquired) {
@@ -77,12 +92,22 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has shown strong commitment ${inActivity} this term and should continue growing in ${acquired} next term.`,
         `${first} has made clear progress with ${acquired} ${during} this term and should keep that effort next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has developed ${acquired} ${inActivity} this term and should keep building on ${her} progress next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has maintained very good participation ${inActivity} this term and should continue cooperating responsibly next term.`,
         `${first} has taken ${where} seriously this term and should keep contributing with confidence next term.`,
         `${first} has participated willingly ${inActivity} this term and should continue building valuable skills next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has contributed reliably ${inActivity} this term and should keep growing in ${her} teamwork next term.`,
+        );
+      }
     }
   } else if (band === "good") {
     if (acquired) {
@@ -91,17 +116,32 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has participated well ${inActivity} this term while developing ${acquired} and should continue next term.`,
         `${first} has contributed positively ${during} this term and should keep building confidence with ${acquired} next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has grown in ${acquired} ${inActivity} this term and should keep practising to strengthen ${her} skills next term.`,
+        );
+      }
     } else if (focus && input.missing.length) {
       stems.push(
         `${first} has shown good involvement ${inActivity} this term and should keep practising ${focus} next term.`,
         `${first} has participated willingly ${inActivity} this term and should strengthen ${focus} with guidance next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has joined in well ${inActivity} this term and should keep working on ${focus} to build ${her} confidence next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has participated well ${inActivity} this term and should keep learning new skills next term.`,
         `${first} has shown good involvement ${inActivity} this term and should take more responsibility next term.`,
         `${first} has taken part ${inActivity} with interest this term and should keep working well with classmates next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has taken part willingly ${inActivity} this term and should keep growing in ${her} confidence next term.`,
+        );
+      }
     }
   } else if (band === "fair") {
     if (acquired) {
@@ -110,18 +150,33 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has shown developing interest ${inActivity} this term and should build ${acquired} more confidently next term.`,
         `${first} has participated ${inActivity} only at times this term and should aim for greater consistency with ${acquired} next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has begun to develop ${acquired} ${inActivity} this term and should practise more steadily for ${her} progress next term.`,
+        );
+      }
     } else if (focus) {
       stems.push(
         `${first} has developed unevenly ${inActivity} this term and should keep practising ${focus} with guidance next term.`,
         `${first} has needed steadier participation ${inActivity} this term, especially with ${focus}, and should improve next term.`,
         `${first} has shown emerging interest ${inActivity} this term and should practise ${focus} to build confidence next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has needed steadier effort ${inActivity} this term and should practise ${focus} to strengthen ${her} skills next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has made fair progress ${inActivity} this term and should keep practising with encouragement next term.`,
         `${first} has taken part ${inActivity} this term and should participate more actively with classmates next term.`,
         `${first} has shown developing interest ${inActivity} this term and should sustain effort throughout each session next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has made fair progress ${inActivity} this term and should keep practising to grow ${her} confidence next term.`,
+        );
+      }
     }
   } else if (band === "needs_improvement") {
     if (focus) {
@@ -130,12 +185,22 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has practised ${focus} too little ${inActivity} this term and should build confidence through guided work next term.`,
         `${first} has engaged reluctantly ${inActivity} this term and should work more willingly on ${focus} next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has needed guided practice with ${focus} ${inActivity} this term and should keep building ${her} confidence next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has needed closer encouragement ${inActivity} this term and should practise regularly to build confidence next term.`,
         `${first} has participated reluctantly ${during} this term and should practise basic skills more willingly next term.`,
         `${first} has made a limited effort ${inActivity} this term and should make better use of guidance next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has needed closer encouragement ${inActivity} this term and should practise regularly to grow ${her} confidence next term.`,
+        );
+      }
     }
   } else {
     // weak
@@ -145,12 +210,22 @@ export function composeCocurricularComment(input: CocurricularComposeInput): str
         `${first} has needed careful support ${inActivity} this term, beginning with ${focus}, and should continue short guided sessions next term.`,
         `${first} has struggled with ${focus} ${inActivity} this term and should build confidence through patient coaching next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has needed careful support with ${focus} ${inActivity} this term and should keep building ${her} foundations next term.`,
+        );
+      }
     } else {
       stems.push(
         `${first} has needed careful support ${inActivity} this term and should gain confidence through short guided practice next term.`,
         `${first} has found ${where} challenging this term and should continue with patient, regular coaching next term.`,
         `${first} has required close guidance ${inActivity} this term and should keep building foundations for progress next term.`,
       );
+      if (her) {
+        stems.push(
+          `${first} has needed careful support ${inActivity} this term and should keep building ${her} foundations with guidance next term.`,
+        );
+      }
     }
   }
 

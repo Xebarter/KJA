@@ -6,7 +6,8 @@ Deterministic comments for KJA report cards: subject (2 words), co-curricular (o
 
 1. Run `supabase/0025_comment_engine.sql` on the database.
 2. Run `supabase/0026_cocurricular_skills.sql` for co-curricular marks and term skills.
-3. Open **Academics → Comments** to review the active template bank and rules.
+3. Run `supabase/0085_primary_comment_gender.sql` for gendered class-teacher variants (optional but recommended).
+4. Open **Academics → Comments** to review the active template bank and rules.
 4. On a draft report card, enter co-curricular activities with:
    - a **mark** (score / out of), like other subjects
    - **skills this term** (what was supposed to be acquired)
@@ -38,7 +39,9 @@ Template rules remain as a fallback when composition cannot fit the word window 
 | Strong / support / mixed | Band only | Generic commitment sentence |
 | Skill gap | Weak/fair mark + missing skills | Names skills still to practise |
 
-Placeholders in fallback templates: `{first_name}`, `{activity_name}`, `{skills_acquired}`, `{skills_focus}`.
+Placeholders in fallback templates: `{first_name}`, `{girl_boy}`, `{she_he}`, `{her_his}`, `{activity_name}`, `{skills_acquired}`, `{skills_focus}`.
+
+Gender comes from `students.sex` (`F`/`M`). Known sex yields girl/boy and she/he/her/his; unknown sex yields learner and they/their so templates still render. Class-teacher and co-curricular lines may use these mid-sentence (for example “She shows particular strength in Mathematics”).
 
 ## First name rule
 

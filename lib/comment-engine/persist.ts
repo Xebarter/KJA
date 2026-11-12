@@ -40,7 +40,9 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
         .select("slot, activity_name, level, score, max_score, skills")
         .eq("report_card_id", reportId)
         .order("slot"),
-      nursery ? loadReportSkillLines(supabase, [reportId]) : Promise.resolve(new Map()),
+      nursery
+        ? loadReportSkillLines(supabase, [reportId])
+        : Promise.resolve(new Map<string, NurserySkillLineInput[]>()),
     ]);
   if (pupilError) throw new Error(pupilError.message);
   if (lineError) throw new Error(lineError.message);
@@ -287,7 +289,9 @@ export async function generateClassReportComments(
       (slice) => supabase.from("report_lines").select("report_card_id, subject_id, subject_name, score, max_score, teacher_comment").in("report_card_id", slice),
     ),
     loadActivities(supabase, reportIds),
-    nurseryClass ? loadReportSkillLines(supabase, reportIds) : Promise.resolve(new Map()),
+    nurseryClass
+      ? loadReportSkillLines(supabase, reportIds)
+      : Promise.resolve(new Map<string, NurserySkillLineInput[]>()),
   ]);
   const pupilById = new Map(pupils.map((pupil) => [String(pupil.id), pupil]));
   const linesByCard = groupBy(lines, (line) => String(line.report_card_id));

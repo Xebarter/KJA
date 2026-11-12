@@ -204,6 +204,41 @@ describe("generateCommentsForReport", () => {
     expect(countWords(head!.text!)).toBe(12);
   });
 
+  it("uses gendered wording for a girl in primary class-teacher comments", () => {
+    const result = generateCommentsForReport(sampleInput({ sex: "F", firstName: "Amina" }), config);
+    const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
+    expect(classUnit?.validation.ok).toBe(true);
+    expect(classUnit?.text).toMatch(/\bgirl\b|\bShe\b|\bher\b/);
+    expect(classUnit?.text?.toLowerCase()).not.toMatch(/\bboy\b/);
+  });
+
+  it("uses gendered wording for a boy in primary class-teacher comments", () => {
+    const result = generateCommentsForReport(
+      sampleInput({
+        sex: "M",
+        firstName: "Joel",
+        subjects: [
+          { subjectId: "math", subjectName: "Mathematics", score: 45, maxScore: 100, percent: 45, status: "assessed", sortOrder: 1 },
+          { subjectId: "eng", subjectName: "English", score: 42, maxScore: 100, percent: 42, status: "assessed", sortOrder: 2 },
+          { subjectId: "sci", subjectName: "Science", score: 40, maxScore: 100, percent: 40, status: "assessed", sortOrder: 3 },
+        ],
+      }),
+      config,
+    );
+    const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
+    expect(classUnit?.validation.ok).toBe(true);
+    expect(classUnit?.text).toMatch(/\bboy\b|\bHe\b|\bhis\b/);
+    expect(classUnit?.text?.toLowerCase()).not.toMatch(/\btheir feet\b/);
+  });
+
+  it("still produces three valid sentences when primary sex is unknown", () => {
+    const result = generateCommentsForReport(sampleInput({ sex: null, firstName: "Alex" }), config);
+    const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
+    expect(classUnit?.validation.ok).toBe(true);
+    expect(countSentences(classUnit!.text!)).toBe(3);
+    expect(classUnit?.text?.toLowerCase()).not.toMatch(/\bgirl\b|\bboy\b/);
+  });
+
   it("is deterministic for the same input", () => {
     const a = generateCommentsForReport(sampleInput(), config);
     const b = generateCommentsForReport(sampleInput(), config);
