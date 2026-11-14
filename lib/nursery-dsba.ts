@@ -214,8 +214,9 @@ export async function loadDivisionCatalogue(
 ) {
   const [divRes, domainLinks, skillLinks, domainsRes, skillsRes, scalesRes, codesRes] = await Promise.all([
     supabase.from("nursery_divisions").select("*").eq("id", divisionId).maybeSingle(),
-    supabase.from("domain_division_links").select("domain_id").eq("division_id", divisionId),
-    supabase.from("skill_division_links").select("skill_id").eq("division_id", divisionId),
+    // Select both key columns so the desktop SQLite entity cache can ingest composite rows.
+    supabase.from("domain_division_links").select("domain_id, division_id").eq("division_id", divisionId),
+    supabase.from("skill_division_links").select("skill_id, division_id").eq("division_id", divisionId),
     supabase.from("developmental_domains").select("*").eq("active", true).order("sort_order"),
     supabase.from("developmental_skills").select("*").eq("active", true).order("sort_order"),
     supabase.from("progress_scales").select("*").order("sort_order"),

@@ -121,18 +121,17 @@ async function pdfFromHtml(browser: Browser, html: string, offline: boolean): Pr
     context = await browser.newContext({
       viewport: { width: 794, height: 1123 },
       deviceScaleFactor: 1,
-      javaScriptEnabled: false,
+      // Needed so document.fonts.ready can run before the PDF snapshot.
+      javaScriptEnabled: true,
     });
     const page = await context.newPage();
     if (offline) await attachOfflineRouter(page);
     else await attachPublicAssetRouter(page);
     await page.setContent(html, { waitUntil: "domcontentloaded", timeout: 45_000 });
-    // Fonts/images are data URIs in the fast path - a short settle beats fonts.ready on large packs.
-    if (!offline) {
-      await page.evaluate(async () => {
-        if (document.fonts?.ready) await document.fonts.ready;
-      });
-    }
+    // Inlined @font-face data URIs still need a tick to decode before page.pdf().
+    await page.evaluate(async () => {
+      if (document.fonts?.ready) await document.fonts.ready;
+    });
     await page.emulateMedia({ media: "print" });
     return await page.pdf({
       printBackground: true,

@@ -1790,7 +1790,7 @@ dialog.msh-screen.msh-dsba {
   --dsba-panel: #ffffff;
   --dsba-accent: var(--nur-sky);
   --dsba-accent-deep: #247691;
-  --dsba-sheet-max: 52rem;
+  --dsba-sheet-max: 74rem;
   background:
     radial-gradient(120% 80% at 100% -10%, rgba(47, 151, 184, 0.12), transparent 55%),
     radial-gradient(90% 60% at -5% 100%, rgba(63, 157, 110, 0.08), transparent 50%),
@@ -2044,9 +2044,13 @@ dialog.msh-screen.msh-dsba.is-pupil .msh-foot p {
   width: min(100%, var(--dsba-sheet-max));
   margin: 0 auto;
   padding: 0.85rem 1rem 0.45rem;
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.85rem;
+  align-items: start;
+}
+.msh-dsba-sheet-body > .msh-dsba-domain {
+  min-width: 0;
 }
 
 .msh-dsba-legend {
@@ -2354,7 +2358,10 @@ dialog.msh-screen.msh-dsba.is-pupil .msh-foot p {
   .msh-dsba-pupil-meter { grid-area: meter; }
   .msh-dsba-pupil-stat { grid-area: stat; justify-self: end; }
   .msh-dsba-pupil > .fa-chevron-right { grid-area: chev; }
-  .msh-dsba-sheet-body { padding-inline: 0.65rem; }
+  .msh-dsba-sheet-body {
+    grid-template-columns: 1fr;
+    padding-inline: 0.65rem;
+  }
   .msh-dsba-legend { padding-inline: 0.65rem; }
   .msh-dsba-chips { width: 100%; }
   .msh-dsba-chip { flex: 1 1 2rem; }

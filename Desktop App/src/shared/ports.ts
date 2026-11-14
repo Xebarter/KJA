@@ -45,6 +45,14 @@ export const CRITICAL_HYDRATE_PATHS = [
   "/rest/v1/class_teachers?select=id,term_id,campus,class_code,stream,staff_id,role&order=class_code.asc",
   "/rest/v1/subject_teachers?select=id,term_id,campus,class_code,stream,subject_id,staff_id&order=class_code.asc",
   "/rest/v1/timetable_slots?select=*&order=weekday.asc,period.asc&limit=2000",
+  // Nursery developmental catalogue (workbook + marksheet)
+  "/rest/v1/nursery_divisions?select=*&order=sort_order.asc",
+  "/rest/v1/developmental_domains?select=*&active=eq.true&order=sort_order.asc",
+  "/rest/v1/developmental_skills?select=*&active=eq.true&order=sort_order.asc&limit=2000",
+  "/rest/v1/domain_division_links?select=domain_id,division_id",
+  "/rest/v1/skill_division_links?select=skill_id,division_id&limit=4000",
+  "/rest/v1/progress_scales?select=*&order=sort_order.asc",
+  "/rest/v1/progress_codes?select=*&order=sort_order.asc",
   // Register (columns used by Admissions Overview counts + lists)
   "/rest/v1/students?select=id,student_number,full_name,surname,given_names,sex,class_code,stream,house,campus,status,family_id,date_of_birth,enrolled_on,needs_review,medical_notes,staff_child,left_on,updated_at&status=eq.active&order=full_name.asc&limit=2500",
   "/rest/v1/students?select=id,student_number,full_name,sex,class_code,stream,status,left_on,family_id&status=neq.active&order=left_on.desc.nullslast&limit=800",

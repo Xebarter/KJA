@@ -13,7 +13,7 @@ import {
   nurseryReportClassLabel,
 } from "@/lib/nursery-dsba";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
-import { normaliseReportTitle } from "@/lib/report-title";
+import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import "./online-report.css";
 
 const ACTIVITY_SLOTS = [1, 2, 3, 4];
@@ -75,7 +75,7 @@ export function OnlineReport({
   portrait?: ReactNode;
   embedded?: boolean;
 }) {
-  const sheetTitle = normaliseReportTitle(card.report_title);
+  const sheetTitle = nursery ? nurseryReportTitle() : normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
   const skillGroups = groupSkillLines(card.skillLines || []);
   const dsba = nursery && skillGroups.length > 0;

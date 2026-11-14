@@ -117,7 +117,7 @@ describe("ProxyStore + optimistic writes", () => {
     ]);
     const id = localEntityId("club_attendance", { session_id: "s1", student_id: "p1" });
     expect(id).toBeTruthy();
-    expect(store.getEntity("u1", "club_attendance", id!).status).toBe("present");
+    expect(store.getEntity("u1", "club_attendance", id!)?.status).toBe("present");
   });
 
   it("applies offline insert then keeps pending outbox", () => {

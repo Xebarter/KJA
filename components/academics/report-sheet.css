@@ -1088,6 +1088,8 @@ article.acd-sheet.is-nursery-dsba {
   --nur-teal: #2f9e8f;
   --nur-apricot: #e89b5c;
   --nur-indigo: #5b7fc7;
+  /* Match desk preview: domains/skills inherit Yantramanav (masthead/pupil keep their own faces). */
+  font-family: Yantramanav, Roboto, sans-serif;
   /* Lock to A4 width so the on-page preview matches the PDF. */
   width: min(100%, 210mm);
   max-width: 210mm;
@@ -1276,9 +1278,11 @@ article.acd-sheet.is-nursery-dsba .acd-nur-domain-art.is-fallback {
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-domain-head h3 {
   margin: 0;
-  font-size: .92rem;
+  font-size: 1rem;
+  font-weight: 800;
   line-height: 1.2;
   letter-spacing: .01em;
+  text-transform: uppercase;
   color: color-mix(in srgb, var(--domain-accent) 55%, #152028);
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-skills {
@@ -1295,11 +1299,14 @@ article.acd-sheet.is-nursery-dsba .acd-nur-skills li {
   align-items: start;
   padding: .18rem .2rem;
   border-bottom: 1px dotted rgba(21, 32, 40, .12);
-  font-size: .82rem;
+  font-size: .86rem;
   line-height: 1.28;
 }
 article.acd-sheet.is-nursery-dsba .acd-nur-skills li:last-child { border-bottom: 0; }
-article.acd-sheet.is-nursery-dsba .acd-nur-skill-copy { min-width: 0; }
+article.acd-sheet.is-nursery-dsba .acd-nur-skill-copy {
+  min-width: 0;
+  font-weight: 700;
+}
 article.acd-sheet.is-nursery-dsba .acd-nur-skill-code {
   display: inline-grid;
   place-items: center;
@@ -1668,8 +1675,8 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   article.acd-sheet.is-nursery-dsba .acd-nur-legend-table thead th {
     font-size: .64rem;
   }
-  article.acd-sheet.is-nursery-dsba .acd-nur-domain-head h3 { font-size: .88rem; }
-  article.acd-sheet.is-nursery-dsba .acd-nur-skills li { font-size: .78rem; padding: .14rem .18rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-domain-head h3 { font-size: .95rem; }
+  article.acd-sheet.is-nursery-dsba .acd-nur-skills li { font-size: .82rem; padding: .14rem .18rem; }
   article.acd-sheet.is-nursery-dsba .acd-nur-skill-code { font-size: .74rem; }
   article.acd-sheet.is-nursery-dsba .acd-nur-domain,
   article.acd-sheet.is-nursery-dsba .acd-nur-domain-bg,

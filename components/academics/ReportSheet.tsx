@@ -9,7 +9,7 @@ import {
   nurseryReportClassLabel,
   nurseryReportPageForDomainSort,
 } from "@/lib/nursery-dsba";
-import { normaliseReportTitle } from "@/lib/report-title";
+import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import "./report-sheet.css";
@@ -303,17 +303,19 @@ function SheetMasthead({
   card,
   sheetTitle,
   portrait,
+  nursery = false,
 }: {
   card: SheetCard;
   sheetTitle: string;
   portrait?: ReactNode;
+  nursery?: boolean;
 }) {
   return (
     <header className="acd-sheet-mast">
       <div className="acd-sheet-banner">
         <img className="acd-sheet-crest" src="/images/icon.png" alt="" />
         <div className="acd-sheet-brand">
-          <p className="acd-sheet-established">Established 1993</p>
+          {nursery ? null : <p className="acd-sheet-established">Established 1993</p>}
           <p className="acd-sheet-school">
             <span className="acd-sheet-kampala">Kampala</span>
             <span className="acd-sheet-academy">Junior Academy</span>
@@ -322,6 +324,7 @@ function SheetMasthead({
             <span>P.O. Box 6202</span>
             <span>info@kja.com</span>
             <span>+256 392 700 370</span>
+            {nursery ? <span>www.kja.ug</span> : null}
           </p>
         </div>
         <div className="acd-sheet-portrait">
@@ -345,7 +348,7 @@ function SheetMasthead({
 
 export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; nursery: boolean; portrait?: ReactNode; qr?: ReactNode }) {
   const place = classLabel(card.class_code, card.stream);
-  const sheetTitle = normaliseReportTitle(card.report_title);
+  const sheetTitle = nursery ? nurseryReportTitle() : normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
   const dsba = nursery && (card.skillLines?.length || 0) > 0;
   const scored = !dsba && card.lines.some((line) => line.score !== null);
@@ -370,7 +373,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <div className="acd-sheet-watermark" aria-hidden="true">
               <img src="/images/icon.png" alt="" />
             </div>
-            <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} />
+            <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} nursery />
 
             <section className="acd-sheet-identity acd-nur-identity" aria-label="Pupil details">
               <div className="acd-sheet-pupil">
@@ -481,7 +484,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
         <div className="acd-sheet-watermark" aria-hidden="true">
           <img src="/images/icon.png" alt="" />
         </div>
-        <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} />
+        <SheetMasthead card={card} sheetTitle={sheetTitle} portrait={portrait} nursery={nursery} />
 
         <section className="acd-sheet-identity">
           <div className="acd-sheet-pupil">

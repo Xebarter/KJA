@@ -1191,8 +1191,10 @@ function offlineRestResponse(
 
   let rows = store.listEntities(userId, table);
   if (!rows.length) {
-    // Distinguish "never synced" from a genuinely empty table.
-    if (!store.listCachesForTable(userId, table).length) return null;
+    // Do not invent an empty table when HTTP caches exist but entity ingest
+    // failed (e.g. composite-key rows selected without every key column).
+    // Prefer 503 / exact-URL cache over a false "no rows" that blanks desks.
+    return null;
   }
 
   if (parsed.filters.length) {
