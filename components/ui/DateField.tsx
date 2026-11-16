@@ -7,12 +7,19 @@ import {
   useMemo,
   useRef,
   useState,
+  type CSSProperties,
   type FocusEventHandler,
   type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
+import { createPortal } from "react-dom";
 import { kampalaToday } from "@/lib/accounts-format";
 import "./date-field.css";
+
+const POP_GAP = 6;
+const POP_ESTIMATE = 360;
+const YEAR_SPAN = 12;
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
 const WEEKDAYS = ["Mo", "Tu", "We", "Th", "Fr", "Sa", "Su"] as const;
 const MONTHS = [
@@ -29,6 +36,8 @@ const MONTHS = [
   "November",
   "December",
 ] as const;
+
+type Panel = "day" | "month" | "year";
 
 type ChangeLike = { target: { value: string; name: string }; currentTarget: { value: string; name: string } };
 
@@ -91,11 +100,39 @@ function addMonths(date: Date, delta: number) {
   return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + delta, 1));
 }
 
+function addYears(date: Date, delta: number) {
+  return new Date(Date.UTC(date.getUTCFullYear() + delta, date.getUTCMonth(), 1));
+}
+
 function clampIso(iso: string, min?: string, max?: string) {
   let next = iso;
   if (min && next < min) next = min;
   if (max && next > max) next = max;
   return next;
+}
+
+function yearBounds(min?: string, max?: string) {
+  const minYear = min ? Number(min.slice(0, 4)) : 1900;
+  const maxYear = max ? Number(max.slice(0, 4)) : 2100;
+  return { minYear, maxYear };
+}
+
+function monthBlocked(year: number, monthIndex: number, min?: string, max?: string) {
+  const start = `${year}-${String(monthIndex + 1).padStart(2, "0")}-01`;
+  const endDay = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+  const end = `${year}-${String(monthIndex + 1).padStart(2, "0")}-${String(endDay).padStart(2, "0")}`;
+  if (min && end < min) return true;
+  if (max && start > max) return true;
+  return false;
+}
+
+function yearBlocked(year: number, min?: string, max?: string) {
+  const { minYear, maxYear } = yearBounds(min, max);
+  return year < minYear || year > maxYear;
+}
+
+function decadeStart(year: number) {
+  return Math.floor(year / YEAR_SPAN) * YEAR_SPAN;
 }
 
 function buildCells(view: Date) {
@@ -146,25 +183,38 @@ export function DateField({
   const selected = controlled ? value || "" : inner;
   const today = useMemo(() => kampalaToday(), []);
   const [open, setOpen] = useState(false);
+  const [panel, setPanel] = useState<Panel>("day");
   const [flipUp, setFlipUp] = useState(false);
+  const [popStyle, setPopStyle] = useState<CSSProperties | null>(null);
+  const [portalHost, setPortalHost] = useState<Element | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
   const valueRef = useRef<HTMLInputElement>(null);
   const [view, setView] = useState(() => startOfMonth(parseIso(selected) || parseIso(today) || new Date()));
 
   useEffect(() => {
     if (!open) return;
     const onPointer = (event: MouseEvent | TouchEvent) => {
-      const node = rootRef.current;
-      if (!node || !(event.target instanceof Node) || node.contains(event.target)) return;
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (rootRef.current?.contains(target) || popRef.current?.contains(target)) return;
       setOpen(false);
+      setPanel("day");
     };
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        setOpen(false);
-        triggerRef.current?.focus();
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      if (panel === "year") {
+        setPanel("month");
+        return;
       }
+      if (panel === "month") {
+        setPanel("day");
+        return;
+      }
+      setOpen(false);
+      triggerRef.current?.focus();
     };
     document.addEventListener("mousedown", onPointer);
     document.addEventListener("touchstart", onPointer);
@@ -174,13 +224,57 @@ export function DateField({
       document.removeEventListener("touchstart", onPointer);
       document.removeEventListener("keydown", onKey);
     };
-  }, [open]);
+  }, [open, panel]);
 
   useLayoutEffect(() => {
-    if (!open || !rootRef.current) return;
-    const rect = rootRef.current.getBoundingClientRect();
-    const spaceBelow = window.innerHeight - rect.bottom;
-    setFlipUp(spaceBelow < 340 && rect.top > spaceBelow);
+    if (!open || !rootRef.current) {
+      setPopStyle(null);
+      setPortalHost(null);
+      return;
+    }
+
+    const place = () => {
+      const anchor = triggerRef.current || rootRef.current;
+      if (!anchor) return;
+      const rect = anchor.getBoundingClientRect();
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const spaceAbove = rect.top;
+      const up = spaceBelow < POP_ESTIMATE && spaceAbove > spaceBelow;
+      setFlipUp(up);
+
+      const width = Math.min(19.5 * 16, window.innerWidth - 24);
+      let left = rect.left;
+      if (left + width > window.innerWidth - 12) left = Math.max(12, window.innerWidth - width - 12);
+      if (left < 12) left = 12;
+
+      const style: CSSProperties = {
+        position: "fixed",
+        left,
+        width,
+        zIndex: 1200,
+      };
+      if (up) {
+        style.top = "auto";
+        style.bottom = Math.max(12, window.innerHeight - rect.top + POP_GAP);
+      } else {
+        style.top = rect.bottom + POP_GAP;
+        style.bottom = "auto";
+      }
+      setPopStyle(style);
+
+      // Keep the calendar in the dialog top-layer when open inside a modal.
+      const host = rootRef.current?.closest("dialog[open]") || document.body;
+      setPortalHost(host);
+    };
+
+    place();
+    window.addEventListener("resize", place);
+    // Capture scrolls from nested dialog/panel scrollers that move the trigger.
+    window.addEventListener("scroll", place, true);
+    return () => {
+      window.removeEventListener("resize", place);
+      window.removeEventListener("scroll", place, true);
+    };
   }, [open, view]);
 
   useEffect(() => {
@@ -221,14 +315,20 @@ export function DateField({
   const openPicker = () => {
     if (disabled) return;
     setView(startOfMonth(parseIso(selected) || parseIso(today) || new Date()));
+    setPanel("day");
     setOpen(true);
+  };
+
+  const closePicker = () => {
+    setOpen(false);
+    setPanel("day");
+    triggerRef.current?.focus();
   };
 
   const pick = (iso: string) => {
     if ((min && iso < min) || (max && iso > max)) return;
     commit(iso);
-    setOpen(false);
-    triggerRef.current?.focus();
+    closePicker();
   };
 
   const onTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
@@ -238,11 +338,47 @@ export function DateField({
     }
   };
 
-  const monthLabel = `${MONTHS[view.getUTCMonth()]} ${view.getUTCFullYear()}`;
+  const viewYear = view.getUTCFullYear();
+  const viewMonth = view.getUTCMonth();
+  const monthLabel = `${MONTHS[viewMonth]} ${viewYear}`;
+  const yearsAnchor = decadeStart(viewYear);
+  const yearItems = Array.from({ length: YEAR_SPAN }, (_, i) => yearsAnchor + i);
+  const yearRangeLabel = `${yearsAnchor} – ${yearsAnchor + YEAR_SPAN - 1}`;
+  const todayDate = parseIso(today);
+  const selectedDate = parseIso(selected);
+
   const prevMonth = addMonths(view, -1);
   const nextMonth = addMonths(view, 1);
   const prevDisabled = Boolean(min && toIso(new Date(Date.UTC(prevMonth.getUTCFullYear(), prevMonth.getUTCMonth() + 1, 0))) < min);
   const nextDisabled = Boolean(max && toIso(nextMonth) > max);
+  const prevYearDisabled = yearBlocked(viewYear - 1, min, max);
+  const nextYearDisabled = yearBlocked(viewYear + 1, min, max);
+  const prevDecadeDisabled = yearBlocked(yearsAnchor - 1, min, max);
+  const nextDecadeDisabled = yearBlocked(yearsAnchor + YEAR_SPAN, min, max);
+
+  const stepPrev = () => {
+    if (panel === "day") setView((current) => addMonths(current, -1));
+    else if (panel === "month") setView((current) => addYears(current, -1));
+    else setView((current) => addYears(current, -YEAR_SPAN));
+  };
+
+  const stepNext = () => {
+    if (panel === "day") setView((current) => addMonths(current, 1));
+    else if (panel === "month") setView((current) => addYears(current, 1));
+    else setView((current) => addYears(current, YEAR_SPAN));
+  };
+
+  const stepPrevDisabled = panel === "day" ? prevDisabled : panel === "month" ? prevYearDisabled : prevDecadeDisabled;
+  const stepNextDisabled = panel === "day" ? nextDisabled : panel === "month" ? nextYearDisabled : nextDecadeDisabled;
+
+  const headLabel = panel === "day" ? monthLabel : panel === "month" ? String(viewYear) : yearRangeLabel;
+  const headAction =
+    panel === "day"
+      ? () => setPanel("month")
+      : panel === "month"
+        ? () => setPanel("year")
+        : undefined;
+  const headHint = panel === "day" ? "Choose month" : panel === "month" ? "Choose year" : undefined;
 
   return (
     <div
@@ -285,7 +421,7 @@ export function DateField({
         aria-describedby={aria["aria-describedby"]}
         aria-invalid={aria["aria-invalid"]}
         aria-required={aria["aria-required"] ?? (required || undefined)}
-        onClick={() => (open ? setOpen(false) : openPicker())}
+        onClick={() => (open ? closePicker() : openPicker())}
         onKeyDown={onTriggerKeyDown}
         onBlur={() => {
           if (!onBlur) return;
@@ -310,76 +446,161 @@ export function DateField({
         )}
       </button>
 
-      {open ? (
-        <div className={`kja-date-pop${flipUp ? " is-up" : ""}`} id={popId} role="dialog" aria-modal="false" aria-label={monthLabel}>
-          <div className="kja-date-head">
-            <p className="kja-date-title">{monthLabel}</p>
-            <div className="kja-date-nav">
-              <button type="button" aria-label="Previous month" disabled={prevDisabled} onClick={() => setView((current) => addMonths(current, -1))}>
-                <i className="fa-solid fa-chevron-left" aria-hidden="true" />
-              </button>
-              <button type="button" aria-label="Next month" disabled={nextDisabled} onClick={() => setView((current) => addMonths(current, 1))}>
-                <i className="fa-solid fa-chevron-right" aria-hidden="true" />
-              </button>
-            </div>
-          </div>
-
-          <div className="kja-date-week" aria-hidden="true">
-            {WEEKDAYS.map((day) => (
-              <span key={day}>{day}</span>
-            ))}
-          </div>
-
-          <div className="kja-date-grid" role="grid" aria-label={monthLabel}>
-            {cells.map((cell) => {
-              const blocked = Boolean((min && cell.iso < min) || (max && cell.iso > max));
-              return (
-                <button
-                  key={cell.iso}
-                  type="button"
-                  role="gridcell"
-                  className={`kja-date-day${cell.outside ? " is-out" : ""}${cell.iso === selected ? " is-selected" : ""}${cell.iso === today ? " is-today" : ""}`}
-                  disabled={blocked}
-                  aria-selected={cell.iso === selected}
-                  aria-current={cell.iso === today ? "date" : undefined}
-                  onClick={() => pick(cell.iso)}
-                >
-                  {cell.day}
-                </button>
-              );
-            })}
-          </div>
-
-          <div className="kja-date-foot">
-            <button
-              type="button"
-              onClick={() => {
-                const next = clampIso(today, min, max);
-                if ((min && today < min) || (max && today > max)) return;
-                pick(next);
-              }}
-              disabled={Boolean((min && today < min) || (max && today > max))}
+      {open && portalHost && popStyle
+        ? createPortal(
+            <div
+              ref={popRef}
+              className={`kja-date-pop is-portal${flipUp ? " is-up" : ""}`}
+              id={popId}
+              role="dialog"
+              aria-modal="false"
+              aria-label={headLabel}
+              style={popStyle}
             >
-              Today
-            </button>
-            {!required ? (
-              <button
-                type="button"
-                className="is-muted"
-                onClick={() => {
-                  commit("");
-                  setOpen(false);
-                  triggerRef.current?.focus();
-                }}
-              >
-                Clear
-              </button>
-            ) : (
-              <span />
-            )}
-          </div>
-        </div>
-      ) : null}
+              <div className="kja-date-head">
+                {headAction ? (
+                  <button type="button" className="kja-date-title-btn" onClick={headAction} aria-label={headHint} title={headHint}>
+                    <span>{headLabel}</span>
+                    <i className="fa-solid fa-chevron-down" aria-hidden="true" />
+                  </button>
+                ) : (
+                  <p className="kja-date-title">{headLabel}</p>
+                )}
+                <div className="kja-date-nav">
+                  <button
+                    type="button"
+                    aria-label={panel === "day" ? "Previous month" : panel === "month" ? "Previous year" : "Previous years"}
+                    disabled={stepPrevDisabled}
+                    onClick={stepPrev}
+                  >
+                    <i className="fa-solid fa-chevron-left" aria-hidden="true" />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={panel === "day" ? "Next month" : panel === "month" ? "Next year" : "Next years"}
+                    disabled={stepNextDisabled}
+                    onClick={stepNext}
+                  >
+                    <i className="fa-solid fa-chevron-right" aria-hidden="true" />
+                  </button>
+                </div>
+              </div>
+
+              {panel === "day" ? (
+                <>
+                  <div className="kja-date-week" aria-hidden="true">
+                    {WEEKDAYS.map((day) => (
+                      <span key={day}>{day}</span>
+                    ))}
+                  </div>
+
+                  <div className="kja-date-grid" role="grid" aria-label={monthLabel}>
+                    {cells.map((cell) => {
+                      const blocked = Boolean((min && cell.iso < min) || (max && cell.iso > max));
+                      return (
+                        <button
+                          key={cell.iso}
+                          type="button"
+                          role="gridcell"
+                          className={`kja-date-day${cell.outside ? " is-out" : ""}${cell.iso === selected ? " is-selected" : ""}${cell.iso === today ? " is-today" : ""}`}
+                          disabled={blocked}
+                          aria-selected={cell.iso === selected}
+                          aria-current={cell.iso === today ? "date" : undefined}
+                          onClick={() => pick(cell.iso)}
+                        >
+                          {cell.day}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : null}
+
+              {panel === "month" ? (
+                <div className="kja-date-pick-grid" role="listbox" aria-label={`Months in ${viewYear}`}>
+                  {MONTH_SHORT.map((label, monthIndex) => {
+                    const blocked = monthBlocked(viewYear, monthIndex, min, max);
+                    const isSelected = selectedDate?.getUTCFullYear() === viewYear && selectedDate.getUTCMonth() === monthIndex;
+                    const isCurrent = todayDate?.getUTCFullYear() === viewYear && todayDate.getUTCMonth() === monthIndex;
+                    return (
+                      <button
+                        key={label}
+                        type="button"
+                        role="option"
+                        className={`kja-date-chip${isSelected ? " is-selected" : ""}${isCurrent ? " is-today" : ""}`}
+                        disabled={blocked}
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setView(new Date(Date.UTC(viewYear, monthIndex, 1)));
+                          setPanel("day");
+                        }}
+                      >
+                        {label}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              {panel === "year" ? (
+                <div className="kja-date-pick-grid" role="listbox" aria-label={yearRangeLabel}>
+                  {yearItems.map((year) => {
+                    const blocked = yearBlocked(year, min, max);
+                    const isSelected = selectedDate?.getUTCFullYear() === year;
+                    const isCurrent = todayDate?.getUTCFullYear() === year;
+                    return (
+                      <button
+                        key={year}
+                        type="button"
+                        role="option"
+                        className={`kja-date-chip${isSelected ? " is-selected" : ""}${isCurrent ? " is-today" : ""}`}
+                        disabled={blocked}
+                        aria-selected={isSelected}
+                        onClick={() => {
+                          setView(new Date(Date.UTC(year, viewMonth, 1)));
+                          setPanel("month");
+                        }}
+                      >
+                        {year}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : null}
+
+              <div className="kja-date-foot">
+                <button
+                  type="button"
+                  onClick={() => {
+                    const next = clampIso(today, min, max);
+                    if ((min && today < min) || (max && today > max)) return;
+                    setView(startOfMonth(parseIso(next) || parseIso(today) || new Date()));
+                    setPanel("day");
+                    pick(next);
+                  }}
+                  disabled={Boolean((min && today < min) || (max && today > max))}
+                >
+                  Today
+                </button>
+                {!required ? (
+                  <button
+                    type="button"
+                    className="is-muted"
+                    onClick={() => {
+                      commit("");
+                      closePicker();
+                    }}
+                  >
+                    Clear
+                  </button>
+                ) : (
+                  <span />
+                )}
+              </div>
+            </div>,
+            portalHost,
+          )
+        : null}
     </div>
   );
 }

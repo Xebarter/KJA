@@ -25,20 +25,24 @@ import {
   day,
   discountText,
   itemKindInfo,
+  termHasGroupDates,
   ugx,
   type DiscountRule,
   type ExpenseCategory,
   type FeeItem,
   type Term,
+  type TermClassGroup,
+  type TermGroupDates,
 } from "@/lib/accounts-format";
 import type { ActionResult } from "@/lib/office-forms";
+import { SUBJECT_BANDS } from "@/lib/subject-bands";
 
 /** A dialog form that runs a server action with the form data and closes when it works. */
 function FormDialog({ open, onClose, title, description, action, submit, children, className, wide = false }: {
   open: boolean;
   onClose: () => void;
   title: string;
-  description?: string;
+  description?: React.ReactNode;
   action: (form: FormData) => Promise<ActionResult>;
   submit: string;
   children: React.ReactNode;
@@ -143,10 +147,45 @@ function Who({ mark, gold = false, title, detail }: { mark: React.ReactNode; gol
 
 // ---------------------------------------------------------------- terms
 
+function groupDatesMap(rows: TermGroupDates[] | undefined) {
+  const map = {} as Record<TermClassGroup, TermGroupDates | undefined>;
+  for (const row of rows || []) map[row.class_group] = row;
+  return map;
+}
+
+function TermDatesSummary({ term }: { term: Term }) {
+  const school = term.starts_on ? `${day(term.starts_on, false)} – ${day(term.ends_on)}` : null;
+  if (!termHasGroupDates(term)) {
+    return school ? <>{school}</> : <span className="set-muted">Not set</span>;
+  }
+  const byGroup = groupDatesMap(term.group_dates);
+  return (
+    <div className="set-term-dates">
+      {school ? <span className="set-term-dates-school">{school}</span> : <span className="set-muted">No school-wide dates</span>}
+      <ul>
+        {SUBJECT_BANDS.map((band) => {
+          const row = byGroup[band.id];
+          if (!row?.starts_on && !row?.ends_on && !row?.due_on) return null;
+          const range = row.starts_on || row.ends_on
+            ? `${row.starts_on ? day(row.starts_on, false) : "…"} – ${row.ends_on ? day(row.ends_on) : "…"}`
+            : null;
+          return (
+            <li key={band.id}>
+              <em>{band.label}</em>
+              <span>{range || (row.due_on ? `Due ${day(row.due_on, false)}` : "")}</span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<string, number> }) {
   const [editing, setEditing] = useState<Term | "new" | null>(null);
   const { result, pending, run } = useOfficeAction();
   const term = editing && editing !== "new" ? editing : null;
+  const groups = groupDatesMap(term?.group_dates);
   const nextYear = terms[0] ? (terms[0].term === 3 ? terms[0].year + 1 : terms[0].year) : new Date().getFullYear();
   const nextTerm = terms[0] ? (terms[0].term === 3 ? 1 : terms[0].term + 1) : 1;
   return (
@@ -155,7 +194,7 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
       step={1}
       title="Terms"
       meta={terms.length ? `${terms.length} on file` : undefined}
-      description="Pick the term you are billing now. New payments and invoices use the current term."
+      description="Pick the term you are billing now. New payments and invoices use the current term. Nursery, lower primary and upper primary can open or close on different dates."
       action={<AddButton label="Add a term" onClick={() => setEditing("new")} />}
     >
       <Feedback result={result} />
@@ -178,7 +217,7 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
                   <td>
                     <Who mark={`T${entry.term}`} title={entry.label} />
                   </td>
-                  <td className="set-num" data-label="Dates">{entry.starts_on ? `${day(entry.starts_on, false)} – ${day(entry.ends_on)}` : <span className="set-muted">Not set</span>}</td>
+                  <td className="set-num" data-label="Dates"><TermDatesSummary term={entry} /></td>
                   <td className="set-num" data-label="Fees due">{entry.due_on ? day(entry.due_on, false) : <span className="set-muted">-</span>}</td>
                   <td className="set-num" data-label="Invoices">{usage[entry.id] ? usage[entry.id].toLocaleString("en-GB") : <span className="set-muted">-</span>}</td>
                   <td data-label="Status">
@@ -221,42 +260,113 @@ export function TermsManager({ terms, usage }: { terms: Term[]; usage: Record<st
       )}
 
       <FormDialog
+        key={term?.id ?? "new"}
         open={editing !== null}
         onClose={() => setEditing(null)}
         title={term ? `Edit ${term.label}` : "Add a term"}
-        description="Fees are billed per term. The due date goes on every invoice for the term."
+        description="Set the term calendar and when fees fall due."
         action={saveTerm}
         submit={term ? "Save term" : "Add term"}
+        wide
+        className="set-term-form"
       >
         <input type="hidden" name="id" value={term?.id ?? ""} />
-        <label className="ofc-field">
-          <span>Year</span>
-          <input name="year" type="number" min={2000} max={2100} required defaultValue={term?.year ?? nextYear} />
-        </label>
-        <label className="ofc-field">
-          <span>Term</span>
-          <select name="term" defaultValue={term?.term ?? nextTerm}>
-            <option value={1}>Term 1</option>
-            <option value={2}>Term 2</option>
-            <option value={3}>Term 3</option>
-          </select>
-        </label>
-        <label className="ofc-field is-wide">
-          <span>Name <em>optional, e.g. 2026 Term 3</em></span>
-          <input name="label" defaultValue={term?.label ?? ""} maxLength={60} placeholder="Made from the year and term" />
-        </label>
-        <label className="ofc-field">
-          <span>Opens</span>
-          <DateField name="starts_on" defaultValue={term?.starts_on ?? ""} />
-        </label>
-        <label className="ofc-field">
-          <span>Closes</span>
-          <DateField name="ends_on" defaultValue={term?.ends_on ?? ""} />
-        </label>
-        <label className="ofc-field">
-          <span>Fees due by</span>
-          <DateField name="due_on" defaultValue={term?.due_on ?? ""} />
-        </label>
+
+        <fieldset className="ofc-field is-wide set-term-panel set-term-identity">
+          <legend>
+            <span className="set-term-step is-soft" aria-hidden="true">
+              <i className="fa-solid fa-bookmark" />
+            </span>
+            <span>
+              <strong>Term</strong>
+              <small>Year, number and label</small>
+            </span>
+          </legend>
+          <div className="set-term-identity-row">
+            <label className="ofc-field">
+              <span>Year</span>
+              <input name="year" type="number" min={2000} max={2100} required defaultValue={term?.year ?? nextYear} />
+            </label>
+            <label className="ofc-field">
+              <span>Number</span>
+              <select name="term" defaultValue={term?.term ?? nextTerm}>
+                <option value={1}>Term 1</option>
+                <option value={2}>Term 2</option>
+                <option value={3}>Term 3</option>
+              </select>
+            </label>
+            <label className="ofc-field set-term-name">
+              <span>Label <em>optional</em></span>
+              <input name="label" defaultValue={term?.label ?? ""} maxLength={60} placeholder="e.g. 2026 Term 3" />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="ofc-field is-wide set-term-panel set-term-school">
+          <legend>
+            <span className="set-term-step" aria-hidden="true">1</span>
+            <span>
+              <strong>School defaults</strong>
+              <small>Applies to every class</small>
+            </span>
+          </legend>
+          <div className="set-term-date-row">
+            <label className="ofc-field">
+              <span>Opens</span>
+              <DateField name="starts_on" defaultValue={term?.starts_on ?? ""} />
+            </label>
+            <label className="ofc-field">
+              <span>Closes</span>
+              <DateField name="ends_on" defaultValue={term?.ends_on ?? ""} />
+            </label>
+            <label className="ofc-field">
+              <span>Fees due by</span>
+              <DateField name="due_on" defaultValue={term?.due_on ?? ""} />
+            </label>
+          </div>
+        </fieldset>
+
+        <fieldset className="ofc-field is-wide set-term-panel set-term-groups">
+          <legend>
+            <span className="set-term-step" aria-hidden="true">2</span>
+            <span>
+              <strong>Class group exceptions</strong>
+              <small>Optional · blank keeps the school defaults</small>
+            </span>
+          </legend>
+          <div className="set-term-group-list">
+            {SUBJECT_BANDS.map((band) => {
+              const row = groups[band.id];
+              return (
+                <div key={band.id} className={`set-term-group is-${band.id}`}>
+                  <header>
+                    <span className="set-term-group-mark" aria-hidden="true">
+                      <i className={`fa-solid ${band.id === "nursery" ? "fa-child" : band.id === "lower" ? "fa-book-open" : "fa-graduation-cap"}`} />
+                    </span>
+                    <span>
+                      <strong>{band.label}</strong>
+                      <small>{band.hint}</small>
+                    </span>
+                  </header>
+                  <div className="set-term-date-row">
+                    <label className="ofc-field">
+                      <span>Opens</span>
+                      <DateField name={`${band.id}_starts_on`} defaultValue={row?.starts_on ?? ""} />
+                    </label>
+                    <label className="ofc-field">
+                      <span>Closes</span>
+                      <DateField name={`${band.id}_ends_on`} defaultValue={row?.ends_on ?? ""} />
+                    </label>
+                    <label className="ofc-field">
+                      <span>Fees due by</span>
+                      <DateField name={`${band.id}_due_on`} defaultValue={row?.due_on ?? ""} />
+                    </label>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </fieldset>
       </FormDialog>
     </Section>
   );

@@ -7,6 +7,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import QRCode from "qrcode";
 import {
   classLabel,
+  classSection,
   formatShare,
   gradeBandSection,
   gradeBandSectionsToLoad,
@@ -16,6 +17,7 @@ import {
   type ReportSet,
   type ScaleBand,
 } from "@/lib/academics";
+import { nurseryCommentMapForTerm, resolveNurseryClassTeacherComment } from "@/lib/nursery-class-comments";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
 import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
@@ -283,9 +285,23 @@ export async function loadStreamReportCards(
     });
     activitiesByCard.set(row.report_card_id, list);
   }
+  const nurseryStream = classSection(input.classCode) === "nursery";
+  let storeComments = new Map<string, string>();
+  if (nurseryStream) {
+    try {
+      storeComments = await nurseryCommentMapForTerm(supabase, input.termId, pupilIds);
+    } catch {
+      storeComments = new Map();
+    }
+  }
+
   return cards
     .map((card) => {
       const pupil = names.get(card.student_id);
+      const classComment = resolveNurseryClassTeacherComment(
+        storeComments.get(card.student_id),
+        card.class_teacher_comment,
+      );
       return {
         id: card.id,
         student_id: card.student_id,
@@ -297,7 +313,7 @@ export async function loadStreamReportCards(
         class_code: card.class_code,
         stream: card.stream || "",
         class_teacher_name: card.class_teacher_name,
-        class_teacher_comment: card.class_teacher_comment,
+        class_teacher_comment: classComment,
         head_comment: card.head_comment,
         cocurricular_comment: card.cocurricular_comment,
         conduct: card.conduct,
@@ -410,10 +426,23 @@ export async function loadReportCardsByIds(
   }
 
   const order = new Map(ids.map((id, index) => [id, index]));
+  const nurseryCards = classSection(classCode) === "nursery";
+  let storeComments = new Map<string, string>();
+  if (nurseryCards) {
+    try {
+      storeComments = await nurseryCommentMapForTerm(supabase, termId, pupilIds);
+    } catch {
+      storeComments = new Map();
+    }
+  }
   return cards
     .map((card) => {
       const pupil = names.get(card.student_id);
       const term = Array.isArray(card.fee_terms) ? card.fee_terms[0] : card.fee_terms;
+      const classComment = resolveNurseryClassTeacherComment(
+        storeComments.get(card.student_id),
+        card.class_teacher_comment,
+      );
       return {
         id: card.id,
         student_id: card.student_id,
@@ -425,7 +454,7 @@ export async function loadReportCardsByIds(
         class_code: card.class_code,
         stream: card.stream || "",
         class_teacher_name: card.class_teacher_name,
-        class_teacher_comment: card.class_teacher_comment,
+        class_teacher_comment: classComment,
         head_comment: card.head_comment,
         cocurricular_comment: card.cocurricular_comment,
         conduct: card.conduct,

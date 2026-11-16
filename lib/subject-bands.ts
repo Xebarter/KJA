@@ -14,6 +14,13 @@ export function isSubjectBand(value: string): value is SubjectBandId {
   return ORDER.includes(value as SubjectBandId);
 }
 
+/** Nursery / lower / upper for a register class code such as C3 or P5. */
+export function bandForClassCode(classCode: string | null | undefined): SubjectBandId | null {
+  if (!classCode) return null;
+  const band = SUBJECT_BANDS.find((entry) => (entry.codes as readonly string[]).includes(classCode));
+  return band?.id ?? null;
+}
+
 export function bandOrders(id: SubjectBandId) {
   const codes = SUBJECT_BANDS.find((band) => band.id === id)?.codes ?? [];
   const rows = SCHOOL_CLASSES.filter((entry) => (codes as readonly string[]).includes(entry.code));

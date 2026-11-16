@@ -9,7 +9,7 @@ const nextConfig: NextConfig = {
   ...(isDesktop ? { distDir: ".next-desktop" } : {}),
   // Electron packages the standalone server under resources/next-standalone.
   ...(isDesktopPack ? { output: "standalone" as const } : {}),
-  serverExternalPackages: ["exceljs"],
+  serverExternalPackages: ["exceljs", "jszip"],
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
     serverActions: { bodySizeLimit: "21mb" },

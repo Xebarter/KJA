@@ -7,11 +7,18 @@ import { useState, useTransition } from "react";
 import { generateInvoices, type GenerateResult, type GenerateRow } from "@/app/accounts/(desk)/invoices/actions";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback } from "@/components/accounts/client";
-import { ACCOUNTS_BASE, amount, day, ugx } from "@/lib/accounts-format";
+import { ACCOUNTS_BASE, amount, day, termHasGroupDates, ugx, type TermGroupDates } from "@/lib/accounts-format";
 import type { ActionResult } from "@/lib/office-forms";
 import { SCHOOL_CLASSES, className } from "@/lib/students";
+import { SUBJECT_BANDS } from "@/lib/subject-bands";
 
-type TermOption = { id: string; label: string; due_on: string | null; billed: number };
+type TermOption = {
+  id: string;
+  label: string;
+  due_on: string | null;
+  billed: number;
+  group_dates?: TermGroupDates[];
+};
 
 const STEPS = ["Choose", "Preview", "Done"];
 
@@ -90,9 +97,27 @@ export function InvoiceWizard({ terms, termId, ratedClasses, activeByClass }: {
                 ))}
               </select>
             </label>
-            <div className="ofc-field">
+            <div className="ofc-field is-wide">
               <span>Due date</span>
-              <p className="acc-static">{chosen?.due_on ? day(chosen.due_on) : <>Not set. <Link href={`${ACCOUNTS_BASE}/settings#terms`}>Set it in Fee setup</Link></>}</p>
+              {chosen?.due_on || (chosen && termHasGroupDates(chosen)) ? (
+                <div className="acc-static acc-due-groups">
+                  <p>
+                    {chosen.due_on ? <>School-wide {day(chosen.due_on)}</> : "No school-wide due date"}
+                    {chosen && termHasGroupDates(chosen) ? " · class groups may differ" : null}
+                  </p>
+                  {chosen && termHasGroupDates(chosen) ? (
+                    <ul>
+                      {SUBJECT_BANDS.map((band) => {
+                        const row = chosen.group_dates?.find((entry) => entry.class_group === band.id);
+                        if (!row?.due_on) return null;
+                        return <li key={band.id}>{band.label}: {day(row.due_on)}</li>;
+                      })}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="acc-static">Not set. <Link href={`${ACCOUNTS_BASE}/settings#terms`}>Set it in Fee setup</Link></p>
+              )}
             </div>
           </div>
 

@@ -57,6 +57,26 @@ export function refreshAccounts(...paths: string[]) {
 export const loadTerms = cache(async function loadTerms(supabase: SupabaseClient) {
   const { data, error } = await supabase.from("fee_terms").select("id, year, term, label, starts_on, ends_on, due_on, is_current");
   const terms = sortTerms((data || []) as Term[]);
+  if (terms.length) {
+    const { data: groups, error: groupsError } = await supabase
+      .from("fee_term_group_dates")
+      .select("term_id, class_group, starts_on, ends_on, due_on")
+      .in("term_id", terms.map((term) => term.id));
+    if (!groupsError) {
+      const byTerm = new Map<string, NonNullable<Term["group_dates"]>>();
+      for (const row of groups || []) {
+        const list = byTerm.get(row.term_id) || [];
+        list.push({
+          class_group: row.class_group as NonNullable<Term["group_dates"]>[number]["class_group"],
+          starts_on: row.starts_on,
+          ends_on: row.ends_on,
+          due_on: row.due_on,
+        });
+        byTerm.set(row.term_id, list);
+      }
+      for (const term of terms) term.group_dates = byTerm.get(term.id) || [];
+    }
+  }
   return { terms, current: pickCurrentTerm(terms), error: error?.message ?? null };
 });
 
@@ -119,5 +139,5 @@ export function balanceSearch(raw: string) {
 
 /** True when the error means 0014_accounts.sql hasn't been run yet. */
 export function missingAccountsSchema(message: string | null | undefined) {
-  return Boolean(message && /fee_terms|invoices|payments|student_balances|expenses|accounts_payment_register|charge_payments|does not exist|schema cache/i.test(message));
+  return Boolean(message && /fee_terms|fee_term_group_dates|invoices|payments|student_balances|expenses|accounts_payment_register|charge_payments|does not exist|schema cache/i.test(message));
 }

@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { countUnpaidApplications } from "@/lib/admission-followups";
 import { ROLE_LABELS, type OfficeBadge } from "@/lib/office-nav";
 import { remember } from "@/lib/remember";
+import { exactCount } from "@/lib/students";
 
 const BADGES_MS = 20_000;
 
@@ -26,9 +27,9 @@ export async function loadOfficeBadges(
       supabase.from("family_contacts").select("id", { count: "exact", head: true }).eq("needs_check", true),
     ]);
     return {
-      applications: (apps.count ?? 0) + unpaid,
-      visits: visits.count ?? 0,
-      quality: (review.count ?? 0) + (contacts.count ?? 0),
+      applications: exactCount(apps.count) + unpaid,
+      visits: exactCount(visits.count),
+      quality: exactCount(review.count) + exactCount(contacts.count),
     };
   });
 }

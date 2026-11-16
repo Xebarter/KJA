@@ -31,6 +31,7 @@ import { levelFromBand } from "@/lib/comment-engine/analyse";
 import { classifyPercentage, DEFAULT_SETTINGS } from "@/lib/comment-engine/bands";
 import { mergeActivitySkills, skillsFromJson } from "@/lib/comment-engine/skills";
 import { operationalCampus } from "@/lib/campuses";
+import { nurseryCommentMapForTerm } from "@/lib/nursery-class-comments";
 import {
   groupSkillsByDomain,
   loadDivisionCatalogue,
@@ -113,6 +114,27 @@ export function reportSittingKey(classCode: string, stream: string, campus = "")
   return `${campus}|${classCode}|${streamOf(stream)}`;
 }
 
+function sittingFromDsbaRow(row: { id: string; name: string; kind: string }): ReportSitting {
+  return {
+    key: String(row.id),
+    label: String(row.name || "Assessment"),
+    kind: String(row.kind || ""),
+    kindLabel: kindLabel(String(row.kind || "")),
+    share: 100,
+    papers: 1,
+    dsba: true,
+  };
+}
+
+/** Keep one sitting per key so Generate dialog React keys stay unique. */
+function dedupeSittings(rows: ReportSitting[]): ReportSitting[] {
+  const seen = new Map<string, ReportSitting>();
+  for (const row of rows) {
+    if (!seen.has(row.key)) seen.set(row.key, row);
+  }
+  return [...seen.values()];
+}
+
 /** Load the assessment sittings already set for one campus + class + stream. */
 export async function loadReportSittings(
   supabase: SupabaseClient,
@@ -129,15 +151,9 @@ export async function loadReportSittings(
     if (input.campus) query = query.eq("campus", input.campus);
     const { data, error } = await query;
     if (error) throw new Error(error.message);
-    return ((data || []) as { id: string; name: string; kind: string }[]).map((row) => ({
-      key: String(row.id),
-      label: String(row.name || "Assessment"),
-      kind: String(row.kind || ""),
-      kindLabel: kindLabel(String(row.kind || "")),
-      share: 100,
-      papers: 1,
-      dsba: true,
-    }));
+    return dedupeSittings(
+      ((data || []) as { id: string; name: string; kind: string }[]).map(sittingFromDsbaRow),
+    );
   }
   let query = supabase
     .from("assessments")
@@ -171,7 +187,7 @@ export async function loadTermReportSittings(
   for (const row of (data || []) as Record<string, unknown>[]) {
     const classCode = String(row.class_code || "");
     if (!classCode || classSection(classCode) === "nursery") continue;
-    const key = reportSittingKey(classCode, String(row.stream || ""), String(row.campus || ""));
+    const key = reportSittingKey(classCode, String(row.stream || ""), operationalCampus(String(row.campus || "")));
     const list = papers.get(key) || [];
     list.push({
       name: String(row.name || "Assessment"),
@@ -187,20 +203,19 @@ export async function loadTermReportSittings(
     for (const row of (dsbaQuery.data || []) as Record<string, unknown>[]) {
       const classCode = String(row.class_code || "");
       if (!classCode) continue;
-      const key = reportSittingKey(classCode, String(row.stream || ""), String(row.campus || ""));
+      const key = reportSittingKey(classCode, String(row.stream || ""), operationalCampus(String(row.campus || "")));
       const list = out[key] || [];
-      list.push({
-        key: String(row.id),
-        label: String(row.name || "Assessment"),
-        kind: String(row.kind || ""),
-        kindLabel: kindLabel(String(row.kind || "")),
-        share: 100,
-        papers: 1,
-        dsba: true,
-      });
+      list.push(
+        sittingFromDsbaRow({
+          id: String(row.id),
+          name: String(row.name || "Assessment"),
+          kind: String(row.kind || ""),
+        }),
+      );
       out[key] = list;
     }
   }
+  for (const [key, rows] of Object.entries(out)) out[key] = dedupeSittings(rows);
   return out;
 }
 
@@ -284,12 +299,15 @@ async function prepareNurseryDsbaReports(
   if (!sitting) throw new Error("Choose a developmental assessment that belongs to this class.");
 
   const grouped = groupSkillsByDomain(catalogue.domains, catalogue.skills);
-  const skillList = grouped.flatMap((row) =>
-    row.skills.map((skill) => ({
-      skill,
-      domain: row.domain,
-    })),
-  );
+  const skillList: { skill: (typeof catalogue.skills)[number]; domain: (typeof catalogue.domains)[number] }[] = [];
+  const skillSeen = new Set<string>();
+  for (const row of grouped) {
+    for (const skill of row.skills) {
+      if (skillSeen.has(skill.id)) continue;
+      skillSeen.add(skill.id);
+      skillList.push({ skill, domain: row.domain });
+    }
+  }
   if (!skillList.length) throw new Error("No developmental skills are configured for this nursery division.");
 
   const pupilIds = roster.map((pupil) => pupil.id);
@@ -403,6 +421,34 @@ async function prepareNurseryDsbaReports(
     await writeChunks(skillLines, (slice) =>
       supabase.from("report_skill_lines").upsert(slice, { onConflict: "report_card_id,skill_id" }),
     );
+  }
+
+  // Copy persistent nursery remarks onto freshly prepared / re-prepared draft cards.
+  try {
+    const stored = await nurseryCommentMapForTerm(
+      supabase,
+      input.termId,
+      drafts.map((pupil) => pupil.id),
+    );
+    if (stored.size) {
+      const commentNow = new Date().toISOString();
+      for (const pupil of drafts) {
+        const text = stored.get(pupil.id);
+        const id = cardId.get(pupil.id);
+        if (!text || !id) continue;
+        const prior = existing.get(pupil.id);
+        if ((prior?.class_teacher_comment || "").trim()) continue;
+        const { error: commentError } = await supabase
+          .from("report_cards")
+          .update({ class_teacher_comment: text, updated_at: commentNow })
+          .eq("id", id)
+          .neq("status", "published");
+        if (commentError) throw new Error(commentError.message);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "";
+    if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw error;
   }
 
   // Clear legacy subject lines on nursery drafts so old mark-based cards do not linger.
@@ -904,19 +950,18 @@ export async function classMarkbooksReady(
 
 /** Nursery DSBA skill lines frozen on report cards. */
 export async function loadReportSkillLines(supabase: SupabaseClient, cardIds: string[]) {
-  const grouped = new Map<
-    string,
-    {
-      skill_id: string;
-      domain_id: string | null;
-      domain_name: string;
-      skill_description: string;
-      progress_code: string | null;
-      progress_label: string | null;
-      domain_sort: number;
-      skill_sort: number;
-    }[]
-  >();
+  type SkillLine = {
+    skill_id: string;
+    domain_id: string | null;
+    domain_name: string;
+    skill_description: string;
+    progress_code: string | null;
+    progress_label: string | null;
+    domain_sort: number;
+    skill_sort: number;
+  };
+  const grouped = new Map<string, SkillLine[]>();
+  const seen = new Map<string, Set<string>>();
   if (!cardIds.length) return grouped;
   try {
     for (let index = 0; index < cardIds.length; index += 80) {
@@ -936,13 +981,23 @@ export async function loadReportSkillLines(supabase: SupabaseClient, cardIds: st
           .from("report_skill_lines")
           .select("report_card_id, skill_id, domain_id, domain_name, skill_description, progress_code, progress_label, domain_sort, skill_sort")
           .in("report_card_id", slice)
+          // Unique tie-breakers keep fetchAll pages from overlapping when many cards share domain_sort.
+          .order("report_card_id")
           .order("domain_sort")
+          .order("skill_sort")
+          .order("skill_id")
           .range(from, to),
       );
       for (const row of rows) {
-        const list = grouped.get(row.report_card_id) || [];
+        const cardId = String(row.report_card_id);
+        const skillId = String(row.skill_id);
+        const used = seen.get(cardId) || new Set<string>();
+        if (used.has(skillId)) continue;
+        used.add(skillId);
+        seen.set(cardId, used);
+        const list = grouped.get(cardId) || [];
         list.push({
-          skill_id: String(row.skill_id),
+          skill_id: skillId,
           domain_id: row.domain_id ? String(row.domain_id) : null,
           domain_name: String(row.domain_name || "Domain"),
           skill_description: String(row.skill_description || ""),
@@ -951,7 +1006,7 @@ export async function loadReportSkillLines(supabase: SupabaseClient, cardIds: st
           domain_sort: Number(row.domain_sort) || 0,
           skill_sort: Number(row.skill_sort) || 0,
         });
-        grouped.set(row.report_card_id, list);
+        grouped.set(cardId, list);
       }
     }
   } catch {

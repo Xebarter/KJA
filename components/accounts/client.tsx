@@ -102,7 +102,7 @@ export function Dialog({ open, onClose, title, description, children, wide = fal
         <header className="acc-dialog-head">
           <div>
             <h2 id={titleId}>{title}</h2>
-            {description ? <p>{description}</p> : null}
+            {description ? <div className="acc-dialog-desc">{description}</div> : null}
           </div>
           <button type="button" className="acc-dialog-close" aria-label="Close" onClick={onClose}>
             <i className="fa-solid fa-xmark" aria-hidden="true" />

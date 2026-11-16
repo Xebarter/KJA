@@ -320,6 +320,15 @@ export function csvResponse(name: string, header: string[], rows: unknown[][]) {
   });
 }
 
+/**
+ * PostgREST puts the total in Content-Range (e.g. 0-24/120 or star-slash-total).
+ * When the total is missing or "*", supabase-js sets count to NaN.
+ * `count ?? 0` does not help — use this before showing summary tiles.
+ */
+export function exactCount(value: number | null | undefined) {
+  return typeof value === "number" && Number.isFinite(value) ? value : 0;
+}
+
 export function isUuid(value: unknown): value is string {
   return typeof value === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
@@ -484,6 +493,157 @@ export function studentsQuery(
     default:
       return query.order("class_order", { ascending: true, nullsFirst: false }).order("stream").order("full_name");
   }
+}
+
+/** Scope used by the Students summary tiles — ignores search, sort, page and quick toggles. */
+export type StudentTileScope = {
+  status: string;
+  section: string;
+  class: string;
+  stream: string;
+  house: string;
+  campus: string;
+  campuses?: readonly string[];
+};
+
+export type StudentTileCounts = {
+  total: number;
+  boys: number;
+  girls: number;
+  medical: number;
+  staff: number;
+  review: number;
+};
+
+const EMPTY_TILES: StudentTileCounts = { total: 0, boys: 0, girls: 0, medical: 0, staff: 0, review: 0 };
+
+function asTileCounts(row: Record<string, unknown> | null | undefined): StudentTileCounts {
+  if (!row) return EMPTY_TILES;
+  return {
+    total: exactCount(Number(row.total)),
+    boys: exactCount(Number(row.boys)),
+    girls: exactCount(Number(row.girls)),
+    medical: exactCount(Number(row.medical)),
+    staff: exactCount(Number(row.staff)),
+    review: exactCount(Number(row.review)),
+  };
+}
+
+function tileRpcArgs(scope: StudentTileScope) {
+  const campus = scope.campus || null;
+  const campuses =
+    campus || !scope.campuses?.length ? null : [...scope.campuses];
+  return {
+    p_status: scope.status || "active",
+    p_section: scope.section || null,
+    p_class: scope.class || null,
+    p_stream: scope.stream || null,
+    p_house: scope.house || null,
+    p_campus: campus,
+    p_campuses: campuses,
+  };
+}
+
+async function fetchStudentRegisterTiles(client: SupabaseClient, scope: StudentTileScope) {
+  const { data, error } = await client.rpc("student_register_tiles", tileRpcArgs(scope));
+  if (error) return { counts: null as StudentTileCounts | null, error: error.message };
+  const row = Array.isArray(data) ? data[0] : data;
+  return { counts: asTileCounts(row as Record<string, unknown> | null), error: null };
+}
+
+function tileScopeKey(scope: StudentTileScope) {
+  return [
+    scope.status || "active",
+    scope.section || "",
+    scope.class || "",
+    scope.stream || "",
+    scope.house || "",
+    scope.campus || "",
+    [...(scope.campuses || [])].sort().join("\0"),
+  ].join("|");
+}
+
+const TILE_CACHE_TTL_MS = 45_000;
+const tileCountsCache = new Map<string, { at: number; counts: StudentTileCounts }>();
+
+function readTileCache(key: string) {
+  const hit = tileCountsCache.get(key);
+  if (!hit) return null;
+  if (Date.now() - hit.at > TILE_CACHE_TTL_MS) {
+    tileCountsCache.delete(key);
+    return null;
+  }
+  return hit.counts;
+}
+
+function writeTileCache(key: string, counts: StudentTileCounts) {
+  tileCountsCache.set(key, { at: Date.now(), counts });
+  if (tileCountsCache.size > 100) {
+    const oldest = tileCountsCache.keys().next().value;
+    if (oldest) tileCountsCache.delete(oldest);
+  }
+}
+
+/**
+ * Summary tile tallies for the Students register. One RPC instead of six head counts.
+ * Memoised ~45s on the tile scope (not search/sort/page) so typing in the finder
+ * does not re-count. Uses the request client (RLS) — not the service role.
+ */
+export async function loadStudentRegisterTiles(
+  supabase: SupabaseClient,
+  scope: StudentTileScope,
+): Promise<StudentTileCounts> {
+  const key = tileScopeKey(scope);
+  const cached = readTileCache(key);
+  if (cached) return cached;
+
+  const { counts, error } = await fetchStudentRegisterTiles(supabase, scope);
+  if (counts) {
+    writeTileCache(key, counts);
+    return counts;
+  }
+  if (error && !/student_register_tiles|could not find the function|PGRST202|schema cache/i.test(error)) {
+    console.error("student_register_tiles:", error);
+  }
+
+  // Migration not applied yet — keep the register usable with six head counts.
+  const filters: StudentFilters = {
+    q: "",
+    status: scope.status || "active",
+    section: scope.section || "",
+    class: scope.class || "",
+    stream: scope.stream || "",
+    campus: scope.campus || "",
+    house: scope.house || "",
+    sex: "",
+    staff: false,
+    medical: false,
+    review: false,
+    sort: "class",
+    size: 50,
+    page: 1,
+  };
+  const campusScope = { campuses: scope.campuses };
+  const tally = (changes: Partial<StudentFilters>) =>
+    studentsQuery(supabase, { ...filters, ...changes }, "id", { count: "exact", head: true, ...campusScope });
+  const [inScope, boys, girls, medical, staff, review] = await Promise.all([
+    tally({}),
+    tally({ sex: "M" }),
+    tally({ sex: "F" }),
+    tally({ medical: true }),
+    tally({ staff: true }),
+    tally({ review: true }),
+  ]);
+  const fallback: StudentTileCounts = {
+    total: exactCount(inScope.count),
+    boys: exactCount(boys.count),
+    girls: exactCount(girls.count),
+    medical: exactCount(medical.count),
+    staff: exactCount(staff.count),
+    review: exactCount(review.count),
+  };
+  writeTileCache(key, fallback);
+  return fallback;
 }
 
 /** Undici / proxy blips right after Desktop login often surface as this exact message. */

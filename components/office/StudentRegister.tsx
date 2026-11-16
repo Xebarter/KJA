@@ -8,6 +8,8 @@ import { bulkUpdateStudents, type BulkChange } from "@/app/admissions_office/(of
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback, useOfficeAction } from "@/components/office/client";
 import { StudentPhoto } from "@/components/office/StudentPhoto";
+import { StudentsImportDialog } from "@/components/office/StudentsImportDialog";
+import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 import {
   HOUSES,
   OFFICE,
@@ -43,7 +45,95 @@ function activeFilters(filters: StudentFilters) {
   return pills;
 }
 
-const SEARCH_DELAY_MS = 250;
+const SEARCH_DELAY_MS = 350;
+
+function exportWithFormat(href: string, format: string) {
+  return `${href}${href.includes("?") ? "&" : "?"}format=${format}`;
+}
+
+type ExportKind = "csv" | "xlsx" | "pdf" | "sheet";
+
+const EXPORT_JOB: Record<ExportKind, { label: string; fallback: string; tone: string; icon: string; title: string }> = {
+  csv: { label: "Preparing CSV", fallback: "students.csv", tone: "csv", icon: "fa-file-csv", title: "CSV" },
+  xlsx: { label: "Building Excel workbook", fallback: "students.xlsx", tone: "xlsx", icon: "fa-file-excel", title: "Excel" },
+  pdf: { label: "Building PDF", fallback: "students.pdf", tone: "pdf", icon: "fa-file-pdf", title: "PDF" },
+  sheet: { label: "Building edit workbook", fallback: "students-edit.xlsx", tone: "edit", icon: "fa-pen-to-square", title: "Download for edit" },
+};
+
+async function downloadStudentExport(href: string, kind: ExportKind) {
+  const meta = EXPORT_JOB[kind];
+  const response = await fetch(href, { credentials: "same-origin" });
+  if (!response.ok) {
+    const message = (await response.text().catch(() => "")).trim();
+    throw new Error(message || `Could not build the ${meta.title} file.`);
+  }
+  const blob = await response.blob();
+  const name = filenameFromDisposition(response.headers.get("content-disposition"), meta.fallback);
+  await saveClientDownload(blob, name);
+}
+
+function StudentExportBar({
+  exportHref,
+  sheetHref,
+  disabled = false,
+}: {
+  exportHref: string;
+  sheetHref: string;
+  disabled?: boolean;
+}) {
+  const [job, setJob] = useState<ExportKind | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const busy = Boolean(job);
+
+  const run = async (kind: ExportKind, href: string) => {
+    if (busy || disabled) return;
+    setError(null);
+    setJob(kind);
+    try {
+      await downloadStudentExport(href, kind);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : `Could not download ${EXPORT_JOB[kind].title}.`);
+    } finally {
+      setJob(null);
+    }
+  };
+
+  const items: { kind: ExportKind; href: string }[] = [
+    { kind: "csv", href: exportHref },
+    { kind: "xlsx", href: exportWithFormat(exportHref, "xlsx") },
+    { kind: "pdf", href: exportWithFormat(exportHref, "pdf") },
+    { kind: "sheet", href: sheetHref },
+  ];
+
+  return (
+    <div className={`ofc-export-bar${busy || disabled ? " is-busy" : ""}`}>
+      <div className="ofc-export-menu" role="group" aria-label="Export students" aria-busy={busy || disabled}>
+        {items.map(({ kind, href }) => {
+          const meta = EXPORT_JOB[kind];
+          const active = job === kind;
+          return (
+            <button
+              key={kind}
+              type="button"
+              className={`ofc-export-btn is-${meta.tone}${active ? " is-active" : ""}`}
+              disabled={busy || disabled}
+              onClick={() => void run(kind, href)}
+            >
+              <i className={`fa-solid ${active ? "fa-spinner fa-spin" : meta.icon}`} aria-hidden="true" />
+              <span>{meta.title}</span>
+            </button>
+          );
+        })}
+      </div>
+      {error ? (
+        <p className="ofc-export-error" role="alert">
+          <i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {error}
+        </p>
+      ) : null}
+      <ProcessStatus active={busy} label={job ? EXPORT_JOB[job].label : "Preparing export"} />
+    </div>
+  );
+}
 
 const CLEARED: Partial<StudentFilters> = {
   q: "",
@@ -106,9 +196,13 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
   const live = { ...draft, q: q.trim() };
   const pills = activeFilters(live);
   const streamOptions = [...new Set([...STREAMS, ...streams])].sort();
+  const exportHref = studentFilterHref(live, { page: 1 }, `${OFFICE}/students/export`);
+  const sheetHref = studentFilterHref(live, { page: 1 }, `${OFFICE}/students/sheet`);
 
   return (
     <div className={`ofc-finder${pending ? " is-pending" : ""}`}>
+      <StudentExportBar exportHref={exportHref} sheetHref={sheetHref} disabled={pending} />
+
       <div className="ofc-finder-top">
         <form
           className={`ofc-finder-search${pending ? " is-searching" : ""}`}
@@ -260,11 +354,14 @@ const BULK_LABELS: Record<BulkKind, string> = {
   status: "Change status",
 };
 
-export function StudentTable({ rows, exportHref }: { rows: RegisterRow[]; exportHref: string }) {
+export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRow[]; exportHref: string; sheetHref: string }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [kind, setKind] = useState<BulkKind>("class_code");
   const [value, setValue] = useState("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [exportJob, setExportJob] = useState<ExportKind | null>(null);
+  const [exportError, setExportError] = useState<string | null>(null);
   const { result, setResult, pending, run } = useOfficeAction();
   const ids = useMemo(() => rows.map((row) => row.id), [rows]);
   useEffect(() => setSelected((current) => new Set([...current].filter((id) => ids.includes(id)))), [ids]);
@@ -292,10 +389,34 @@ export function StudentTable({ rows, exportHref }: { rows: RegisterRow[]; export
     run(() => bulkUpdateStudents([...selected], change), () => setSelected(new Set()));
   };
 
-  const exportSelected = `${exportHref}${exportHref.includes("?") ? "&" : "?"}ids=${[...selected].join(",")}`;
+  const joinIds = (href: string) => `${href}${href.includes("?") ? "&" : "?"}ids=${[...selected].join(",")}`;
+  const exportSelected = joinIds(exportHref);
+  const editSelected = joinIds(sheetHref);
+  const exportBusy = Boolean(exportJob);
+
+  const runExport = async (kind: ExportKind, href: string) => {
+    if (exportBusy || pending) return;
+    setExportError(null);
+    setExportJob(kind);
+    try {
+      await downloadStudentExport(href, kind);
+    } catch (caught) {
+      setExportError(caught instanceof Error ? caught.message : `Could not download ${EXPORT_JOB[kind].title}.`);
+    } finally {
+      setExportJob(null);
+    }
+  };
 
   return (
     <div className="app-table-wrap">
+      <div className="ofc-sheet-tools">
+        <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("sheet", sheetHref)}>
+          <i className={`fa-solid ${exportJob === "sheet" ? "fa-spinner fa-spin" : "fa-file-arrow-down"}`} aria-hidden="true" /> Download for edit
+        </button>
+        <button type="button" className="app-link-btn" onClick={() => setImportOpen(true)}>
+          <i className="fa-solid fa-file-arrow-up" aria-hidden="true" /> Upload Excel
+        </button>
+      </div>
       {selected.size ? (
         <div className="app-bulk ofc-bulk" role="region" aria-label="Bulk actions">
           <strong>{selected.size} selected</strong>
@@ -305,17 +426,37 @@ export function StudentTable({ rows, exportHref }: { rows: RegisterRow[]; export
           <select aria-label="New value" value={value} onChange={(event) => setValue(event.target.value)}>
             {options.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}
           </select>
-          <button type="button" className="admin-btn admin-btn-gold" disabled={pending} onClick={apply}>
+          <button type="button" className="admin-btn admin-btn-gold" disabled={pending || exportBusy} onClick={apply}>
             {pending ? "Saving…" : "Apply"}
           </button>
-          <a className="app-link-btn" href={exportSelected}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export selected</a>
+          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("csv", exportSelected)}>
+            <i className={`fa-solid ${exportJob === "csv" ? "fa-spinner fa-spin" : "fa-file-csv"}`} aria-hidden="true" /> CSV
+          </button>
+          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("xlsx", exportWithFormat(exportSelected, "xlsx"))}>
+            <i className={`fa-solid ${exportJob === "xlsx" ? "fa-spinner fa-spin" : "fa-file-excel"}`} aria-hidden="true" /> Excel
+          </button>
+          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("pdf", exportWithFormat(exportSelected, "pdf"))}>
+            <i className={`fa-solid ${exportJob === "pdf" ? "fa-spinner fa-spin" : "fa-file-pdf"}`} aria-hidden="true" /> PDF
+          </button>
+          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("sheet", editSelected)}>
+            <i className={`fa-solid ${exportJob === "sheet" ? "fa-spinner fa-spin" : "fa-pen-to-square"}`} aria-hidden="true" /> Edit workbook
+          </button>
           <button type="button" className="app-link-btn app-bulk-close" onClick={() => setSelected(new Set())} aria-label="Clear selection">
             <i className="fa-solid fa-xmark" aria-hidden="true" />
           </button>
         </div>
       ) : null}
       <Feedback result={result} />
-      <ProcessStatus active={pending} label="Updating students" />
+      {exportError ? (
+        <p className="ofc-export-error" role="alert">
+          <i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {exportError}
+        </p>
+      ) : null}
+      <ProcessStatus
+        active={pending || exportBusy}
+        label={pending ? "Updating students" : exportJob ? EXPORT_JOB[exportJob].label : "Preparing export"}
+      />
+      <StudentsImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
       <div className="ofc-table-scroll">
         <table className={`app-table ofc-table ofc-reg-table${pending ? " is-busy" : ""}`}>
           <thead>

@@ -1,7 +1,11 @@
+import { contentDisposition } from "@/lib/download-headers";
 import { requireOffice } from "@/lib/office";
+import { buildStudentsPdf, loadStudentExportPhotos, studentsPdfFileName } from "@/lib/students-pdf";
+import { buildStudentsWorkbook, studentsWorkbookFileName } from "@/lib/students-workbook";
 import { className, csvResponse, fetchAll, isUuid, parseStudentFilters, studentsQuery, type DirectoryRow } from "@/lib/students";
 
 export const dynamic = "force-dynamic";
+export const runtime = "nodejs";
 
 const HEADER = [
   "Student number", "Surname", "Given names", "Full name", "Preferred name", "Sex", "Date of birth", "Age",
@@ -11,24 +15,76 @@ const HEADER = [
   "Religion", "Nationality", "Staff child", "Staff category", "Medical notes", "Panadol allowed",
 ];
 
-export async function GET(request: Request) {
-  const auth = await requireOffice();
-  if ("error" in auth) return new Response(auth.error, { status: 403 });
+const SELECT = "*";
+
+async function loadRows(auth: Awaited<ReturnType<typeof requireOffice>> & object, request: Request) {
+  if ("error" in auth) return { error: auth.error } as const;
   const url = new URL(request.url);
   const filters = parseStudentFilters(Object.fromEntries(url.searchParams));
   const ids = (url.searchParams.get("ids") || "").split(",").filter(isUuid).slice(0, 1000);
   const campusScope = { campuses: auth.campuses };
 
-  let rows: DirectoryRow[];
   try {
-    rows = await fetchAll<DirectoryRow>((from, to) => {
+    const rows = await fetchAll<DirectoryRow & { photo_path?: string | null }>((from, to) => {
       const query = ids.length
-        ? studentsQuery(auth.supabase, { ...filters, status: "all", q: "" }, "*", campusScope).in("id", ids)
-        : studentsQuery(auth.supabase, filters, "*", campusScope);
+        ? studentsQuery(auth.supabase, { ...filters, status: "all", q: "" }, SELECT, campusScope).in("id", ids)
+        : studentsQuery(auth.supabase, filters, SELECT, campusScope);
       return query.range(from, to);
     }, 20000);
+    return {
+      rows,
+      ids,
+      filters,
+      label: ids.length ? "selected" : filters.class ? filters.class : "register",
+    } as const;
   } catch (error) {
-    return new Response((error as Error).message, { status: 500 });
+    return { error: (error as Error).message } as const;
+  }
+}
+
+export async function GET(request: Request) {
+  const auth = await requireOffice();
+  if ("error" in auth) return new Response(auth.error, { status: 403 });
+  const url = new URL(request.url);
+  const format = (url.searchParams.get("format") || "csv").toLowerCase();
+  const loaded = await loadRows(auth, request);
+  if ("error" in loaded) return new Response(loaded.error, { status: 500 });
+  const { rows, ids, filters, label } = loaded;
+
+  if (format === "xlsx" || format === "excel") {
+    const bytes = await buildStudentsWorkbook({
+      rows,
+      mode: "export",
+      title: ids.length ? "Selected students" : "Student register",
+    });
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": contentDisposition(studentsWorkbookFileName("export", label)),
+        "Cache-Control": "no-store",
+      },
+    });
+  }
+
+  if (format === "pdf") {
+    const photos = await loadStudentExportPhotos(auth.supabase, rows);
+    const bytes = await buildStudentsPdf({
+      title: ids.length ? "Selected students" : "Student register",
+      subtitle: [
+        filters.class ? className(filters.class) : null,
+        filters.stream ? `Stream ${filters.stream}` : null,
+        `${rows.length} pupil${rows.length === 1 ? "" : "s"}`,
+      ].filter(Boolean).join(" · "),
+      rows,
+      photos,
+    });
+    return new Response(new Uint8Array(bytes), {
+      headers: {
+        "Content-Type": "application/pdf",
+        "Content-Disposition": contentDisposition(studentsPdfFileName(label)),
+        "Cache-Control": "no-store",
+      },
+    });
   }
 
   return csvResponse(

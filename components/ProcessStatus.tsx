@@ -10,7 +10,16 @@ const RADIUS = (SIZE - STROKE) / 2;
 const CIRC = 2 * Math.PI * RADIUS;
 
 /** Green ring with a live percentage. Stays hidden for very short jobs, then climbs and finishes at 100. */
-export function ProcessStatus({ active, label }: { active: boolean; label: string }) {
+export function ProcessStatus({
+  active,
+  label,
+  /** Modal dialogs sit in the top layer — pass the open dialog so the ring appears above it. */
+  portalRoot,
+}: {
+  active: boolean;
+  label: string;
+  portalRoot?: Element | DocumentFragment | null;
+}) {
   const gradId = `proc-${useId().replace(/:/g, "")}`;
   const [mounted, setMounted] = useState(false);
   const [open, setOpen] = useState(false);
@@ -108,6 +117,13 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
 
   if (!mounted || !open) return null;
 
+  const host =
+    portalRoot ||
+    (typeof document !== "undefined"
+      ? document.querySelector("dialog[open].msh-screen") || document.body
+      : null);
+  if (!host) return null;
+
   const rounded = Math.min(100, Math.round(pct));
   const offset = CIRC * (1 - Math.min(pct, 100) / 100);
 
@@ -148,6 +164,6 @@ export function ProcessStatus({ active, label }: { active: boolean; label: strin
         <p>{caption}</p>
       </div>
     </div>,
-    document.body,
+    host,
   );
 }

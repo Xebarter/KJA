@@ -9,6 +9,25 @@ const SETUP = `${ACCOUNTS_BASE}/settings`;
 
 // ---------------------------------------------------------------- terms
 
+const TERM_GROUPS = ["nursery", "lower", "upper"] as const;
+
+function readGroupDates(form: FormData) {
+  const rows: { class_group: (typeof TERM_GROUPS)[number]; starts_on: string | null; ends_on: string | null; due_on: string | null }[] = [];
+  for (const group of TERM_GROUPS) {
+    const starts = dateField(form, `${group}_starts_on`);
+    const ends = dateField(form, `${group}_ends_on`);
+    const due = dateField(form, `${group}_due_on`);
+    if (starts.error || ends.error || due.error) return { error: `Check the ${group} dates.` } as const;
+    if (starts.value && ends.value && ends.value < starts.value) {
+      return { error: `${group === "nursery" ? "Nursery" : group === "lower" ? "Lower primary" : "Upper primary"} can't end before it starts.` } as const;
+    }
+    if (starts.value || ends.value || due.value) {
+      rows.push({ class_group: group, starts_on: starts.value, ends_on: ends.value, due_on: due.value });
+    }
+  }
+  return { rows } as const;
+}
+
 export async function saveTerm(form: FormData): Promise<ActionResult> {
   const auth = await requireAccounts("settings");
   if ("error" in auth) return { error: auth.error };
@@ -22,6 +41,8 @@ export async function saveTerm(form: FormData): Promise<ActionResult> {
   const due = dateField(form, "due_on");
   if (starts.error || ends.error || due.error) return { error: "Check the dates." };
   if (starts.value && ends.value && ends.value < starts.value) return { error: "The term can't end before it starts." };
+  const groups = readGroupDates(form);
+  if ("error" in groups) return { error: groups.error };
   const row = {
     year,
     term,
@@ -31,10 +52,25 @@ export async function saveTerm(form: FormData): Promise<ActionResult> {
     due_on: due.value,
   };
   const { supabase, user } = auth;
-  const { error } = isUuid(id)
-    ? await supabase.from("fee_terms").update(row).eq("id", id)
-    : await supabase.from("fee_terms").insert(row);
-  if (error) return { error: /duplicate|unique/i.test(error.message) ? `${year} Term ${term} already exists.` : error.message };
+  let termId = isUuid(id) ? id : "";
+  if (termId) {
+    const { error } = await supabase.from("fee_terms").update(row).eq("id", termId);
+    if (error) return { error: /duplicate|unique/i.test(error.message) ? `${year} Term ${term} already exists.` : error.message };
+  } else {
+    const { data, error } = await supabase.from("fee_terms").insert(row).select("id").single();
+    if (error) return { error: /duplicate|unique/i.test(error.message) ? `${year} Term ${term} already exists.` : error.message };
+    termId = data.id;
+  }
+
+  const cleared = await supabase.from("fee_term_group_dates").delete().eq("term_id", termId);
+  if (cleared.error && !/does not exist|schema cache/i.test(cleared.error.message)) return { error: cleared.error.message };
+  if (groups.rows.length && !cleared.error) {
+    const { error: groupError } = await supabase.from("fee_term_group_dates").insert(
+      groups.rows.map((entry) => ({ ...entry, term_id: termId })),
+    );
+    if (groupError) return { error: groupError.message };
+  }
+
   await logAccounts(supabase, user.id, { kind: "setup", body: `${isUuid(id) ? "Updated" : "Added"} ${row.label}` });
   refreshAccounts(SETUP);
   return { ok: `${row.label} saved.` };

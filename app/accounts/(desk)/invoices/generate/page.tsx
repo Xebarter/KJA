@@ -50,7 +50,13 @@ export default async function GeneratePage({ searchParams }: { searchParams: Pro
         }
       />
       <InvoiceWizard
-        terms={terms.map((term) => ({ id: term.id, label: term.label, due_on: term.due_on, billed: billedByTerm[term.id] ?? 0 }))}
+        terms={terms.map((term) => ({
+          id: term.id,
+          label: term.label,
+          due_on: term.due_on,
+          billed: billedByTerm[term.id] ?? 0,
+          group_dates: term.group_dates,
+        }))}
         termId={termId}
         ratedClasses={ratedClasses}
         activeByClass={activeByClass}

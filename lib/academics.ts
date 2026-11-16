@@ -16,7 +16,7 @@ const TZ = "Africa/Kampala";
 
 /** True when the error means an academics SQL script hasn't been run yet. */
 export function missingAcademicsSchema(message: string | null | undefined) {
-  return Boolean(message && /teaching_staff|subjects|grade_bands|division_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|overall_aggregate|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|nursery_divisions|does not exist|schema cache/i.test(message));
+  return Boolean(message && /teaching_staff|subjects|grade_bands|division_bands|class_teachers|attendance|assessments|report_cards|report_lines|report_line_parts|overall_aggregate|timetable_slots|schemes|scheme_lessons|learner_interventions|academic_dates|academic_activity|academic_reminders|grade_rules|attendance_closures|developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|nursery_divisions|nursery_class_comments|does not exist|schema cache/i.test(message));
 }
 export async function logAcademics(
   supabase: SupabaseClient,

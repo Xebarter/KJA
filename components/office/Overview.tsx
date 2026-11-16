@@ -4,7 +4,7 @@ import { LoadErrorNotice } from "@/components/office/ui";
 import { loadPeople } from "@/lib/admin-applications";
 import { APPLICATION_STATUSES, OPEN_STATUSES, PIPELINE, formatDateTime, initials, timeAgo } from "@/lib/applications";
 import type { requireOffice } from "@/lib/office";
-import { OFFICE, SCHOOL_CLASSES, currentTermStart, daysToBirthday, fetchAll, studentAge } from "@/lib/students";
+import { OFFICE, SCHOOL_CLASSES, currentTermStart, daysToBirthday, exactCount, fetchAll, studentAge } from "@/lib/students";
 
 type AppRow = {
   id: string;
@@ -152,7 +152,7 @@ export async function Overview({ supabase }: OfficeSession) {
       Promise.all(
         APPLICATION_STATUSES.map((status) =>
           supabase.from("applications").select("id", { count: "exact", head: true }).eq("status", status.value)
-            .then((result) => ({ status: status.value, count: result.count ?? 0 }))),
+            .then((result) => ({ status: status.value, count: exactCount(result.count) }))),
       ),
       supabase.from("applications")
         .select("id, child_name, parent_name, grade, campus, status, created_at, visit_at, student_id")
@@ -175,21 +175,21 @@ export async function Overview({ supabase }: OfficeSession) {
     birthdayBits = birthdayLoaded;
     statusCounts = new Map(statusLoaded.map((entry) => [entry.status, entry.count]));
     appTotal = statusLoaded.reduce((sum, entry) => sum + entry.count, 0);
-    total = totalRes.count ?? 0;
-    boys = boysRes.count ?? 0;
-    girls = girlsRes.count ?? 0;
+    total = exactCount(totalRes.count);
+    boys = exactCount(boysRes.count);
+    girls = exactCount(girlsRes.count);
     noSex = Math.max(0, total - boys - girls);
-    newThisTerm = newTermRes.count ?? 0;
-    newThisYear = newYearRes.count ?? 0;
-    review = reviewRes.count ?? 0;
-    missingDob = missingDobRes.count ?? 0;
-    missingHouse = missingHouseRes.count ?? 0;
-    medical = medicalRes.count ?? 0;
-    staffChildren = staffRes.count ?? 0;
-    contactsCount = contactsToCheck.count ?? 0;
-    familyCount = families.count ?? 0;
-    leaversCount = leavers.count ?? 0;
-    receivedThisWeek = receivedWeekRes.count ?? 0;
+    newThisTerm = exactCount(newTermRes.count);
+    newThisYear = exactCount(newYearRes.count);
+    review = exactCount(reviewRes.count);
+    missingDob = exactCount(missingDobRes.count);
+    missingHouse = exactCount(missingHouseRes.count);
+    medical = exactCount(medicalRes.count);
+    staffChildren = exactCount(staffRes.count);
+    contactsCount = exactCount(contactsToCheck.count);
+    familyCount = exactCount(families.count);
+    leaversCount = exactCount(leavers.count);
+    receivedThisWeek = exactCount(receivedWeekRes.count);
     oldestWaiting = oldestReceived.data?.[0]?.created_at as string | undefined;
     visits = ((visitsResult.data || []) as AppRow[]).sort((a, b) => String(a.visit_at).localeCompare(String(b.visit_at)));
     toEnrol = [...((toEnrolOffered.data || []) as AppRow[]), ...((toEnrolStuck.data || []) as AppRow[])];

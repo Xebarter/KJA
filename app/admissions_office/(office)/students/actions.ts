@@ -638,3 +638,26 @@ export async function revokeStudentLogin(studentId: string): Promise<ActionResul
   refreshOffice(`${OFFICE}/students/${studentId}`);
   return { ok: result.ok };
 }
+/** Preview or commit a student Excel workbook (+ optional photos zip named by student number). */
+export async function importStudentsWorkbook(formData: FormData) {
+  const auth = await requireOffice("students");
+  if ("error" in auth) return { error: auth.error };
+  const file = formData.get("file");
+  const photos = formData.get("photos");
+  if (!(file instanceof File) || !file.size) return { error: "Choose an Excel workbook first." };
+  if (!/\.xlsx$/i.test(file.name) && !/sheet|excel/i.test(file.type)) {
+    return { error: "Upload a .xlsx workbook downloaded from this page." };
+  }
+  const intent = String(formData.get("intent") || "preview") === "commit" ? "commit" : "preview";
+  const { importStudentsWorkbook: runImport } = await import("@/lib/students-import");
+  const result = await runImport({
+    supabase: auth.supabase,
+    actorId: auth.user.id,
+    file,
+    photosFile: photos instanceof File && photos.size ? photos : null,
+    intent,
+    log: (ids, kind, body) => logStudents(auth.supabase, auth.user.id, ids, kind, body),
+  });
+  if (intent === "commit" && result.ok) refreshOffice(`${OFFICE}/students`);
+  return result;
+}

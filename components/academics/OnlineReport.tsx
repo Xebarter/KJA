@@ -44,7 +44,10 @@ function activityPercent(row: SheetActivity) {
 
 function groupSkillLines(lines: SheetSkillLine[]) {
   const groups: { domain: string; domainSort: number; image: string | null; skills: SheetSkillLine[] }[] = [];
+  const seen = new Set<string>();
   for (const line of [...lines].sort((a, b) => a.domain_sort - b.domain_sort || a.skill_sort - b.skill_sort)) {
+    if (seen.has(line.skill_id)) continue;
+    seen.add(line.skill_id);
     const last = groups[groups.length - 1];
     if (last && last.domain === line.domain_name) {
       last.skills.push(line);

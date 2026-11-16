@@ -661,23 +661,31 @@ export async function startProxy(config: ProxyConfig): Promise<ProxyHandle> {
         if (cached && !preferLive) {
           const replay = replayCacheHeaders(cached.headers, cached.status);
           attachCountFromBodyIfNeeded(replay.headers, cached.body, preferHeader);
-          const outBody = method === "HEAD" ? Buffer.alloc(0) : cached.body;
-          reply(replay.status, outBody, {
-            ...replay.headers,
-            "x-kja-cache": !online ? "offline" : fresh ? "fresh" : "stale",
-          });
+          // Exact-count HEAD/GET without a finite Content-Range total makes supabase-js return NaN.
+          // Drop the poisoned cache and fall through to entity synthesis or upstream.
+          const countBroken =
+            wantsExactCount(preferHeader) && contentRangeTotal(replay.headers["content-range"]) == null;
+          if (countBroken) {
+            store.invalidateUrl(userId, upstreamUrl);
+          } else {
+            const outBody = method === "HEAD" ? Buffer.alloc(0) : cached.body;
+            reply(replay.status, outBody, {
+              ...replay.headers,
+              "x-kja-cache": !online ? "offline" : fresh ? "fresh" : "stale",
+            });
 
-          if (online && !fresh && method === "GET") {
-            void refreshGet(store, forward, userId, upstreamUrl, headers, pathname).then(
-              (changed) => {
-                if (changed) {
-                  const table = parseRestTable(pathname);
-                  if (table) config.onTableChange?.(userId, table);
-                }
-              },
-            );
+            if (online && !fresh && method === "GET") {
+              void refreshGet(store, forward, userId, upstreamUrl, headers, pathname).then(
+                (changed) => {
+                  if (changed) {
+                    const table = parseRestTable(pathname);
+                    if (table) config.onTableChange?.(userId, table);
+                  }
+                },
+              );
+            }
+            return;
           }
-          return;
         }
 
         if (!online) {
@@ -1007,12 +1015,22 @@ function cachedHasContentRange(raw: string | null) {
   }
 }
 
+/** Total from Content-Range (e.g. 0-24/120 or star-slash-total). Missing or "*" → null (avoids NaN counts). */
+function contentRangeTotal(header: string | undefined | null): number | null {
+  if (!header) return null;
+  const total = header.split("/")[1]?.trim();
+  if (!total || total === "*") return null;
+  const n = Number(total);
+  return Number.isFinite(n) ? n : null;
+}
+
 function attachCountFromBodyIfNeeded(
   headers: Record<string, string>,
   body: Buffer,
   prefer: string | undefined | null,
 ) {
-  if (!wantsExactCount(prefer) || headers["content-range"]) return;
+  if (!wantsExactCount(prefer)) return;
+  if (contentRangeTotal(headers["content-range"]) != null) return;
   try {
     const rows = JSON.parse(body.toString("utf8"));
     if (Array.isArray(rows)) {

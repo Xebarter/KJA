@@ -1,6 +1,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classSection } from "@/lib/academics";
+import { classSection, streamOf } from "@/lib/academics";
 import { loadReportSkillLines } from "@/lib/academics-reports";
+import { operationalCampus } from "@/lib/campuses";
+import { nurseryCommentMapForTerm, upsertNurseryClassComments } from "@/lib/nursery-class-comments";
 import { subjectPercent } from "./bands";
 import { loadActiveCommentConfig } from "./config";
 import { generateCommentsForReport } from "./generate";
@@ -161,6 +163,32 @@ export async function applyGeneration(
   const { error: cardError } = await supabase.from("report_cards").update(cardPatch).eq("id", reportId).eq("status", "draft");
   if (cardError) throw new Error(cardError.message);
 
+  if (classUnit?.text) {
+    const { data: cardMeta } = await supabase
+      .from("report_cards")
+      .select("student_id, term_id, class_code, stream, campus")
+      .eq("id", reportId)
+      .maybeSingle();
+    if (cardMeta && classSection(String(cardMeta.class_code)) === "nursery") {
+      try {
+        await upsertNurseryClassComments(supabase, [
+          {
+            student_id: String(cardMeta.student_id),
+            term_id: String(cardMeta.term_id),
+            campus: cardMeta.campus,
+            class_code: cardMeta.class_code,
+            stream: streamOf(cardMeta.stream),
+            comment: classUnit.text,
+            updated_by: actorId,
+          },
+        ]);
+      } catch (storeError) {
+        const message = storeError instanceof Error ? storeError.message : "";
+        if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
+      }
+    }
+  }
+
   if (subjectComments.length) {
     const { data: lines, error: lineError } = await supabase
       .from("report_lines")
@@ -296,12 +324,23 @@ export async function generateClassReportComments(
   const pupilById = new Map(pupils.map((pupil) => [String(pupil.id), pupil]));
   const linesByCard = groupBy(lines, (line) => String(line.report_card_id));
   const activitiesByCard = groupBy(activities, (row) => String(row.report_card_id));
+  const storeComments = nurseryClass
+    ? await nurseryCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
+    : new Map<string, string>();
 
   const now = new Date().toISOString();
   const writtenIds: string[] = [];
   const cardWrites: Record<string, unknown>[] = [];
   const lineWrites: Record<string, unknown>[] = [];
   const activityWrites: Record<string, unknown>[] = [];
+  const storeWrites: {
+    student_id: string;
+    term_id: string;
+    campus: string | null;
+    class_code: string | null;
+    stream: string;
+    comment: string | null;
+  }[] = [];
   const provenance: Record<string, unknown>[] = [];
   const audits: Record<string, unknown>[] = [];
   const recordTrail = !options.skipTrail;
@@ -313,7 +352,17 @@ export async function generateClassReportComments(
   for (const card of drafts) {
     const reportId = String(card.id);
     const cardLines = linesByCard.get(reportId) || [];
-    if (options.onlyBlank && !isBlankCard(card, cardLines, nurseryClass)) {
+    const storeText = storeComments.get(String(card.student_id)) || "";
+    if (options.onlyBlank && nurseryClass && storeText && !card.class_teacher_comment?.trim()) {
+      cardWrites.push({
+        id: reportId,
+        class_teacher_comment: storeText,
+        updated_at: now,
+      });
+      skipped += 1;
+      continue;
+    }
+    if (options.onlyBlank && (!isBlankCard(card, cardLines, nurseryClass) || (nurseryClass && storeText))) {
       skipped += 1;
       continue;
     }
@@ -345,14 +394,25 @@ export async function generateClassReportComments(
       messages.push(...(cocoUnit.validation.errors.length ? cocoUnit.validation.errors : [cocoUnit.explanation]));
     }
     writtenIds.push(reportId);
+    const nextClassComment = classUnit?.text || card.class_teacher_comment;
     // Update by id — do not upsert on (student_id, term_id); campus is NOT NULL and must not be dropped.
     cardWrites.push({
       id: reportId,
-      class_teacher_comment: classUnit?.text || card.class_teacher_comment,
+      class_teacher_comment: nextClassComment,
       head_comment: nurseryClass ? card.head_comment : headUnit?.text || card.head_comment,
       cocurricular_comment: nurseryClass ? card.cocurricular_comment : cocoUnit?.text || card.cocurricular_comment,
       updated_at: now,
     });
+    if (nurseryClass && classUnit?.text) {
+      storeWrites.push({
+        student_id: String(card.student_id),
+        term_id: String(card.term_id),
+        campus: card.campus,
+        class_code: card.class_code,
+        stream: streamOf(card.stream),
+        comment: classUnit.text,
+      });
+    }
     const knownLines = new Map(cardLines.map((line) => [String(line.subject_id), line]));
     const knownActivities = new Map((activitiesByCard.get(reportId) || []).map((row) => [Number(row.slot), row]));
     for (const unit of result.units) {
@@ -417,6 +477,21 @@ export async function generateClassReportComments(
         })
       : Promise.resolve(),
   ]);
+  if (storeWrites.length) {
+    try {
+      await upsertNurseryClassComments(
+        supabase,
+        storeWrites.map((row) => ({
+          ...row,
+          campus: operationalCampus(row.campus),
+          updated_by: actorId,
+        })),
+      );
+    } catch (storeError) {
+      const message = storeError instanceof Error ? storeError.message : "";
+      if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
+    }
+  }
   if (recordTrail) await replaceProvenance(supabase, writtenIds, provenance, audits);
 
   return { processed: drafts.length, succeeded, failed, skipped, errors };

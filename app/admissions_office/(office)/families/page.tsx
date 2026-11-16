@@ -3,7 +3,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { FamilyFinder, FamilyTable, type FamilyListRow } from "@/components/office/FamilyRegister";
 import { Empty, LoadErrorNotice, OfficeNotice, Pager } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
-import { OFFICE, cap, everyWord, pick, searchNeedle, searchWords, splitName } from "@/lib/students";
+import { OFFICE, cap, everyWord, exactCount, pick, searchNeedle, searchWords, splitName } from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Families" };
@@ -73,9 +73,9 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
   const checkIds = [...new Set((checkRows.data || []).map((row) => row.family_id as string))];
   const counts: Record<string, number> = {
     current: currentIds.length,
-    all: familyTotal.count ?? 0,
+    all: exactCount(familyTotal.count),
     large: largeIds.length,
-    check: checkCount.count ?? checkIds.length,
+    check: exactCount(checkCount.count) || checkIds.length,
   };
 
   let ids: string[] | null = null;
@@ -117,7 +117,7 @@ export default async function FamiliesPage({ searchParams }: { searchParams: Pro
       const { data, count, error } = await query.order("mailing_name", { nullsFirst: false }).order("family_code").range(from, from + PAGE_SIZE - 1);
       if (error) return <LoadErrorNotice title="Families" message={error.message} fallbackHeading="Families could not be loaded" />;
       rows = (data || []) as FamilyRow[];
-      total = count ?? 0;
+      total = exactCount(count);
     }
   }
 

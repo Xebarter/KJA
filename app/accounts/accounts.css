@@ -475,17 +475,39 @@
 .acc-flow li { display: flex; gap: .6rem; padding: .9rem 1rem; border: 1px solid rgba(25, 35, 43, .06); border-radius: 16px; background: #fff; box-shadow: 0 1px 2px rgba(25, 35, 43, .04); }
 .acc-flow small { display: block; color: var(--admin-muted); font-weight: 500; }
 
-.acc-dialog { width: min(560px, calc(100vw - 2rem)); padding: 0; border: 0; border-radius: 18px; background: #fff; color: inherit; box-shadow: 0 24px 80px rgba(25, 35, 43, .28); }
+.acc-dialog {
+  width: min(560px, calc(100vw - 2rem));
+  max-height: min(92dvh, 920px);
+  padding: 0;
+  border: 0;
+  border-radius: 18px;
+  /* UA dialog styles use overflow:auto, which crops date pickers. Scroll the body instead. */
+  overflow: visible;
+  background: #fff;
+  color: inherit;
+  box-shadow: 0 24px 80px rgba(25, 35, 43, .28);
+}
 .acc-dialog.is-wide { width: min(760px, calc(100vw - 2rem)); }
 .acc-dialog::backdrop { background: rgba(25, 35, 43, .45); }
-.acc-dialog-inner { padding: 1.1rem 1.15rem 1.15rem; }
+.acc-dialog-inner {
+  max-height: min(92dvh, 920px);
+  padding: 1.1rem 1.15rem 1.15rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border-radius: inherit;
+}
 .acc-dialog-head { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .8rem; }
 .acc-dialog-head h2 { margin: 0; font-size: 1.2rem; }
-.acc-dialog-head p { margin: .25rem 0 0; color: var(--admin-muted); }
+.acc-dialog-head p,
+.acc-dialog-desc { margin: .3rem 0 0; color: var(--admin-muted); font-size: .9rem; line-height: 1.45; }
+.acc-dialog-desc > p { margin: 0; }
 .acc-dialog-close { display: grid; place-items: center; width: 34px; height: 34px; border: 0; border-radius: 10px; background: var(--acc-soft); color: var(--admin-navy); cursor: pointer; }
 .acc-dialog-foot { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .5rem; margin-top: .9rem; }
 .acc-dialog-total { margin-right: auto; align-self: center; }
 .acc-dialog-note { margin: 0; color: var(--admin-muted); }
+.acc-due-groups { display: grid; gap: .25rem; }
+.acc-due-groups > p { margin: 0; }
+.acc-due-groups ul { display: grid; gap: .15rem; margin: 0; padding-left: 1.1rem; color: var(--admin-muted); font-size: .86rem; }
 
 .acc-amount-input { display: flex; align-items: center; gap: .45rem; min-height: 44px; padding: 0 .75rem; border: 1px solid var(--ofc-field, #d9d3c6); border-radius: 12px; background: #fff; }
 .acc-amount-input em { color: var(--admin-muted); font-style: normal; font-size: .78rem; font-weight: 700; }

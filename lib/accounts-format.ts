@@ -4,6 +4,15 @@ export { ACCOUNTS_BASE } from "@/lib/accounts-nav";
 
 // ---------------------------------------------------------------- types
 
+export type TermClassGroup = "nursery" | "lower" | "upper";
+
+export type TermGroupDates = {
+  class_group: TermClassGroup;
+  starts_on: string | null;
+  ends_on: string | null;
+  due_on: string | null;
+};
+
 export type Term = {
   id: string;
   year: number;
@@ -13,7 +22,29 @@ export type Term = {
   ends_on: string | null;
   due_on: string | null;
   is_current: boolean;
+  /** Optional overrides for Nursery / Lower primary / Upper primary. Missing fields fall back to the school-wide dates. */
+  group_dates?: TermGroupDates[];
 };
+
+export type TermDates = {
+  starts_on: string | null;
+  ends_on: string | null;
+  due_on: string | null;
+};
+
+/** Resolve school-wide or class-group dates for a term. */
+export function termDatesForGroup(term: Pick<Term, "starts_on" | "ends_on" | "due_on" | "group_dates">, group: TermClassGroup | null | undefined): TermDates {
+  const override = group ? term.group_dates?.find((row) => row.class_group === group) : undefined;
+  return {
+    starts_on: override?.starts_on ?? term.starts_on,
+    ends_on: override?.ends_on ?? term.ends_on,
+    due_on: override?.due_on ?? term.due_on,
+  };
+}
+
+export function termHasGroupDates(term: Pick<Term, "group_dates">) {
+  return Boolean(term.group_dates?.some((row) => row.starts_on || row.ends_on || row.due_on));
+}
 
 export type ItemKind = "tuition" | "admission" | "meals" | "transport" | "uniform" | "activity" | "other";
 

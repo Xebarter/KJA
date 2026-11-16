@@ -610,6 +610,234 @@ html:has(.set-page) { scroll-behavior: smooth; }
   font-weight: 700;
 }
 
+.set-term-dates {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 11rem;
+}
+.set-term-dates-school {
+  color: var(--admin-navy);
+  font-variant-numeric: tabular-nums;
+}
+.set-term-dates ul {
+  display: grid;
+  gap: 0.12rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.set-term-dates li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem 0.55rem;
+  color: var(--admin-muted);
+  font-size: 0.74rem;
+  line-height: 1.3;
+}
+.set-term-dates li em {
+  color: #6f675c;
+  font-style: normal;
+  font-weight: 700;
+}
+.set-term-dates li span {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Term edit dialog — calm, premium calendar setup */
+.acc-dialog:has(.set-term-form) {
+  width: min(720px, calc(100vw - 1.5rem));
+  box-shadow:
+    0 28px 80px rgba(25, 35, 43, 0.22),
+    0 2px 0 rgba(255, 255, 255, 0.55) inset;
+}
+.acc-dialog:has(.set-term-form) .acc-dialog-inner {
+  padding: 1.25rem 1.3rem 1.2rem;
+  background:
+    radial-gradient(120% 80% at 0% 0%, rgba(253, 163, 27, 0.08), transparent 42%),
+    linear-gradient(180deg, #fffefb 0%, #fff 38%);
+}
+.acc-dialog:has(.set-term-form) .acc-dialog-head {
+  align-items: flex-start;
+  margin-bottom: 1rem;
+  padding-bottom: 0.95rem;
+  border-bottom: 1px solid rgba(25, 35, 43, 0.06);
+}
+.acc-dialog:has(.set-term-form) .acc-dialog-head h2 {
+  font-size: 1.28rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--admin-navy);
+}
+.acc-dialog:has(.set-term-form) .acc-dialog-desc {
+  max-width: 34rem;
+  margin-top: 0.35rem;
+  color: #7a7168;
+  font-size: 0.92rem;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: -0.01em;
+}
+
+.set-term-form .ofc-fields {
+  gap: 0.85rem;
+}
+.set-term-form .ofc-field > span {
+  color: #6f675c;
+  font-size: 0.7rem;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+}
+
+.set-term-panel {
+  display: grid;
+  gap: 0.8rem;
+  margin: 0;
+  padding: 1rem 1rem 1.05rem;
+  border: 1px solid rgba(25, 35, 43, 0.07);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.92);
+  box-shadow: 0 12px 28px -22px rgba(25, 35, 43, 0.35);
+}
+.set-term-panel > legend {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0;
+  color: var(--admin-navy);
+}
+.set-term-panel > legend > span:last-child {
+  display: grid;
+  gap: 0.08rem;
+  min-width: 0;
+}
+.set-term-panel > legend strong {
+  display: block;
+  font-size: 0.92rem;
+  font-weight: 780;
+  letter-spacing: -0.015em;
+}
+.set-term-panel > legend small {
+  display: block;
+  color: #8a8174;
+  font-size: 0.74rem;
+  font-weight: 550;
+  letter-spacing: 0;
+}
+.set-term-step {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 1.7rem;
+  height: 1.7rem;
+  border-radius: 999px;
+  background: var(--admin-navy);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  box-shadow: 0 8px 16px -10px rgba(25, 35, 43, 0.55);
+}
+.set-term-step.is-soft {
+  background: #fff1d6;
+  color: #8a5a00;
+  font-size: 0.7rem;
+  box-shadow: none;
+}
+
+.set-term-identity-row {
+  display: grid;
+  grid-template-columns: 7.5rem 8.5rem minmax(0, 1fr);
+  gap: 0.65rem 0.75rem;
+  align-items: end;
+}
+.set-term-identity-row .ofc-field {
+  min-width: 0;
+}
+.set-term-identity-row input,
+.set-term-identity-row select {
+  min-height: 2.65rem;
+}
+
+.set-term-date-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem 0.75rem;
+}
+.set-term-date-row .ofc-field {
+  min-width: 0;
+}
+
+.set-term-group-list {
+  display: grid;
+  gap: 0.65rem;
+}
+.set-term-group {
+  display: grid;
+  gap: 0.7rem;
+  padding: 0.85rem 0.9rem;
+  border: 1px solid rgba(25, 35, 43, 0.06);
+  border-radius: 14px;
+  background:
+    linear-gradient(180deg, #fff 0%, #fbfaf8 100%);
+  transition:
+    border-color 0.16s ease,
+    box-shadow 0.16s ease,
+    transform 0.16s ease;
+}
+.set-term-group:hover {
+  border-color: rgba(25, 35, 43, 0.12);
+  box-shadow: 0 14px 28px -22px rgba(25, 35, 43, 0.35);
+}
+.set-term-group > header {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+.set-term-group > header > span:last-child {
+  display: grid;
+  gap: 0.05rem;
+  min-width: 0;
+}
+.set-term-group-mark {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 10px;
+  background: #f3eee4;
+  color: var(--admin-navy);
+  font-size: 0.78rem;
+}
+.set-term-group.is-nursery .set-term-group-mark {
+  background: #fff1d6;
+  color: #8a5a00;
+}
+.set-term-group.is-lower .set-term-group-mark {
+  background: #e8f2ee;
+  color: #1a6b5a;
+}
+.set-term-group.is-upper .set-term-group-mark {
+  background: #eef1f6;
+  color: #243447;
+}
+.set-term-group > header strong {
+  color: var(--admin-navy);
+  font-size: 0.9rem;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+.set-term-group > header small {
+  color: #8a8174;
+  font-size: 0.74rem;
+}
+
+.set-term-form .acc-dialog-foot,
+.set-page .acc-dialog:has(.set-term-form) .acc-dialog-foot {
+  margin-top: 0.35rem;
+  padding-top: 0.95rem;
+  border-top: 1px solid rgba(25, 35, 43, 0.06);
+}
+
 .set-page .acc-dialog-foot {
   display: flex;
   justify-content: flex-end;
@@ -821,10 +1049,29 @@ html:has(.set-page) { scroll-behavior: smooth; }
   line-height: 1.4;
 }
 
+@media (max-width: 720px) {
+  .set-term-identity-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .set-term-identity-row .set-term-name {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 560px) {
   .set-choice-grid,
   .set-method-switch {
     grid-template-columns: 1fr;
+  }
+  .set-term-identity-row,
+  .set-term-date-row {
+    grid-template-columns: 1fr;
+  }
+  .set-term-panel {
+    padding: 0.85rem;
+  }
+  .acc-dialog:has(.set-term-form) .acc-dialog-inner {
+    padding: 1.05rem 0.95rem 1rem;
   }
 }
 

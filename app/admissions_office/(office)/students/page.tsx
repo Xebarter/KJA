@@ -4,13 +4,24 @@ import { StudentFinder, StudentTable, type RegisterRow } from "@/components/offi
 import { Empty, LoadErrorNotice, OfficeNotice, Pager } from "@/components/office/ui";
 import { requireOffice } from "@/lib/office";
 import { studentPhotoUrl } from "@/lib/student-photos";
-import { OFFICE, className, parseStudentFilters, studentFilterHref, studentStatusInfo, studentsQuery, type StudentFilters } from "@/lib/students";
+import {
+  OFFICE,
+  STREAMS,
+  className,
+  exactCount,
+  loadStudentRegisterTiles,
+  parseStudentFilters,
+  studentFilterHref,
+  studentStatusInfo,
+  studentsQuery,
+  type StudentFilters,
+} from "@/lib/students";
 import { createClient, supabaseConfigured } from "@/lib/supabase/server";
 
 export const metadata = { title: "Students" };
 export const dynamic = "force-dynamic";
 
-const COLUMNS = "id, student_number, full_name, preferred_name, sex, age, date_of_birth, class_code, stream, house, campus, status, staff_child, medical_notes, needs_review, family_id, family_code, father_name, father_phone, mother_name, mother_phone, siblings";
+const COLUMNS = "id, student_number, full_name, preferred_name, sex, age, date_of_birth, class_code, stream, house, campus, status, staff_child, medical_notes, needs_review, family_id, family_code, father_name, father_phone, mother_name, mother_phone, siblings, photo_path";
 
 type Tile = {
   key: string;
@@ -35,35 +46,74 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   const from = (filters.page - 1) * filters.size;
   const campusScope = { campuses: auth.campuses };
 
-  // Summary tiles break down the current class/status scope. They ignore the search box and the
-  // quick filters they toggle, so typing in the finder does not re-count every tile.
-  const scopeOnly: StudentFilters = { ...filters, q: "", sex: "", staff: false, medical: false, review: false };
-  const tally = (changes: Partial<StudentFilters>) =>
-    studentsQuery(supabase, { ...scopeOnly, ...changes }, "id", { count: "exact", head: true, ...campusScope });
+  // Tiles ignore search / sort / page / quick toggles; cached RPC is keyed on this scope only.
+  const tileScope = {
+    status: filters.status,
+    section: filters.section,
+    class: filters.class,
+    stream: filters.stream,
+    house: filters.house,
+    campus: filters.campus,
+    campuses: auth.campuses,
+  };
 
-  const page = (columns: string) =>
-    studentsQuery(supabase, filters, columns, { count: "exact", ...campusScope }).range(from, from + filters.size - 1);
-  const [first, { data: streamRows }, inScope, boys, girls, medical, staff, review] = await Promise.all([
-    page(`${COLUMNS}, photo_path`),
-    supabase.from("students").select("stream").not("stream", "is", null).eq("status", "active").limit(2000),
-    tally({}),
-    tally({ sex: "M" }),
-    tally({ sex: "F" }),
-    tally({ medical: true }),
-    tally({ staff: true }),
-    tally({ review: true }),
+  const [{ data, count, error }, tilesCounts] = await Promise.all([
+    studentsQuery(supabase, filters, COLUMNS, { count: "exact", ...campusScope }).range(from, from + filters.size - 1),
+    loadStudentRegisterTiles(supabase, tileScope),
   ]);
-  // Until 0013_student_photos.sql has run there is no photo column; show the register without photos.
-  const { data, count, error } = first.error && /photo_path/.test(first.error.message) ? await page(COLUMNS) : first;
   if (error) {
+    // Until 0013_student_photos.sql has run there is no photo column; show the register without photos.
+    if (/photo_path/.test(error.message)) {
+      const fallback = await studentsQuery(
+        supabase,
+        filters,
+        COLUMNS.replace(", photo_path", ""),
+        { count: "exact", ...campusScope },
+      ).range(from, from + filters.size - 1);
+      if (fallback.error) {
+        return <LoadErrorNotice title="Students" message={fallback.error.message} fallbackHeading="The student register could not be loaded" />;
+      }
+      return renderRegister({
+        filters,
+        from,
+        rows: (fallback.data || []) as unknown as RegisterRow[],
+        total: exactCount(fallback.count),
+        tilesCounts,
+      });
+    }
     return <LoadErrorNotice title="Students" message={error.message} fallbackHeading="The student register could not be loaded" />;
   }
-  const rows = (data || []) as unknown as RegisterRow[];
+
+  return renderRegister({
+    filters,
+    from,
+    rows: (data || []) as unknown as RegisterRow[],
+    total: exactCount(count),
+    tilesCounts,
+  });
+}
+
+function renderRegister({
+  filters,
+  from,
+  rows,
+  total,
+  tilesCounts,
+}: {
+  filters: StudentFilters;
+  from: number;
+  rows: RegisterRow[];
+  total: number;
+  tilesCounts: Awaited<ReturnType<typeof loadStudentRegisterTiles>>;
+}) {
   for (const row of rows) row.photo_url = studentPhotoUrl(row.id, row.photo_path ?? null);
-  const total = count ?? 0;
   const pages = Math.max(1, Math.ceil(total / filters.size));
-  const streams = [...new Set((streamRows || []).map((row) => row.stream as string))];
+  const streams = [...new Set([
+    ...STREAMS,
+    ...rows.map((row) => row.stream).filter((stream): stream is string => Boolean(stream)),
+  ])];
   const exportHref = studentFilterHref(filters, { page: 1 }, `${OFFICE}/students/export`);
+  const sheetHref = studentFilterHref(filters, { page: 1 }, `${OFFICE}/students/sheet`);
 
   const statusLabel = filters.status === "all" ? "" : studentStatusInfo(filters.status).label.toLowerCase();
   const noun = (n: number) => `${statusLabel ? `${statusLabel} ` : ""}student${n === 1 ? "" : "s"}`;
@@ -78,14 +128,10 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     filters.q ? `matching “${filters.q}”` : "",
   ].filter(Boolean).join(" · ");
 
-  const base = inScope.count ?? 0;
+  const base = tilesCounts.total;
   const share = (n: number) => (base ? `${Math.round((n / base) * 100)}% of ${base.toLocaleString("en-GB")}` : "None in view");
   const quickOff = !filters.sex && !filters.staff && !filters.medical && !filters.review;
-  const boysCount = boys.count ?? 0;
-  const girlsCount = girls.count ?? 0;
-  const medicalCount = medical.count ?? 0;
-  const staffCount = staff.count ?? 0;
-  const reviewCount = review.count ?? 0;
+  const { boys: boysCount, girls: girlsCount, medical: medicalCount, staff: staffCount, review: reviewCount } = tilesCounts;
   const tiles: Tile[] = [
     {
       key: "all", label: statusLabel ? `${statusLabel[0].toUpperCase()}${statusLabel.slice(1)} students` : "All students", icon: "fa-children", tone: "navy",
@@ -125,10 +171,9 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         title="Students"
         description="Every pupil on the KJA register. Search by name, number, family or parent phone, then open a record or select several to update them together."
         actions={
-          <>
-            <Link className="admin-hero-btn is-primary" href={`${OFFICE}/students/new`}><i className="fa-solid fa-user-plus" aria-hidden="true" /> Enrol a student</Link>
-            <a className="admin-hero-btn" href={exportHref}><i className="fa-solid fa-file-csv" aria-hidden="true" /> Export CSV</a>
-          </>
+          <Link className="admin-hero-btn is-primary" href={`${OFFICE}/students/new`}>
+            <i className="fa-solid fa-user-plus" aria-hidden="true" /> Enrol a student
+          </Link>
         }
       />
 
@@ -169,7 +214,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         </header>
 
         {rows.length ? (
-          <StudentTable rows={rows} exportHref={exportHref} />
+          <StudentTable rows={rows} exportHref={exportHref} sheetHref={sheetHref} />
         ) : (
           <Empty icon="fa-face-meh" title="No students found">
             {filters.q
