@@ -427,7 +427,8 @@ function TeacherFile({
   remove: SaveStaff;
   onIssued: (issued: IssuedLogin) => void;
 }) {
-  const [tab, setTab] = useState<FileTab>(!member.classes.length && !member.subjects.length && termId ? "assign" : "overview");
+  const needsAssign = !member.classes.length && !member.subjects.length && Boolean(termId);
+  const [tab, setTab] = useState<FileTab>(needsAssign ? "assign" : "details");
   const papers = member.subjects.reduce((sum, row) => sum + row.papers, 0);
   const submitted = member.subjects.reduce((sum, row) => sum + row.submitted, 0);
   const days = DAYS.map((day, index) => ({ day, rows: member.periods.filter((row) => row.weekday === index + 1) })).filter((day) => day.rows.length);
@@ -456,27 +457,39 @@ function TeacherFile({
               {needsWork ? <span className="stf-pill is-late">Needs assignments</span> : null}
             </div>
           </div>
-          <div className={`stf-profile-load${needsWork ? " is-warn" : load ? " is-ok" : ""}`}>
-            <strong>{load || 0}</strong>
-            <span>posts this term</span>
-            {termId && needsWork ? (
-              <button type="button" className="stf-profile-cta" onClick={() => setTab("assign")}>Assign now</button>
-            ) : null}
+          <div className="stf-profile-actions">
+            <button type="button" className={`stf-profile-cta${tab === "details" ? " is-on" : ""}`} onClick={() => setTab("details")}>
+              <i className="fa-solid fa-pen" aria-hidden="true" /> Edit
+            </button>
+            <div className={`stf-profile-load${needsWork ? " is-warn" : load ? " is-ok" : ""}`}>
+              <strong>{load || 0}</strong>
+              <span>posts this term</span>
+              {termId && needsWork ? (
+                <button type="button" className="stf-profile-cta is-assign" onClick={() => setTab("assign")}>Assign now</button>
+              ) : null}
+            </div>
+            <DeleteTeacher member={member} remove={remove} compact />
           </div>
-          <DeleteTeacher member={member} remove={remove} compact />
         </header>
 
         <div className="stf-contact">
           {member.email ? (
             <a href={`mailto:${member.email}`}><i className="fa-solid fa-envelope" aria-hidden="true" /> {member.email}</a>
           ) : (
-            <span className="is-muted"><i className="fa-solid fa-envelope" aria-hidden="true" /> No email</span>
+            <button type="button" className="is-muted stf-contact-edit" onClick={() => setTab("details")}>
+              <i className="fa-solid fa-envelope" aria-hidden="true" /> Add email
+            </button>
           )}
           {telHref(member.phone) ? (
             <a href={telHref(member.phone)}><i className="fa-solid fa-phone" aria-hidden="true" /> {displayPhone(member.phone)}</a>
           ) : (
-            <span className="is-muted"><i className="fa-solid fa-phone" aria-hidden="true" /> No phone</span>
+            <button type="button" className="is-muted stf-contact-edit" onClick={() => setTab("details")}>
+              <i className="fa-solid fa-phone" aria-hidden="true" /> Add phone
+            </button>
           )}
+          <button type="button" className="stf-contact-edit is-edit" onClick={() => setTab("details")}>
+            <i className="fa-solid fa-pen-to-square" aria-hidden="true" /> Edit details
+          </button>
         </div>
 
         <div className="stf-figs" aria-label="This term">
@@ -496,14 +509,14 @@ function TeacherFile({
         </div>
 
         <div className="stf-tabs" role="tablist" aria-label="Teacher sections">
-          <button type="button" role="tab" aria-selected={tab === "overview"} className={tab === "overview" ? "is-on" : ""} onClick={() => setTab("overview")}>
-            <i className="fa-solid fa-eye" aria-hidden="true" /> Overview
+          <button type="button" role="tab" aria-selected={tab === "details"} className={tab === "details" ? "is-on" : ""} onClick={() => setTab("details")}>
+            <i className="fa-solid fa-pen" aria-hidden="true" /> Edit
           </button>
           <button type="button" role="tab" aria-selected={tab === "assign"} className={tab === "assign" ? "is-on" : ""} onClick={() => setTab("assign")}>
             <i className="fa-solid fa-list-check" aria-hidden="true" /> Assign
           </button>
-          <button type="button" role="tab" aria-selected={tab === "details"} className={tab === "details" ? "is-on" : ""} onClick={() => setTab("details")}>
-            <i className="fa-solid fa-id-card" aria-hidden="true" /> Details
+          <button type="button" role="tab" aria-selected={tab === "overview"} className={tab === "overview" ? "is-on" : ""} onClick={() => setTab("overview")}>
+            <i className="fa-solid fa-eye" aria-hidden="true" /> Overview
           </button>
         </div>
       </section>
@@ -618,22 +631,35 @@ function TeacherFile({
       ) : null}
 
       {tab === "details" ? (
-        <section className="stf-card" aria-label="Record">
-          <CardHead icon="fa-pen" title="Teacher record" text="Name, campus, contact, and sign-in." />
+        <section className="stf-card stf-edit-card" aria-label="Edit teacher">
+          <CardHead icon="fa-pen" title="Edit teacher" text="Change name, campus, contact, and report-card initials." />
           <DeskForm
             action={save}
-            className="stf-form"
+            className="stf-form stf-edit-form"
             onIssued={(issued) => onIssued({ ...issued, name: member.full_name })}
           >
             <input type="hidden" name="id" value={member.id} />
             <input type="hidden" name="profile_id" value={member.profile_id || ""} />
             <input type="hidden" name="active" value={member.active ? "1" : "0"} />
-            <label className="ofc-field"><span>Name</span><input name="full_name" defaultValue={member.full_name} required /></label>
-            <label className="ofc-field"><span>Title</span><input name="title" defaultValue={member.title || ""} placeholder="Class teacher" /></label>
+            <label className="ofc-field stf-edit-name">
+              <span>Name</span>
+              <input name="full_name" defaultValue={member.full_name} required autoComplete="name" />
+            </label>
+            <label className="ofc-field">
+              <span>Title</span>
+              <input name="title" defaultValue={member.title || ""} placeholder="Class teacher" />
+            </label>
+            <label className="ofc-field">
+              <span>Campus</span>
+              <select name="campus" defaultValue={member.campus || ""}>
+                <option value="">Not set</option>
+                {campusChoices.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select>
+            </label>
             <div className="stf-initials-block">
               <div>
                 <strong>Report card initials</strong>
-                <p>These letters appear in the Initials column on pupil report cards for subjects this teacher marks.</p>
+                <p>Shown in the Initials column on pupil report cards for subjects this teacher marks.</p>
               </div>
               <label className="ofc-field stf-initials-field">
                 <span>Initials</span>
@@ -651,32 +677,36 @@ function TeacherFile({
                 />
               </label>
             </div>
-            <label className="ofc-field"><span>Campus</span>
-              <select name="campus" defaultValue={member.campus || ""}>
-                <option value="">Not set</option>
-                {campusChoices.map((name) => <option key={name} value={name}>{name}</option>)}
-              </select>
+            <label className="ofc-field">
+              <span>Email</span>
+              <input name="email" type="email" defaultValue={member.email || ""} autoComplete="email" placeholder="name@school.edu" />
             </label>
-            <label className="ofc-field"><span>Email</span><input name="email" type="email" defaultValue={member.email || ""} /></label>
-            <label className="ofc-field"><span>Phone</span><input name="phone" defaultValue={member.phone || ""} /></label>
-            <button className="stf-commit" type="submit">Save record</button>
+            <label className="ofc-field">
+              <span>Phone</span>
+              <input name="phone" defaultValue={member.phone || ""} autoComplete="tel" placeholder="+256…" />
+            </label>
+            <div className="stf-edit-actions">
+              <button className="stf-commit" type="submit">Save changes</button>
+            </div>
           </DeskForm>
           {issue && revoke ? (
             <LoginActions member={member} issue={issue} reset={reset} revoke={revoke} onIssued={onIssued} />
           ) : null}
-          <DeskForm action={save} className="stf-hide">
-            <input type="hidden" name="id" value={member.id} />
-            <input type="hidden" name="full_name" value={member.full_name} />
-            <input type="hidden" name="initials" value={member.initials || suggestInitials(member.full_name)} />
-            <input type="hidden" name="title" value={member.title || ""} />
-            <input type="hidden" name="campus" value={member.campus || ""} />
-            <input type="hidden" name="email" value={member.email || ""} />
-            <input type="hidden" name="phone" value={member.phone || ""} />
-            <input type="hidden" name="profile_id" value={member.profile_id || ""} />
-            <input type="hidden" name="active" value={member.active ? "0" : "1"} />
-            <button type="submit">{member.active ? "Hide from assignments" : "Show on assignments"}</button>
-          </DeskForm>
-          <DeleteTeacher member={member} remove={remove} />
+          <div className="stf-edit-danger">
+            <DeskForm action={save} className="stf-hide">
+              <input type="hidden" name="id" value={member.id} />
+              <input type="hidden" name="full_name" value={member.full_name} />
+              <input type="hidden" name="initials" value={member.initials || suggestInitials(member.full_name)} />
+              <input type="hidden" name="title" value={member.title || ""} />
+              <input type="hidden" name="campus" value={member.campus || ""} />
+              <input type="hidden" name="email" value={member.email || ""} />
+              <input type="hidden" name="phone" value={member.phone || ""} />
+              <input type="hidden" name="profile_id" value={member.profile_id || ""} />
+              <input type="hidden" name="active" value={member.active ? "0" : "1"} />
+              <button type="submit">{member.active ? "Hide from assignments" : "Show on assignments"}</button>
+            </DeskForm>
+            <DeleteTeacher member={member} remove={remove} />
+          </div>
         </section>
       ) : null}
     </div>
@@ -843,6 +873,35 @@ function classCodes(groups: StaffGroup[]) {
 
 function campusesFor(groups: StaffGroup[], code: string) {
   return [...new Set(groups.filter((group) => group.code === code).map((group) => group.campus))].sort((a, b) => a.localeCompare(b));
+}
+
+/** Prefer this teacher's lead class, then assistant, then a subject post, else the first stream. */
+function preferredAssignFocus(
+  memberId: string,
+  groups: StaffGroup[],
+  leads: StaffLead[],
+  posts: StaffPost[],
+) {
+  const mineLeads = leads
+    .filter((row) => row.staffId === memberId)
+    .sort((a, b) => {
+      if (a.role !== b.role) return a.role === "lead" ? -1 : 1;
+      return (CLASS_ORDER.get(a.classCode) ?? 99) - (CLASS_ORDER.get(b.classCode) ?? 99) || a.stream.localeCompare(b.stream);
+    });
+  const lead = mineLeads[0];
+  if (lead) return { classCode: lead.classCode, campus: lead.campus, stream: lead.stream };
+
+  const minePosts = posts
+    .filter((row) => row.staffId === memberId)
+    .sort((a, b) => (CLASS_ORDER.get(a.classCode) ?? 99) - (CLASS_ORDER.get(b.classCode) ?? 99) || a.subject.localeCompare(b.subject));
+  const post = minePosts[0];
+  if (post) return { classCode: post.classCode, campus: post.campus, stream: post.stream };
+
+  const codes = classCodes(groups);
+  const classCode = codes[0] || "";
+  const campus = campusesFor(groups, classCode)[0] || "";
+  const stream = groups.find((group) => group.code === classCode && group.campus === campus)?.stream ?? "";
+  return { classCode, campus, stream };
 }
 
 function Coverage({
@@ -1112,12 +1171,13 @@ function Assignments({
 }) {
   type LeadPick = "" | "lead" | "assistant";
   const codes = classCodes(groups);
-  const [code, setCode] = useState(codes[0] || "");
+  const initialFocus = preferredAssignFocus(member.id, groups, leads, posts);
+  const [code, setCode] = useState(initialFocus.classCode);
   const campuses = campusesFor(groups, code);
-  const [campus, setCampus] = useState(campuses[0] || "");
+  const [campus, setCampus] = useState(initialFocus.campus);
   const activeCampus = campuses.includes(campus) ? campus : (campuses[0] || "");
   const streams = groups.filter((group) => group.code === code && group.campus === activeCampus);
-  const [stream, setStream] = useState(streams[0]?.stream ?? "");
+  const [stream, setStream] = useState(initialFocus.stream);
   const chosen = streams.some((group) => group.stream === stream) ? stream : (streams[0]?.stream ?? "");
   const [picked, setPicked] = useState<string[]>([]);
   const [leadPick, setLeadPick] = useState<LeadPick>("");
@@ -1143,6 +1203,15 @@ function Assignments({
     || `${className(code)} ${streamName(chosen)}`;
 
   useEffect(() => {
+    const focus = preferredAssignFocus(member.id, groups, leads, posts);
+    setCode(focus.classCode);
+    setCampus(focus.campus);
+    setStream(focus.stream);
+    // Only re-focus when switching teachers — keep manual class picks after save/refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [member.id]);
+
+  useEffect(() => {
     setPicked(
       posts
         .filter((row) => row.staffId === member.id && row.classCode === code && row.stream === chosen && row.campus === activeCampus)
@@ -1156,6 +1225,12 @@ function Assignments({
       setLeadPick("");
     }
   }, [member.id, code, chosen, activeCampus, posts, leads]);
+
+  function focusStream(next: { classCode: string; campus: string; stream: string }) {
+    setCode(next.classCode);
+    setCampus(next.campus);
+    setStream(next.stream);
+  }
 
   function chooseClass(next: string) {
     setCode(next);
@@ -1202,7 +1277,13 @@ function Assignments({
       <CardHead
         icon="fa-list-check"
         title="Assign work"
-        text={termLabel ? `Pick a stream and assign posts. If someone else holds a role, saving replaces them.` : "Set a current term before assigning classes and subjects."}
+        text={
+          termLabel
+            ? mineLeads.length || mine.length
+              ? "Their current class and subjects are loaded below. Change anything and save."
+              : "Pick a stream and assign posts. If someone else holds a role, saving replaces them."
+            : "Set a current term before assigning classes and subjects."
+        }
       />
 
       {(mineLeads.length || mine.length) ? (
@@ -1214,9 +1295,18 @@ function Assignments({
           <ul className="stf-load-chips">
             {mineLeads.map((row) => {
               const label = groups.find((group) => group.code === row.classCode && group.stream === row.stream && group.campus === row.campus)?.label || row.classCode;
+              const focused = row.classCode === code && row.stream === chosen && row.campus === activeCampus;
               return (
-                <li key={`class-${row.role}-${row.campus}-${row.classCode}-${row.stream}`} className={row.role === "assistant" ? "is-assist" : "is-lead"}>
-                  <span>{label}<small>{row.role === "assistant" ? "Assistant" : "Class teacher"}</small></span>
+                <li key={`class-${row.role}-${row.campus}-${row.classCode}-${row.stream}`} className={`${row.role === "assistant" ? "is-assist" : "is-lead"}${focused ? " is-focus" : ""}`}>
+                  <button
+                    type="button"
+                    className="stf-chip-jump"
+                    onClick={() => focusStream({ classCode: row.classCode, campus: row.campus, stream: row.stream })}
+                    aria-pressed={focused}
+                    title={`Edit ${label}`}
+                  >
+                    <span>{label}<small>{row.role === "assistant" ? "Assistant" : "Class teacher"}</small></span>
+                  </button>
                   {termId ? (
                     <DeskForm action={release} className="stf-chip-drop" quiet status="Removing">
                       <input type="hidden" name="staff_id" value={member.id} />
@@ -1234,9 +1324,18 @@ function Assignments({
             })}
             {mine.map((row) => {
               const label = groups.find((group) => group.code === row.classCode && group.stream === row.stream && group.campus === row.campus)?.label || row.classCode;
+              const focused = row.classCode === code && row.stream === chosen && row.campus === activeCampus;
               return (
-                <li key={`${row.campus}-${row.classCode}-${row.stream}-${row.subjectId}`}>
-                  <span>{row.subject}<small>{label}</small></span>
+                <li key={`${row.campus}-${row.classCode}-${row.stream}-${row.subjectId}`} className={focused ? "is-focus" : undefined}>
+                  <button
+                    type="button"
+                    className="stf-chip-jump"
+                    onClick={() => focusStream({ classCode: row.classCode, campus: row.campus, stream: row.stream })}
+                    aria-pressed={focused}
+                    title={`Edit ${row.subject} on ${label}`}
+                  >
+                    <span>{row.subject}<small>{label}</small></span>
+                  </button>
                   {termId ? (
                     <DeskForm action={release} className="stf-chip-drop" quiet status="Removing">
                       <input type="hidden" name="staff_id" value={member.id} />
