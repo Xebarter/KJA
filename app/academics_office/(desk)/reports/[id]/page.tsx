@@ -15,7 +15,14 @@ import {
   scaleBands,
 } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
-import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
+import {
+  cardSets,
+  loadReportParts,
+  loadReportSkillLines,
+  loadSubjectInitials,
+  parseProgressLegend,
+  resolveClassTeacherName,
+} from "@/lib/academics-reports";
 import { ensureDraftReportComments } from "@/lib/comment-engine";
 import { loadReportClosing } from "@/lib/report-closing";
 import { isUuid } from "@/lib/students";
@@ -92,12 +99,21 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       : Promise.resolve(new Map<string, string>()),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
   ]);
-  const classTeacherSignatureSrc = await resolveClassTeacherSignatureSrc(supabase, {
-    termId: card.term_id,
-    classCode: card.class_code,
-    stream: card.stream || "",
-    campus: pupil?.campus,
-  });
+  const [classTeacherSignatureSrc, classTeacherName] = await Promise.all([
+    resolveClassTeacherSignatureSrc(supabase, {
+      termId: card.term_id,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus: pupil?.campus,
+    }),
+    resolveClassTeacherName(supabase, {
+      termId: card.term_id,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus: pupil?.campus,
+      fallback: card.class_teacher_name,
+    }),
+  ]);
   const term = card.fee_terms as { label?: string; year?: number } | { label?: string; year?: number }[] | null;
   const termMeta = Array.isArray(term) ? term[0] : term;
   const termLabel = termMeta?.label;
@@ -135,7 +151,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
-    class_teacher_name: card.class_teacher_name,
+    class_teacher_name: classTeacherName,
     class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,

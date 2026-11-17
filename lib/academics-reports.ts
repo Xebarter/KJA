@@ -33,6 +33,11 @@ import { mergeActivitySkills, skillsFromJson } from "@/lib/comment-engine/skills
 import { operationalCampus } from "@/lib/campuses";
 import { nurseryCommentMapForTerm } from "@/lib/nursery-class-comments";
 import {
+  primaryActivityCommentMapForTerm,
+  primaryClassCommentMapForTerm,
+  primarySubjectCommentMapForTerm,
+} from "@/lib/primary-report-comments";
+import {
   groupSkillsByDomain,
   loadDivisionCatalogue,
   nurseryDivision,
@@ -636,6 +641,15 @@ export async function prepareClassReports(
   const teacherName = staffName(teacher.data?.teaching_staff);
   const existing = new Map(((cards.data || []) as ExistingCard[]).map((card) => [card.student_id, card]));
   const comments = new Map(lineRows.map((line) => [`${line.report_card_id}:${line.subject_id}`, line.teacher_comment]));
+  const storedSubjectComments = await primarySubjectCommentMapForTerm(supabase, input.termId, pupilIds).catch(
+    () => new Map<string, string>(),
+  );
+  const storedActivityComments = await primaryActivityCommentMapForTerm(supabase, input.termId, pupilIds).catch(
+    () => new Map<string, string>(),
+  );
+  const storedClassComments = await primaryClassCommentMapForTerm(supabase, input.termId, pupilIds).catch(
+    () => new Map<string, string>(),
+  );
 
   const results = roster.map((pupil) => {
     const lines = academic.map((subject) => {
@@ -733,7 +747,10 @@ export async function prepareClassReports(
         grade: line.grade?.label ?? null,
         points: line.grade?.points ?? null,
         position: line.percent === null ? null : subjectRanks.get(line.subject.id)?.get(row.pupil.id) ?? null,
-        teacher_comment: comments.get(`${id}:${line.subject.id}`) ?? null,
+        teacher_comment:
+          storedSubjectComments.get(`${row.pupil.id}|${line.subject.id}`)
+          ?? comments.get(`${id}:${line.subject.id}`)
+          ?? null,
       });
       for (const part of line.parts) {
         parts.push({
@@ -827,7 +844,10 @@ export async function prepareClassReports(
           score: percent,
           max_score: percent === null ? null : 100,
           skills: skillRows,
-          comment: priorComments.get(`${id}:${slot}`) ?? null,
+          comment:
+            storedActivityComments.get(`${row.pupil.id}|${slot}`)
+            ?? priorComments.get(`${id}:${slot}`)
+            ?? null,
         });
       });
       for (let slot = cocurricular.length + 1; slot <= 4; slot += 1) {
@@ -840,7 +860,7 @@ export async function prepareClassReports(
           score: null,
           max_score: null,
           skills: [],
-          comment: null,
+          comment: storedActivityComments.get(`${row.pupil.id}|${slot}`) ?? null,
         });
       }
     }
@@ -855,6 +875,24 @@ export async function prepareClassReports(
         }
         throw new Error(activityError.message);
       }
+    }
+  }
+
+  // Copy persistent primary class remarks onto freshly prepared / re-prepared draft cards.
+  if (storedClassComments.size) {
+    const commentNow = new Date().toISOString();
+    for (const row of drafts) {
+      const text = storedClassComments.get(row.pupil.id);
+      const id = cardId.get(row.pupil.id);
+      if (!text || !id) continue;
+      const prior = existing.get(row.pupil.id);
+      if ((prior?.class_teacher_comment || "").trim()) continue;
+      const { error: commentError } = await supabase
+        .from("report_cards")
+        .update({ class_teacher_comment: text, updated_at: commentNow })
+        .eq("id", id)
+        .neq("status", "published");
+      if (commentError) throw new Error(commentError.message);
     }
   }
 
@@ -1142,6 +1180,77 @@ export async function loadSubjectInitials(
     if (mark && row.subject_id) marks.set(String(row.subject_id), mark);
   }
   return marks;
+}
+
+/**
+ * Live lead class-teacher name for a stream (same source as prepare).
+ * Prefer this over the snapshotted report_cards.class_teacher_name so staff edits show on cards.
+ */
+export async function resolveClassTeacherName(
+  supabase: SupabaseClient,
+  input: {
+    termId: string;
+    classCode: string | null | undefined;
+    stream?: string | null;
+    campus?: string | null;
+    fallback?: string | null;
+  },
+): Promise<string | null> {
+  if (!input.termId || !input.classCode) return input.fallback?.trim() || null;
+  const stream = streamOf(input.stream || "");
+  const { data, error } = await supabase
+    .from("class_teachers")
+    .select("campus, teaching_staff(full_name)")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream)
+    .eq("role", "lead");
+  if (error || !data?.length) return input.fallback?.trim() || null;
+  const campus = operationalCampus(input.campus);
+  const match =
+    data.find((row) => operationalCampus(String((row as { campus?: string | null }).campus || "")) === campus) ||
+    data[0];
+  return staffName((match as { teaching_staff?: unknown }).teaching_staff) || input.fallback?.trim() || null;
+}
+
+/** Keep frozen class_teacher_name in sync when a lead teacher's details change. */
+export async function syncReportCardsClassTeacherName(
+  supabase: SupabaseClient,
+  input: { staffId: string; fullName: string },
+) {
+  const name = input.fullName.trim();
+  if (!input.staffId || !name) return;
+  const { data: posts, error } = await supabase
+    .from("class_teachers")
+    .select("term_id, class_code, stream, campus")
+    .eq("staff_id", input.staffId)
+    .eq("role", "lead");
+  if (error || !posts?.length) return;
+  await mapPool(posts, 4, async (post) => {
+    let query = supabase
+      .from("report_cards")
+      .update({ class_teacher_name: name, updated_at: new Date().toISOString() })
+      .eq("term_id", post.term_id)
+      .eq("class_code", post.class_code)
+      .eq("stream", streamOf(String(post.stream || "")));
+    const campus = post.campus != null && String(post.campus).trim() ? operationalCampus(String(post.campus)) : null;
+    if (campus) query = query.eq("campus", campus);
+    const { error: updateError } = await query;
+    if (updateError && !/updated_at|schema cache|42703/i.test(updateError.message)) {
+      throw new Error(updateError.message);
+    }
+    if (updateError) {
+      let legacy = supabase
+        .from("report_cards")
+        .update({ class_teacher_name: name })
+        .eq("term_id", post.term_id)
+        .eq("class_code", post.class_code)
+        .eq("stream", streamOf(String(post.stream || "")));
+      if (campus) legacy = legacy.eq("campus", campus);
+      const retry = await legacy;
+      if (retry.error) throw new Error(retry.error.message);
+    }
+  });
 }
 
 function staffInitials(value: { full_name?: string; initials?: string | null } | { full_name?: string; initials?: string | null }[] | null) {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { takeProcessNote } from "@/lib/process-signal";
 
@@ -73,13 +73,20 @@ function isServerAction(input: RequestInfo | URL, init?: RequestInit) {
   return input instanceof Request && input.headers.has("Next-Action");
 }
 
+function mergeSignal(existing: AbortSignal | null | undefined, local: AbortSignal) {
+  if (!existing) return local;
+  if (typeof AbortSignal.any === "function") return AbortSignal.any([existing, local]);
+  return local;
+}
+
 /** Shows the green progress ring for admin actions: saves, uploads, logins, and the rest. */
 export function AdminProcess() {
   const [active, setActive] = useState(false);
   const [label, setLabel] = useState("Working");
+  const abortRef = useRef<AbortController | null>(null);
+  const depthRef = useRef(0);
 
   useEffect(() => {
-    let depth = 0;
     let command = "";
     let commandAt = 0;
     const original = window.fetch.bind(window);
@@ -110,16 +117,24 @@ export function AdminProcess() {
       if (!explicit && (isSearchField(document.activeElement) || !recent)) return original(input, init);
       const next = explicit || recent || "Working";
       command = "";
-      depth += 1;
-      if (depth === 1) {
+      depthRef.current += 1;
+      const controller = new AbortController();
+      if (depthRef.current === 1) {
+        abortRef.current = controller;
         setLabel(next);
         setActive(true);
       }
       try {
-        return await original(input, init);
+        return await original(input, {
+          ...init,
+          signal: mergeSignal(init?.signal ?? (input instanceof Request ? input.signal : null), controller.signal),
+        });
       } finally {
-        depth = Math.max(0, depth - 1);
-        if (depth === 0) setActive(false);
+        depthRef.current = Math.max(0, depthRef.current - 1);
+        if (depthRef.current === 0) {
+          if (abortRef.current === controller) abortRef.current = null;
+          setActive(false);
+        }
       }
     };
 
@@ -136,5 +151,16 @@ export function AdminProcess() {
     };
   }, []);
 
-  return <ProcessStatus active={active} label={label} />;
+  return (
+    <ProcessStatus
+      active={active}
+      label={label}
+      onCancel={() => {
+        abortRef.current?.abort();
+        abortRef.current = null;
+        depthRef.current = 0;
+        setActive(false);
+      }}
+    />
+  );
 }

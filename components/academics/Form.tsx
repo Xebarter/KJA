@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
 
 type Outcome = {
@@ -74,6 +74,8 @@ export function DeskForm({
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<Outcome | null>(null);
   const [busyLabel, setBusyLabel] = useState(status ?? "Working");
+  const [dismissed, setDismissed] = useState(false);
+  const abortedRef = useRef(false);
 
   return (
     <form
@@ -86,8 +88,15 @@ export function DeskForm({
         const button = submitter instanceof HTMLButtonElement ? submitter.innerText : "";
         setBusyLabel(status || phrase(button) || (quiet ? "Updating" : "Working"));
         setResult(null);
+        abortedRef.current = false;
+        setDismissed(false);
         startTransition(async () => {
           const outcome: Outcome = await action(data).catch(() => ({ error: "Something went wrong. Try again." }));
+          if (abortedRef.current) {
+            abortedRef.current = false;
+            setDismissed(false);
+            return;
+          }
           if (outcome.email && outcome.password && onIssued) {
             onIssued({ email: outcome.email, password: outcome.password, temporary: outcome.temporary });
           }
@@ -114,7 +123,14 @@ export function DeskForm({
           <p>{result.temporary ? "Temporary password" : "Password"}: <code>{result.password}</code></p>
         </div>
       ) : null}
-      <ProcessStatus active={pending} label={busyLabel} />
+      <ProcessStatus
+        active={pending && !dismissed}
+        label={busyLabel}
+        onCancel={() => {
+          abortedRef.current = true;
+          setDismissed(true);
+        }}
+      />
     </form>
   );
 }

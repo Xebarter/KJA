@@ -16,6 +16,8 @@ export function StudentsImportDialog({ open, onClose }: { open: boolean; onClose
   const [photosName, setPhotosName] = useState("");
   const [phase, setPhase] = useState<"idle" | "preview" | "commit">("idle");
   const [closeWhenDone, setCloseWhenDone] = useState(false);
+  const [dismissed, setDismissed] = useState(false);
+  const abortedRef = useRef(false);
 
   if (!open) return null;
 
@@ -27,6 +29,8 @@ export function StudentsImportDialog({ open, onClose }: { open: boolean; onClose
     setPhotosName("");
     setPhase("idle");
     setCloseWhenDone(false);
+    setDismissed(false);
+    abortedRef.current = false;
     onClose();
   };
 
@@ -48,10 +52,18 @@ export function StudentsImportDialog({ open, onClose }: { open: boolean; onClose
 
     setError(null);
     setCloseWhenDone(false);
+    setDismissed(false);
+    abortedRef.current = false;
     setPhase(intent);
     start(async () => {
       try {
         const result = await importStudentsWorkbook(data);
+        if (abortedRef.current) {
+          abortedRef.current = false;
+          setDismissed(false);
+          setPhase("idle");
+          return;
+        }
         if (result.error) {
           setError(result.error);
           if (result.preview) setPreview(result.preview);
@@ -67,6 +79,12 @@ export function StudentsImportDialog({ open, onClose }: { open: boolean; onClose
         }
         setPhase("idle");
       } catch (caught) {
+        if (abortedRef.current) {
+          abortedRef.current = false;
+          setDismissed(false);
+          setPhase("idle");
+          return;
+        }
         const message = caught instanceof Error ? caught.message : "Upload failed.";
         setError(
           /unexpected end of form|body.*exceeded|failed to parse/i.test(message)
@@ -243,9 +261,17 @@ export function StudentsImportDialog({ open, onClose }: { open: boolean; onClose
           </div>
         </form>
         <ProcessStatus
-          active={pending}
+          active={pending && !dismissed}
           label={statusLabel}
           onComplete={closeWhenDone ? close : undefined}
+          onCancel={
+            closeWhenDone
+              ? undefined
+              : () => {
+                  abortedRef.current = true;
+                  setDismissed(true);
+                }
+          }
         />
       </div>
     </div>

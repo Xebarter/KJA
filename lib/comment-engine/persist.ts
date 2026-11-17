@@ -3,6 +3,15 @@ import { classSection, streamOf } from "@/lib/academics";
 import { loadReportSkillLines } from "@/lib/academics-reports";
 import { operationalCampus } from "@/lib/campuses";
 import { nurseryCommentMapForTerm, upsertNurseryClassComments } from "@/lib/nursery-class-comments";
+import {
+  isPrimaryStoreMissing,
+  primaryActivityCommentMapForTerm,
+  primaryClassCommentMapForTerm,
+  primarySubjectCommentMapForTerm,
+  upsertPrimaryActivityComments,
+  upsertPrimaryClassComments,
+  upsertPrimarySubjectComments,
+} from "@/lib/primary-report-comments";
 import { subjectPercent } from "./bands";
 import { loadActiveCommentConfig } from "./config";
 import { generateCommentsForReport } from "./generate";
@@ -163,13 +172,15 @@ export async function applyGeneration(
   const { error: cardError } = await supabase.from("report_cards").update(cardPatch).eq("id", reportId).eq("status", "draft");
   if (cardError) throw new Error(cardError.message);
 
-  if (classUnit?.text) {
-    const { data: cardMeta } = await supabase
-      .from("report_cards")
-      .select("student_id, term_id, class_code, stream, campus")
-      .eq("id", reportId)
-      .maybeSingle();
-    if (cardMeta && classSection(String(cardMeta.class_code)) === "nursery") {
+  const { data: cardMeta } = await supabase
+    .from("report_cards")
+    .select("student_id, term_id, class_code, stream, campus")
+    .eq("id", reportId)
+    .maybeSingle();
+  const section = cardMeta ? classSection(String(cardMeta.class_code)) : null;
+
+  if (classUnit?.text && cardMeta) {
+    if (section === "nursery") {
       try {
         await upsertNurseryClassComments(supabase, [
           {
@@ -185,6 +196,23 @@ export async function applyGeneration(
       } catch (storeError) {
         const message = storeError instanceof Error ? storeError.message : "";
         if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
+      }
+    } else if (section === "primary") {
+      try {
+        await upsertPrimaryClassComments(supabase, [
+          {
+            student_id: String(cardMeta.student_id),
+            term_id: String(cardMeta.term_id),
+            campus: cardMeta.campus,
+            class_code: cardMeta.class_code,
+            stream: streamOf(cardMeta.stream),
+            comment: classUnit.text,
+            updated_by: actorId,
+          },
+        ]);
+      } catch (storeError) {
+        const message = storeError instanceof Error ? storeError.message : "";
+        if (!isPrimaryStoreMissing(message)) throw storeError;
       }
     }
   }
@@ -207,6 +235,26 @@ export async function applyGeneration(
     if (updates.length) {
       const { error: saveError } = await supabase.from("report_lines").upsert(updates, { onConflict: "report_card_id,subject_id" });
       if (saveError) throw new Error(saveError.message);
+    }
+    if (section === "primary" && cardMeta && updates.length) {
+      try {
+        await upsertPrimarySubjectComments(
+          supabase,
+          updates.map((row) => ({
+            student_id: String(cardMeta.student_id),
+            term_id: String(cardMeta.term_id),
+            subject_id: String(row.subject_id),
+            campus: cardMeta.campus,
+            class_code: cardMeta.class_code,
+            stream: streamOf(cardMeta.stream),
+            comment: String(row.teacher_comment || ""),
+            updated_by: actorId,
+          })),
+        );
+      } catch (storeError) {
+        const message = storeError instanceof Error ? storeError.message : "";
+        if (!isPrimaryStoreMissing(message)) throw storeError;
+      }
     }
   }
 
@@ -237,6 +285,28 @@ export async function applyGeneration(
           throw new Error(`${saveError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
         }
         throw new Error(saveError.message);
+      }
+      if (section === "primary" && cardMeta) {
+        try {
+          await upsertPrimaryActivityComments(
+            supabase,
+            updates.map((row) => ({
+              student_id: String(cardMeta.student_id),
+              term_id: String(cardMeta.term_id),
+              slot: Number(row.slot),
+              subject_id: row.subject_id ? String(row.subject_id) : null,
+              activity_name: row.activity_name ? String(row.activity_name) : null,
+              campus: cardMeta.campus,
+              class_code: cardMeta.class_code,
+              stream: streamOf(cardMeta.stream),
+              comment: String(row.comment || ""),
+              updated_by: actorId,
+            })),
+          );
+        } catch (storeError) {
+          const message = storeError instanceof Error ? storeError.message : "";
+          if (!isPrimaryStoreMissing(message)) throw storeError;
+        }
       }
     }
   }
@@ -324,8 +394,14 @@ export async function generateClassReportComments(
   const pupilById = new Map(pupils.map((pupil) => [String(pupil.id), pupil]));
   const linesByCard = groupBy(lines, (line) => String(line.report_card_id));
   const activitiesByCard = groupBy(activities, (row) => String(row.report_card_id));
+  const primaryClass = classSection(input.classCode) === "primary";
   const storeComments = nurseryClass
     ? await nurseryCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
+    : primaryClass
+      ? await primaryClassCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
+      : new Map<string, string>();
+  const primarySubjectStore = primaryClass
+    ? await primarySubjectCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
     : new Map<string, string>();
 
   const now = new Date().toISOString();
@@ -336,6 +412,26 @@ export async function generateClassReportComments(
   const storeWrites: {
     student_id: string;
     term_id: string;
+    campus: string | null;
+    class_code: string | null;
+    stream: string;
+    comment: string | null;
+  }[] = [];
+  const primarySubjectStoreWrites: {
+    student_id: string;
+    term_id: string;
+    subject_id: string;
+    campus: string | null;
+    class_code: string | null;
+    stream: string;
+    comment: string | null;
+  }[] = [];
+  const primaryActivityStoreWrites: {
+    student_id: string;
+    term_id: string;
+    slot: number;
+    subject_id: string | null;
+    activity_name: string | null;
     campus: string | null;
     class_code: string | null;
     stream: string;
@@ -353,7 +449,9 @@ export async function generateClassReportComments(
     const reportId = String(card.id);
     const cardLines = linesByCard.get(reportId) || [];
     const storeText = storeComments.get(String(card.student_id)) || "";
-    if (options.onlyBlank && nurseryClass && storeText && !card.class_teacher_comment?.trim()) {
+    const hasPrimarySubjectStore = primaryClass
+      && [...primarySubjectStore.keys()].some((key) => key.startsWith(`${card.student_id}|`));
+    if (options.onlyBlank && (nurseryClass || primaryClass) && storeText && !card.class_teacher_comment?.trim()) {
       cardWrites.push({
         id: reportId,
         class_teacher_comment: storeText,
@@ -362,7 +460,14 @@ export async function generateClassReportComments(
       skipped += 1;
       continue;
     }
-    if (options.onlyBlank && (!isBlankCard(card, cardLines, nurseryClass) || (nurseryClass && storeText))) {
+    if (
+      options.onlyBlank
+      && (
+        !isBlankCard(card, cardLines, nurseryClass)
+        || ((nurseryClass || primaryClass) && storeText)
+        || hasPrimarySubjectStore
+      )
+    ) {
       skipped += 1;
       continue;
     }
@@ -403,7 +508,7 @@ export async function generateClassReportComments(
       cocurricular_comment: nurseryClass ? card.cocurricular_comment : cocoUnit?.text || card.cocurricular_comment,
       updated_at: now,
     });
-    if (nurseryClass && classUnit?.text) {
+    if ((nurseryClass || primaryClass) && classUnit?.text) {
       storeWrites.push({
         student_id: String(card.student_id),
         term_id: String(card.term_id),
@@ -424,6 +529,17 @@ export async function generateClassReportComments(
           subject_name: String(line?.subject_name || "Subject"),
           teacher_comment: unit.text,
         });
+        if (primaryClass) {
+          primarySubjectStoreWrites.push({
+            student_id: String(card.student_id),
+            term_id: String(card.term_id),
+            subject_id: unit.subjectId,
+            campus: card.campus,
+            class_code: card.class_code,
+            stream: streamOf(card.stream),
+            comment: unit.text,
+          });
+        }
       }
       if (unit.commentType === "cocurricular" && unit.activitySlot && unit.text && knownActivities.has(unit.activitySlot)) {
         const row = knownActivities.get(unit.activitySlot);
@@ -437,6 +553,19 @@ export async function generateClassReportComments(
           skills: "skills" in (row || {}) ? (row as { skills?: unknown }).skills ?? [] : [],
           comment: unit.text,
         });
+        if (primaryClass) {
+          primaryActivityStoreWrites.push({
+            student_id: String(card.student_id),
+            term_id: String(card.term_id),
+            slot: unit.activitySlot,
+            subject_id: row && "subject_id" in row ? (row as { subject_id?: string | null }).subject_id ?? null : null,
+            activity_name: row?.activity_name ? String(row.activity_name) : null,
+            campus: card.campus,
+            class_code: card.class_code,
+            stream: streamOf(card.stream),
+            comment: unit.text,
+          });
+        }
       }
       if (!shouldRecordProvenance(unit)) {
         if (unit.status === "failed") messages.push(`${unit.commentType}: ${unit.explanation}`);
@@ -479,9 +608,39 @@ export async function generateClassReportComments(
   ]);
   if (storeWrites.length) {
     try {
-      await upsertNurseryClassComments(
+      if (nurseryClass) {
+        await upsertNurseryClassComments(
+          supabase,
+          storeWrites.map((row) => ({
+            ...row,
+            campus: operationalCampus(row.campus),
+            updated_by: actorId,
+          })),
+        );
+      } else if (primaryClass) {
+        await upsertPrimaryClassComments(
+          supabase,
+          storeWrites.map((row) => ({
+            ...row,
+            campus: operationalCampus(row.campus),
+            updated_by: actorId,
+          })),
+        );
+      }
+    } catch (storeError) {
+      const message = storeError instanceof Error ? storeError.message : "";
+      if (nurseryClass) {
+        if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
+      } else if (!isPrimaryStoreMissing(message)) {
+        throw storeError;
+      }
+    }
+  }
+  if (primarySubjectStoreWrites.length) {
+    try {
+      await upsertPrimarySubjectComments(
         supabase,
-        storeWrites.map((row) => ({
+        primarySubjectStoreWrites.map((row) => ({
           ...row,
           campus: operationalCampus(row.campus),
           updated_by: actorId,
@@ -489,7 +648,22 @@ export async function generateClassReportComments(
       );
     } catch (storeError) {
       const message = storeError instanceof Error ? storeError.message : "";
-      if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
+      if (!isPrimaryStoreMissing(message)) throw storeError;
+    }
+  }
+  if (primaryActivityStoreWrites.length) {
+    try {
+      await upsertPrimaryActivityComments(
+        supabase,
+        primaryActivityStoreWrites.map((row) => ({
+          ...row,
+          campus: operationalCampus(row.campus),
+          updated_by: actorId,
+        })),
+      );
+    } catch (storeError) {
+      const message = storeError instanceof Error ? storeError.message : "";
+      if (!isPrimaryStoreMissing(message)) throw storeError;
     }
   }
   if (recordTrail) await replaceProvenance(supabase, writtenIds, provenance, audits);

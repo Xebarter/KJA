@@ -14,6 +14,7 @@ import { StudentFace } from "@/components/StudentFace";
 import { ACADEMICS_BASE, classLabel, streamQuery, type ClassGroup } from "@/lib/academics";
 import type { RollPupil } from "@/lib/academics-roll";
 import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
+import { printPdfBlob } from "@/lib/client-print-pdf";
 
 /** One nursery learner remark for the current term (independent of report card lifecycle). */
 export type NurseryCommentCard = {
@@ -324,20 +325,27 @@ export function NurseryCommentsDesk({
     }
   }
 
+  function exportUrl(format: "pdf" | "xlsx") {
+    if (!termId || !selected) return null;
+    const params = new URLSearchParams({
+      term: termId,
+      class: selected.code,
+      stream: streamQuery(selected.stream),
+      format,
+    });
+    return `${ACADEMICS_BASE}/comments/export?${params.toString()}`;
+  }
+
   async function exportFile(format: "pdf" | "xlsx") {
     if (!termId || !selected || busy) return;
+    const href = exportUrl(format);
+    if (!href) return;
     setExportOpen(false);
     setBusy(format);
     setError("");
     setOk("");
     try {
-      const params = new URLSearchParams({
-        term: termId,
-        class: selected.code,
-        stream: streamQuery(selected.stream),
-        format,
-      });
-      const response = await fetch(`${ACADEMICS_BASE}/comments/export?${params.toString()}`);
+      const response = await fetch(href, { credentials: "same-origin" });
       const type = (response.headers.get("content-type") || "").toLowerCase();
       if (!response.ok) {
         setError(errorMessage(await response.text()));
@@ -360,6 +368,34 @@ export function NurseryCommentsDesk({
       setOk(`${format.toUpperCase()} saved as ${filename}.`);
     } catch (err) {
       setError(err instanceof Error && err.message ? err.message : "Export failed.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  /** Same server PDF as Export → PDF — not a browser reflow of the desk. */
+  async function printCommentsPdf() {
+    if (!termId || !selected || busy) return;
+    const href = exportUrl("pdf");
+    if (!href) return;
+    setExportOpen(false);
+    setBusy("print");
+    setError("");
+    setOk("");
+    try {
+      const response = await fetch(href, { credentials: "same-origin" });
+      const type = (response.headers.get("content-type") || "").toLowerCase();
+      if (!response.ok) {
+        setError(errorMessage(await response.text()));
+        return;
+      }
+      if (type.includes("text/html") || !type.includes("pdf")) {
+        setError(errorMessage(type.includes("text/html") ? await response.text() : "The PDF could not be prepared."));
+        return;
+      }
+      await printPdfBlob(await response.blob(), "Print nursery comments");
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Couldn't print the comments PDF.");
     } finally {
       setBusy("");
     }
@@ -422,7 +458,7 @@ export function NurseryCommentsDesk({
           ? "Saving comments"
           : busy === "drafts"
             ? "Saving drafts"
-            : busy === "pdf"
+            : busy === "pdf" || busy === "print"
               ? "Preparing the PDF"
               : busy === "xlsx"
                 ? "Preparing Excel"
@@ -579,8 +615,15 @@ export function NurseryCommentsDesk({
               </div>
             ) : null}
           </div>
-          <button type="button" className="msh-print" onClick={() => window.print()} disabled={Boolean(busy)}>
-            <i className="fa-solid fa-print" aria-hidden="true" /> Print
+          <button
+            type="button"
+            className="msh-print"
+            onClick={() => void printCommentsPdf()}
+            disabled={Boolean(busy) || !selected}
+            aria-busy={busy === "print"}
+          >
+            <i className={`fa-solid ${busy === "print" ? "fa-spinner fa-spin" : "fa-print"}`} aria-hidden="true" />
+            {busy === "print" ? "Preparing…" : "Print"}
           </button>
           <input
             ref={fileRef}

@@ -31,7 +31,11 @@ import { requireAcademics } from "@/lib/academics-access";
 import { campusFromFormValue, DEFAULT_CAMPUS, operationalCampus, type CampusId } from "@/lib/campuses";
 import { refreshAcademics, refreshSubjectCatalogue } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
-import { classMarkbooksReady, prepareClassReports } from "@/lib/academics-reports";
+import {
+  classMarkbooksReady,
+  prepareClassReports,
+  syncReportCardsClassTeacherName,
+} from "@/lib/academics-reports";
 import {
   defaultCommentConfig,
   generateAndSaveReportComments,
@@ -242,6 +246,11 @@ export async function saveStaff(formData: FormData): Promise<Result> {
           : error.message,
       };
     }
+    try {
+      await syncReportCardsClassTeacherName(opened.auth.supabase, { staffId: id, fullName });
+    } catch {
+      /* Card snapshot sync is best-effort; live resolve still shows the new name. */
+    }
     const profileId = row.profile_id || (before?.profile_id as string | null) || null;
     if (row.active && (row.email || profileId)) {
       const access = await ensureTeacherPortalAccess({
@@ -252,7 +261,7 @@ export async function saveStaff(formData: FormData): Promise<Result> {
         active: row.active,
         password: password || undefined,
       });
-      refreshAcademics(`${ACADEMICS_BASE}/staff`);
+      refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/reports`);
       if (access.error) {
         return {
           error: profileId
@@ -270,7 +279,7 @@ export async function saveStaff(formData: FormData): Promise<Result> {
       }
       return { ok: "Teacher updated. They can sign in to the teacher desk." };
     }
-    refreshAcademics(`${ACADEMICS_BASE}/staff`);
+    refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/reports`);
     return { ok: "Teacher updated." };
   }
   const { data, error } = await opened.auth.supabase.from("teaching_staff").insert(row).select("id").single();
@@ -748,7 +757,15 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     }
   }
 
-  refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
+  if (wantLead) {
+    try {
+      await syncReportCardsClassTeacherName(supabase, { staffId, fullName: staffName });
+    } catch {
+      /* Live resolve still shows the current lead name on cards. */
+    }
+  }
+
+  refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`, `${ACADEMICS_BASE}/reports`);
   if (portal.created && portal.password && portal.email) {
     return {
       ok: `${staffName} assigned to ${classLabel(classCode, stream, campus)}. Teacher desk sign-in was created. Share the password now.`,

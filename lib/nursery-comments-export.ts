@@ -35,6 +35,10 @@ export type NurseryCommentsExportInput = {
   stream: string;
   preparedOn: string;
   rows: NurseryCommentsExportRow[];
+  /** Override document title (Primary Comments reuses this builder). */
+  title?: string;
+  /** Override download filename stem without extension. */
+  filenameBase?: string;
 };
 
 function latin(text: string | null | undefined) {
@@ -214,7 +218,7 @@ export async function buildNurseryCommentsExportWorkbook(input: NurseryCommentsE
     sheet.getCell(2, col).fill = { type: "pattern", pattern: "solid", fgColor: { argb: GOLD } };
   }
 
-  sheet.getCell(3, 1).value = "Nursery class teacher comments";
+  sheet.getCell(3, 1).value = input.title || "Nursery class teacher comments";
   sheet.getCell(3, 1).font = { name: FACE, size: 12, bold: true, color: { argb: ACCENT } };
   sheet.getCell(3, 1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: ACCENT_SOFT } };
   sheet.mergeCells(3, 1, 3, 5);
@@ -407,7 +411,7 @@ export async function buildNurseryCommentsPdf(input: NurseryCommentsExportInput)
     pageW,
     pageH,
     margin,
-    title: "Nursery class teacher comments",
+    title: input.title || "Nursery class teacher comments",
     subtitle,
     meta,
     bold,
@@ -448,7 +452,7 @@ export async function buildNurseryCommentsPdf(input: NurseryCommentsExportInput)
       pageW,
       pageH,
       margin,
-      title: "Nursery class teacher comments",
+      title: input.title || "Nursery class teacher comments",
       subtitle,
       meta,
       bold,
@@ -581,7 +585,11 @@ export async function buildNurseryCommentsPdf(input: NurseryCommentsExportInput)
   return Buffer.from(await pdf.save());
 }
 
-export function nurseryCommentsFilenameBase(classCode: string, stream: string) {
+export function commentsFilenameBase(kind: string, classCode: string, stream: string) {
   const streamPart = stream ? `-${stream}` : "";
-  return `KJA-nursery-comments-${classCode}${streamPart}`;
+  return `KJA-${kind}-comments-${classCode}${streamPart}`;
+}
+
+export function nurseryCommentsFilenameBase(classCode: string, stream: string) {
+  return commentsFilenameBase("nursery", classCode, stream);
 }

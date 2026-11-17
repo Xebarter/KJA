@@ -3,7 +3,14 @@ import { notFound } from "next/navigation";
 import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
 import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet";
 import { classSection, gradeBandSection, gradeBandSectionsToLoad, num, scaleBands } from "@/lib/academics";
-import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
+import {
+  cardSets,
+  loadReportParts,
+  loadReportSkillLines,
+  loadSubjectInitials,
+  parseProgressLegend,
+  resolveClassTeacherName,
+} from "@/lib/academics-reports";
 import { loadReportClosing } from "@/lib/report-closing";
 import { getSessionUser } from "@/lib/portal";
 import { isUuid } from "@/lib/students";
@@ -55,15 +62,24 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
   const termMeta = Array.isArray(term) ? term[0] : term;
   const termYear = termMeta?.year != null ? Number(termMeta.year) : null;
   const signatureDb = serviceClient() ?? supabase;
-  const classTeacherSignatureSrc = nursery
-    ? await resolveClassTeacherSignatureSrc(signatureDb, {
-        termId: card.term_id,
-        classCode: card.class_code,
-        stream: card.stream || "",
-        campus: pupil.campus,
-        asDataUri: true,
-      })
-    : null;
+  const [classTeacherSignatureSrc, classTeacherName] = await Promise.all([
+    nursery
+      ? resolveClassTeacherSignatureSrc(signatureDb, {
+          termId: card.term_id,
+          classCode: card.class_code,
+          stream: card.stream || "",
+          campus: pupil.campus,
+          asDataUri: true,
+        })
+      : Promise.resolve(null),
+    resolveClassTeacherName(signatureDb, {
+      termId: card.term_id,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus: pupil.campus,
+      fallback: card.class_teacher_name,
+    }),
+  ]);
   const sheet: SheetCard = {
     id,
     pupil_name: pupil.full_name,
@@ -73,7 +89,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
-    class_teacher_name: card.class_teacher_name,
+    class_teacher_name: classTeacherName,
     class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,

@@ -4,14 +4,29 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { CommentsWorkspaceSwitch } from "@/components/academics/CommentsWorkspaceSwitch";
 import { friendlyCheck, templateReadout, toRuleCard, type DeskRule, type DeskTemplate, type DeskType } from "@/components/academics/comment-model";
 import { NurseryCommentsDesk, type NurseryCommentCard } from "@/components/academics/NurseryCommentsDesk";
+import {
+  PrimaryCommentsDesk,
+  type PrimaryActivityCommentCard,
+  type PrimaryClassCommentCard,
+  type PrimaryCommentSubject,
+  type PrimarySubjectCommentCard,
+} from "@/components/academics/PrimaryCommentsDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
-import { groupPupils, loadCurrentTerm } from "@/lib/academics";
+import {
+  groupPupils,
+  isAcademicSubject,
+  isCocurricularSubject,
+  loadCurrentTerm,
+  mapSubject,
+  subjectFits,
+} from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { loadActiveCommentConfig, validateConfiguration } from "@/lib/comment-engine";
 import { NURSERY_COMMENT_RULES } from "@/lib/comment-engine/nursery-defaults";
 import { buildNurserySamplePreview, buildSamplePreview } from "@/lib/comment-engine/preview";
 import { resolveNurseryClassTeacherComment } from "@/lib/nursery-class-comments";
+import { resolvePrimaryComment } from "@/lib/primary-report-comments";
 import "../assessments/assessments.css";
 import "./comments.css";
 
@@ -30,7 +45,257 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
   if (!opened.auth.office) return <OfficeOnly title="Comments" />;
 
   const params = await searchParams;
+  const primaryView = params.view === "primary-comments";
   const nurseryView = params.view === "nursery-comments";
+
+  if (primaryView) {
+    const termPack = await loadCurrentTerm(opened.auth.supabase);
+    if (termPack.error) {
+      return <AcademicsGate title="Primary Comments" state={{ notice: "schema", message: termPack.error }} />;
+    }
+    const term = termPack.term;
+    const [pupils, cardsQuery, classStoreQuery, subjectStoreQuery, activityStoreQuery, subjectsQuery] = await Promise.all([
+      loadRoll(opened.auth.supabase, opened.auth.user.id, undefined, opened.auth.campuses),
+      term
+        ? opened.auth.supabase
+            .from("report_cards")
+            .select("id, student_id, status, class_code, stream, class_teacher_comment")
+            .eq("term_id", term.id)
+        : Promise.resolve({ data: [], error: null }),
+      term
+        ? opened.auth.supabase
+            .from("primary_class_comments")
+            .select("student_id, comment, class_code, stream, campus")
+            .eq("term_id", term.id)
+        : Promise.resolve({ data: [], error: null }),
+      term
+        ? opened.auth.supabase
+            .from("primary_subject_comments")
+            .select("student_id, subject_id, comment, class_code, stream")
+            .eq("term_id", term.id)
+        : Promise.resolve({ data: [], error: null }),
+      term
+        ? opened.auth.supabase
+            .from("primary_activity_comments")
+            .select("student_id, slot, subject_id, activity_name, comment, class_code, stream")
+            .eq("term_id", term.id)
+        : Promise.resolve({ data: [], error: null }),
+      opened.auth.supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
+    ]);
+
+    for (const query of [cardsQuery, classStoreQuery, subjectStoreQuery, activityStoreQuery, subjectsQuery]) {
+      if (query.error) {
+        return <AcademicsGate title="Primary Comments" state={{ notice: "schema", message: query.error.message }} />;
+      }
+    }
+
+    const primaryGroups = groupPupils(pupils).filter((group) => group.section === "primary");
+    const primaryCodes = new Set(primaryGroups.map((group) => group.code));
+
+    const subjectRows = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
+    const fitting = subjectRows.filter((subject) =>
+      [...primaryCodes].some((code) => subjectFits(subject, code)),
+    );
+    const academicSubjects: PrimaryCommentSubject[] = fitting
+      .filter(isAcademicSubject)
+      .map((subject) => ({ id: subject.id, name: subject.name }));
+    const cocurricularSubjects: PrimaryCommentSubject[] = fitting
+      .filter(isCocurricularSubject)
+      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+      .slice(0, 4)
+      .map((subject) => ({ id: subject.id, name: subject.name }));
+
+    const cardByStudent = new Map(
+      ((cardsQuery.data || []) as {
+        id: string;
+        student_id: string;
+        status: string;
+        class_code: string | null;
+        stream: string | null;
+        class_teacher_comment: string | null;
+      }[])
+        .filter((card) => card.class_code && primaryCodes.has(card.class_code))
+        .map((card) => [card.student_id, card]),
+    );
+    const classStoreByStudent = new Map(
+      ((classStoreQuery.data || []) as {
+        student_id: string;
+        comment: string | null;
+        class_code: string | null;
+        stream: string | null;
+        campus: string | null;
+      }[]).map((row) => [row.student_id, row]),
+    );
+
+    const classCards: PrimaryClassCommentCard[] = [];
+    const seenClass = new Set<string>();
+    for (const group of primaryGroups) {
+      for (const pupil of group.pupils) {
+        if (seenClass.has(pupil.id)) continue;
+        seenClass.add(pupil.id);
+        const store = classStoreByStudent.get(pupil.id);
+        const card = cardByStudent.get(pupil.id);
+        classCards.push({
+          student_id: pupil.id,
+          comment: resolvePrimaryComment(store?.comment, card?.class_teacher_comment),
+          class_code: pupil.class_code || store?.class_code || group.code,
+          stream: pupil.stream ?? store?.stream ?? group.stream,
+          campus: pupil.campus || store?.campus || null,
+          report_card_id: card?.id ?? null,
+          status: card?.status ?? "",
+        });
+      }
+    }
+    for (const [studentId, store] of classStoreByStudent) {
+      if (seenClass.has(studentId)) continue;
+      if (!store.class_code || !primaryCodes.has(store.class_code)) continue;
+      const card = cardByStudent.get(studentId);
+      seenClass.add(studentId);
+      classCards.push({
+        student_id: studentId,
+        comment: resolvePrimaryComment(store.comment, card?.class_teacher_comment),
+        class_code: store.class_code,
+        stream: store.stream || "",
+        campus: store.campus,
+        report_card_id: card?.id ?? null,
+        status: card?.status ?? "",
+      });
+    }
+
+    const subjectCards: PrimarySubjectCommentCard[] = ((subjectStoreQuery.data || []) as {
+      student_id: string;
+      subject_id: string;
+      comment: string | null;
+    }[]).map((row) => ({
+      student_id: row.student_id,
+      subject_id: row.subject_id,
+      comment: resolvePrimaryComment(row.comment, null),
+    }));
+
+    // Prefer live report_lines when store is blank for the same pupil/subject.
+    const cardIds = [...cardByStudent.values()].map((card) => card.id);
+    const cardIdToStudent = new Map([...cardByStudent.entries()].map(([studentId, card]) => [card.id, studentId]));
+    const subjectSeen = new Set(subjectCards.map((card) => `${card.student_id}|${card.subject_id}`));
+    for (let index = 0; index < cardIds.length; index += 80) {
+      const slice = cardIds.slice(index, index + 80);
+      const lines = await opened.auth.supabase
+        .from("report_lines")
+        .select("report_card_id, subject_id, teacher_comment")
+        .in("report_card_id", slice);
+      if (lines.error) {
+        return <AcademicsGate title="Primary Comments" state={{ notice: "schema", message: lines.error.message }} />;
+      }
+      for (const line of (lines.data || []) as {
+        report_card_id: string;
+        subject_id: string;
+        teacher_comment: string | null;
+      }[]) {
+        const studentId = cardIdToStudent.get(line.report_card_id);
+        if (!studentId) continue;
+        const key = `${studentId}|${line.subject_id}`;
+        const existing = subjectCards.find((card) => card.student_id === studentId && card.subject_id === line.subject_id);
+        if (existing) {
+          existing.comment = resolvePrimaryComment(existing.comment, line.teacher_comment);
+          continue;
+        }
+        if (!resolvePrimaryComment(null, line.teacher_comment)) continue;
+        if (subjectSeen.has(key)) continue;
+        subjectSeen.add(key);
+        subjectCards.push({
+          student_id: studentId,
+          subject_id: line.subject_id,
+          comment: resolvePrimaryComment(null, line.teacher_comment),
+        });
+      }
+    }
+
+    const activityCards: PrimaryActivityCommentCard[] = ((activityStoreQuery.data || []) as {
+      student_id: string;
+      slot: number;
+      subject_id: string | null;
+      activity_name: string | null;
+      comment: string | null;
+    }[]).map((row) => ({
+      student_id: row.student_id,
+      slot: row.slot,
+      subject_id: row.subject_id,
+      activity_name: row.activity_name,
+      comment: resolvePrimaryComment(row.comment, null),
+    }));
+    const activitySeen = new Set(activityCards.map((card) => `${card.student_id}|${card.slot}`));
+    for (let index = 0; index < cardIds.length; index += 80) {
+      const slice = cardIds.slice(index, index + 80);
+      const activities = await opened.auth.supabase
+        .from("report_card_activities")
+        .select("report_card_id, slot, subject_id, activity_name, comment")
+        .in("report_card_id", slice);
+      if (activities.error) {
+        return <AcademicsGate title="Primary Comments" state={{ notice: "schema", message: activities.error.message }} />;
+      }
+      for (const row of (activities.data || []) as {
+        report_card_id: string;
+        slot: number;
+        subject_id: string | null;
+        activity_name: string | null;
+        comment: string | null;
+      }[]) {
+        const studentId = cardIdToStudent.get(row.report_card_id);
+        if (!studentId) continue;
+        const key = `${studentId}|${row.slot}`;
+        const existing = activityCards.find((card) => card.student_id === studentId && card.slot === row.slot);
+        if (existing) {
+          existing.comment = resolvePrimaryComment(existing.comment, row.comment);
+          if (!existing.subject_id && row.subject_id) existing.subject_id = row.subject_id;
+          if (!existing.activity_name && row.activity_name) existing.activity_name = row.activity_name;
+          continue;
+        }
+        if (!resolvePrimaryComment(null, row.comment)) continue;
+        if (activitySeen.has(key)) continue;
+        activitySeen.add(key);
+        activityCards.push({
+          student_id: studentId,
+          slot: row.slot,
+          subject_id: row.subject_id,
+          activity_name: row.activity_name,
+          comment: resolvePrimaryComment(null, row.comment),
+        });
+      }
+    }
+
+    return (
+      <div className="app-page ofc-page cmt-page ncm-page">
+        <PageHeader
+          kicker="Setup · Comments"
+          icon="fa-chalkboard-user"
+          title="Primary Comments"
+          description={
+            term ? (
+              <>
+                Class teacher, subject, and other-subject remarks · <strong>{term.label}</strong>
+              </>
+            ) : (
+              "Class teacher, subject, and other-subject remarks — saved before report cards are prepared."
+            )
+          }
+        />
+        <CommentsWorkspaceSwitch
+          active="primary-comments"
+          classCode={params.class || null}
+          stream={params.stream === "-" ? "" : params.stream || null}
+        />
+        <PrimaryCommentsDesk
+          termLabel={term?.label ?? null}
+          termId={term?.id ?? null}
+          groups={primaryGroups}
+          classCards={classCards}
+          subjectCards={subjectCards}
+          activityCards={activityCards}
+          academicSubjects={academicSubjects}
+          cocurricularSubjects={cocurricularSubjects}
+        />
+      </div>
+    );
+  }
 
   if (nurseryView) {
     const termPack = await loadCurrentTerm(opened.auth.supabase);

@@ -1510,3 +1510,88 @@ dialog.msh-screen.ncm-screen .msh-go:disabled {
     height: 2.4rem !important;
   }
 }
+
+/* Primary Comments desk modes — same shell language as nursery */
+dialog.msh-screen.ncm-screen .pcm-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+  padding: .55rem 1.1rem;
+  border-bottom: 1px solid var(--ncm-line);
+  background: var(--ncm-panel);
+}
+dialog.msh-screen.ncm-screen .pcm-modes button {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  height: 34px;
+  padding: 0 .85rem;
+  border: 1px solid var(--ncm-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  color: var(--ncm-ink);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: border-color .14s ease, background .14s ease, color .14s ease;
+}
+dialog.msh-screen.ncm-screen .pcm-modes button i {
+  font-size: .72rem;
+  color: var(--ncm-accent);
+}
+dialog.msh-screen.ncm-screen .pcm-modes button:hover {
+  border-color: var(--ncm-accent);
+  background: var(--ncm-accent-soft);
+}
+dialog.msh-screen.ncm-screen .pcm-modes button.is-on {
+  border-color: var(--ncm-accent);
+  background: var(--ncm-accent);
+  color: #fff;
+}
+dialog.msh-screen.ncm-screen .pcm-modes button.is-on i { color: rgba(255, 255, 255, .9); }
+
+dialog.msh-screen.ncm-screen .pcm-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .75rem 1.25rem;
+  padding: .7rem 1.1rem;
+  border-bottom: 1px solid var(--ncm-line);
+  background: var(--ncm-panel);
+}
+dialog.msh-screen.ncm-screen .pcm-picker label {
+  display: grid;
+  gap: .25rem;
+  min-width: min(100%, 16rem);
+  color: var(--ncm-muted);
+  font-size: .68rem;
+  font-weight: 750;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+dialog.msh-screen.ncm-screen .pcm-picker select {
+  height: 34px;
+  padding: 0 .75rem;
+  border: 1px solid var(--ncm-line-strong);
+  border-radius: 6px;
+  background: var(--ncm-paper);
+  color: var(--ncm-ink);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: 0;
+}
+dialog.msh-screen.ncm-screen .pcm-picker select:focus {
+  outline: none;
+  border-color: var(--ncm-accent);
+  box-shadow: 0 0 0 2px rgba(15, 76, 92, .12);
+}
+dialog.msh-screen.ncm-screen .pcm-picker p {
+  margin: 0 0 .15rem;
+  color: var(--ncm-muted);
+  font-size: .8rem;
+  font-weight: 500;
+}
+dialog.msh-screen.ncm-screen .pcm-picker strong { color: var(--ncm-ink); }

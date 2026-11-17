@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
+import { printPdfBlob } from "@/lib/client-print-pdf";
 
 /**
  * Prints the exact same Playwright PDF as Download — not a browser reflow of the on-page sheet.
@@ -20,6 +21,7 @@ export function PrintReportCardButton({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function printHtml(html: string) {
     const frame = document.createElement("iframe");
@@ -51,80 +53,34 @@ export function PrintReportCardButton({
     }
   }
 
-  async function printPdf(blob: Blob) {
-    const url = URL.createObjectURL(blob);
-    const frame = document.createElement("iframe");
-    frame.title = "Print report card";
-    frame.setAttribute("aria-hidden", "true");
-    // Full viewport so Chromium's PDF viewer lays out at real page size before print.
-    frame.style.cssText =
-      "position:fixed;inset:0;width:100vw;height:100vh;border:0;opacity:0;pointer-events:none;z-index:2147483646";
-    frame.src = url;
-    document.body.appendChild(frame);
-
-    const cleanup = () => {
-      frame.parentNode?.removeChild(frame);
-      URL.revokeObjectURL(url);
-    };
-
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        resolve();
-      };
-      frame.addEventListener("load", () => setTimeout(done, 500), { once: true });
-      setTimeout(done, 2500);
-    });
-
-    try {
-      const win = frame.contentWindow;
-      if (!win) throw new Error("The PDF preview could not be opened.");
-      win.focus();
-      win.print();
-    } catch {
-      cleanup();
-      const popup = window.open(url, "_blank", "noopener,noreferrer");
-      if (!popup) throw new Error("Allow pop-ups for this site to print the report card.");
-      const tryPrint = () => {
-        try {
-          popup.focus();
-          popup.print();
-        } catch {
-          // Viewer may still be loading.
-        }
-      };
-      setTimeout(tryPrint, 600);
-      setTimeout(tryPrint, 1400);
-      setTimeout(() => URL.revokeObjectURL(url), 120_000);
-      return;
-    }
-
-    // Keep the PDF frame until the print dialog is likely closed.
-    setTimeout(cleanup, 120_000);
-  }
-
   async function printCard() {
     if (busy) return;
     setError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
-      const response = await fetch(href, { credentials: "same-origin", redirect: "follow" });
+      const response = await fetch(href, {
+        credentials: "same-origin",
+        redirect: "follow",
+        signal: controller.signal,
+      });
       if (!response.ok) {
         const message = (await response.text().catch(() => "")).trim();
         throw new Error(message || "The report card could not be prepared.");
       }
       const type = response.headers.get("content-type") || "";
       if (/pdf/i.test(type)) {
-        await printPdf(await response.blob());
+        await printPdfBlob(await response.blob(), "Print report card");
         return;
       }
       // Fallback when Playwright is unavailable and the server returned HTML / redirected to /sheet.
       await printHtml(await response.text());
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setError(caught instanceof Error ? caught.message : "Couldn't print this report card.");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
     }
   }
@@ -140,7 +96,15 @@ export function PrintReportCardButton({
           <i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {error}
         </p>
       ) : null}
-      <ProcessStatus active={busy} label="Building report card" />
+      <ProcessStatus
+        active={busy}
+        label="Building report card"
+        onCancel={() => {
+          abortRef.current?.abort();
+          abortRef.current = null;
+          setBusy(false);
+        }}
+      />
     </span>
   );
 }

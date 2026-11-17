@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 
@@ -14,13 +14,16 @@ export function DownloadReportPdfButton({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
 
   async function download() {
     if (busy) return;
     setError(null);
+    const controller = new AbortController();
+    abortRef.current = controller;
     setBusy(true);
     try {
-      const response = await fetch(href, { credentials: "same-origin" });
+      const response = await fetch(href, { credentials: "same-origin", signal: controller.signal });
       if (response.redirected && /\/reports\/print\b/.test(response.url)) {
         window.location.assign(response.url);
         return;
@@ -39,8 +42,10 @@ export function DownloadReportPdfButton({
       const downloadName = filenameFromDisposition(response.headers.get("content-disposition"), filename);
       await saveClientDownload(blob, downloadName);
     } catch (caught) {
+      if (controller.signal.aborted) return;
       setError(caught instanceof Error ? caught.message : "Couldn't download the PDF.");
     } finally {
+      if (abortRef.current === controller) abortRef.current = null;
       setBusy(false);
     }
   }
@@ -60,7 +65,15 @@ export function DownloadReportPdfButton({
           <i className="fa-solid fa-circle-exclamation" aria-hidden="true" /> {error}
         </p>
       ) : null}
-      <ProcessStatus active={busy} label="Building report cards" />
+      <ProcessStatus
+        active={busy}
+        label="Building report cards"
+        onCancel={() => {
+          abortRef.current?.abort();
+          abortRef.current = null;
+          setBusy(false);
+        }}
+      />
     </span>
   );
 }

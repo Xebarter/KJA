@@ -8,7 +8,14 @@ import {
   scaleBands,
   type ReportSet,
 } from "@/lib/academics";
-import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
+import {
+  cardSets,
+  loadReportParts,
+  loadReportSkillLines,
+  loadSubjectInitials,
+  parseProgressLegend,
+  resolveClassTeacherName,
+} from "@/lib/academics-reports";
 import {
   activeAwards,
   formatPoints,
@@ -416,15 +423,24 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     };
   });
 
-  const classTeacherSignatureSrc = nursery
-    ? await resolveClassTeacherSignatureSrc(supabase, {
-        termId,
-        classCode: card.class_code,
-        stream: card.stream || "",
-        campus: pupil?.campus,
-        asDataUri: true,
-      })
-    : null;
+  const [classTeacherSignatureSrc, classTeacherName] = await Promise.all([
+    nursery
+      ? resolveClassTeacherSignatureSrc(supabase, {
+          termId,
+          classCode: card.class_code,
+          stream: card.stream || "",
+          campus: pupil?.campus,
+          asDataUri: true,
+        })
+      : Promise.resolve(null),
+    resolveClassTeacherName(supabase, {
+      termId,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus: pupil?.campus,
+      fallback: card.class_teacher_name,
+    }),
+  ]);
 
   const sheet: SheetCard = {
     id,
@@ -435,7 +451,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
-    class_teacher_name: card.class_teacher_name,
+    class_teacher_name: classTeacherName,
     class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,

@@ -20,7 +20,14 @@ import {
 import { nurseryCommentMapForTerm, resolveNurseryClassTeacherComment } from "@/lib/nursery-class-comments";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
-import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, parseProgressLegend } from "@/lib/academics-reports";
+import {
+  cardSets,
+  loadReportParts,
+  loadReportSkillLines,
+  loadSubjectInitials,
+  parseProgressLegend,
+  resolveClassTeacherName,
+} from "@/lib/academics-reports";
 import { normaliseReportTitle } from "@/lib/report-title";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import { fetchAll } from "@/lib/students";
@@ -297,15 +304,23 @@ export async function loadStreamReportCards(
     }
   }
   const sampleCampus = [...names.values()].find((row) => row.campus)?.campus ?? null;
-  const classTeacherSignatureSrc = nurseryStream
-    ? await resolveClassTeacherSignatureSrc(supabase, {
-        termId: input.termId,
-        classCode: input.classCode,
-        stream: input.stream,
-        campus: sampleCampus,
-        asDataUri: true,
-      })
-    : null;
+  const [classTeacherSignatureSrc, liveTeacherName] = await Promise.all([
+    nurseryStream
+      ? resolveClassTeacherSignatureSrc(supabase, {
+          termId: input.termId,
+          classCode: input.classCode,
+          stream: input.stream,
+          campus: sampleCampus,
+          asDataUri: true,
+        })
+      : Promise.resolve(null),
+    resolveClassTeacherName(supabase, {
+      termId: input.termId,
+      classCode: input.classCode,
+      stream: input.stream,
+      campus: sampleCampus,
+    }),
+  ]);
 
   return cards
     .map((card) => {
@@ -324,7 +339,7 @@ export async function loadStreamReportCards(
         report_title: card.report_title ?? null,
         class_code: card.class_code,
         stream: card.stream || "",
-        class_teacher_name: card.class_teacher_name,
+        class_teacher_name: liveTeacherName || card.class_teacher_name,
         class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
         head_comment: card.head_comment,
@@ -449,6 +464,7 @@ export async function loadReportCardsByIds(
     }
   }
   const signatureByKey = new Map<string, string | null>();
+  const teacherNameByKey = new Map<string, string | null>();
   async function signatureFor(card: PackedCard, campus: string | null) {
     if (classSection(card.class_code) !== "nursery") return null;
     const key = `${card.term_id}|${card.class_code}|${card.stream || ""}|${campus || ""}`;
@@ -463,6 +479,19 @@ export async function loadReportCardsByIds(
     signatureByKey.set(key, src);
     return src;
   }
+  async function teacherNameFor(card: PackedCard, campus: string | null, fallback: string | null) {
+    const key = `${card.term_id}|${card.class_code}|${card.stream || ""}|${campus || ""}`;
+    if (teacherNameByKey.has(key)) return teacherNameByKey.get(key) || fallback;
+    const name = await resolveClassTeacherName(supabase, {
+      termId: card.term_id,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus,
+      fallback,
+    });
+    teacherNameByKey.set(key, name);
+    return name;
+  }
   const mapped: StreamReportCard[] = [];
   for (const card of cards) {
       const pupil = names.get(card.student_id);
@@ -472,6 +501,7 @@ export async function loadReportCardsByIds(
         card.class_teacher_comment,
       );
       const classTeacherSignatureSrc = await signatureFor(card, pupil?.campus ?? null);
+      const classTeacherName = await teacherNameFor(card, pupil?.campus ?? null, card.class_teacher_name);
       mapped.push({
         id: card.id,
         student_id: card.student_id,
@@ -482,7 +512,7 @@ export async function loadReportCardsByIds(
         report_title: card.report_title ?? null,
         class_code: card.class_code,
         stream: card.stream || "",
-        class_teacher_name: card.class_teacher_name,
+        class_teacher_name: classTeacherName,
         class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
         head_comment: card.head_comment,

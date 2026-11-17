@@ -17,11 +17,14 @@ export function ProcessStatus({
   portalRoot,
   /** Fires after the ring reaches 100%, shows the check, and finishes leaving. */
   onComplete,
+  /** When set, shows Cancel while the job is running. Parent should clear `active` when cancel fires. */
+  onCancel,
 }: {
   active: boolean;
   label: string;
   portalRoot?: Element | DocumentFragment | null;
   onComplete?: () => void;
+  onCancel?: () => void;
 }) {
   const gradId = `proc-${useId().replace(/:/g, "")}`;
   const [mounted, setMounted] = useState(false);
@@ -33,13 +36,19 @@ export function ProcessStatus({
   const valueRef = useRef(0);
   const openRef = useRef(false);
   const onCompleteRef = useRef(onComplete);
+  const onCancelRef = useRef(onCancel);
+  const cancelledRef = useRef(false);
   labelRef.current = label;
   onCompleteRef.current = onComplete;
+  onCancelRef.current = onCancel;
 
   useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    if (active) setCaption(label);
+    if (active) {
+      cancelledRef.current = false;
+      setCaption(label);
+    }
   }, [active, label]);
 
   useEffect(() => {
@@ -82,8 +91,8 @@ export function ProcessStatus({
       };
     }
 
-    const finish = () => {
-      setCaption("Done");
+    const dismiss = (announce: "Done" | "Cancelled", fireComplete: boolean) => {
+      setCaption(announce);
       timer = window.setTimeout(() => {
         setLeaving(true);
         timer = window.setTimeout(() => {
@@ -92,10 +101,26 @@ export function ProcessStatus({
           setOpen(false);
           setLeaving(false);
           setPct(0);
-          onCompleteRef.current?.();
+          if (fireComplete) onCompleteRef.current?.();
         }, reduce ? 0 : 280);
-      }, reduce ? 220 : 720);
+      }, reduce ? 120 : announce === "Cancelled" ? 280 : 720);
     };
+
+    // User cancelled — leave without the success check / onComplete.
+    if (cancelledRef.current) {
+      if (!openRef.current) {
+        valueRef.current = 0;
+        setPct(0);
+        return;
+      }
+      dismiss("Cancelled", false);
+      return () => {
+        cancelled = true;
+        clear();
+      };
+    }
+
+    const finish = () => dismiss("Done", true);
 
     // Short jobs may finish before the ring appears — still show the check when a closer is waiting.
     if (!openRef.current) {
@@ -151,6 +176,14 @@ export function ProcessStatus({
 
   const rounded = Math.min(100, Math.round(pct));
   const offset = CIRC * (1 - Math.min(pct, 100) / 100);
+  const done = rounded >= 100 && !cancelledRef.current && caption === "Done";
+  const canCancel = Boolean(onCancel) && active && !leaving && !done && caption !== "Cancelled";
+
+  const requestCancel = () => {
+    if (!canCancel) return;
+    cancelledRef.current = true;
+    onCancelRef.current?.();
+  };
 
   return createPortal(
     <div className={`proc-veil${leaving ? " is-leave" : ""}`}>
@@ -182,8 +215,8 @@ export function ProcessStatus({
               strokeDashoffset={offset}
             />
           </svg>
-          <div className={`proc-figure${rounded >= 100 ? " is-done" : ""}`}>
-            {rounded >= 100 ? (
+          <div className={`proc-figure${done ? " is-done" : ""}`}>
+            {done ? (
               <i className="fa-solid fa-check proc-check" aria-hidden="true" />
             ) : (
               <span><strong>{rounded}</strong><small>%</small></span>
@@ -191,6 +224,11 @@ export function ProcessStatus({
           </div>
         </div>
         <p>{caption}</p>
+        {canCancel ? (
+          <button type="button" className="proc-cancel" onClick={requestCancel}>
+            Cancel
+          </button>
+        ) : null}
       </div>
     </div>,
     host,
