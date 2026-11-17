@@ -414,7 +414,7 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
           <i className={`fa-solid ${exportJob === "sheet" ? "fa-spinner fa-spin" : "fa-file-arrow-down"}`} aria-hidden="true" /> Download for edit
         </button>
         <button type="button" className="app-link-btn" onClick={() => setImportOpen(true)}>
-          <i className="fa-solid fa-file-arrow-up" aria-hidden="true" /> Upload Excel
+          <i className="fa-solid fa-file-arrow-up" aria-hidden="true" /> Upload Changes
         </button>
       </div>
       {selected.size ? (

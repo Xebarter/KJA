@@ -17,9 +17,12 @@ import {
   tallyAwards,
   type PointAward,
 } from "@/lib/points";
+import { termDatesForGroup, type TermClassGroup, type TermGroupDates } from "@/lib/accounts-format";
 import { loadReportClosing } from "@/lib/report-closing";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
+import { bandForClassCode } from "@/lib/subject-bands";
 import { isCocurricularSubject } from "@/lib/subject-kind";
+import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type { OnlineReportTab } from "@/lib/online-report-tabs";
@@ -118,11 +121,39 @@ type FeeTerm = {
   term?: number | null;
   starts_on?: string | null;
   ends_on?: string | null;
+  due_on?: string | null;
+  group_dates?: TermGroupDates[];
 };
 
 function asTerm(value: FeeTerm | FeeTerm[] | null | undefined): FeeTerm | null {
   if (!value) return null;
   return Array.isArray(value) ? value[0] ?? null : value;
+}
+
+/** Prefer Fee setup class-group exceptions; fall back to school-wide term dates. */
+async function termDatesForClass(
+  supabase: SupabaseClient,
+  termId: string,
+  term: FeeTerm | null,
+  classCode: string | null | undefined,
+): Promise<FeeTerm | null> {
+  if (!term) return null;
+  const group = bandForClassCode(classCode) as TermClassGroup | null;
+  if (!group) return term;
+  const { data } = await supabase
+    .from("fee_term_group_dates")
+    .select("class_group, starts_on, ends_on, due_on")
+    .eq("term_id", termId);
+  const dates = termDatesForGroup(
+    {
+      starts_on: term.starts_on ?? null,
+      ends_on: term.ends_on ?? null,
+      due_on: term.due_on ?? null,
+      group_dates: (data || []) as TermGroupDates[],
+    },
+    group,
+  );
+  return { ...term, starts_on: dates.starts_on, ends_on: dates.ends_on, due_on: dates.due_on };
 }
 
 function termWindow(term: FeeTerm | null, year: number | null, termNo: number | null) {
@@ -245,10 +276,15 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
 
   const nursery = classSection(card.class_code) === "nursery";
   const markSection = gradeBandSection(card.class_code);
-  const termMeta = asTerm(card.fee_terms as FeeTerm | FeeTerm[] | null);
-  const termLabel = termMeta?.label || "Term";
   const termId = String(card.term_id);
   const studentId = String(card.student_id);
+  const termMeta = await termDatesForClass(
+    supabase,
+    termId,
+    asTerm(card.fee_terms as FeeTerm | FeeTerm[] | null),
+    card.class_code,
+  );
+  const termLabel = termMeta?.label || "Term";
   const window = termWindow(termMeta, num(termMeta?.year), num(termMeta?.term));
 
   const [
@@ -380,6 +416,16 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     };
   });
 
+  const classTeacherSignatureSrc = nursery
+    ? await resolveClassTeacherSignatureSrc(supabase, {
+        termId,
+        classCode: card.class_code,
+        stream: card.stream || "",
+        campus: pupil?.campus,
+        asDataUri: true,
+      })
+    : null;
+
   const sheet: SheetCard = {
     id,
     pupil_name: pupil.full_name,
@@ -390,6 +436,7 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
+    class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,
     cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,

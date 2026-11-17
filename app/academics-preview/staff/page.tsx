@@ -20,6 +20,7 @@ const grace: StaffMember = {
   phone: "+256700000001",
   profile_id: "linked",
   photo_path: null,
+  signature_path: null,
   active: true,
   classes: [{ label: "Reception A", href: "#", code: "RC", stream: "A", campus: "Kitante", role: "lead" }],
   subjects: [{
@@ -53,6 +54,7 @@ const peter: StaffMember = {
   phone: null,
   profile_id: null,
   photo_path: null,
+  signature_path: null,
   active: true,
   classes: [],
   subjects: [],

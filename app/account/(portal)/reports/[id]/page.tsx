@@ -7,6 +7,8 @@ import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, p
 import { loadReportClosing } from "@/lib/report-closing";
 import { getSessionUser } from "@/lib/portal";
 import { isUuid } from "@/lib/students";
+import { serviceClient } from "@/lib/supabase/service";
+import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 
 export const metadata = { title: "Report card" };
 
@@ -52,6 +54,16 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
   const term = card.fee_terms as { label?: string; year?: number } | { label?: string; year?: number }[] | null;
   const termMeta = Array.isArray(term) ? term[0] : term;
   const termYear = termMeta?.year != null ? Number(termMeta.year) : null;
+  const signatureDb = serviceClient() ?? supabase;
+  const classTeacherSignatureSrc = nursery
+    ? await resolveClassTeacherSignatureSrc(signatureDb, {
+        termId: card.term_id,
+        classCode: card.class_code,
+        stream: card.stream || "",
+        campus: pupil.campus,
+        asDataUri: true,
+      })
+    : null;
   const sheet: SheetCard = {
     id,
     pupil_name: pupil.full_name,
@@ -62,6 +74,7 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
+    class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,
     cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,

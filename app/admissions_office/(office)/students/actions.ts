@@ -638,23 +638,28 @@ export async function revokeStudentLogin(studentId: string): Promise<ActionResul
   refreshOffice(`${OFFICE}/students/${studentId}`);
   return { ok: result.ok };
 }
-/** Preview or commit a student Excel workbook (+ optional photos zip named by student number). */
+/** Preview or commit a student Excel workbook, photos zip, or both. */
 export async function importStudentsWorkbook(formData: FormData) {
   const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };
   const file = formData.get("file");
   const photos = formData.get("photos");
-  if (!(file instanceof File) || !file.size) return { error: "Choose an Excel workbook first." };
-  if (!/\.xlsx$/i.test(file.name) && !/sheet|excel/i.test(file.type)) {
+  const workbook = file instanceof File && file.size ? file : null;
+  const photosFile = photos instanceof File && photos.size ? photos : null;
+  if (!workbook && !photosFile) return { error: "Choose an Excel workbook, a photos zip, or both." };
+  if (workbook && !/\.xlsx$/i.test(workbook.name) && !/sheet|excel/i.test(workbook.type)) {
     return { error: "Upload a .xlsx workbook downloaded from this page." };
+  }
+  if (photosFile && !/\.zip$/i.test(photosFile.name) && !/zip/i.test(photosFile.type)) {
+    return { error: "Photo companion must be a .zip file." };
   }
   const intent = String(formData.get("intent") || "preview") === "commit" ? "commit" : "preview";
   const { importStudentsWorkbook: runImport } = await import("@/lib/students-import");
   const result = await runImport({
     supabase: auth.supabase,
     actorId: auth.user.id,
-    file,
-    photosFile: photos instanceof File && photos.size ? photos : null,
+    file: workbook,
+    photosFile,
     intent,
     log: (ids, kind, body) => logStudents(auth.supabase, auth.user.id, ids, kind, body),
   });

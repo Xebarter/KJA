@@ -138,43 +138,67 @@ function planRows(
 export async function importStudentsWorkbook(input: {
   supabase: SupabaseClient;
   actorId: string;
-  file: File;
+  file: File | null;
   photosFile: File | null;
   intent: "preview" | "commit";
   log: (ids: string[], kind: string, body: string) => Promise<void>;
 }): Promise<StudentsImportResult> {
-  let parsed;
-  try {
-    parsed = await parseStudentsWorkbook(await input.file.arrayBuffer());
-  } catch (error) {
-    const message = error instanceof StudentsBookError ? error.message : "That Excel file could not be read.";
-    return { error: message };
+  type Existing = { id: string; student_number: string; family_id: string | null; full_name: string };
+  const existingById = new Map<string, Existing>();
+  const existingByNumber = new Map<string, Existing>();
+  let planned: Planned[] = [];
+  let issues: StudentsBookIssue[] = [];
+
+  if (input.file) {
+    let parsed;
+    try {
+      parsed = await parseStudentsWorkbook(await input.file.arrayBuffer());
+    } catch (error) {
+      const message = error instanceof StudentsBookError ? error.message : "That Excel file could not be read.";
+      return { error: message };
+    }
+
+    const ids = [...new Set(parsed.rows.map((row) => row.student_id).filter(Boolean))] as string[];
+    const numbers = [...new Set(parsed.rows.map((row) => row.student_number).filter(Boolean))] as string[];
+
+    if (ids.length) {
+      const { data } = await input.supabase.from("students").select("id, student_number, family_id, full_name").in("id", ids);
+      for (const row of data || []) existingById.set(row.id, row);
+    }
+    if (numbers.length) {
+      const { data } = await input.supabase.from("students").select("id, student_number, family_id, full_name").in("student_number", numbers);
+      for (const row of data || []) {
+        existingByNumber.set(String(row.student_number).toLowerCase(), row);
+        if (!existingById.has(row.id)) existingById.set(row.id, row);
+      }
+    }
+
+    ({ planned, issues } = planRows(parsed, existingById, existingByNumber));
   }
 
-  const ids = [...new Set(parsed.rows.map((row) => row.student_id).filter(Boolean))] as string[];
-  const numbers = [...new Set(parsed.rows.map((row) => row.student_number).filter(Boolean))] as string[];
-  const existingById = new Map<string, { id: string; student_number: string; family_id: string | null; full_name: string }>();
-  const existingByNumber = new Map<string, { id: string; student_number: string; family_id: string | null; full_name: string }>();
+  const { photos, warnings } = await readPhotoZip(input.photosFile);
 
-  if (ids.length) {
-    const { data } = await input.supabase.from("students").select("id, student_number, family_id, full_name").in("id", ids);
-    for (const row of data || []) existingById.set(row.id, row);
-  }
-  if (numbers.length) {
-    const { data } = await input.supabase.from("students").select("id, student_number, family_id, full_name").in("student_number", numbers);
+  // Photos-only (or extras not on the sheet): resolve pupils by zip student numbers.
+  const unresolvedPhotos = [...photos.entries()].filter(([key]) => !existingByNumber.has(key));
+  if (unresolvedPhotos.length) {
+    const lookupNumbers = unresolvedPhotos.map(([, photo]) =>
+      photo.filename.replace(/\.(jpe?g|png|webp)$/i, ""),
+    );
+    const { data } = await input.supabase
+      .from("students")
+      .select("id, student_number, family_id, full_name")
+      .in("student_number", lookupNumbers);
     for (const row of data || []) {
       existingByNumber.set(String(row.student_number).toLowerCase(), row);
       if (!existingById.has(row.id)) existingById.set(row.id, row);
     }
   }
 
-  const { planned, issues } = planRows(parsed, existingById, existingByNumber);
-  const { photos, warnings } = await readPhotoZip(input.photosFile);
   const creates = planned.filter((item) => item.kind === "create");
   const updates = planned.filter((item) => item.kind === "update");
   const photoMatches = [...photos.keys()].filter((key) =>
     planned.some((item) => (item.row.student_number || "").toLowerCase() === key)
-    || [...existingByNumber.keys()].includes(key),
+    || existingByNumber.has(key),
   ).length;
 
   const preview: StudentsImportPreview = {
@@ -195,7 +219,9 @@ export async function importStudentsWorkbook(input: {
 
   if (input.intent !== "commit") return { preview };
   if (issues.length) return { error: "Fix the workbook issues before saving.", preview };
-  if (!planned.length && !photos.size) return { error: "Nothing to save. Add pupils or attach a photos zip.", preview };
+  if (!planned.length && !photoMatches) {
+    return { error: "Nothing to save. Add pupils in Excel or a photos zip named by student number.", preview };
+  }
 
   const touched: string[] = [];
   for (const item of planned) {
@@ -242,7 +268,7 @@ export async function importStudentsWorkbook(input: {
     }
     photosSaved += 1;
     if (!touched.includes(student.id)) touched.push(student.id);
-    await input.log([student.id], "edit", "Updated photo from Excel photos zip");
+    await input.log([student.id], "edit", "Updated photo from photos zip");
   }
 
   const bits = [

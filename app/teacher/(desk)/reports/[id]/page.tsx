@@ -23,6 +23,7 @@ import { isUuid } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
 import { leadsClass, TEACHER_BASE } from "@/lib/teacher";
 import { requireTeacher } from "@/lib/teacher-access";
+import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 
 export const metadata = { title: "Report card" };
 
@@ -123,6 +124,12 @@ export default async function TeacherReportPage({ params }: { params: Promise<{ 
       : Promise.resolve(new Map<string, string>()),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
   ]);
+  const classTeacherSignatureSrc = await resolveClassTeacherSignatureSrc(supabase, {
+    termId: card.term_id,
+    classCode: card.class_code,
+    stream: card.stream || "",
+    campus: pupil?.campus,
+  });
 
   const term = card.fee_terms as { label?: string; year?: number } | { label?: string; year?: number }[] | null;
   const termMeta = Array.isArray(term) ? term[0] : term;
@@ -163,6 +170,7 @@ export default async function TeacherReportPage({ params }: { params: Promise<{ 
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
+    class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,
     cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,

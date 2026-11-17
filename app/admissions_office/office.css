@@ -2960,12 +2960,24 @@ a.ofc-fam-class:hover { background: var(--admin-red); color: #fff; }
   white-space: nowrap;
 }
 .ofc-sheet-drop-btn {
-  padding: 0.35rem 0.7rem;
-  border-radius: 999px;
-  background: #f3eee4;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid rgba(25, 35, 43, 0.1);
+  border-radius: 10px;
+  background: linear-gradient(180deg, #fff, #f6f1e8);
   color: var(--admin-navy);
-  font-size: 0.74rem;
+  font-size: 0.78rem;
   font-weight: 750;
+  letter-spacing: 0.01em;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.8) inset;
+}
+.ofc-sheet-drop.is-filled .ofc-sheet-drop-btn {
+  background: linear-gradient(180deg, #243441, #19232b);
+  border-color: #121920;
+  color: #fff;
 }
 .ofc-sheet-hint {
   margin: 0;
@@ -3107,9 +3119,63 @@ a.ofc-fam-class:hover { background: var(--admin-red); color: #fff; }
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 0.45rem;
-  padding-top: 0.15rem;
+  gap: 0.55rem;
+  padding-top: 0.35rem;
   border-top: 1px solid rgba(25, 35, 43, 0.06);
+}
+.ofc-sheet-btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-height: 2.7rem;
+  padding: 0.7rem 1.2rem;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, border-color 0.16s ease, opacity 0.16s ease;
+}
+.ofc-sheet-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+.ofc-sheet-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+.ofc-sheet-btn.is-ghost {
+  color: var(--admin-navy);
+  background: transparent;
+  border-color: rgba(25, 35, 43, 0.14);
+}
+.ofc-sheet-btn.is-ghost:hover:not(:disabled) {
+  background: rgba(25, 35, 43, 0.04);
+  border-color: rgba(25, 35, 43, 0.22);
+}
+.ofc-sheet-btn.is-navy {
+  color: #fff;
+  background: linear-gradient(180deg, #243441, #19232b);
+  border-color: #121920;
+  box-shadow: 0 10px 22px rgba(25, 35, 43, 0.18);
+}
+.ofc-sheet-btn.is-navy:hover:not(:disabled) {
+  background: linear-gradient(180deg, #2c3e4d, #1d2933);
+}
+.ofc-sheet-btn.is-gold {
+  color: var(--admin-navy);
+  background: linear-gradient(180deg, #ffb53f, var(--admin-gold));
+  border-color: #e09212;
+  box-shadow: 0 10px 22px rgba(253, 163, 27, 0.28);
+}
+.ofc-sheet-btn.is-gold:hover:not(:disabled) {
+  background: linear-gradient(180deg, #ffc05a, #f5a41f);
 }
 @keyframes ofc-sheet-fade {
   from { opacity: 0; }

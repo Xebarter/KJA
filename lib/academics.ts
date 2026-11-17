@@ -101,6 +101,7 @@ export type StaffRow = {
   phone: string | null;
   profile_id: string | null;
   photo_path: string | null;
+  signature_path: string | null;
   active: boolean;
 };
 
@@ -442,6 +443,7 @@ export function mapStaff(row: Record<string, unknown>): StaffRow {
     phone: (row.phone as string | null) ?? null,
     profile_id: (row.profile_id as string | null) ?? null,
     photo_path: (row.photo_path as string | null) ?? null,
+    signature_path: (row.signature_path as string | null) ?? null,
     active: Boolean(row.active),
   };
 }

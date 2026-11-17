@@ -14,6 +14,7 @@ import {
 } from "@/lib/nursery-dsba";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
+import { NURSERY_HEAD_SIGNATURE_SRC, PRINCIPAL_SIGNATURE_SRC } from "@/lib/teacher-signatures";
 import "./online-report.css";
 
 const ACTIVITY_SLOTS = [1, 2, 3, 4];
@@ -296,16 +297,28 @@ export function OnlineReport({
         <section className="kor-block kor-nur-signs" aria-labelledby="kor-sign-title">
           <div className="kor-block-head">
             <h2 id="kor-sign-title"><i className="fa-solid fa-pen-fancy" aria-hidden="true" /> Signatures</h2>
-            <p>Head of section · Principal</p>
+            <p>Class teacher · Head of section · Principal</p>
           </div>
           <div className="kor-nur-sign-grid">
             <div>
+              <strong>Class teacher</strong>
+              {card.class_teacher_signature_src ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="kor-nur-sign-img" src={card.class_teacher_signature_src} alt="" />
+              ) : (
+                <span className="kor-nur-sign-line" aria-hidden="true" />
+              )}
+              {card.class_teacher_name ? <em className="kor-nur-sign-name">{card.class_teacher_name}</em> : null}
+            </div>
+            <div>
               <strong>Head of section</strong>
-              <span className="kor-nur-sign-line" aria-hidden="true" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="kor-nur-sign-img" src={NURSERY_HEAD_SIGNATURE_SRC} alt="" />
             </div>
             <div>
               <strong>Principal</strong>
-              <span className="kor-nur-sign-line" aria-hidden="true" />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img className="kor-nur-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
             </div>
           </div>
         </section>

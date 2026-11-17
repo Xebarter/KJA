@@ -12,6 +12,7 @@ import {
 import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
+import { NURSERY_HEAD_SIGNATURE_SRC, PRINCIPAL_SIGNATURE_SRC } from "@/lib/teacher-signatures";
 import "./report-sheet.css";
 
 export type SheetLine = {
@@ -61,6 +62,8 @@ export type SheetCard = {
   class_code: string | null;
   stream: string;
   class_teacher_name: string | null;
+  /** Resolved URL or data URI for the lead class teacher's uploaded signature. */
+  class_teacher_signature_src?: string | null;
   class_teacher_comment: string | null;
   head_comment: string | null;
   cocurricular_comment?: string | null;
@@ -446,13 +449,25 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
 
             <section className="acd-nur-signs" aria-label="Signatures">
               <div>
+                <p className="acd-nur-sign-label">Class teacher</p>
+                {card.class_teacher_signature_src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="acd-nur-sign-img" src={card.class_teacher_signature_src} alt="" />
+                ) : (
+                  <div className="acd-nur-sign-line" aria-hidden="true" />
+                )}
+                <p className="acd-nur-sign-hint">{card.class_teacher_name || "Signature"}</p>
+              </div>
+              <div>
                 <p className="acd-nur-sign-label">Head of section</p>
-                <div className="acd-nur-sign-line" aria-hidden="true" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="acd-nur-sign-img" src={NURSERY_HEAD_SIGNATURE_SRC} alt="" />
                 <p className="acd-nur-sign-hint">Signature</p>
               </div>
               <div>
                 <p className="acd-nur-sign-label">Principal</p>
-                <div className="acd-nur-sign-line" aria-hidden="true" />
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="acd-nur-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
                 <p className="acd-nur-sign-hint">Signature</p>
               </div>
             </section>

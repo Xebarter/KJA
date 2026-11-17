@@ -1358,6 +1358,24 @@ function Assignments({
                 );
               })}
             </div>
+            {leadOn ? (
+              <div className="stf-sign-upload">
+                <div className="stf-sign-upload-head">
+                  <span>Report signature</span>
+                  <small>Appears on nursery report cards · JPG, PNG or WebP · under 1 MB</small>
+                </div>
+                <label className="stf-sign-file">
+                  <span>{member.signature_path ? "Replace signature" : "Upload signature"}</span>
+                  <input type="file" name="signature" accept="image/png,image/jpeg,image/webp" />
+                </label>
+                {member.signature_path ? (
+                  <label className="stf-sign-clear">
+                    <input type="checkbox" name="clear_signature" value="1" />
+                    <span>Remove current signature on save</span>
+                  </label>
+                ) : null}
+              </div>
+            ) : null}
           </div>
 
           <div className="stf-assign-section">

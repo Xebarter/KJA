@@ -17,9 +17,11 @@ async function renderMarkup(element: ReactElement) {
 let cachedCss: string | null = null;
 let cachedCrest: string | null = null;
 let cachedNurseryArt: Map<string, string> | null = null;
+let cachedSignatures: Map<string, string> | null = null;
 let cssReady: Promise<string> | null = null;
 let crestReady: Promise<string> | null = null;
 let nurseryArtReady: Promise<Map<string, string>> | null = null;
+let signaturesReady: Promise<Map<string, string>> | null = null;
 
 async function inlineFontUrls(css: string) {
   const publicDir = path.join(process.cwd(), "public");
@@ -104,6 +106,33 @@ async function crestDataUri() {
   return crestReady;
 }
 
+/** Inline Principal / Head of nursery signatures from public/signatures. */
+async function nurserySignatureDataUris() {
+  if (cachedSignatures) return cachedSignatures;
+  if (signaturesReady) return signaturesReady;
+  signaturesReady = (async () => {
+    const map = new Map<string, string>();
+    const dir = path.join(process.cwd(), "public/signatures");
+    const names = ["principal.png", "head-of-nursery.png"];
+    await Promise.all(
+      names.map(async (name) => {
+        try {
+          const bytes = await readFile(path.join(dir, name));
+          const data = `data:image/png;base64,${bytes.toString("base64")}`;
+          map.set(`/signatures/${name}`, data);
+        } catch {
+          // Files are supplied by the school; skip if missing.
+        }
+      }),
+    );
+    cachedSignatures = map;
+    return map;
+  })().finally(() => {
+    signaturesReady = null;
+  });
+  return signaturesReady;
+}
+
 /** Inline nursery domain illustrations so offline Playwright PDF does not miss them. */
 async function nurseryArtDataUris() {
   if (cachedNurseryArt) return cachedNurseryArt;
@@ -166,10 +195,11 @@ export async function buildReportPrintHtml(input: {
   cards: StreamReportCard[];
   photos: Map<string, Uint8Array>;
 }): Promise<string> {
-  const [css, crest, nurseryArt] = await Promise.all([
+  const [css, crest, nurseryArt, nurserySigns] = await Promise.all([
     printStyles(),
     crestDataUri(),
     input.nursery ? nurseryArtDataUris() : Promise.resolve(new Map<string, string>()),
+    input.nursery ? nurserySignatureDataUris() : Promise.resolve(new Map<string, string>()),
   ]);
   const qrs = await Promise.all(
     input.cards.map(async (card) => {
@@ -199,9 +229,10 @@ export async function buildReportPrintHtml(input: {
     </div>,
   );
 
-  // Crest / nursery art paths in the sheet markup stay as public URLs - rewrite to data URIs.
+  // Crest / nursery art / signature paths in the sheet markup stay as public URLs - rewrite to data URIs.
   const withCrest = body.replaceAll('src="/images/icon.png"', `src="${crest}"`);
   const withArt = inlineNurseryArt(withCrest, nurseryArt);
+  const withSigns = inlineNurseryArt(withArt, nurserySigns);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -209,6 +240,6 @@ export async function buildReportPrintHtml(input: {
 <meta charset="utf-8" />
 <style>${css}</style>
 </head>
-<body>${withArt}</body>
+<body>${withSigns}</body>
 </html>`;
 }

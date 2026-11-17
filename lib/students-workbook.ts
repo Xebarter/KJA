@@ -192,7 +192,7 @@ function writeInstructions(workbook: ExcelJS.Workbook, mode: "export" | "edit") 
           "",
           "Photos",
           "Put photos in a zip named by student number, e.g. KJ-2024-001.jpg or KJ-2024-001.webp.",
-          "Upload the Excel file and the photos zip together from the Students page.",
+          "On the Students page, open Upload Changes and send the Excel workbook, the photos zip, or both.",
           "The Photo file column is a reminder of the expected filename — it is not read from disk by itself.",
           "",
           "Sex: M or F. Staff child / Panadol: Yes or No. Status: active, graduated, transferred, withdrawn, left.",

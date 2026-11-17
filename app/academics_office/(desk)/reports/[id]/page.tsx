@@ -19,6 +19,7 @@ import { cardSets, loadReportParts, loadReportSkillLines, loadSubjectInitials, p
 import { ensureDraftReportComments } from "@/lib/comment-engine";
 import { loadReportClosing } from "@/lib/report-closing";
 import { isUuid } from "@/lib/students";
+import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 
 export const metadata = { title: "Report card" };
 
@@ -91,6 +92,12 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       : Promise.resolve(new Map<string, string>()),
     supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
   ]);
+  const classTeacherSignatureSrc = await resolveClassTeacherSignatureSrc(supabase, {
+    termId: card.term_id,
+    classCode: card.class_code,
+    stream: card.stream || "",
+    campus: pupil?.campus,
+  });
   const term = card.fee_terms as { label?: string; year?: number } | { label?: string; year?: number }[] | null;
   const termMeta = Array.isArray(term) ? term[0] : term;
   const termLabel = termMeta?.label;
@@ -129,6 +136,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     class_code: card.class_code,
     stream: card.stream || "",
     class_teacher_name: card.class_teacher_name,
+    class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,
     head_comment: card.head_comment,
     cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,

@@ -12,7 +12,11 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ["exceljs", "jszip"],
   experimental: {
     // Job applications upload a CV plus up to three 5 MB supporting documents.
+    // Students Upload Changes can send a workbook + photos zip in one action.
     serverActions: { bodySizeLimit: "21mb" },
+    // Middleware buffers the same multipart body; the default 10 MB truncates
+    // larger uploads and busboy throws "Unexpected end of form".
+    middlewareClientMaxBodySize: "21mb",
     // Website: 30s. Desktop shell: long window so sidebar hops keep working offline
     // after a warm session (layouts stay force-dynamic; proxy SQLite covers data).
     staleTimes: { dynamic: isDesktop ? 3_600 : 30 },

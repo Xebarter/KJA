@@ -9,16 +9,19 @@ const STROKE = 8;
 const RADIUS = (SIZE - STROKE) / 2;
 const CIRC = 2 * Math.PI * RADIUS;
 
-/** Green ring with a live percentage. Stays hidden for very short jobs, then climbs and finishes at 100. */
+/** Green ring with a live percentage. Stays hidden for very short jobs, then climbs to a check at 100. */
 export function ProcessStatus({
   active,
   label,
   /** Modal dialogs sit in the top layer — pass the open dialog so the ring appears above it. */
   portalRoot,
+  /** Fires after the ring reaches 100%, shows the check, and finishes leaving. */
+  onComplete,
 }: {
   active: boolean;
   label: string;
   portalRoot?: Element | DocumentFragment | null;
+  onComplete?: () => void;
 }) {
   const gradId = `proc-${useId().replace(/:/g, "")}`;
   const [mounted, setMounted] = useState(false);
@@ -29,7 +32,9 @@ export function ProcessStatus({
   const labelRef = useRef(label);
   const valueRef = useRef(0);
   const openRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
   labelRef.current = label;
+  onCompleteRef.current = onComplete;
 
   useEffect(() => setMounted(true), []);
 
@@ -77,10 +82,39 @@ export function ProcessStatus({
       };
     }
 
+    const finish = () => {
+      setCaption("Done");
+      timer = window.setTimeout(() => {
+        setLeaving(true);
+        timer = window.setTimeout(() => {
+          openRef.current = false;
+          valueRef.current = 0;
+          setOpen(false);
+          setLeaving(false);
+          setPct(0);
+          onCompleteRef.current?.();
+        }, reduce ? 0 : 280);
+      }, reduce ? 220 : 720);
+    };
+
+    // Short jobs may finish before the ring appears — still show the check when a closer is waiting.
     if (!openRef.current) {
-      valueRef.current = 0;
-      setPct(0);
-      return;
+      if (!onCompleteRef.current) {
+        valueRef.current = 0;
+        setPct(0);
+        return;
+      }
+      openRef.current = true;
+      valueRef.current = 100;
+      setLeaving(false);
+      setCaption("Done");
+      setPct(100);
+      setOpen(true);
+      finish();
+      return () => {
+        cancelled = true;
+        clear();
+      };
     }
 
     const from = valueRef.current;
@@ -97,16 +131,7 @@ export function ProcessStatus({
         frame = requestAnimationFrame(settle);
         return;
       }
-      timer = window.setTimeout(() => {
-        setLeaving(true);
-        timer = window.setTimeout(() => {
-          openRef.current = false;
-          valueRef.current = 0;
-          setOpen(false);
-          setLeaving(false);
-          setPct(0);
-        }, reduce ? 0 : 240);
-      }, reduce ? 160 : 420);
+      finish();
     };
     frame = requestAnimationFrame(settle);
     return () => {
@@ -157,8 +182,12 @@ export function ProcessStatus({
               strokeDashoffset={offset}
             />
           </svg>
-          <div className="proc-figure">
-            <span><strong>{rounded}</strong><small>%</small></span>
+          <div className={`proc-figure${rounded >= 100 ? " is-done" : ""}`}>
+            {rounded >= 100 ? (
+              <i className="fa-solid fa-check proc-check" aria-hidden="true" />
+            ) : (
+              <span><strong>{rounded}</strong><small>%</small></span>
+            )}
           </div>
         </div>
         <p>{caption}</p>

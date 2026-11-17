@@ -67,6 +67,11 @@ import {
   parseSkillNumericValue,
   type NurseryDivisionId,
 } from "@/lib/nursery-dsba";
+import {
+  isSignatureFile,
+  signatureExtension,
+  TEACHER_SIGNATURE_BUCKET,
+} from "@/lib/teacher-signatures";
 
 type Result = { error?: string; ok?: string; href?: string; preview?: string; sample?: CommentPreview; subject?: ReturnType<typeof mapSubject>; removedId?: string; email?: string; password?: string; temporary?: boolean };
 
@@ -679,6 +684,69 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   if (leadError) return { error: leadError };
   const assistantError = await saveLeadership("assistant", wantAssistant, assistantHolder);
   if (assistantError) return { error: assistantError };
+
+  if (wantLead) {
+    const clearSignature = formData.get("clear_signature") === "1";
+    const signature = formData.get("signature");
+    const hasFile = signature instanceof File && signature.size > 0;
+
+    if (clearSignature && !hasFile) {
+      const { data: current } = await supabase
+        .from("teaching_staff")
+        .select("signature_path")
+        .eq("id", staffId)
+        .maybeSingle();
+      const oldPath = typeof current?.signature_path === "string" ? current.signature_path : "";
+      const { error: clearError } = await supabase
+        .from("teaching_staff")
+        .update({ signature_path: null })
+        .eq("id", staffId);
+      if (clearError) {
+        return {
+          error: /signature_path|schema cache|does not exist/i.test(clearError.message)
+            ? "Run supabase/0092_teacher_signatures.sql in Supabase to turn on class teacher signatures."
+            : clearError.message,
+        };
+      }
+      if (oldPath) await supabase.storage.from(TEACHER_SIGNATURE_BUCKET).remove([oldPath]);
+    } else if (hasFile) {
+      if (!(signature instanceof File) || !isSignatureFile(signature)) {
+        return { error: "Use a JPG, PNG or WebP signature under 1 MB." };
+      }
+      const extension = signatureExtension(signature.type);
+      if (!extension) return { error: "Use a JPG, PNG or WebP signature." };
+
+      const { data: current } = await supabase
+        .from("teaching_staff")
+        .select("signature_path")
+        .eq("id", staffId)
+        .maybeSingle();
+      const oldPath = typeof current?.signature_path === "string" ? current.signature_path : "";
+      const path = `${staffId}/sig-${Date.now()}.${extension}`;
+      const bucket = supabase.storage.from(TEACHER_SIGNATURE_BUCKET);
+      const { error: uploadError } = await bucket.upload(path, signature, { contentType: signature.type, upsert: false });
+      if (uploadError) {
+        return {
+          error: /bucket not found|row-level security|policy/i.test(uploadError.message)
+            ? "Run supabase/0046_teacher_photos.sql in Supabase so the photo bucket can store signatures."
+            : uploadError.message,
+        };
+      }
+      const { error: pathError } = await supabase
+        .from("teaching_staff")
+        .update({ signature_path: path })
+        .eq("id", staffId);
+      if (pathError) {
+        await bucket.remove([path]);
+        return {
+          error: /signature_path|schema cache|does not exist/i.test(pathError.message)
+            ? "Run supabase/0092_teacher_signatures.sql in Supabase to turn on class teacher signatures."
+            : pathError.message,
+        };
+      }
+      if (oldPath) await bucket.remove([oldPath]);
+    }
+  }
 
   refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`);
   if (portal.created && portal.password && portal.email) {

@@ -25,6 +25,7 @@ import { normaliseReportTitle } from "@/lib/report-title";
 import { STUDENT_PHOTO_BUCKET } from "@/lib/student-photos";
 import { fetchAll } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
+import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 
 export type StreamReportLine = {
   subject_id: string;
@@ -55,6 +56,7 @@ export type StreamReportCard = {
   class_code: string | null;
   stream: string;
   class_teacher_name: string | null;
+  class_teacher_signature_src?: string | null;
   class_teacher_comment: string | null;
   head_comment: string | null;
   cocurricular_comment: string | null;
@@ -294,6 +296,16 @@ export async function loadStreamReportCards(
       storeComments = new Map();
     }
   }
+  const sampleCampus = [...names.values()].find((row) => row.campus)?.campus ?? null;
+  const classTeacherSignatureSrc = nurseryStream
+    ? await resolveClassTeacherSignatureSrc(supabase, {
+        termId: input.termId,
+        classCode: input.classCode,
+        stream: input.stream,
+        campus: sampleCampus,
+        asDataUri: true,
+      })
+    : null;
 
   return cards
     .map((card) => {
@@ -313,6 +325,7 @@ export async function loadStreamReportCards(
         class_code: card.class_code,
         stream: card.stream || "",
         class_teacher_name: card.class_teacher_name,
+        class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
         head_comment: card.head_comment,
         cocurricular_comment: card.cocurricular_comment,
@@ -435,15 +448,31 @@ export async function loadReportCardsByIds(
       storeComments = new Map();
     }
   }
-  return cards
-    .map((card) => {
+  const signatureByKey = new Map<string, string | null>();
+  async function signatureFor(card: PackedCard, campus: string | null) {
+    if (classSection(card.class_code) !== "nursery") return null;
+    const key = `${card.term_id}|${card.class_code}|${card.stream || ""}|${campus || ""}`;
+    if (signatureByKey.has(key)) return signatureByKey.get(key) ?? null;
+    const src = await resolveClassTeacherSignatureSrc(supabase, {
+      termId: card.term_id,
+      classCode: card.class_code,
+      stream: card.stream || "",
+      campus,
+      asDataUri: true,
+    });
+    signatureByKey.set(key, src);
+    return src;
+  }
+  const mapped: StreamReportCard[] = [];
+  for (const card of cards) {
       const pupil = names.get(card.student_id);
       const term = Array.isArray(card.fee_terms) ? card.fee_terms[0] : card.fee_terms;
       const classComment = resolveNurseryClassTeacherComment(
         storeComments.get(card.student_id),
         card.class_teacher_comment,
       );
-      return {
+      const classTeacherSignatureSrc = await signatureFor(card, pupil?.campus ?? null);
+      mapped.push({
         id: card.id,
         student_id: card.student_id,
         photo_path: pupil?.photo_path || null,
@@ -454,6 +483,7 @@ export async function loadReportCardsByIds(
         class_code: card.class_code,
         stream: card.stream || "",
         class_teacher_name: card.class_teacher_name,
+        class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
         head_comment: card.head_comment,
         cocurricular_comment: card.cocurricular_comment,
@@ -476,9 +506,9 @@ export async function loadReportCardsByIds(
         next_ends_on: closing.nextEndsOn,
         term_year: term?.year ?? closing.termYear,
         date_of_birth: pupil?.date_of_birth || null,
-      };
-    })
-    .sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
+      });
+  }
+  return mapped.sort((a, b) => (order.get(a.id) ?? 0) - (order.get(b.id) ?? 0));
 }
 
 export async function loadReportCardPhotos(cards: Pick<StreamReportCard, "id" | "photo_path">[]) {

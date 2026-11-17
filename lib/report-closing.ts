@@ -1,14 +1,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { termDatesForGroup, type TermClassGroup, type TermGroupDates } from "@/lib/accounts-format";
 import { getContent } from "@/lib/content";
 import { composeFees } from "@/lib/info-pages";
 import { nextTermSlot } from "@/lib/report-format";
 import { SCHOOL_CLASSES } from "@/lib/students";
+import { bandForClassCode } from "@/lib/subject-bands";
 import { serviceClient } from "@/lib/supabase/service";
 
 export type ReportFeeLine = { name: string; amount: number };
 export { formatReportDate, formatReportMoney, nextTermSlot } from "@/lib/report-format";
 
-type TermRow = { id: string; year: number; term: number; starts_on: string | null; ends_on: string | null };
+type TermRow = {
+  id: string;
+  year: number;
+  term: number;
+  starts_on: string | null;
+  ends_on: string | null;
+  due_on?: string | null;
+  group_dates?: TermGroupDates[];
+};
 type ItemRow = { name?: string; kind?: string; sort_order?: number; active?: boolean };
 type RateRow = {
   term_id: string;
@@ -24,8 +34,38 @@ const empty = {
   feesFor: (_campus: string | null) => [] as ReportFeeLine[],
 };
 
+async function attachGroupDates(db: SupabaseClient, terms: TermRow[]) {
+  if (!terms.length) return terms;
+  const { data: groups, error } = await db
+    .from("fee_term_group_dates")
+    .select("term_id, class_group, starts_on, ends_on, due_on")
+    .in(
+      "term_id",
+      terms.map((term) => term.id),
+    );
+  if (error) {
+    for (const term of terms) term.group_dates = [];
+    return terms;
+  }
+  const byTerm = new Map<string, TermGroupDates[]>();
+  for (const row of groups || []) {
+    const list = byTerm.get(row.term_id) || [];
+    list.push({
+      class_group: row.class_group as TermClassGroup,
+      starts_on: row.starts_on,
+      ends_on: row.ends_on,
+      due_on: row.due_on,
+    });
+    byTerm.set(row.term_id, list);
+  }
+  for (const term of terms) term.group_dates = byTerm.get(term.id) || [];
+  return terms;
+}
+
 /**
- * Fees for one class, and the day the following term starts.
+ * Fees for one class, and the day the following term starts / ends.
+ * Next-term dates prefer Fee setup class-group exceptions (nursery / lower / upper);
+ * school-wide term dates are used only where a group field is blank.
  * Next term's rates win. Until those are set, the current term's structure is used.
  * When the register has no rate for the class, the fees published on the website are used.
  * A campus rate wins over the rate that applies to every campus.
@@ -36,12 +76,13 @@ export async function loadClassClosing(
 ) {
   if (!input.classCode) return empty;
   const db = serviceClient() ?? supabase;
-  const { data: terms, error } = await db.from("fee_terms").select("id, year, term, starts_on, ends_on");
+  const { data: terms, error } = await db.from("fee_terms").select("id, year, term, starts_on, ends_on, due_on");
   if (error || !terms) return empty;
-  const current = (terms as TermRow[]).find((term) => term.id === input.termId);
+  const list = await attachGroupDates(db, terms as TermRow[]);
+  const current = list.find((term) => term.id === input.termId);
   if (!current) return empty;
   const slot = nextTermSlot(Number(current.year), Number(current.term));
-  const next = (terms as TermRow[]).find((term) => Number(term.year) === slot.year && Number(term.term) === slot.term) ?? null;
+  const next = list.find((term) => Number(term.year) === slot.year && Number(term.term) === slot.term) ?? null;
   const termIds = [input.termId, next?.id].filter((id): id is string => Boolean(id));
   const { data: rates, error: rateError } = await db
     .from("fee_rates")
@@ -50,9 +91,21 @@ export async function loadClassClosing(
     .in("term_id", termIds);
   const rows = rateError ? [] : ((rates || []) as RateRow[]);
   const published = await publishedFees(input.classCode);
+  const group = bandForClassCode(input.classCode) as TermClassGroup | null;
+  const nextDates = next
+    ? termDatesForGroup(
+        {
+          starts_on: next.starts_on,
+          ends_on: next.ends_on,
+          due_on: next.due_on ?? null,
+          group_dates: next.group_dates,
+        },
+        group,
+      )
+    : null;
   return {
-    nextStartsOn: next?.starts_on ? String(next.starts_on).slice(0, 10) : null,
-    nextEndsOn: next?.ends_on ? String(next.ends_on).slice(0, 10) : null,
+    nextStartsOn: nextDates?.starts_on ? String(nextDates.starts_on).slice(0, 10) : null,
+    nextEndsOn: nextDates?.ends_on ? String(nextDates.ends_on).slice(0, 10) : null,
     termYear: Number.isFinite(Number(current.year)) ? Number(current.year) : null,
     feesFor(campus: string | null) {
       const upcoming = next ? linesFor(rows.filter((row) => row.term_id === next.id), campus) : [];

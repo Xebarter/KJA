@@ -593,6 +593,52 @@
 .stf-lead-opt.is-covered:not(.is-on) small { color: #127238; }
 .stf-lead-opt:hover { border-color: #cfc6b8; }
 
+.stf-sign-upload {
+  display: grid;
+  gap: .45rem;
+  margin-top: .15rem;
+  padding: .65rem .75rem;
+  border: 1px dashed #d7c09a;
+  border-radius: 12px;
+  background: #fffaf2;
+}
+.stf-sign-upload-head {
+  display: grid;
+  gap: .1rem;
+}
+.stf-sign-upload-head span {
+  color: #6d4a12;
+  font-size: .72rem;
+  font-weight: 750;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+.stf-sign-upload-head small {
+  color: #8a8174;
+  font-size: .68rem;
+  font-weight: 600;
+}
+.stf-sign-file {
+  display: grid;
+  gap: .3rem;
+  color: #19232b;
+  font-size: .78rem;
+  font-weight: 650;
+}
+.stf-sign-file input[type="file"] {
+  width: 100%;
+  font-size: .72rem;
+  font-weight: 500;
+}
+.stf-sign-clear {
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  color: #8a5a12;
+  font-size: .72rem;
+  font-weight: 600;
+}
+
 .stf-subject-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

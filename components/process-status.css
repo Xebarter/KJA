@@ -58,6 +58,16 @@
   line-height: 1;
 }
 .proc-figure small { margin-left: .05rem; font-size: .85rem; font-weight: 700; }
+.proc-figure.is-done { color: #127238; }
+.proc-check {
+  font-size: 2.15rem;
+  line-height: 1;
+  animation: proc-check-in .28s cubic-bezier(.2, .8, .2, 1) both;
+}
+@keyframes proc-check-in {
+  from { opacity: 0; transform: scale(.72); }
+  to { opacity: 1; transform: none; }
+}
 .proc-card p {
   margin: .75rem 0 0;
   color: #19232b;
