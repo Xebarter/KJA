@@ -1551,47 +1551,270 @@ dialog.msh-screen.ncm-screen .pcm-modes button.is-on {
 }
 dialog.msh-screen.ncm-screen .pcm-modes button.is-on i { color: rgba(255, 255, 255, .9); }
 
-dialog.msh-screen.ncm-screen .pcm-picker {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: end;
-  gap: .75rem 1.25rem;
-  padding: .7rem 1.1rem;
-  border-bottom: 1px solid var(--ncm-line);
-  background: var(--ncm-panel);
+dialog.msh-screen.ncm-screen .pcm-roster .ncm-row,
+dialog.msh-screen.ncm-screen .pcm-roster .pcm-roster-head {
+  align-items: start;
 }
-dialog.msh-screen.ncm-screen .pcm-picker label {
+dialog.msh-screen.ncm-screen .pcm-fields {
   display: grid;
+  gap: .55rem;
+}
+dialog.msh-screen.ncm-screen .pcm-field {
+  display: grid;
+  gap: .2rem;
+  margin: 0;
+  min-width: 0;
+}
+dialog.msh-screen.ncm-screen .pcm-field.is-subject {
   gap: .25rem;
-  min-width: min(100%, 16rem);
+  padding: .45rem .5rem;
+  border: 1px solid var(--ncm-line);
+  border-radius: 7px;
+  background: #fff;
+}
+dialog.msh-screen.ncm-screen .pcm-field.is-subject.is-empty {
+  background: var(--ncm-paper);
+}
+dialog.msh-screen.ncm-screen .pcm-field.is-subject.is-dirty {
+  border-color: #c4a35a;
+  background: #fffdf8;
+}
+dialog.msh-screen.ncm-screen .pcm-subject-row {
+  display: grid;
+  grid-template-columns: 3.4rem minmax(0, 1fr);
+  gap: .45rem;
+  align-items: stretch;
+  min-width: 0;
+}
+dialog.msh-screen.ncm-screen .pcm-mark {
+  display: grid;
+  place-items: center;
+  min-height: 100%;
+  padding: .35rem .2rem;
+  border: 1px solid var(--ncm-line-strong);
+  border-radius: 5px;
+  background: #fff;
   color: var(--ncm-muted);
-  font-size: .68rem;
+  text-align: center;
+}
+dialog.msh-screen.ncm-screen .pcm-mark.is-on {
+  color: var(--ncm-accent);
+  background: linear-gradient(180deg, #f7fbfc 0%, #fff 80%);
+}
+dialog.msh-screen.ncm-screen .pcm-mark strong {
+  font-size: .9rem;
   font-weight: 750;
-  letter-spacing: .06em;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1;
+}
+dialog.msh-screen.ncm-screen .pcm-subject-row textarea,
+dialog.msh-screen.ncm-screen .pcm-subject-row p {
+  min-height: 2.85rem;
+  height: 100%;
+}
+dialog.msh-screen.ncm-screen .pcm-field-label {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+  min-height: 1rem;
+}
+dialog.msh-screen.ncm-screen .pcm-field-label strong {
+  color: var(--ncm-muted);
+  font-size: .62rem;
+  font-weight: 750;
+  letter-spacing: .05em;
   text-transform: uppercase;
 }
-dialog.msh-screen.ncm-screen .pcm-picker select {
-  height: 34px;
-  padding: 0 .75rem;
-  border: 1px solid var(--ncm-line-strong);
-  border-radius: 6px;
-  background: var(--ncm-paper);
+dialog.msh-screen.ncm-screen .pcm-field.is-lead .pcm-field-label strong {
+  color: var(--ncm-accent);
+}
+dialog.msh-screen.ncm-screen .pcm-field textarea,
+dialog.msh-screen.ncm-screen .pcm-field p {
+  width: 100%;
+  min-height: 2.35rem;
+  margin: 0;
+  padding: .42rem .55rem;
+  border: 1px solid var(--ncm-line);
+  border-radius: 5px;
+  background: #fff;
   color: var(--ncm-ink);
   font: inherit;
-  font-size: .82rem;
-  font-weight: 600;
-  text-transform: none;
-  letter-spacing: 0;
-}
-dialog.msh-screen.ncm-screen .pcm-picker select:focus {
-  outline: none;
-  border-color: var(--ncm-accent);
-  box-shadow: 0 0 0 2px rgba(15, 76, 92, .12);
-}
-dialog.msh-screen.ncm-screen .pcm-picker p {
-  margin: 0 0 .15rem;
-  color: var(--ncm-muted);
   font-size: .8rem;
-  font-weight: 500;
+  line-height: 1.4;
+  resize: vertical;
+  transition: border-color .12s ease, background .12s ease, box-shadow .12s ease;
 }
-dialog.msh-screen.ncm-screen .pcm-picker strong { color: var(--ncm-ink); }
+dialog.msh-screen.ncm-screen .pcm-field.is-empty textarea,
+dialog.msh-screen.ncm-screen .pcm-field.is-empty p {
+  background: var(--ncm-paper);
+  color: var(--ncm-muted);
+}
+dialog.msh-screen.ncm-screen .pcm-field.is-dirty textarea {
+  border-color: #c4a35a;
+  background: #fffdf8;
+}
+dialog.msh-screen.ncm-screen .pcm-field.is-lead textarea {
+  min-height: 3.35rem;
+  border-color: var(--ncm-line-strong);
+  background: #fff;
+  font-size: .84rem;
+  line-height: 1.45;
+}
+dialog.msh-screen.ncm-screen .pcm-field p.is-blank {
+  color: var(--ncm-muted);
+  font-style: italic;
+}
+dialog.msh-screen.ncm-screen .pcm-field:focus-within textarea {
+  border-color: var(--ncm-accent);
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(15, 76, 92, .12);
+  outline: none;
+}
+dialog.msh-screen.ncm-screen .pcm-field .ncm-row-status {
+  font-size: .62rem;
+  font-style: normal;
+  font-weight: 650;
+  color: var(--ncm-muted);
+}
+dialog.msh-screen.ncm-screen .pcm-field .ncm-row-status.is-error { color: var(--ncm-bad); }
+dialog.msh-screen.ncm-screen .pcm-field .ncm-row-status.is-saved { color: var(--ncm-ok); }
+dialog.msh-screen.ncm-screen .pcm-field .ncm-row-status.is-saving { color: var(--ncm-accent); }
+
+/* Class teacher board — compact professional layout */
+dialog.msh-screen.ncm-screen .pcm-roster.is-all {
+  margin: .7rem 1rem 1rem;
+}
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-roster-head,
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-row {
+  grid-template-columns: 2.2rem minmax(9.5rem, 12.5rem) 6.5rem minmax(0, 1fr);
+  gap: .55rem .7rem;
+}
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-row {
+  padding: .65rem .8rem;
+}
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .ncm-who-cell .msh-face {
+  width: 2.55rem;
+  height: 2.55rem;
+  border-radius: 6px;
+}
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .ncm-who-cell strong {
+  font-size: .8rem;
+}
+dialog.msh-screen.ncm-screen .pcm-roster.is-all .ncm-who-cell small {
+  font-size: .68rem;
+}
+dialog.msh-screen.ncm-screen .pcm-board {
+  display: block;
+}
+dialog.msh-screen.ncm-screen .pcm-board-inner {
+  display: grid;
+  gap: .55rem;
+}
+dialog.msh-screen.ncm-screen .pcm-band {
+  display: grid;
+  gap: .35rem;
+  min-width: 0;
+}
+dialog.msh-screen.ncm-screen .pcm-band.is-lead {
+  padding: .55rem .65rem;
+  border: 1px solid var(--ncm-line-strong);
+  border-left: 3px solid var(--ncm-accent);
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f7fbfc 0%, #fff 70%);
+}
+dialog.msh-screen.ncm-screen .pcm-band.is-lead .pcm-field-label strong {
+  font-size: .66rem;
+  letter-spacing: .08em;
+}
+dialog.msh-screen.ncm-screen .pcm-band-title {
+  margin: 0;
+  color: var(--ncm-muted);
+  font-size: .6rem;
+  font-weight: 750;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+dialog.msh-screen.ncm-screen .pcm-band-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: .4rem;
+}
+dialog.msh-screen.ncm-screen .pcm-band.is-subjects {
+  padding: .45rem .55rem .5rem;
+  border: 1px solid var(--ncm-line);
+  border-radius: 7px;
+  background: #fff;
+}
+dialog.msh-screen.ncm-screen .pcm-band.is-other {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  gap: .45rem;
+}
+dialog.msh-screen.ncm-screen .pcm-band.is-other > .pcm-band-title {
+  padding: 0 .1rem;
+}
+dialog.msh-screen.ncm-screen .pcm-band-stack {
+  display: grid;
+  gap: .45rem;
+}
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field {
+  padding: .55rem .65rem;
+  border: 1px solid var(--ncm-line-strong);
+  border-left: 3px solid var(--ncm-accent);
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f7fbfc 0%, #fff 70%);
+}
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field-label strong {
+  color: var(--ncm-accent);
+  font-size: .66rem;
+  letter-spacing: .08em;
+}
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field textarea,
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field p {
+  min-height: 3.35rem;
+  border-color: var(--ncm-line-strong);
+  background: #fff;
+  font-size: .84rem;
+  line-height: 1.45;
+}
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field.is-empty textarea,
+dialog.msh-screen.ncm-screen .pcm-band-stack .pcm-field.is-empty p {
+  background: var(--ncm-paper);
+}
+
+@media (min-width: 900px) {
+  dialog.msh-screen.ncm-screen .pcm-band-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  dialog.msh-screen.ncm-screen .pcm-roster:not(.is-all) .pcm-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (min-width: 1280px) {
+  dialog.msh-screen.ncm-screen .pcm-band-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  dialog.msh-screen.ncm-screen .pcm-roster:not(.is-all) .pcm-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+
+@media (max-width: 860px) {
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-roster-head,
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-row {
+    grid-template-columns: 2rem minmax(0, 1fr);
+  }
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .ncm-col-status,
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-roster-head .ncm-col-status,
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .pcm-roster-head .ncm-col-comment {
+    display: none;
+  }
+  dialog.msh-screen.ncm-screen .pcm-roster.is-all .ncm-col-comment {
+    grid-column: 1 / -1;
+  }
+}

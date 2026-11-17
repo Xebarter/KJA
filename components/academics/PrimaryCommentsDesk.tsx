@@ -10,7 +10,15 @@ import {
 import { PrimaryCommentsClassMenu } from "@/components/academics/PrimaryCommentsClassMenu";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { StudentFace } from "@/components/StudentFace";
-import { ACADEMICS_BASE, classLabel, streamQuery, type ClassGroup } from "@/lib/academics";
+import {
+  ACADEMICS_BASE,
+  classLabel,
+  isAcademicSubject,
+  isCocurricularSubject,
+  streamQuery,
+  subjectFits,
+  type ClassGroup,
+} from "@/lib/academics";
 import type { RollPupil } from "@/lib/academics-roll";
 import { printPdfBlob } from "@/lib/client-print-pdf";
 
@@ -30,6 +38,15 @@ export type PrimarySubjectCommentCard = {
   comment: string | null;
 };
 
+export type PrimarySubjectMark = {
+  student_id: string;
+  subject_id: string;
+  score: number | null;
+  grade: string | null;
+  points: number | null;
+  position: number | null;
+};
+
 export type PrimaryActivityCommentCard = {
   student_id: string;
   slot: number;
@@ -38,12 +55,28 @@ export type PrimaryActivityCommentCard = {
   comment: string | null;
 };
 
-export type PrimaryCommentSubject = { id: string; name: string };
+export type PrimaryCommentSubject = {
+  id: string;
+  name: string;
+  kind: string;
+  section: "nursery" | "primary" | "both";
+  applies_from: number | null;
+  applies_to: number | null;
+  sort_order: number;
+  active: boolean;
+};
 
 type Selection = { code: string; stream: string };
 type Mode = "class" | "subjects" | "other";
+type FieldKind = "class" | "subject" | "activity";
 
 const nf = (value: number) => value.toLocaleString("en-GB");
+
+function subjectsForClass(catalog: PrimaryCommentSubject[], classCode: string | null | undefined) {
+  return catalog
+    .filter((subject) => subjectFits(subject, classCode))
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+}
 
 function statusLabel(status: string | null, hasComment?: boolean) {
   if (status === "published") return "Published";
@@ -85,6 +118,24 @@ function errorMessage(raw: string) {
   return text.slice(0, 280);
 }
 
+function fieldStateLabel(
+  state: "idle" | "saving" | "saved" | "error",
+  dirty: boolean,
+  error?: string,
+) {
+  if (state === "saving") return "Saving…";
+  if (state === "saved") return "Saved";
+  if (state === "error") return error || "Could not save";
+  if (dirty) return "Unsaved";
+  return "";
+}
+
+function formatSubjectScore(score: number | null) {
+  if (score === null || Number.isNaN(score)) return null;
+  const rounded = Math.round(score * 10) / 10;
+  return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
 export function PrimaryCommentsDesk({
   termLabel,
   termId,
@@ -92,8 +143,8 @@ export function PrimaryCommentsDesk({
   classCards,
   subjectCards,
   activityCards,
-  academicSubjects,
-  cocurricularSubjects,
+  subjectMarks = [],
+  subjects,
   closeHref = `${ACADEMICS_BASE}/comments`,
 }: {
   termLabel: string | null;
@@ -102,8 +153,8 @@ export function PrimaryCommentsDesk({
   classCards: PrimaryClassCommentCard[];
   subjectCards: PrimarySubjectCommentCard[];
   activityCards: PrimaryActivityCommentCard[];
-  academicSubjects: PrimaryCommentSubject[];
-  cocurricularSubjects: PrimaryCommentSubject[];
+  subjectMarks?: PrimarySubjectMark[];
+  subjects: PrimaryCommentSubject[];
   closeHref?: string;
 }) {
   const router = useRouter();
@@ -115,8 +166,6 @@ export function PrimaryCommentsDesk({
 
   const [selected, setSelected] = useState<Selection | null>(null);
   const [mode, setMode] = useState<Mode>("class");
-  const [subjectId, setSubjectId] = useState(academicSubjects[0]?.id || "");
-  const [slot, setSlot] = useState(1);
   const [query, setQuery] = useState("");
   const [gapsOnly, setGapsOnly] = useState(false);
   const [classDrafts, setClassDrafts] = useState<Record<string, string>>({});
@@ -137,6 +186,10 @@ export function PrimaryCommentsDesk({
   const subjectByKey = useMemo(
     () => new Map(subjectCards.map((card) => [`${card.student_id}|${card.subject_id}`, card])),
     [subjectCards],
+  );
+  const markByKey = useMemo(
+    () => new Map(subjectMarks.map((mark) => [`${mark.student_id}|${mark.subject_id}`, mark])),
+    [subjectMarks],
   );
   const activityByKey = useMemo(
     () => new Map(activityCards.map((card) => [`${card.student_id}|${card.slot}`, card])),
@@ -180,12 +233,6 @@ export function PrimaryCommentsDesk({
     };
   }, [exportOpen]);
 
-  useEffect(() => {
-    if (!academicSubjects.some((subject) => subject.id === subjectId)) {
-      setSubjectId(academicSubjects[0]?.id || "");
-    }
-  }, [academicSubjects, subjectId]);
-
   function selectClass(next: Selection, historyMode: "push" | "replace" = "push") {
     setSelected(next);
     setQuery("");
@@ -205,6 +252,19 @@ export function PrimaryCommentsDesk({
   const selectedGroup = selected
     ? groups.find((group) => group.code === selected.code && group.stream === selected.stream) || null
     : null;
+
+  const classSubjects = useMemo(
+    () => (selectedGroup ? subjectsForClass(subjects, selectedGroup.code) : []),
+    [subjects, selectedGroup],
+  );
+  const academicSubjects = useMemo(
+    () => classSubjects.filter((subject) => isAcademicSubject(subject)),
+    [classSubjects],
+  );
+  const cocurricularSubjects = useMemo(
+    () => classSubjects.filter((subject) => isCocurricularSubject(subject)).slice(0, 4),
+    [classSubjects],
+  );
 
   const rows = useMemo(() => {
     if (!selectedGroup) return [];
@@ -233,7 +293,8 @@ export function PrimaryCommentsDesk({
         nextSubjectDrafts[key] = text;
         nextSubjectSaved[key] = text;
       }
-      for (let activitySlot = 1; activitySlot <= 4; activitySlot += 1) {
+      for (const [index] of cocurricularSubjects.entries()) {
+        const activitySlot = index + 1;
         const key = `${pupil.id}|${activitySlot}`;
         const text = activityByKey.get(key)?.comment || "";
         nextActivityDrafts[key] = text;
@@ -248,7 +309,34 @@ export function PrimaryCommentsDesk({
     setActivitySaved(nextActivitySaved);
     setRowState({});
     setRowError({});
-  }, [selectedGroup?.code, selectedGroup?.stream, classCards, subjectCards, activityCards, academicSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedGroup?.code, selectedGroup?.stream, classCards, subjectCards, activityCards, academicSubjects, cocurricularSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function pupilHasGap(pupilId: string) {
+    if (mode === "class") {
+      if (!(classDrafts[pupilId] || "").trim()) return true;
+      for (const subject of academicSubjects) {
+        if (!(subjectDrafts[`${pupilId}|${subject.id}`] || "").trim()) return true;
+      }
+      return false;
+    }
+    if (mode === "subjects") {
+      if (!academicSubjects.length) return true;
+      return academicSubjects.some((subject) => !(subjectDrafts[`${pupilId}|${subject.id}`] || "").trim());
+    }
+    if (!cocurricularSubjects.length) return true;
+    return cocurricularSubjects.some((_, index) => !(activityDrafts[`${pupilId}|${index + 1}`] || "").trim());
+  }
+
+  function pupilSearchBlob(pupil: RollPupil) {
+    const parts = [pupil.full_name, pupil.student_number || "", classDrafts[pupil.id] || ""];
+    for (const subject of academicSubjects) {
+      parts.push(subject.name, subjectDrafts[`${pupil.id}|${subject.id}`] || "");
+    }
+    for (const [index, subject] of cocurricularSubjects.entries()) {
+      parts.push(subject.name, activityDrafts[`${pupil.id}|${index + 1}`] || "");
+    }
+    return parts.join(" ").toLowerCase();
+  }
 
   const blanksByKey = useMemo(() => {
     const map: Record<string, number> = {};
@@ -265,48 +353,37 @@ export function PrimaryCommentsDesk({
 
   const filtered = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return rows.filter(({ pupil, card }) => {
-      let comment = "";
-      if (mode === "class") comment = classDrafts[pupil.id] ?? card?.comment ?? "";
-      else if (mode === "subjects") comment = subjectDrafts[`${pupil.id}|${subjectId}`] ?? "";
-      else comment = activityDrafts[`${pupil.id}|${slot}`] ?? "";
-      if (gapsOnly && comment.trim()) return false;
+    return rows.filter(({ pupil }) => {
+      if (gapsOnly && !pupilHasGap(pupil.id)) return false;
       if (!needle) return true;
-      return (
-        pupil.full_name.toLowerCase().includes(needle)
-        || (pupil.student_number || "").toLowerCase().includes(needle)
-        || comment.toLowerCase().includes(needle)
-      );
+      return pupilSearchBlob(pupil).includes(needle);
     });
-  }, [rows, query, gapsOnly, classDrafts, subjectDrafts, activityDrafts, mode, subjectId, slot]);
+  }, [rows, query, gapsOnly, mode, classDrafts, subjectDrafts, activityDrafts, academicSubjects, cocurricularSubjects]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const withComment = rows.filter(({ pupil, card }) => {
-    if (mode === "class") return Boolean((classDrafts[pupil.id] ?? card?.comment ?? "").trim());
-    if (mode === "subjects") return Boolean((subjectDrafts[`${pupil.id}|${subjectId}`] || "").trim());
-    return Boolean((activityDrafts[`${pupil.id}|${slot}`] || "").trim());
-  }).length;
+  const withComment = rows.filter(({ pupil }) => !pupilHasGap(pupil.id)).length;
   const blank = rows.length - withComment;
+
   const dirtyCount = useMemo(() => {
     let count = 0;
-    if (mode === "class") {
-      for (const { pupil } of rows) {
-        if ((classDrafts[pupil.id] || "") !== (classSaved[pupil.id] || "")) count += 1;
+    for (const { pupil } of rows) {
+      if (mode === "class" && (classDrafts[pupil.id] || "") !== (classSaved[pupil.id] || "")) count += 1;
+      if (mode === "class" || mode === "subjects") {
+        for (const subject of academicSubjects) {
+          const key = `${pupil.id}|${subject.id}`;
+          if ((subjectDrafts[key] || "") !== (subjectSaved[key] || "")) count += 1;
+        }
       }
-    } else if (mode === "subjects") {
-      for (const { pupil } of rows) {
-        const key = `${pupil.id}|${subjectId}`;
-        if ((subjectDrafts[key] || "") !== (subjectSaved[key] || "")) count += 1;
-      }
-    } else {
-      for (const { pupil } of rows) {
-        const key = `${pupil.id}|${slot}`;
-        if ((activityDrafts[key] || "") !== (activitySaved[key] || "")) count += 1;
+      if (mode === "other") {
+        for (const [index] of cocurricularSubjects.entries()) {
+          const key = `${pupil.id}|${index + 1}`;
+          if ((activityDrafts[key] || "") !== (activitySaved[key] || "")) count += 1;
+        }
       }
     }
     return count;
-  }, [rows, mode, subjectId, slot, classDrafts, classSaved, subjectDrafts, subjectSaved, activityDrafts, activitySaved]);
+  }, [rows, mode, academicSubjects, cocurricularSubjects, classDrafts, classSaved, subjectDrafts, subjectSaved, activityDrafts, activitySaved]);
 
-  async function saveClassRow(pupil: RollPupil, card: PrimaryClassCommentCard | null) {
+  async function saveClassField(pupil: RollPupil, card: PrimaryClassCommentCard | null) {
     if (!termId || !selectedGroup || card?.status === "published") return;
     const key = pupil.id;
     const text = (classDrafts[key] || "").trim();
@@ -332,9 +409,13 @@ export function PrimaryCommentsDesk({
     startTransition(() => router.refresh());
   }
 
-  async function saveSubjectRow(pupil: RollPupil, card: PrimaryClassCommentCard | null) {
-    if (!termId || !selectedGroup || !subjectId || card?.status === "published") return;
-    const key = `${pupil.id}|${subjectId}`;
+  async function saveSubjectField(
+    pupil: RollPupil,
+    card: PrimaryClassCommentCard | null,
+    subject: PrimaryCommentSubject,
+  ) {
+    if (!termId || !selectedGroup || !subject.id || card?.status === "published") return;
+    const key = `${pupil.id}|${subject.id}`;
     const text = (subjectDrafts[key] || "").trim();
     if (text === (subjectSaved[key] || "").trim()) return;
     setRowState((prev) => ({ ...prev, [key]: "saving" }));
@@ -342,7 +423,7 @@ export function PrimaryCommentsDesk({
     const data = new FormData();
     data.set("student_id", pupil.id);
     data.set("term_id", termId);
-    data.set("subject_id", subjectId);
+    data.set("subject_id", subject.id);
     data.set("class_code", selectedGroup.code);
     data.set("stream", selectedGroup.stream);
     data.set("campus", pupil.campus || card?.campus || "");
@@ -359,23 +440,27 @@ export function PrimaryCommentsDesk({
     startTransition(() => router.refresh());
   }
 
-  async function saveActivityRow(pupil: RollPupil, card: PrimaryClassCommentCard | null) {
+  async function saveActivityField(
+    pupil: RollPupil,
+    card: PrimaryClassCommentCard | null,
+    activitySlot: number,
+  ) {
     if (!termId || !selectedGroup || card?.status === "published") return;
-    const key = `${pupil.id}|${slot}`;
+    const key = `${pupil.id}|${activitySlot}`;
     const text = (activityDrafts[key] || "").trim();
     if (text === (activitySaved[key] || "").trim()) return;
-    const coco = cocurricularSubjects[slot - 1] || null;
+    const coco = cocurricularSubjects[activitySlot - 1] || null;
     setRowState((prev) => ({ ...prev, [key]: "saving" }));
     setRowError((prev) => ({ ...prev, [key]: "" }));
     const data = new FormData();
     data.set("student_id", pupil.id);
     data.set("term_id", termId);
-    data.set("slot", String(slot));
+    data.set("slot", String(activitySlot));
     data.set("class_code", selectedGroup.code);
     data.set("stream", selectedGroup.stream);
     data.set("campus", pupil.campus || card?.campus || "");
     data.set("subject_id", coco?.id || activityByKey.get(key)?.subject_id || "");
-    data.set("activity_name", coco?.name || activityByKey.get(key)?.activity_name || `Activity ${slot}`);
+    data.set("activity_name", coco?.name || activityByKey.get(key)?.activity_name || `Activity ${activitySlot}`);
     data.set("comment", text);
     const outcome = await savePrimaryActivityComment(data).catch(() => ({ error: "Could not save." }));
     if (outcome.error) {
@@ -395,9 +480,17 @@ export function PrimaryCommentsDesk({
     setError("");
     setOk("");
     for (const { pupil, card } of rows) {
-      if (mode === "class") await saveClassRow(pupil, card);
-      else if (mode === "subjects") await saveSubjectRow(pupil, card);
-      else await saveActivityRow(pupil, card);
+      if (mode === "class") await saveClassField(pupil, card);
+      if (mode === "class" || mode === "subjects") {
+        for (const subject of academicSubjects) {
+          await saveSubjectField(pupil, card, subject);
+        }
+      }
+      if (mode === "other") {
+        for (const [index] of cocurricularSubjects.entries()) {
+          await saveActivityField(pupil, card, index + 1);
+        }
+      }
     }
     setBusy("");
     setOk("Drafts saved.");
@@ -411,10 +504,10 @@ export function PrimaryCommentsDesk({
       stream: streamQuery(selected.stream),
       format,
       section: "primary",
-      mode,
+      mode: mode === "subjects" || mode === "other" ? mode : "class",
     });
-    if (mode === "subjects" && subjectId) params.set("subject", subjectId);
-    if (mode === "other") params.set("slot", String(slot));
+    if (mode === "subjects" && academicSubjects[0]?.id) params.set("subject", academicSubjects[0].id);
+    if (mode === "other" && cocurricularSubjects.length) params.set("slot", "1");
     return `${ACADEMICS_BASE}/comments/export?${params.toString()}`;
   }
 
@@ -472,6 +565,88 @@ export function PrimaryCommentsDesk({
     }
   }
 
+  function renderField({
+    kind,
+    label,
+    fieldKey,
+    value,
+    saved,
+    editable,
+    disabled,
+    mark,
+    onChange,
+    onBlur,
+  }: {
+    kind: FieldKind;
+    label: string;
+    fieldKey: string;
+    value: string;
+    saved: string;
+    editable: boolean;
+    disabled?: boolean;
+    mark?: PrimarySubjectMark | null;
+    onChange: (next: string) => void;
+    onBlur: () => void;
+  }) {
+    const state = rowState[fieldKey] || "idle";
+    const dirty = value !== saved;
+    const filled = Boolean(value.trim());
+    const status = fieldStateLabel(state, dirty, rowError[fieldKey]);
+    const markText = kind === "subject" ? formatSubjectScore(mark?.score ?? null) : null;
+    const hasMark = Boolean(markText);
+    return (
+      <label
+        key={fieldKey}
+        className={`pcm-field${kind === "class" ? " is-lead" : ""}${kind === "subject" ? " is-subject" : ""}${filled ? " is-filled" : " is-empty"}${dirty ? " is-dirty" : ""}${kind === "subject" && hasMark ? " has-mark" : ""}`}
+      >
+        <span className="pcm-field-label">
+          <strong>{label}</strong>
+          {status ? <em className={`ncm-row-status is-${state}`}>{status}</em> : null}
+        </span>
+        {kind === "subject" ? (
+          <span className="pcm-subject-row">
+            <span className={`pcm-mark${hasMark ? " is-on" : ""}`} aria-label={`${label} mark`}>
+              <strong>{markText || "—"}</strong>
+            </span>
+            {editable ? (
+              <textarea
+                value={value}
+                rows={2}
+                maxLength={2000}
+                disabled={disabled || pending || Boolean(busy)}
+                placeholder="Subject remark…"
+                aria-label={`${label} comment${markText ? ` · mark ${markText}` : ""}`}
+                onChange={(event) => {
+                  onChange(event.target.value);
+                  setRowState((prev) => ({ ...prev, [fieldKey]: "idle" }));
+                }}
+                onBlur={onBlur}
+              />
+            ) : (
+              <p className={filled ? "" : "is-blank"}>{filled ? value : "—"}</p>
+            )}
+          </span>
+        ) : editable ? (
+          <textarea
+            value={value}
+            rows={kind === "class" || kind === "activity" ? 2 : 1}
+            maxLength={2000}
+            disabled={disabled || pending || Boolean(busy)}
+            placeholder={kind === "class" ? "Class teacher remark…" : `${label} remark…`}
+            aria-label={`${label} comment`}
+            onChange={(event) => {
+              onChange(event.target.value);
+              setRowState((prev) => ({ ...prev, [fieldKey]: "idle" }));
+            }}
+            onBlur={onBlur}
+          />
+        ) : (
+          <p className={filled ? "" : "is-blank"}>{filled ? value : "—"}</p>
+        )}
+      </label>
+    );
+  }
+
   const busyLabel =
     busy === "drafts"
       ? "Saving drafts"
@@ -482,8 +657,8 @@ export function PrimaryCommentsDesk({
           : "Working";
 
   const title = selectedGroup ? classLabel(selectedGroup.code, selectedGroup.stream) : "Primary comments";
-  const activeSubject = academicSubjects.find((subject) => subject.id === subjectId) || null;
-  const activeActivity = cocurricularSubjects[slot - 1] || null;
+  const modeHint =
+    mode === "subjects" ? " · All subjects" : mode === "other" ? " · Other subjects" : " · All comments";
 
   if (!termId || !groups.length) {
     return (
@@ -499,15 +674,6 @@ export function PrimaryCommentsDesk({
       </section>
     );
   }
-
-  const modeHint =
-    mode === "subjects"
-      ? activeSubject
-        ? ` · ${activeSubject.name}`
-        : " · Subjects"
-      : mode === "other"
-        ? ` · ${activeActivity?.name || `Activity ${slot}`}`
-        : " · Class teacher";
 
   return (
     <>
@@ -544,11 +710,11 @@ export function PrimaryCommentsDesk({
               <dd>{nf(rows.length)}</dd>
             </div>
             <div>
-              <dt>With comment</dt>
+              <dt>Complete</dt>
               <dd>{nf(withComment)}</dd>
             </div>
             <div>
-              <dt>Blank</dt>
+              <dt>Gaps</dt>
               <dd>{nf(blank)}</dd>
             </div>
             <div>
@@ -659,40 +825,6 @@ export function PrimaryCommentsDesk({
           ))}
         </div>
 
-        {mode === "subjects" ? (
-          <div className="pcm-picker">
-            <label>
-              <span>Subject</span>
-              <select value={subjectId} onChange={(event) => setSubjectId(event.target.value)} disabled={!academicSubjects.length}>
-                {academicSubjects.length ? academicSubjects.map((subject) => (
-                  <option key={subject.id} value={subject.id}>{subject.name}</option>
-                )) : <option value="">No academic subjects</option>}
-              </select>
-            </label>
-            {activeSubject ? <p>Editing <strong>{activeSubject.name}</strong> comments for this class.</p> : null}
-          </div>
-        ) : null}
-
-        {mode === "other" ? (
-          <div className="pcm-picker">
-            <label>
-              <span>Activity slot</span>
-              <select value={slot} onChange={(event) => setSlot(Number(event.target.value))}>
-                {[1, 2, 3, 4].map((value) => (
-                  <option key={value} value={value}>
-                    Slot {value}{cocurricularSubjects[value - 1] ? ` · ${cocurricularSubjects[value - 1].name}` : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <p>
-              Editing{" "}
-              <strong>{activeActivity?.name || `Activity ${slot}`}</strong>
-              {" "}comments (printed on the report card).
-            </p>
-          </div>
-        ) : null}
-
         {(error || ok) && (
           <p className={`ncm-feedback${error ? " is-bad" : " is-ok"}`} role="status">
             {error || ok}
@@ -701,42 +833,33 @@ export function PrimaryCommentsDesk({
 
         <div className="msh-form ncm-form">
           <div className="msh-scroll ncm-scroll">
-            <div className="ncm-roster">
+            <div className={`ncm-roster pcm-roster${mode === "class" ? " is-all" : ""}`}>
               {filtered.length ? (
                 <>
-                  <div className="ncm-roster-head" aria-hidden="true">
+                  <div className="ncm-roster-head pcm-roster-head" aria-hidden="true">
                     <span className="ncm-col-num">#</span>
                     <span className="ncm-col-learner">Learner</span>
                     <span className="ncm-col-status">Status</span>
-                    <span className="ncm-col-comment">Comment</span>
+                    <span className="ncm-col-comment">
+                      {mode === "class" ? "All comments" : mode === "subjects" ? "Subject comments" : "Other subjects"}
+                    </span>
                   </div>
                   <ul className="ncm-rows">
                     {filtered.map(({ pupil, card, index }) => {
                       const editable = card?.status !== "published";
-                      const rowKey =
-                        mode === "class"
-                          ? pupil.id
+                      const classValue = classDrafts[pupil.id] ?? "";
+                      const hasAny =
+                        mode === "other"
+                          ? cocurricularSubjects.some((_, index) => (activityDrafts[`${pupil.id}|${index + 1}`] || "").trim())
                           : mode === "subjects"
-                            ? `${pupil.id}|${subjectId}`
-                            : `${pupil.id}|${slot}`;
-                      const value =
-                        mode === "class"
-                          ? classDrafts[pupil.id] ?? ""
-                          : mode === "subjects"
-                            ? subjectDrafts[rowKey] ?? ""
-                            : activityDrafts[rowKey] ?? "";
-                      const saved =
-                        mode === "class"
-                          ? classSaved[pupil.id] ?? ""
-                          : mode === "subjects"
-                            ? subjectSaved[rowKey] ?? ""
-                            : activitySaved[rowKey] ?? "";
-                      const state = rowState[rowKey] || "idle";
+                            ? academicSubjects.some((subject) => (subjectDrafts[`${pupil.id}|${subject.id}`] || "").trim())
+                            : Boolean(classValue.trim())
+                              || academicSubjects.some((subject) => (subjectDrafts[`${pupil.id}|${subject.id}`] || "").trim());
                       const pillStatus = card?.status || "";
                       return (
                         <li
-                          key={rowKey}
-                          className={`ncm-row${pillStatus ? ` is-${pillStatus}` : value.trim() ? " is-draft" : ""}`}
+                          key={pupil.id}
+                          className={`ncm-row pcm-row${pillStatus ? ` is-${pillStatus}` : hasAny ? " is-draft" : ""}`}
                         >
                           <span className="ncm-col-num">{String(index + 1).padStart(2, "0")}</span>
                           <div className="ncm-col-learner ncm-who-cell">
@@ -752,50 +875,90 @@ export function PrimaryCommentsDesk({
                             </span>
                           </div>
                           <div className="ncm-col-status">
-                            <em className={`ncm-pill${pillStatus ? ` is-${pillStatus}` : value.trim() ? " is-draft" : ""}`}>
-                              {statusLabel(pillStatus || null, Boolean(value.trim()))}
+                            <em className={`ncm-pill${pillStatus ? ` is-${pillStatus}` : hasAny ? " is-draft" : ""}`}>
+                              {statusLabel(pillStatus || null, hasAny)}
                             </em>
                           </div>
-                          <div className="ncm-col-comment ncm-comment">
-                            {editable ? (
-                              <>
-                                <textarea
-                                  value={value}
-                                  rows={3}
-                                  maxLength={2000}
-                                  disabled={pending || Boolean(busy) || (mode === "subjects" && !subjectId)}
-                                  placeholder="Remark for this learner…"
-                                  aria-label={`Comment for ${pupil.full_name}`}
-                                  onChange={(event) => {
-                                    const next = event.target.value;
-                                    if (mode === "class") setClassDrafts((prev) => ({ ...prev, [pupil.id]: next }));
-                                    else if (mode === "subjects") setSubjectDrafts((prev) => ({ ...prev, [rowKey]: next }));
-                                    else setActivityDrafts((prev) => ({ ...prev, [rowKey]: next }));
-                                    setRowState((prev) => ({ ...prev, [rowKey]: "idle" }));
-                                  }}
-                                  onBlur={() => {
-                                    if (mode === "class") void saveClassRow(pupil, card);
-                                    else if (mode === "subjects") void saveSubjectRow(pupil, card);
-                                    else void saveActivityRow(pupil, card);
-                                  }}
-                                />
-                                <span className={`ncm-row-status is-${state}`}>
-                                  {state === "saving"
-                                    ? "Saving…"
-                                    : state === "saved"
-                                      ? "Saved"
-                                      : state === "error"
-                                        ? rowError[rowKey] || "Could not save"
-                                        : saved !== value
-                                          ? "Unsaved"
-                                          : ""}
-                                </span>
-                              </>
-                            ) : (
-                              <p className={value.trim() ? "" : "is-blank"}>
-                                {value.trim() || "No comment on this report."}
-                              </p>
-                            )}
+                          <div className={`ncm-col-comment ncm-comment pcm-fields${mode === "class" ? " pcm-board" : ""}`}>
+                            {mode === "class" ? (
+                              <div className="pcm-board-inner">
+                                <div className="pcm-band is-lead">
+                                  {renderField({
+                                    kind: "class",
+                                    label: "Class teacher",
+                                    fieldKey: pupil.id,
+                                    value: classValue,
+                                    saved: classSaved[pupil.id] ?? "",
+                                    editable,
+                                    onChange: (next) => setClassDrafts((prev) => ({ ...prev, [pupil.id]: next })),
+                                    onBlur: () => void saveClassField(pupil, card),
+                                  })}
+                                </div>
+                                {academicSubjects.length ? (
+                                  <div className="pcm-band is-subjects" aria-label="Subject comments">
+                                    <p className="pcm-band-title">Subjects</p>
+                                    <div className="pcm-band-grid">
+                                      {academicSubjects.map((subject) => {
+                                        const key = `${pupil.id}|${subject.id}`;
+                                        return renderField({
+                                          kind: "subject",
+                                          label: subject.name,
+                                          fieldKey: key,
+                                          value: subjectDrafts[key] ?? "",
+                                          saved: subjectSaved[key] ?? "",
+                                          editable,
+                                          mark: markByKey.get(key) || null,
+                                          onChange: (next) => setSubjectDrafts((prev) => ({ ...prev, [key]: next })),
+                                          onBlur: () => void saveSubjectField(pupil, card, subject),
+                                        });
+                                      })}
+                                    </div>
+                                  </div>
+                                ) : null}
+                              </div>
+                            ) : null}
+
+                            {mode === "subjects" ? (
+                              academicSubjects.length ? (
+                                academicSubjects.map((subject) => {
+                                  const key = `${pupil.id}|${subject.id}`;
+                                  return renderField({
+                                    kind: "subject",
+                                    label: subject.name,
+                                    fieldKey: key,
+                                    value: subjectDrafts[key] ?? "",
+                                    saved: subjectSaved[key] ?? "",
+                                    editable,
+                                    mark: markByKey.get(key) || null,
+                                    onChange: (next) => setSubjectDrafts((prev) => ({ ...prev, [key]: next })),
+                                    onBlur: () => void saveSubjectField(pupil, card, subject),
+                                  });
+                                })
+                              ) : (
+                                <p className="is-blank">No academic subjects are set for this class.</p>
+                              )
+                            ) : null}
+
+                            {mode === "other" ? (
+                              cocurricularSubjects.length ? (
+                                cocurricularSubjects.map((subject, index) => {
+                                  const activitySlot = index + 1;
+                                  const key = `${pupil.id}|${activitySlot}`;
+                                  return renderField({
+                                    kind: "activity",
+                                    label: subject.name,
+                                    fieldKey: key,
+                                    value: activityDrafts[key] ?? "",
+                                    saved: activitySaved[key] ?? "",
+                                    editable,
+                                    onChange: (next) => setActivityDrafts((prev) => ({ ...prev, [key]: next })),
+                                    onBlur: () => void saveActivityField(pupil, card, activitySlot),
+                                  });
+                                })
+                              ) : (
+                                <p className="is-blank">No other subjects are set for this class.</p>
+                              )
+                            ) : null}
                           </div>
                         </li>
                       );
@@ -807,7 +970,7 @@ export function PrimaryCommentsDesk({
                   <i className="fa-solid fa-comments" aria-hidden="true" />
                   <p>
                     {gapsOnly
-                      ? "Every learner in this view already has a comment."
+                      ? "Every learner in this view already has comments."
                       : query.trim()
                         ? `No learners match “${query.trim()}”.`
                         : "No active pupils in this stream."}
@@ -822,8 +985,8 @@ export function PrimaryCommentsDesk({
               {dirtyCount
                 ? `${nf(dirtyCount)} unsaved draft${dirtyCount === 1 ? "" : "s"}`
                 : blank
-                  ? `${nf(blank)} blank comment${blank === 1 ? "" : "s"} in this view`
-                  : "All learners in this view have a comment"}
+                  ? `${nf(blank)} learner${blank === 1 ? "" : "s"} still missing comments`
+                  : "All learners in this view have comments"}
             </p>
             <div className="msh-foot-actions">
               <button type="button" className="msh-go" onClick={() => void saveDirty()} disabled={Boolean(busy) || !dirtyCount}>

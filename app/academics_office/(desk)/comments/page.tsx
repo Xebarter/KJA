@@ -10,12 +10,11 @@ import {
   type PrimaryClassCommentCard,
   type PrimaryCommentSubject,
   type PrimarySubjectCommentCard,
+  type PrimarySubjectMark,
 } from "@/components/academics/PrimaryCommentsDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
 import {
   groupPupils,
-  isAcademicSubject,
-  isCocurricularSubject,
   loadCurrentTerm,
   mapSubject,
   subjectFits,
@@ -92,18 +91,19 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
     const primaryGroups = groupPupils(pupils).filter((group) => group.section === "primary");
     const primaryCodes = new Set(primaryGroups.map((group) => group.code));
 
-    const subjectRows = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
-    const fitting = subjectRows.filter((subject) =>
-      [...primaryCodes].some((code) => subjectFits(subject, code)),
-    );
-    const academicSubjects: PrimaryCommentSubject[] = fitting
-      .filter(isAcademicSubject)
-      .map((subject) => ({ id: subject.id, name: subject.name }));
-    const cocurricularSubjects: PrimaryCommentSubject[] = fitting
-      .filter(isCocurricularSubject)
-      .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
-      .slice(0, 4)
-      .map((subject) => ({ id: subject.id, name: subject.name }));
+    const subjects: PrimaryCommentSubject[] = ((subjectsQuery.data || []) as Record<string, unknown>[])
+      .map(mapSubject)
+      .filter((subject) => [...primaryCodes].some((code) => subjectFits(subject, code)))
+      .map((subject) => ({
+        id: subject.id,
+        name: subject.name,
+        kind: subject.kind,
+        section: subject.section,
+        applies_from: subject.applies_from,
+        applies_to: subject.applies_to,
+        sort_order: subject.sort_order,
+        active: subject.active,
+      }));
 
     const cardByStudent = new Map(
       ((cardsQuery.data || []) as {
@@ -176,11 +176,13 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
     const cardIds = [...cardByStudent.values()].map((card) => card.id);
     const cardIdToStudent = new Map([...cardByStudent.entries()].map(([studentId, card]) => [card.id, studentId]));
     const subjectSeen = new Set(subjectCards.map((card) => `${card.student_id}|${card.subject_id}`));
+    const subjectMarks: PrimarySubjectMark[] = [];
+    const markSeen = new Set<string>();
     for (let index = 0; index < cardIds.length; index += 80) {
       const slice = cardIds.slice(index, index + 80);
       const lines = await opened.auth.supabase
         .from("report_lines")
-        .select("report_card_id, subject_id, teacher_comment")
+        .select("report_card_id, subject_id, teacher_comment, score, grade, points, position")
         .in("report_card_id", slice);
       if (lines.error) {
         return <AcademicsGate title="Primary Comments" state={{ notice: "schema", message: lines.error.message }} />;
@@ -189,10 +191,25 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
         report_card_id: string;
         subject_id: string;
         teacher_comment: string | null;
+        score: number | null;
+        grade: string | null;
+        points: number | null;
+        position: number | null;
       }[]) {
         const studentId = cardIdToStudent.get(line.report_card_id);
         if (!studentId) continue;
         const key = `${studentId}|${line.subject_id}`;
+        if (!markSeen.has(key)) {
+          markSeen.add(key);
+          subjectMarks.push({
+            student_id: studentId,
+            subject_id: line.subject_id,
+            score: line.score == null ? null : Number(line.score),
+            grade: line.grade,
+            points: line.points == null ? null : Number(line.points),
+            position: line.position == null ? null : Number(line.position),
+          });
+        }
         const existing = subjectCards.find((card) => card.student_id === studentId && card.subject_id === line.subject_id);
         if (existing) {
           existing.comment = resolvePrimaryComment(existing.comment, line.teacher_comment);
@@ -290,8 +307,8 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
           classCards={classCards}
           subjectCards={subjectCards}
           activityCards={activityCards}
-          academicSubjects={academicSubjects}
-          cocurricularSubjects={cocurricularSubjects}
+          subjectMarks={subjectMarks}
+          subjects={subjects}
         />
       </div>
     );
