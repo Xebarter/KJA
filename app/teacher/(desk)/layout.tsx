@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import "../../academics_office/(desk)/assessments/assessments.css";
 import "../../academics_office/(desk)/attendance/attendance.css";
 import "../../academics_office/(desk)/calendar/calendar.css";
+import "../../academics_office/(desk)/comments/comments.css";
 import "../../academics_office/(desk)/homework/homework.css";
 import "./marksheet/marksheet.css";
 

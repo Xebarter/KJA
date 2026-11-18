@@ -2912,8 +2912,8 @@ function dsbaSchemaHint(message: string) {
   if (/operational_campus|0081/i.test(message)) {
     return `${message} Run supabase/0081_developmental_assessments_campus.sql in the Supabase SQL editor.`;
   }
-  if (/developmental_|progress_scales|progress_codes|nursery_divisions|skill_ratings|report_skill_lines|0077/i.test(message)) {
-    return `${message} Run supabase/0077_nursery_dsba.sql (then 0081_developmental_assessments_campus.sql; and 0078_unify_nursery_progress_scale.sql if needed) in the Supabase SQL editor.`;
+  if (/developmental_|progress_scales|progress_codes|nursery_divisions|skill_ratings|report_skill_lines|0077|0094/i.test(message)) {
+    return `${message} Run supabase/0094_skill_ratings_teacher_write.sql in the Supabase SQL editor (or 0077_nursery_dsba.sql, then 0081 and 0094, if nursery DSBA was never installed).`;
   }
   return message;
 }

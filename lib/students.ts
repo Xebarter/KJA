@@ -602,7 +602,13 @@ export async function loadStudentRegisterTiles(
     writeTileCache(key, counts);
     return counts;
   }
-  if (error && !/student_register_tiles|could not find the function|PGRST202|schema cache/i.test(error)) {
+  // Missing RPC, PostgREST cache lag, or Desktop offline — fall back quietly.
+  if (
+    error &&
+    !/student_register_tiles|could not find the function|PGRST202|schema cache|offline|needs the network|failed to fetch|fetch failed|network/i.test(
+      error,
+    )
+  ) {
     console.error("student_register_tiles:", error);
   }
 

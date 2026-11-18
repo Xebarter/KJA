@@ -281,9 +281,13 @@ article.acd-sheet .acd-sheet-seal {
   letter-spacing: .08em;
   box-shadow: 0 0 0 2px #fff, 0 0 0 3.5px var(--sheet-red), 0 0 0 5px var(--sheet-gold);
 }
+/* Cover the frame without stretching — works for span>img (StudentFace) and bare img.acd-sheet-face (print/PDF). */
+article.acd-sheet img.acd-sheet-face,
 article.acd-sheet .acd-sheet-face img {
+  display: block;
   width: 100%;
   height: 100%;
+  max-width: none;
   object-fit: cover;
   object-position: center 18%;
 }

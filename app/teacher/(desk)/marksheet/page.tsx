@@ -200,6 +200,7 @@ export default async function TeacherMarksheetPage({
           key: `${post.campus}|${post.classCode}|${post.stream}`,
           label: post.label,
           campus: post.campus,
+          section: classSection(post.classCode),
           href: classHref(post),
         }))}
       />

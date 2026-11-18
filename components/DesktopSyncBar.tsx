@@ -123,20 +123,21 @@ export function DesktopSyncBar() {
           ? "Connecting to school records…"
           : "Syncing school data…";
     return (
-      <div className="kja-desktop-sync is-hydrate" role="status" aria-live="polite">
-        <span className="kja-desktop-sync-icon is-spin" aria-hidden="true">
+      <div
+        className="kja-desktop-sync is-hydrate"
+        role="status"
+        aria-live="polite"
+        aria-label={`${pct >= 100 ? "Synced" : "Syncing"} ${pct}% · ${label}`}
+      >
+        <span className={`kja-desktop-sync-icon${pct >= 100 ? "" : " is-spin"}`} aria-hidden="true">
           <i className={`fa-solid ${pct >= 100 ? "fa-circle-check" : "fa-cloud-arrow-down"}`} />
         </span>
-        <div className="kja-desktop-sync-copy">
-          <strong className="kja-desktop-sync-label">
-            {pct >= 100 ? "Synced" : "Syncing"}
-            <em className="kja-desktop-sync-pct">{pct}%</em>
-          </strong>
-          <span className="kja-desktop-sync-detail">{label}</span>
-          <div className="kja-desktop-sync-track" aria-hidden="true">
-            <span className="kja-desktop-sync-fill" style={{ width: `${pct}%` }} />
-          </div>
-        </div>
+        <strong className="kja-desktop-sync-label">{pct >= 100 ? "Synced" : "Syncing"}</strong>
+        <span className="kja-desktop-sync-detail">{label}</span>
+        <em className="kja-desktop-sync-pct">{pct}%</em>
+        <span className="kja-desktop-sync-track" aria-hidden="true">
+          <span className="kja-desktop-sync-fill" style={{ width: `${pct}%` }} />
+        </span>
       </div>
     );
   }
@@ -154,15 +155,13 @@ export function DesktopSyncBar() {
         : `${status.pending} changes waiting to sync`;
 
   return (
-    <div className="kja-desktop-sync is-pending" role="status">
-      <span className="kja-desktop-sync-icon" aria-hidden="true">
+    <div className="kja-desktop-sync is-pending" role="status" aria-label={label}>
+      <span className={`kja-desktop-sync-icon${status.flushing ? " is-spin" : ""}`} aria-hidden="true">
         <i className={`fa-solid ${status.flushing ? "fa-arrows-rotate" : "fa-cloud-arrow-up"}`} />
       </span>
-      <div className="kja-desktop-sync-copy">
-        <strong className="kja-desktop-sync-label">Sync</strong>
-        <span className="kja-desktop-sync-detail">{label}</span>
-        {status.lastError ? <span className="kja-desktop-sync-error">{status.lastError}</span> : null}
-      </div>
+      <strong className="kja-desktop-sync-label">Sync</strong>
+      <span className="kja-desktop-sync-detail">{label}</span>
+      {status.lastError ? <span className="kja-desktop-sync-error">{status.lastError}</span> : null}
       {status.pending > 0 && status.online ? (
         <button
           type="button"

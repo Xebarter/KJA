@@ -1,4 +1,4 @@
-/* Class teacher marksheet chooser — calm desk surface before the grid opens */
+/* Marksheet chooser — works on teacher and academics desks (self-contained hero) */
 
 .tch-msh-page {
   --msh-ink: var(--tch-ink, #19232b);
@@ -11,11 +11,85 @@
   --msh-navy: var(--tch-navy, #19232b);
   --msh-sky: var(--tch-sky, #1d56b0);
   --msh-mint: var(--tch-mint, #127238);
+  --msh-red: var(--tch-red, #e42435);
   --msh-radius: 18px;
   display: grid;
   gap: 1.15rem;
   max-width: 1080px;
   animation: tch-msh-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Hero surface — do not rely on teacher.css so Academics can reuse the landing */
+.tch-msh-page .tch-hero {
+  position: relative;
+  isolation: isolate;
+  display: grid;
+  gap: 0.75rem;
+  padding: 1.45rem 1.55rem 1.5rem;
+  overflow: hidden;
+  border-radius: 22px;
+  color: #fff;
+  background:
+    radial-gradient(70% 120% at 100% -10%, rgba(253, 163, 27, 0.28), transparent 55%),
+    radial-gradient(55% 90% at 0% 100%, rgba(29, 86, 176, 0.22), transparent 52%),
+    radial-gradient(40% 70% at 70% 100%, rgba(228, 36, 53, 0.16), transparent 50%),
+    linear-gradient(145deg, #1d2a34 0%, #19232b 55%, #141d24 100%);
+  box-shadow: 0 16px 36px -20px rgba(25, 35, 43, 0.55);
+}
+
+.tch-msh-page .tch-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--msh-sky), var(--msh-accent), var(--msh-red), var(--msh-mint));
+}
+
+.tch-msh-page .tch-hero-kicker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0;
+  color: var(--msh-accent);
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.tch-msh-page .tch-hero h1 {
+  margin: 0;
+  color: #fff;
+  font-size: clamp(1.55rem, 2.4vw, 1.95rem);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.tch-msh-page .tch-hero-lede {
+  margin: 0;
+  max-width: 40rem;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.tch-msh-page .tch-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.tch-msh-page .tch-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.28rem 0.7rem;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  font-size: 0.78rem;
+  font-weight: 700;
 }
 
 @keyframes tch-msh-in {
@@ -27,11 +101,6 @@
     opacity: 1;
     transform: none;
   }
-}
-
-.tch-msh-page .tch-hero {
-  gap: 0.75rem;
-  padding: 1.45rem 1.55rem 1.5rem;
 }
 
 .tch-msh-page .tch-hero-actions {
@@ -157,6 +226,29 @@
   color: var(--msh-soft);
   font-size: 0.88rem;
   line-height: 1.45;
+}
+
+.tch-msh-section {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.tch-msh-section + .tch-msh-section {
+  margin-top: 0.35rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--msh-line);
+}
+
+.tch-msh-section-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0;
+  color: var(--msh-mute);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .tch-msh-grid {

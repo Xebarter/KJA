@@ -9,6 +9,21 @@
   font-family: Yantramanav, Roboto, sans-serif;
 }
 
+/* Teacher desk: keep comments chrome matching the academics office */
+.tch-shell .tch-cmt-page,
+.tch-shell .tch-cmt-page .admin-hero,
+.tch-shell dialog.msh-screen.ncm-screen {
+  font-family: Yantramanav, Roboto, sans-serif;
+}
+.tch-shell .tch-cmt-page .admin-hero h1,
+.tch-shell .tch-cmt-page .admin-hero-kicker,
+.tch-shell .tch-cmt-page .admin-hero-lede {
+  font-family: Yantramanav, Roboto, sans-serif;
+}
+.tch-shell .tch-cmt-page .cmt-workspace-switch {
+  margin-top: 0.1rem;
+}
+
 .cmt-strip {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));

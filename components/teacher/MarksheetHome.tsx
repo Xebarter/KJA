@@ -11,6 +11,9 @@ export type MarksheetClassChoice = {
   label: string;
   campus: string;
   href: string;
+  section?: "nursery" | "primary";
+  pupils?: number;
+  hint?: string;
 };
 
 function nf(value: number) {
@@ -18,11 +21,15 @@ function nf(value: number) {
 }
 
 function Hero({
+  kicker = "My class",
+  kickerIcon = "fa-table-cells",
   title,
   lede,
   chips,
   actions,
 }: {
+  kicker?: string;
+  kickerIcon?: string;
   title: string;
   lede: React.ReactNode;
   chips?: React.ReactNode;
@@ -31,7 +38,7 @@ function Hero({
   return (
     <header className="tch-hero">
       <p className="tch-hero-kicker">
-        <i className="fa-solid fa-table-cells" aria-hidden="true" /> My class
+        <i className={`fa-solid ${kickerIcon}`} aria-hidden="true" /> {kicker}
       </p>
       <h1>{title}</h1>
       <p className="tch-hero-lede">{lede}</p>
@@ -61,54 +68,162 @@ function EmptyState({
   );
 }
 
+function ClassCard({ post, index }: { post: MarksheetClassChoice; index: number }) {
+  const pupils = post.pupils ?? null;
+  const hint =
+    post.hint ||
+    (post.section === "nursery"
+      ? "Open developmental sittings for this stream."
+      : "View every subject’s marks for this stream.");
+
+  return (
+    <li>
+      <Link className="tch-msh-card is-class" href={post.href} data-tone={String(index % 8)}>
+        <div className="tch-msh-card-top">
+          <span className="tch-msh-card-icon" aria-hidden="true">
+            <i className={`fa-solid ${post.section === "nursery" ? "fa-seedling" : "fa-chalkboard-user"}`} />
+          </span>
+          <span className="tch-msh-badge">{post.campus}</span>
+        </div>
+        <div>
+          <h3>{post.label}</h3>
+          <p>{hint}</p>
+        </div>
+        {pupils != null || post.section ? (
+          <ul className="tch-msh-meta">
+            {post.section ? (
+              <li>
+                <i className={`fa-solid ${post.section === "nursery" ? "fa-seedling" : "fa-book"}`} aria-hidden="true" />
+                {post.section === "nursery" ? "Nursery" : "Primary"}
+              </li>
+            ) : null}
+            {pupils != null ? (
+              <li>
+                <i className="fa-solid fa-users" aria-hidden="true" />
+                {nf(pupils)} on roll
+              </li>
+            ) : null}
+          </ul>
+        ) : null}
+        <div className="tch-msh-card-foot">
+          <span className="tch-msh-go">
+            Open class <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+          </span>
+        </div>
+      </Link>
+    </li>
+  );
+}
+
+function ClassSections({ classes }: { classes: MarksheetClassChoice[] }) {
+  const nursery = classes.filter((row) => row.section === "nursery");
+  const primary = classes.filter((row) => row.section === "primary");
+  const other = classes.filter((row) => row.section !== "nursery" && row.section !== "primary");
+  const grouped = nursery.length + primary.length > 0 && nursery.length + primary.length === classes.length;
+
+  if (!grouped) {
+    return (
+      <ul className="tch-msh-grid">
+        {classes.map((post, index) => (
+          <ClassCard key={post.key} post={post} index={index} />
+        ))}
+      </ul>
+    );
+  }
+
+  let tone = 0;
+  return (
+    <div className="tch-msh-sections">
+      {nursery.length ? (
+        <div className="tch-msh-section">
+          <p className="tch-msh-section-label">
+            <i className="fa-solid fa-seedling" aria-hidden="true" /> Nursery
+          </p>
+          <ul className="tch-msh-grid">
+            {nursery.map((post) => {
+              const index = tone++;
+              return <ClassCard key={post.key} post={post} index={index} />;
+            })}
+          </ul>
+        </div>
+      ) : null}
+      {primary.length ? (
+        <div className="tch-msh-section">
+          <p className="tch-msh-section-label">
+            <i className="fa-solid fa-book" aria-hidden="true" /> Primary
+          </p>
+          <ul className="tch-msh-grid">
+            {primary.map((post) => {
+              const index = tone++;
+              return <ClassCard key={post.key} post={post} index={index} />;
+            })}
+          </ul>
+        </div>
+      ) : null}
+      {other.length ? (
+        <div className="tch-msh-section">
+          <ul className="tch-msh-grid">
+            {other.map((post) => {
+              const index = tone++;
+              return <ClassCard key={post.key} post={post} index={index} />;
+            })}
+          </ul>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export function MarksheetClassPicker({
   termLabel,
   classes,
+  kicker = "My class",
+  kickerIcon = "fa-table-cells",
+  lede = "Open a class you lead, then choose which assessment marks to review and edit.",
+  panelTitle = "Choose a class",
+  panelHint = "Each stream has its own marksheet for the current term.",
+  emptyTitle = "No class assigned",
+  emptyHint = "Ask the academics office to assign you as class teacher for this term.",
 }: {
   termLabel: string;
   classes: MarksheetClassChoice[];
+  kicker?: string;
+  kickerIcon?: string;
+  lede?: string;
+  panelTitle?: string;
+  panelHint?: string;
+  emptyTitle?: string;
+  emptyHint?: string;
 }) {
+  const totalPupils = classes.reduce((sum, row) => sum + (row.pupils || 0), 0);
+
   return (
     <div className="app-page tch-msh-page">
       <Hero
+        kicker={kicker}
+        kickerIcon={kickerIcon}
         title="Marksheet"
-        lede="Open a class you lead, then choose which assessment marks to review and edit."
-        chips={<span className="tch-chip">{termLabel}</span>}
+        lede={lede}
+        chips={
+          <>
+            <span className="tch-chip">{termLabel}</span>
+            {classes.length ? <span className="tch-chip">{nf(classes.length)} streams</span> : null}
+            {totalPupils ? <span className="tch-chip">{nf(totalPupils)} on roll</span> : null}
+          </>
+        }
       />
-      <section className="tch-msh-panel" aria-label="Your classes">
+      <section className="tch-msh-panel" aria-label="Classes">
         <div className="tch-msh-panel-head">
           <div>
-            <h2>Choose a class</h2>
-            <p>Each stream has its own marksheet for the current term.</p>
+            <h2>{panelTitle}</h2>
+            <p>{panelHint}</p>
           </div>
         </div>
         {classes.length ? (
-          <ul className="tch-msh-grid">
-            {classes.map((post, index) => (
-              <li key={post.key}>
-                <Link className="tch-msh-card is-class" href={post.href} data-tone={String(index % 8)}>
-                  <div className="tch-msh-card-top">
-                    <span className="tch-msh-card-icon" aria-hidden="true">
-                      <i className="fa-solid fa-chalkboard-user" />
-                    </span>
-                    <span className="tch-msh-badge">{post.campus}</span>
-                  </div>
-                  <div>
-                    <h3>{post.label}</h3>
-                    <p>View every subject’s marks for this stream.</p>
-                  </div>
-                  <div className="tch-msh-card-foot">
-                    <span className="tch-msh-go">
-                      Open class <i className="fa-solid fa-arrow-right" aria-hidden="true" />
-                    </span>
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
+          <ClassSections classes={classes} />
         ) : (
-          <EmptyState title="No class assigned" icon="fa-chalkboard-user">
-            Ask the academics office to assign you as class teacher for this term.
+          <EmptyState title={emptyTitle} icon="fa-chalkboard-user">
+            {emptyHint}
           </EmptyState>
         )}
       </section>
@@ -125,6 +240,8 @@ export function MarksheetSittingPicker({
   basePath,
   sittings,
   classesHref,
+  kicker = "My class",
+  kickerIcon = "fa-table-cells",
 }: {
   classLabel: string;
   termLabel: string;
@@ -134,6 +251,8 @@ export function MarksheetSittingPicker({
   basePath: string;
   sittings: MarksheetSittingChoice[];
   classesHref?: string;
+  kicker?: string;
+  kickerIcon?: string;
 }) {
   const openSubjects = sittings.reduce((sum, sitting) => sum + sitting.open, 0);
   const totalSubjects = sittings.reduce((sum, sitting) => sum + sitting.subjects, 0);
@@ -141,6 +260,8 @@ export function MarksheetSittingPicker({
   return (
     <div className="app-page tch-msh-page">
       <Hero
+        kicker={kicker}
+        kickerIcon={kickerIcon}
         title={classLabel}
         lede="Choose which assessment marks to show. You can edit every open subject directly on the marksheet."
         chips={
@@ -211,16 +332,20 @@ export function MarksheetNotice({
   emptyTitle,
   children,
   actions,
+  kicker = "My class",
+  kickerIcon = "fa-table-cells",
 }: {
   title: string;
   lede: React.ReactNode;
   emptyTitle: string;
   children: React.ReactNode;
   actions?: React.ReactNode;
+  kicker?: string;
+  kickerIcon?: string;
 }) {
   return (
     <div className="app-page tch-msh-page">
-      <Hero title={title} lede={lede} actions={actions} />
+      <Hero kicker={kicker} kickerIcon={kickerIcon} title={title} lede={lede} actions={actions} />
       <section className="tch-msh-panel">
         <EmptyState title={emptyTitle}>{children}</EmptyState>
       </section>
@@ -245,6 +370,9 @@ export function NurseryDsbaSittingPicker({
   sittings,
   classesHref,
   assessmentsHref,
+  kicker = "My class",
+  kickerIcon = "fa-table-cells",
+  emptyHint = "Ask the academics office to set an assessment that includes this nursery class.",
 }: {
   classLabel: string;
   termLabel: string;
@@ -252,12 +380,17 @@ export function NurseryDsbaSittingPicker({
   sittings: NurseryDsbaSittingChoice[];
   classesHref?: string;
   assessmentsHref?: string;
+  kicker?: string;
+  kickerIcon?: string;
+  emptyHint?: string;
 }) {
   const openCount = sittings.filter((row) => row.status === "open").length;
 
   return (
     <div className="app-page tch-msh-page">
       <Hero
+        kicker={kicker}
+        kickerIcon={kickerIcon}
         title={classLabel}
         lede="Open a developmental sitting to enter progress codes on the class marksheet — the same fullscreen sheet as other classes, with skills instead of subjects."
         chips={
@@ -339,7 +472,7 @@ export function NurseryDsbaSittingPicker({
           </ul>
         ) : (
           <EmptyState title="No developmental sitting yet" icon="fa-seedling">
-            Ask the academics office to set an assessment that includes this nursery class.
+            {emptyHint}
           </EmptyState>
         )}
       </section>

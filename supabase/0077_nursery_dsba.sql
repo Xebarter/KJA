@@ -176,7 +176,7 @@ drop policy if exists developmental_assessments_teacher_update on public.develop
 create policy developmental_assessments_teacher_update on public.developmental_assessments for update to authenticated
   using (
     (select public.is_linked_teacher())
-    and status = 'open'
+    and status in ('open', 'submitted')
     and public.is_class_teacher(term_id, class_code, stream, campus)
   )
   with check (
@@ -208,7 +208,7 @@ create policy skill_ratings_teacher_write on public.skill_ratings for all to aut
     and exists (
       select 1 from public.developmental_assessments paper
       where paper.id = skill_ratings.assessment_id
-        and paper.status = 'open'
+        and paper.status in ('open', 'submitted')
         and public.is_class_teacher(paper.term_id, paper.class_code, paper.stream, paper.campus)
     )
   )
@@ -217,7 +217,7 @@ create policy skill_ratings_teacher_write on public.skill_ratings for all to aut
     and exists (
       select 1 from public.developmental_assessments paper
       where paper.id = skill_ratings.assessment_id
-        and paper.status = 'open'
+        and paper.status in ('open', 'submitted')
         and public.is_class_teacher(paper.term_id, paper.class_code, paper.stream, paper.campus)
     )
   );

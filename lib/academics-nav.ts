@@ -18,6 +18,9 @@ export function academicsSchemaScript(message: string | null | undefined) {
   if (message && /class_notices|notify_my_class|class_teacher_sees_conversation|academic_dates_class_scope|0041_teacher/i.test(message)) {
     return "supabase/0041_teacher_dashboard.sql";
   }
+  if (message && /row-level security policy for table ["']?skill_ratings|0094_skill_ratings_teacher_write/i.test(message)) {
+    return "supabase/0094_skill_ratings_teacher_write.sql";
+  }
   if (message && /operational_campus|0081_developmental_assessments_campus/i.test(message)) {
     return "supabase/0081_developmental_assessments_campus.sql";
   }
@@ -83,6 +86,7 @@ export const academicsNav: AcademicsNavItem[] = [
   { href: `${ACADEMICS_BASE}/homework`, label: "Homework & resources", icon: "fa-book", group: "Daily" },
   { href: `${ACADEMICS_BASE}/chat-review`, label: "Chat review", icon: "fa-shield-halved", group: "Daily", office: true },
   { href: `${ACADEMICS_BASE}/assessments`, label: "Assessments", icon: "fa-pen-to-square", group: "Assessment" },
+  { href: `${ACADEMICS_BASE}/assessments/marksheet`, label: "Marksheet", icon: "fa-table-cells", group: "Assessment" },
   { href: `${ACADEMICS_BASE}/reports`, label: "Report cards", icon: "fa-file-lines", group: "Assessment", badge: "drafts", office: true },
   { href: `${ACADEMICS_BASE}/interventions`, label: "Interventions", icon: "fa-hand-holding-heart", group: "Assessment", office: true },
   { href: `${ACADEMICS_BASE}/settings`, label: "Grading", icon: "fa-sliders", group: "Setup", office: true },

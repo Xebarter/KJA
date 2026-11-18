@@ -3,8 +3,8 @@
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  importNurseryComments,
-  saveNurseryComment,
+  importNurseryComments as defaultImportNurseryComments,
+  saveNurseryComment as defaultSaveNurseryComment,
   type NurseryCommentsImportResult,
   type NurseryCommentsPreview,
 } from "@/app/academics_office/(desk)/comments/comments-actions";
@@ -15,6 +15,10 @@ import { ACADEMICS_BASE, classLabel, streamQuery, type ClassGroup } from "@/lib/
 import type { RollPupil } from "@/lib/academics-roll";
 import { filenameFromDisposition, saveClientDownload } from "@/lib/client-download";
 import { printPdfBlob } from "@/lib/client-print-pdf";
+
+type SaveResult = { error?: string; ok?: string };
+type SaveAction = (formData: FormData) => Promise<SaveResult>;
+type ImportAction = (formData: FormData) => Promise<NurseryCommentsImportResult>;
 
 /** One nursery learner remark for the current term (independent of report card lifecycle). */
 export type NurseryCommentCard = {
@@ -40,13 +44,13 @@ function statusLabel(status: string | null, hasComment?: boolean) {
   return "Ready";
 }
 
-function classHref(code: string, stream: string) {
+function classHref(base: string, code: string, stream: string, view?: string | null) {
   const params = new URLSearchParams({
-    view: "nursery-comments",
     class: code,
     stream: streamQuery(stream),
   });
-  return `${ACADEMICS_BASE}/comments?${params.toString()}`;
+  if (view) params.set("view", view);
+  return `${base}?${params.toString()}`;
 }
 
 function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
@@ -77,13 +81,23 @@ export function NurseryCommentsDesk({
   termId,
   groups,
   cards,
+  commentsBase = `${ACADEMICS_BASE}/comments`,
   closeHref = `${ACADEMICS_BASE}/comments`,
+  viewParam = "nursery-comments",
+  allowImport = true,
+  saveComment = defaultSaveNurseryComment,
+  importComments = defaultImportNurseryComments,
 }: {
   termLabel: string | null;
   termId: string | null;
   groups: ClassGroup<RollPupil>[];
   cards: NurseryCommentCard[];
+  commentsBase?: string;
   closeHref?: string;
+  viewParam?: string | null;
+  allowImport?: boolean;
+  saveComment?: SaveAction;
+  importComments?: ImportAction;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -158,7 +172,7 @@ export function NurseryCommentsDesk({
     setFile(null);
     setAskSubmit(false);
     setExportOpen(false);
-    const url = classHref(next.code, next.stream);
+    const url = classHref(commentsBase, next.code, next.stream, viewParam);
     if (mode === "replace") window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   }
@@ -254,7 +268,7 @@ export function NurseryCommentsDesk({
     data.set("stream", selected.stream);
     data.set("campus", pupil.campus || card?.campus || "");
     data.set("class_teacher_comment", value);
-    const outcome = await saveNurseryComment(data).catch(() => ({ error: "Comment could not be saved." }));
+    const outcome = await saveComment(data).catch(() => ({ error: "Comment could not be saved." }));
     if (outcome.error) {
       setRowState((prev) => ({ ...prev, [studentId]: "error" }));
       setRowError((prev) => ({ ...prev, [studentId]: outcome.error || "Comment could not be saved." }));
@@ -289,7 +303,7 @@ export function NurseryCommentsDesk({
     setError("");
     setOk("");
     try {
-      const response = await fetch(`${ACADEMICS_BASE}/comments/sheet`, {
+      const response = await fetch(`${commentsBase}/sheet`, {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ termId, classCode: selected.code, stream: selected.stream }),
@@ -333,7 +347,7 @@ export function NurseryCommentsDesk({
       stream: streamQuery(selected.stream),
       format,
     });
-    return `${ACADEMICS_BASE}/comments/export?${params.toString()}`;
+    return `${commentsBase}/export?${params.toString()}`;
   }
 
   async function exportFile(format: "pdf" | "xlsx") {
@@ -415,7 +429,7 @@ export function NurseryCommentsDesk({
     const data = new FormData();
     data.set("file", next);
     data.set("intent", "preview");
-    const outcome: NurseryCommentsImportResult = await importNurseryComments(data).catch(() => ({
+    const outcome: NurseryCommentsImportResult = await importComments(data).catch(() => ({
       error: "That workbook could not be read. Try again.",
     }));
     setBusy("");
@@ -434,7 +448,7 @@ export function NurseryCommentsDesk({
     const data = new FormData();
     data.set("file", file);
     data.set("intent", "commit");
-    const outcome: NurseryCommentsImportResult = await importNurseryComments(data).catch(() => ({
+    const outcome: NurseryCommentsImportResult = await importComments(data).catch(() => ({
       error: "The comments could not be saved. Try again.",
     }));
     setBusy("");
@@ -591,27 +605,31 @@ export function NurseryCommentsDesk({
                   </span>
                   <span>Excel</span>
                 </button>
-                <div className="msh-export-menu-sep" aria-hidden="true" />
-                <p className="msh-export-menu-label">Workbook</p>
-                <button type="button" role="option" onClick={() => void downloadWorkbook()}>
-                  <span className="msh-export-choice-ico" aria-hidden="true">
-                    <i className="fa-solid fa-download" />
-                  </span>
-                  <span>Download workbook</span>
-                </button>
-                <button
-                  type="button"
-                  role="option"
-                  onClick={() => {
-                    setExportOpen(false);
-                    fileRef.current?.click();
-                  }}
-                >
-                  <span className="msh-export-choice-ico" aria-hidden="true">
-                    <i className="fa-solid fa-upload" />
-                  </span>
-                  <span>Upload workbook</span>
-                </button>
+                {allowImport ? (
+                  <>
+                    <div className="msh-export-menu-sep" aria-hidden="true" />
+                    <p className="msh-export-menu-label">Workbook</p>
+                    <button type="button" role="option" onClick={() => void downloadWorkbook()}>
+                      <span className="msh-export-choice-ico" aria-hidden="true">
+                        <i className="fa-solid fa-download" />
+                      </span>
+                      <span>Download workbook</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="option"
+                      onClick={() => {
+                        setExportOpen(false);
+                        fileRef.current?.click();
+                      }}
+                    >
+                      <span className="msh-export-choice-ico" aria-hidden="true">
+                        <i className="fa-solid fa-upload" />
+                      </span>
+                      <span>Upload workbook</span>
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -766,9 +784,11 @@ export function NurseryCommentsDesk({
                   : "All learners in this stream have a comment"}
             </p>
             <div className="msh-foot-actions">
-              <button type="button" className="msh-ghost" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}>
-                Upload workbook
-              </button>
+              {allowImport ? (
+                <button type="button" className="msh-ghost" onClick={() => fileRef.current?.click()} disabled={Boolean(busy)}>
+                  Upload workbook
+                </button>
+              ) : null}
               <button type="button" className="msh-go" onClick={() => void saveDirty()} disabled={Boolean(busy) || !dirtyCount}>
                 Save drafts
               </button>

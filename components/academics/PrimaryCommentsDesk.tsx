@@ -3,9 +3,9 @@
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
-  savePrimaryActivityComment,
-  savePrimaryClassComment,
-  savePrimarySubjectComment,
+  savePrimaryActivityComment as defaultSavePrimaryActivityComment,
+  savePrimaryClassComment as defaultSavePrimaryClassComment,
+  savePrimarySubjectComment as defaultSavePrimarySubjectComment,
 } from "@/app/academics_office/(desk)/comments/comments-actions";
 import { PrimaryCommentsClassMenu } from "@/components/academics/PrimaryCommentsClassMenu";
 import { ProcessStatus } from "@/components/ProcessStatus";
@@ -18,9 +18,13 @@ import {
   streamQuery,
   subjectFits,
   type ClassGroup,
+  type SubjectRow,
 } from "@/lib/academics";
 import type { RollPupil } from "@/lib/academics-roll";
 import { printPdfBlob } from "@/lib/client-print-pdf";
+
+type SaveResult = { error?: string; ok?: string };
+type SaveAction = (formData: FormData) => Promise<SaveResult>;
 
 export type PrimaryClassCommentCard = {
   student_id: string;
@@ -74,7 +78,17 @@ const nf = (value: number) => value.toLocaleString("en-GB");
 
 function subjectsForClass(catalog: PrimaryCommentSubject[], classCode: string | null | undefined) {
   return catalog
-    .filter((subject) => subjectFits(subject, classCode))
+    .filter((subject) =>
+      subjectFits(
+        {
+          ...subject,
+          code: subject.id,
+          kind: subject.kind as SubjectRow["kind"],
+          default_skills: [],
+        },
+        classCode,
+      ),
+    )
     .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
 }
 
@@ -86,13 +100,13 @@ function statusLabel(status: string | null, hasComment?: boolean) {
   return "Ready";
 }
 
-function classHref(code: string, stream: string) {
+function classHref(base: string, code: string, stream: string, view?: string | null) {
   const params = new URLSearchParams({
-    view: "primary-comments",
     class: code,
     stream: streamQuery(stream),
   });
-  return `${ACADEMICS_BASE}/comments?${params.toString()}`;
+  if (view) params.set("view", view);
+  return `${base}?${params.toString()}`;
 }
 
 function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
@@ -145,7 +159,12 @@ export function PrimaryCommentsDesk({
   activityCards,
   subjectMarks = [],
   subjects,
+  commentsBase = `${ACADEMICS_BASE}/comments`,
   closeHref = `${ACADEMICS_BASE}/comments`,
+  viewParam = "primary-comments",
+  saveClassComment = defaultSavePrimaryClassComment,
+  saveSubjectComment = defaultSavePrimarySubjectComment,
+  saveActivityComment = defaultSavePrimaryActivityComment,
 }: {
   termLabel: string | null;
   termId: string | null;
@@ -155,7 +174,12 @@ export function PrimaryCommentsDesk({
   activityCards: PrimaryActivityCommentCard[];
   subjectMarks?: PrimarySubjectMark[];
   subjects: PrimaryCommentSubject[];
+  commentsBase?: string;
   closeHref?: string;
+  viewParam?: string | null;
+  saveClassComment?: SaveAction;
+  saveSubjectComment?: SaveAction;
+  saveActivityComment?: SaveAction;
 }) {
   const router = useRouter();
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -240,7 +264,7 @@ export function PrimaryCommentsDesk({
     setError("");
     setOk("");
     setExportOpen(false);
-    const url = classHref(next.code, next.stream);
+    const url = classHref(commentsBase, next.code, next.stream, viewParam);
     if (historyMode === "replace") window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   }
@@ -397,7 +421,7 @@ export function PrimaryCommentsDesk({
     data.set("stream", selectedGroup.stream);
     data.set("campus", pupil.campus || card?.campus || "");
     data.set("class_teacher_comment", text);
-    const outcome = await savePrimaryClassComment(data).catch(() => ({ error: "Could not save." }));
+    const outcome = await saveClassComment(data).catch(() => ({ error: "Could not save." }));
     if (outcome.error) {
       setRowState((prev) => ({ ...prev, [key]: "error" }));
       setRowError((prev) => ({ ...prev, [key]: outcome.error || "Could not save." }));
@@ -428,7 +452,7 @@ export function PrimaryCommentsDesk({
     data.set("stream", selectedGroup.stream);
     data.set("campus", pupil.campus || card?.campus || "");
     data.set("teacher_comment", text);
-    const outcome = await savePrimarySubjectComment(data).catch(() => ({ error: "Could not save." }));
+    const outcome = await saveSubjectComment(data).catch(() => ({ error: "Could not save." }));
     if (outcome.error) {
       setRowState((prev) => ({ ...prev, [key]: "error" }));
       setRowError((prev) => ({ ...prev, [key]: outcome.error || "Could not save." }));
@@ -462,7 +486,7 @@ export function PrimaryCommentsDesk({
     data.set("subject_id", coco?.id || activityByKey.get(key)?.subject_id || "");
     data.set("activity_name", coco?.name || activityByKey.get(key)?.activity_name || `Activity ${activitySlot}`);
     data.set("comment", text);
-    const outcome = await savePrimaryActivityComment(data).catch(() => ({ error: "Could not save." }));
+    const outcome = await saveActivityComment(data).catch(() => ({ error: "Could not save." }));
     if (outcome.error) {
       setRowState((prev) => ({ ...prev, [key]: "error" }));
       setRowError((prev) => ({ ...prev, [key]: outcome.error || "Could not save." }));
@@ -508,7 +532,7 @@ export function PrimaryCommentsDesk({
     });
     if (mode === "subjects" && academicSubjects[0]?.id) params.set("subject", academicSubjects[0].id);
     if (mode === "other" && cocurricularSubjects.length) params.set("slot", "1");
-    return `${ACADEMICS_BASE}/comments/export?${params.toString()}`;
+    return `${commentsBase}/export?${params.toString()}`;
   }
 
   async function exportFile(format: "pdf" | "xlsx") {

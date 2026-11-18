@@ -1,122 +1,124 @@
-/* Desktop offline / outbox / hydrate strip - works without CDN fonts */
+/* Desktop offline / outbox / hydrate strip — thin premium chrome */
 
 .kja-desktop-sync {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 0.85rem;
-  padding: 0.55rem 1.15rem;
-  background:
-    radial-gradient(80% 120% at 0% 50%, rgba(253, 163, 27, 0.18), transparent 55%),
-    linear-gradient(90deg, #141d24 0%, #1a2630 100%);
-  color: #f7f1e6;
-  border-bottom: 1px solid rgba(253, 163, 27, 0.28);
+  gap: 0.55rem;
+  min-height: 1.7rem;
+  padding: 0.28rem 0.95rem;
+  overflow: hidden;
+  background: linear-gradient(90deg, #161e24 0%, #1a232b 100%);
+  color: #eef3f6;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   font-family: Nunito, Yantramanav, "Segoe UI", system-ui, sans-serif;
-  animation: kja-desktop-sync-in 0.28s ease both;
+  animation: kja-desktop-sync-in 0.22s ease both;
 }
 
 .kja-desktop-sync.is-offline {
-  background:
-    radial-gradient(70% 140% at 0% 50%, rgba(228, 36, 53, 0.16), transparent 50%),
-    linear-gradient(90deg, #1a1514 0%, #19232b 100%);
-  border-bottom-color: rgba(228, 36, 53, 0.28);
+  background: linear-gradient(90deg, #1a1516 0%, #1b2228 100%);
+  border-bottom-color: rgba(228, 36, 53, 0.22);
 }
 
 .kja-desktop-sync.is-hydrate {
-  background:
-    radial-gradient(90% 140% at 0% 50%, rgba(16, 185, 129, 0.22), transparent 55%),
-    linear-gradient(90deg, #0b1f18 0%, #12261f 55%, #163028 100%);
-  border-bottom-color: rgba(52, 211, 153, 0.35);
+  background: linear-gradient(90deg, #10241c 0%, #142820 55%, #163026 100%);
+  border-bottom-color: rgba(52, 211, 153, 0.18);
   color: #ecfdf5;
+}
+
+.kja-desktop-sync.is-pending {
+  background: linear-gradient(90deg, #1a1712 0%, #1c2228 100%);
+  border-bottom-color: rgba(253, 163, 27, 0.22);
 }
 
 .kja-desktop-sync-icon {
   display: grid;
   place-items: center;
   flex: none;
-  width: 2rem;
-  height: 2rem;
-  border-radius: 10px;
-  background: rgba(253, 163, 27, 0.16);
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 4px;
+  background: transparent;
   color: #fda31b;
-  font-size: 0.85rem;
+  font-size: 0.7rem;
 }
 
 .kja-desktop-sync.is-offline .kja-desktop-sync-icon {
-  background: rgba(228, 36, 53, 0.16);
   color: #ff8a93;
 }
 
 .kja-desktop-sync.is-hydrate .kja-desktop-sync-icon {
-  background: rgba(16, 185, 129, 0.2);
   color: #6ee7b7;
-  box-shadow: 0 0 0 1px rgba(110, 231, 183, 0.18);
 }
 
 .kja-desktop-sync-icon.is-spin i {
-  animation: kja-desktop-sync-spin 1.1s linear infinite;
+  animation: kja-desktop-sync-spin 1.05s linear infinite;
 }
 
 .kja-desktop-sync.is-hydrate .kja-desktop-sync-icon i.fa-circle-check {
-  animation: kja-desktop-sync-pop 0.45s ease both;
-}
-
-.kja-desktop-sync-copy {
-  display: grid;
-  gap: 0.08rem;
-  min-width: 0;
-  flex: 1;
+  animation: kja-desktop-sync-pop 0.4s ease both;
 }
 
 .kja-desktop-sync-label {
-  font-size: 0.8rem;
+  flex: none;
+  font-size: 0.68rem;
   font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-  display: inline-flex;
-  align-items: baseline;
-  gap: 0.55rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
 .kja-desktop-sync-pct {
+  flex: none;
+  margin-left: auto;
   font-style: normal;
-  font-weight: 900;
+  font-size: 0.68rem;
+  font-weight: 800;
   font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
   color: #a7f3d0;
-  letter-spacing: 0.04em;
+  line-height: 1;
 }
 
 .kja-desktop-sync-detail {
-  color: rgba(247, 241, 230, 0.72);
-  font-size: 0.78rem;
+  min-width: 0;
+  overflow: hidden;
+  color: rgba(238, 243, 246, 0.62);
+  font-size: 0.72rem;
   font-weight: 600;
-  line-height: 1.3;
+  line-height: 1.2;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .kja-desktop-sync.is-hydrate .kja-desktop-sync-detail {
-  color: rgba(236, 253, 245, 0.78);
+  color: rgba(236, 253, 245, 0.68);
 }
 
 .kja-desktop-sync-error {
+  min-width: 0;
+  overflow: hidden;
   color: #ffb4b9;
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .kja-desktop-sync-track {
-  margin-top: 0.35rem;
-  height: 0.35rem;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.1);
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
-  box-shadow: inset 0 0 0 1px rgba(167, 243, 208, 0.12);
 }
 
 .kja-desktop-sync-fill {
   display: block;
   height: 100%;
-  border-radius: inherit;
-  background: linear-gradient(90deg, #059669, #34d399 55%, #6ee7b7);
-  box-shadow: 0 0 12px rgba(52, 211, 153, 0.45);
+  background: linear-gradient(90deg, #0f766e, #34d399 70%, #99f6e4);
   transition: width 0.28s ease;
   position: relative;
 }
@@ -126,27 +128,28 @@
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-  animation: kja-desktop-sync-sheen 1.4s ease-in-out infinite;
+  animation: kja-desktop-sync-sheen 1.5s ease-in-out infinite;
 }
 
 .kja-desktop-sync-btn {
   margin-left: auto;
   flex: none;
+  height: 1.35rem;
   border: 0;
-  border-radius: 999px;
-  padding: 0.35rem 0.95rem;
-  background: #fda31b;
+  border-radius: 4px;
+  padding: 0 0.65rem;
+  background: rgba(253, 163, 27, 0.92);
   color: #19232b;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   font-weight: 800;
+  letter-spacing: 0.02em;
   cursor: pointer;
-  transition: background 0.15s ease, transform 0.15s ease;
+  transition: background 0.15s ease, opacity 0.15s ease;
 }
 
 .kja-desktop-sync-btn:hover:not(:disabled) {
   background: #ffb53f;
-  transform: translateY(-1px);
 }
 
 .kja-desktop-sync-btn:disabled {
@@ -157,7 +160,7 @@
 @keyframes kja-desktop-sync-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-3px);
   }
   to {
     opacity: 1;
@@ -182,15 +185,21 @@
 
 @keyframes kja-desktop-sync-pop {
   0% {
-    transform: scale(0.7);
+    transform: scale(0.75);
     opacity: 0.4;
   }
   70% {
-    transform: scale(1.12);
+    transform: scale(1.08);
   }
   100% {
     transform: scale(1);
     opacity: 1;
+  }
+}
+
+@media (max-width: 720px) {
+  .kja-desktop-sync-detail {
+    display: none;
   }
 }
 

@@ -283,7 +283,7 @@ export function groupSkillsByDomain(
 export function missingNurseryDsbaSchema(message: string | null | undefined) {
   return Boolean(
     message &&
-      /developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|progress_codes|nursery_divisions|domain_division_links|skill_division_links|progress_legend|value_kind|numeric_value|0077_nursery_dsba|0078_unify_nursery_progress_scale|0081_developmental_assessments_campus|0082_nursery_skill_value_kind|operational_campus/i.test(
+      /developmental_domains|developmental_skills|developmental_assessments|skill_ratings|report_skill_lines|progress_scales|progress_codes|nursery_divisions|domain_division_links|skill_division_links|progress_legend|value_kind|numeric_value|0077_nursery_dsba|0078_unify_nursery_progress_scale|0081_developmental_assessments_campus|0082_nursery_skill_value_kind|0094_skill_ratings_teacher_write|operational_campus/i.test(
         message,
       ),
   );

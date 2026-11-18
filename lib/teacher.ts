@@ -28,6 +28,7 @@ export function teacherNav(classTeacher: boolean, locked: boolean, canAward = cl
     items.push(
       { href: `${TEACHER_BASE}/attendance`, label: "Attendance", icon: "fa-clipboard-user", group: "My class" },
       { href: `${TEACHER_BASE}/marksheet`, label: "Marksheet", icon: "fa-table-cells", group: "My class" },
+      { href: `${TEACHER_BASE}/comments`, label: "Comments", icon: "fa-quote-left", group: "My class" },
       { href: `${TEACHER_BASE}/reports`, label: "Report cards", icon: "fa-file-lines", group: "My class" },
       { href: `${TEACHER_BASE}/chat`, label: "Chat", icon: "fa-comments", group: "My class" },
       { href: `${TEACHER_BASE}/calendar`, label: "Calendar", icon: "fa-calendar-days", group: "My class" },

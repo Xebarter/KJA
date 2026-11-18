@@ -3,12 +3,30 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { DevelopmentalMarksheetDesk } from "@/components/academics/DevelopmentalMarksheetDesk";
 import { MarksheetDesk, type MarksheetPupil, type MarksheetStatus, type MarksheetSubject } from "@/components/academics/MarksheetDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { NurseryDsbaSittingPicker } from "@/components/teacher/MarksheetHome";
-import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, loadCurrentTerm, markbookClosed, num, streamFromQuery, streamOf, streamQuery, type BandRow } from "@/lib/academics";
+import {
+  MarksheetClassPicker,
+  MarksheetSittingPicker,
+  NurseryDsbaSittingPicker,
+} from "@/components/teacher/MarksheetHome";
+import {
+  ACADEMICS_BASE,
+  bandMidpoint,
+  classLabel,
+  classSection,
+  groupPupils,
+  kindLabel,
+  loadCurrentTerm,
+  markbookClosed,
+  num,
+  streamFromQuery,
+  streamOf,
+  streamQuery,
+  type BandRow,
+} from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
 import { operationalCampus } from "@/lib/campuses";
-import { readMarksheetQuery, sittingColumns, type SittingPaper } from "@/lib/marksheet";
+import { marksheetHref, readMarksheetQuery, sittingColumns, type SittingPaper } from "@/lib/marksheet";
 import {
   groupSkillsByDomain,
   loadDivisionCatalogue,
@@ -17,13 +35,22 @@ import {
 } from "@/lib/nursery-dsba";
 import { fetchAll, isUuid } from "@/lib/students";
 import { normalizeSubjectKind } from "@/lib/subject-kind";
+import "../../../../teacher/(desk)/marksheet/marksheet.css";
 
 export const metadata = { title: "Marksheet" };
+
+const LANDING = {
+  kicker: "Assessment",
+  kickerIcon: "fa-table-cells",
+} as const;
+
+const PATH = `${ACADEMICS_BASE}/assessments/marksheet`;
 
 type PaperRow = {
   id: string;
   subject_id: string;
   stream: string | null;
+  campus?: string | null;
   name: string;
   kind: string;
   max_score: number | string;
@@ -110,19 +137,38 @@ export default async function MarksheetPage({
     );
   }
 
-  const nurseryClass = Boolean(classCode && classSection(classCode) === "nursery");
-  if (!classCode || stream === null || (!parsed && !nurseryClass)) {
+  if (!classCode || stream === null) {
+    const roll = await loadRoll(supabase, user.id, undefined, office ? campuses : undefined);
+    const groups = groupPupils(roll);
+    const classChoices = groups.map((group) => ({
+      key: `${group.campus}|${group.code}|${group.stream}`,
+      label: classLabel(group.code, group.stream),
+      campus: group.campus || "Kitante",
+      section: group.section,
+      pupils: group.pupils.length,
+      href: `${PATH}?${new URLSearchParams({
+        class: group.code,
+        stream: streamQuery(group.stream),
+        campus: group.campus || "Kitante",
+      }).toString()}`,
+    }));
     return (
-      <div className="app-page ofc-page asm-page msh-page">
-        <PageHeader kicker="Assessment" icon="fa-table-cells" title="Marksheet" description={<>{term.label}. Open an assessment, then choose a class.</>} />
-        <Empty title="Choose a class marksheet"><BackLink /></Empty>
-      </div>
+      <MarksheetClassPicker
+        termLabel={term.label}
+        classes={classChoices}
+        kicker={LANDING.kicker}
+        kickerIcon={LANDING.kickerIcon}
+        lede="Choose a class stream, then open the assessment marksheet — primary sittings or nursery developmental codes."
+        panelTitle="Classes on the roll"
+        panelHint="Primary streams open subject sittings. Nursery streams open developmental assessments."
+        emptyTitle="No pupils on the roll"
+        emptyHint="Add pupils to a class register before opening a marksheet."
+      />
     );
   }
 
   const nursery = classSection(classCode) === "nursery";
   if (nursery) {
-    const PATH = `${ACADEMICS_BASE}/assessments/marksheet`;
     const classListHref = `${PATH}?${new URLSearchParams({ class: classCode, stream: streamQuery(stream) }).toString()}`;
     const dsbaQuery = await supabase
       .from("developmental_assessments")
@@ -280,29 +326,94 @@ export default async function MarksheetPage({
     }
 
     return (
-      <div className="app-page ofc-page asm-page msh-page">
-        <NurseryDsbaSittingPicker
-          classLabel={classLabel(classCode, stream)}
-          termLabel={term.label}
-          sittings={sittings}
-          assessmentsHref={`${ACADEMICS_BASE}/assessments`}
-        />
-      </div>
+      <NurseryDsbaSittingPicker
+        classLabel={classLabel(classCode, stream)}
+        termLabel={term.label}
+        campus={wantedCampus || undefined}
+        sittings={sittings}
+        classesHref={PATH}
+        assessmentsHref={`${ACADEMICS_BASE}/assessments`}
+        kicker={LANDING.kicker}
+        kickerIcon={LANDING.kickerIcon}
+        emptyHint="Create a developmental assessment for this nursery class, then return here to enter codes."
+      />
     );
   }
 
+  const wantedCampus = (query.campus || "").trim();
   if (!parsed) {
+    const papersQuery = await supabase
+      .from("assessments")
+      .select("id, subject_id, stream, campus, name, kind, max_score, weight, held_on, status, subjects(name, sort_order, kind)")
+      .eq("term_id", term.id)
+      .eq("class_code", classCode)
+      .eq("stream", stream);
+    if (papersQuery.error) {
+      return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: papersQuery.error.message }} />;
+    }
+    const allPapers = ((papersQuery.data || []) as PaperRow[]).filter((paper) => {
+      if (streamOf(paper.stream) !== stream) return false;
+      if (!wantedCampus) return true;
+      return operationalCampus(paper.campus) === wantedCampus;
+    });
+    const sittingsMap = new Map<
+      string,
+      { key: string; name: string; kind: string; heldOn: string; kindLabel: string; heldLabel: string; subjects: number; open: number; href: string }
+    >();
+    for (const paper of allPapers) {
+      const heldOn = paper.held_on || "";
+      const key = `${paper.name}\u001f${paper.kind}\u001f${heldOn}`;
+      const existing = sittingsMap.get(key);
+      const open = paper.status !== "submitted" && paper.status !== "approved";
+      if (!existing) {
+        sittingsMap.set(key, {
+          key,
+          name: paper.name,
+          kind: paper.kind,
+          heldOn,
+          kindLabel: kindLabel(paper.kind),
+          heldLabel: shortDay(paper.held_on),
+          subjects: 1,
+          open: open ? 1 : 0,
+          href: marksheetHref({
+            name: paper.name,
+            kind: paper.kind,
+            classCode,
+            stream,
+            heldOn,
+            campus: wantedCampus || undefined,
+            basePath: PATH,
+          }),
+        });
+      } else {
+        existing.subjects += 1;
+        if (open) existing.open += 1;
+      }
+    }
+    const sittings = [...sittingsMap.values()].sort((a, b) => {
+      const heldCmp = (b.heldOn || "").localeCompare(a.heldOn || "") || a.heldLabel.localeCompare(b.heldLabel);
+      if (heldCmp) return heldCmp;
+      return a.kindLabel.localeCompare(b.kindLabel) || a.name.localeCompare(b.name);
+    });
     return (
-      <div className="app-page ofc-page asm-page msh-page">
-        <PageHeader kicker="Assessment" icon="fa-table-cells" title="Marksheet" description={<>{term.label}. Open an assessment, then choose a class.</>} />
-        <Empty title="Choose a class marksheet"><BackLink /></Empty>
-      </div>
+      <MarksheetSittingPicker
+        classLabel={classLabel(classCode, stream)}
+        termLabel={term.label}
+        campus={wantedCampus || "—"}
+        classCode={classCode}
+        stream={stream}
+        basePath={PATH}
+        sittings={sittings}
+        classesHref={PATH}
+        kicker={LANDING.kicker}
+        kickerIcon={LANDING.kickerIcon}
+      />
     );
   }
   const combineRequested = Boolean(parsed?.combine);
   let papersRequest = supabase
     .from("assessments")
-    .select("id, subject_id, stream, name, kind, max_score, weight, held_on, status, subjects(name, sort_order, kind)")
+    .select("id, subject_id, stream, campus, name, kind, max_score, weight, held_on, status, subjects(name, sort_order, kind)")
     .eq("term_id", term.id)
     .eq("name", name)
     .eq("kind", kind)

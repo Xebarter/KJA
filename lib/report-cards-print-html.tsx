@@ -79,7 +79,12 @@ function portraitFromBytes(bytes: Uint8Array | undefined, name: string) {
     const png = bytes[0] === 0x89 && bytes[1] === 0x50;
     const type = png ? "image/png" : jpeg ? "image/jpeg" : "image/jpeg";
     const src = `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
-    return <img className="acd-sheet-face" src={src} alt="" />;
+    return (
+      <span className="acd-sheet-face" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" />
+      </span>
+    );
   }
   const parts = name.trim().split(/\s+/).filter(Boolean);
   const mark =
