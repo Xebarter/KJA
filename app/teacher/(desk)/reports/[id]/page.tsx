@@ -332,16 +332,18 @@ export default async function TeacherReportPage({ params }: { params: Promise<{ 
             </span>
           </div>
         )}
-        <div className={openedDays && present / openedDays >= 0.9 ? "is-ok" : openedDays && present / openedDays < 0.75 ? "is-warn" : ""}>
-          <span className="rpt-stat-icon" aria-hidden="true">
-            <i className="fa-solid fa-calendar-check" />
-          </span>
-          <span className="rpt-stat-copy">
-            <span>Attendance</span>
-            <strong>{attendance}</strong>
-            <small>{openedDays ? `${present} of ${openedDays} days` : "Not recorded"}</small>
-          </span>
-        </div>
+        {nursery ? (
+          <div className={openedDays && present / openedDays >= 0.9 ? "is-ok" : openedDays && present / openedDays < 0.75 ? "is-warn" : ""}>
+            <span className="rpt-stat-icon" aria-hidden="true">
+              <i className="fa-solid fa-calendar-check" />
+            </span>
+            <span className="rpt-stat-copy">
+              <span>Attendance</span>
+              <strong>{attendance}</strong>
+              <small>{openedDays ? `${present} of ${openedDays} days` : "Not recorded"}</small>
+            </span>
+          </div>
+        ) : null}
         <div className={`is-word${sheet.conduct === "Excellent" ? " is-ok" : sheet.conduct === "Needs support" ? " is-warn" : ""}`}>
           <span className="rpt-stat-icon" aria-hidden="true">
             <i className="fa-solid fa-award" />

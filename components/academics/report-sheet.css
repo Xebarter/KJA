@@ -352,6 +352,84 @@ article.acd-sheet .acd-sheet-figures > div.is-attendance dd.acd-sheet-tick svg {
   width: 1.15rem;
   height: 1.15rem;
 }
+
+/* Primary result tiles — compact, solid colour fills */
+article.acd-sheet .acd-sheet-figures.is-primary {
+  display: grid;
+  flex: 1.4;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: .4rem;
+  align-items: stretch;
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div {
+  --metric-ink: var(--sheet-ink);
+  --metric-label: #6a5a3e;
+  --metric-fill: #fff8e8;
+  --metric-edge: rgba(212, 160, 23, .45);
+  min-width: 0;
+  margin: 0;
+  padding: .28rem .4rem .32rem;
+  border: 1px solid var(--metric-edge);
+  border-radius: 8px;
+  background: var(--metric-fill);
+  text-align: center;
+  box-shadow: none;
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-average {
+  --metric-fill: #e8f8ee;
+  --metric-edge: rgba(18, 165, 75, .35);
+  --metric-label: var(--sheet-green-deep);
+  --metric-ink: var(--sheet-green-deep);
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-aggregate {
+  --metric-fill: #fff6d6;
+  --metric-edge: rgba(212, 160, 23, .45);
+  --metric-label: var(--sheet-gold-deep);
+  --metric-ink: var(--sheet-ink);
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-grade {
+  --metric-fill: #ffe8ee;
+  --metric-edge: rgba(225, 29, 72, .28);
+  --metric-label: var(--sheet-red-deep);
+  --metric-ink: var(--sheet-red-deep);
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-high {
+  --metric-fill: #d4f5e3;
+  --metric-edge: rgba(18, 165, 75, .4);
+  --metric-label: var(--sheet-green-deep);
+  --metric-ink: var(--sheet-green-deep);
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-mid {
+  --metric-fill: #fff3c4;
+  --metric-edge: rgba(201, 151, 10, .4);
+  --metric-label: #9a6f00;
+  --metric-ink: #9a6f00;
+}
+article.acd-sheet .acd-sheet-figures.is-primary > div.is-low {
+  --metric-fill: #ffe4ea;
+  --metric-edge: rgba(225, 29, 72, .35);
+  --metric-label: var(--sheet-red-deep);
+  --metric-ink: var(--sheet-red-deep);
+}
+article.acd-sheet .acd-sheet-figures.is-primary dt {
+  margin: 0;
+  color: var(--metric-label);
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+}
+article.acd-sheet .acd-sheet-figures.is-primary dd {
+  margin: .12rem 0 0;
+  color: var(--metric-ink);
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: .98rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -.02em;
+  line-height: 1.15;
+  text-transform: none;
+}
 article.acd-sheet .acd-sheet-record { padding: .45rem .7rem .2rem; }
 article.acd-sheet .acd-sheet-record > .acd-sheet-kicker {
   margin-bottom: .35rem;
@@ -623,40 +701,29 @@ article.acd-sheet .acd-sheet-meter i {
 article.acd-sheet .acd-sheet-meter.is-high i { background: var(--sheet-green); }
 article.acd-sheet .acd-sheet-meter.is-low i { background: var(--sheet-red); }
 article.acd-sheet .acd-grade {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 2rem;
-  height: auto;
-  padding: .12rem .38rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  background: var(--sheet-gold-soft);
+  display: inline;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: var(--sheet-ink);
-  font-family: Cinzel, Georgia, serif;
-  font-size: .8rem;
+  font-family: Yantramanav, Roboto, sans-serif;
+  font-size: .84rem;
   font-weight: 800;
-  letter-spacing: .03em;
+  letter-spacing: .02em;
 }
 article.acd-sheet .acd-sheet-record .acd-grade {
-  font-size: calc(.8rem + 1pt);
+  font-size: calc(.84rem + 1pt);
 }
 article.acd-sheet .acd-grade.is-high {
-  border-color: rgba(18, 165, 75, .4);
-  background: var(--sheet-green-soft);
   color: var(--sheet-green-deep);
-  box-shadow: 0 0 0 1px rgba(18, 165, 75, .1);
 }
 article.acd-sheet .acd-grade.is-mid {
-  border-color: rgba(212, 160, 23, .5);
-  background: var(--sheet-amber-soft);
   color: var(--sheet-amber);
 }
 article.acd-sheet .acd-grade.is-low {
-  border-color: rgba(225, 29, 72, .4);
-  background: var(--sheet-red-soft);
   color: var(--sheet-red-deep);
-  box-shadow: 0 0 0 1px rgba(225, 29, 72, .1);
 }
 article.acd-sheet .acd-sheet-empty { color: #c4bbae; font-weight: 600; }
 article.acd-sheet tfoot th,
@@ -864,7 +931,6 @@ article.acd-sheet .acd-sheet-principal p.is-blank { min-height: 1.65rem; }
 article.acd-sheet .acd-sheet-closing {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 20mm;
-  grid-template-rows: auto auto;
   align-items: start;
   column-gap: .7rem;
   row-gap: .58rem;
@@ -884,16 +950,10 @@ article.acd-sheet .acd-sheet-closing > .acd-sheet-principal p {
 }
 article.acd-sheet .acd-sheet-closing > .acd-sheet-qr {
   grid-column: 2;
-  grid-row: 1 / span 2;
+  grid-row: 1;
   align-self: start;
   justify-self: end;
   padding-top: .15rem;
-}
-article.acd-sheet .acd-sheet-closing > .acd-sheet-fees {
-  grid-column: 1;
-  grid-row: 2;
-  width: 100%;
-  max-width: 100%;
 }
 article.acd-sheet .acd-sheet-qr {
   display: flex;
@@ -931,7 +991,7 @@ article.acd-sheet .acd-sheet-qr small {
 article.acd-sheet .acd-sheet-fees {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(0, .95fr);
-  margin-top: 0;
+  margin-top: .35rem;
   margin-bottom: 0;
   padding: 0;
   overflow: hidden;
@@ -1054,8 +1114,7 @@ article.acd-sheet .acd-sheet-draft.is-approved {
     grid-template-rows: auto;
   }
   article.acd-sheet .acd-sheet-closing > .acd-sheet-principal,
-  article.acd-sheet .acd-sheet-closing > .acd-sheet-qr,
-  article.acd-sheet .acd-sheet-closing > .acd-sheet-fees {
+  article.acd-sheet .acd-sheet-closing > .acd-sheet-qr {
     grid-column: 1;
     grid-row: auto;
     justify-self: stretch;
@@ -1063,6 +1122,9 @@ article.acd-sheet .acd-sheet-draft.is-approved {
   article.acd-sheet .acd-sheet-closing > .acd-sheet-qr {
     justify-self: start;
     padding-top: 0;
+  }
+  article.acd-sheet.is-primary .acd-sheet-signs {
+    grid-template-columns: 1fr;
   }
   article.acd-sheet .acd-sheet-fees { grid-template-columns: 1fr; }
   article.acd-sheet .acd-sheet-fees > div + div { border-top: 1px solid rgba(212, 160, 23, .4); border-left: 0; }
@@ -1074,12 +1136,338 @@ article.acd-sheet .acd-sheet-draft.is-approved {
   article.acd-sheet .acd-sheet-figures { grid-template-columns: 1fr 1fr; gap: .7rem 0; }
   article.acd-sheet .acd-sheet-figures > div:nth-child(odd) { border-left: 0; }
   article.acd-sheet .acd-sheet-figures > div:nth-child(n + 3) { padding-top: .65rem; }
+  article.acd-sheet .acd-sheet-figures.is-primary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: .35rem;
+  }
+  article.acd-sheet .acd-sheet-figures.is-primary > div {
+    padding: .28rem .3rem .32rem;
+  }
   article.acd-sheet .acd-sheet-identity { flex-direction: column; align-items: stretch; }
   article.acd-sheet .acd-sheet-kampala { letter-spacing: .08em; margin-right: -.08em; }
   article.acd-sheet .acd-sheet-academy { letter-spacing: .18em; margin-right: -.18em; }
   article.acd-sheet .acd-sheet-title h2 { letter-spacing: .14em; font-size: .7rem; }
   article.acd-sheet .acd-sheet-title h2 span { margin-right: -.14em; }
   article.acd-sheet .acd-sheet-record { padding-right: .85rem; padding-left: .85rem; }
+}
+
+/* ——— Primary Origin theme (Clevers uniform: charcoal / burgundy / white) ——— */
+article.acd-sheet.is-primary {
+  --origin-burgundy: #6b1e2a;
+  --origin-burgundy-deep: #4f1520;
+  --origin-burgundy-soft: #f3e8ea;
+  --origin-charcoal: #1a1a1a;
+  --origin-charcoal-soft: #3d3d3d;
+  --origin-grey: #f3f3f3;
+  --origin-grey-mid: #e6e6e6;
+  --origin-line: #d8d8d8;
+  --sheet-ink: var(--origin-charcoal);
+  --sheet-muted: #5c5c5c;
+  --sheet-border: rgba(107, 30, 42, 0.42);
+  --sheet-cream: #fff;
+  --sheet-gold: var(--origin-burgundy);
+  --sheet-gold-deep: var(--origin-burgundy-deep);
+  --sheet-gold-soft: var(--origin-burgundy-soft);
+  --sheet-green: var(--origin-burgundy);
+  --sheet-green-deep: var(--origin-burgundy-deep);
+  --sheet-green-soft: var(--origin-burgundy-soft);
+  --sheet-red: var(--origin-burgundy);
+  --sheet-red-deep: var(--origin-burgundy-deep);
+  --sheet-red-soft: var(--origin-burgundy-soft);
+  --sheet-amber: var(--origin-charcoal-soft);
+  --sheet-amber-soft: var(--origin-grey);
+  border-color: var(--origin-line);
+  box-shadow: 0 14px 36px rgba(26, 26, 26, 0.08);
+}
+article.acd-sheet.is-primary .acd-sheet-watermark img {
+  opacity: 0.07;
+  mix-blend-mode: multiply;
+  filter: grayscale(1);
+}
+article.acd-sheet.is-primary .acd-sheet-banner {
+  border-top: 3px solid var(--origin-burgundy);
+  background: #fff;
+}
+article.acd-sheet.is-primary .acd-sheet-banner::before {
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      rgba(44, 44, 44, 0.22) 0 1px,
+      transparent 1px 9px,
+      rgba(107, 30, 42, 0.35) 9px 10px,
+      transparent 10px 18px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      rgba(44, 44, 44, 0.18) 0 1px,
+      transparent 1px 9px,
+      rgba(107, 30, 42, 0.28) 9px 10px,
+      transparent 10px 18px
+    );
+  background-size: auto;
+  opacity: 0.55;
+}
+article.acd-sheet.is-primary .acd-sheet-crest {
+  box-shadow:
+    0 0 0 3px #fff,
+    0 0 0 4.5px var(--origin-charcoal),
+    0 0 0 6.5px var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-face,
+article.acd-sheet.is-primary .acd-sheet-seal {
+  background: var(--origin-grey);
+  box-shadow:
+    0 0 0 2px #fff,
+    0 0 0 3.5px var(--origin-charcoal),
+    0 0 0 5px var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-rules {
+  height: 8px;
+  background-color: var(--origin-grey);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      #2c2c2c 0 1.5px,
+      transparent 1.5px 7px,
+      #6b1e2a 7px 8.5px,
+      transparent 8.5px 14px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      #2c2c2c 0 1.5px,
+      transparent 1.5px 7px,
+      #6b1e2a 7px 8.5px,
+      transparent 8.5px 14px
+    );
+}
+article.acd-sheet.is-primary .acd-sheet-established {
+  color: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-school::after {
+  background: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-academy {
+  color: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-contact span + span::before {
+  background: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-title {
+  padding: 0.7rem 1.4rem 0.75rem;
+  background: var(--origin-grey);
+  border-bottom: 1px solid var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-title h2::before,
+article.acd-sheet.is-primary .acd-sheet-title h2::after {
+  height: 1.5px;
+  background: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-term {
+  color: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-identity {
+  border-bottom: 1px solid var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-kicker {
+  color: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-average {
+  --metric-fill: var(--origin-burgundy-soft);
+  --metric-edge: rgba(107, 30, 42, 0.35);
+  --metric-label: var(--origin-burgundy-deep);
+  --metric-ink: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-aggregate {
+  --metric-fill: var(--origin-grey);
+  --metric-edge: rgba(26, 26, 26, 0.18);
+  --metric-label: var(--origin-charcoal-soft);
+  --metric-ink: var(--origin-charcoal);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-grade {
+  --metric-fill: #ebebeb;
+  --metric-edge: rgba(26, 26, 26, 0.22);
+  --metric-label: var(--origin-charcoal-soft);
+  --metric-ink: var(--origin-charcoal);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-high {
+  --metric-fill: var(--origin-burgundy-soft);
+  --metric-edge: rgba(107, 30, 42, 0.4);
+  --metric-label: var(--origin-burgundy-deep);
+  --metric-ink: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-mid {
+  --metric-fill: #efefef;
+  --metric-edge: rgba(26, 26, 26, 0.2);
+  --metric-label: var(--origin-charcoal-soft);
+  --metric-ink: var(--origin-charcoal);
+}
+article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-low {
+  --metric-fill: #e8e0e2;
+  --metric-edge: rgba(107, 30, 42, 0.28);
+  --metric-label: var(--origin-burgundy-deep);
+  --metric-ink: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-table-wrap {
+  border: 1px solid var(--origin-line);
+  box-shadow: none;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th {
+  background: var(--origin-grey);
+  color: var(--origin-charcoal);
+  border-bottom: 1px solid var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr + tr td {
+  border-top: 1px solid var(--origin-grey-mid);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td {
+  background: #fafafa;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-high td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-mid td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-low td {
+  background: transparent;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
+  background: #fafafa;
+}
+article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-high,
+article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-high {
+  color: var(--origin-burgundy-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-mid,
+article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-mid {
+  color: var(--origin-charcoal);
+}
+article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-low,
+article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-low {
+  color: var(--origin-burgundy);
+}
+article.acd-sheet.is-primary tfoot th,
+article.acd-sheet.is-primary tfoot td {
+  border-top: 1px solid var(--origin-burgundy);
+  background: var(--origin-burgundy-soft);
+  color: var(--origin-charcoal);
+}
+article.acd-sheet.is-primary .acd-sheet-scale li {
+  border-color: var(--origin-line);
+  background: var(--origin-grey);
+}
+article.acd-sheet.is-primary .acd-sheet-scale li.is-high {
+  background: var(--origin-burgundy-soft);
+  border-color: rgba(107, 30, 42, 0.35);
+}
+article.acd-sheet.is-primary .acd-sheet-scale li.is-mid,
+article.acd-sheet.is-primary .acd-sheet-scale li.is-low {
+  background: var(--origin-grey);
+  border-color: var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-coco-table {
+  border: 1px solid var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-coco-table thead th {
+  background: var(--origin-grey);
+  color: var(--origin-burgundy-deep);
+  border-bottom: 1px solid var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-report h3,
+article.acd-sheet.is-primary .acd-sheet-principal h3,
+article.acd-sheet.is-primary .acd-sheet-fees h3 {
+  color: var(--origin-burgundy-deep);
+  border-bottom-color: var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-report h3 em {
+  color: var(--origin-charcoal-soft);
+}
+article.acd-sheet.is-primary .acd-sheet-report p.is-blank,
+article.acd-sheet.is-primary .acd-sheet-principal p.is-blank {
+  background-image: linear-gradient(
+    to bottom,
+    transparent calc(100% - 1px),
+    rgba(107, 30, 42, 0.35) calc(100% - 1px)
+  );
+}
+article.acd-sheet.is-primary .acd-sheet-fees {
+  border: 1px solid var(--origin-line);
+  background:
+    linear-gradient(var(--origin-burgundy), var(--origin-burgundy)) top / 100% 2.5px no-repeat,
+    #fff;
+  box-shadow: none;
+}
+article.acd-sheet.is-primary .acd-sheet-fees > div + div {
+  border-left-color: var(--origin-line);
+}
+article.acd-sheet.is-primary .acd-sheet-signs {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 0.45rem;
+  margin-top: 0.35rem;
+}
+article.acd-sheet.is-primary .acd-sheet-signs > div {
+  display: grid;
+  align-content: start;
+  gap: 0.12rem;
+  min-width: 0;
+  padding: 0.35rem 0.45rem 0.4rem;
+  border: 1px solid var(--origin-line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: inset 0 2px 0 var(--origin-burgundy);
+}
+article.acd-sheet.is-primary .acd-sheet-sign-label {
+  margin: 0;
+  color: var(--origin-burgundy-deep);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+article.acd-sheet.is-primary .acd-sheet-sign-img {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: 1.55rem;
+  margin: 0.12rem 0 0.04rem;
+  object-fit: contain;
+  object-position: left bottom;
+}
+article.acd-sheet.is-primary .acd-sheet-sign-line {
+  margin: 0.45rem 0 0.1rem;
+  min-height: 0.85rem;
+  border-bottom: 1.5px solid rgba(26, 26, 26, 0.4);
+}
+article.acd-sheet.is-primary .acd-sheet-sign-hint {
+  margin: 0;
+  color: var(--sheet-muted);
+  font-size: 0.58rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+article.acd-sheet.is-primary .acd-sheet-edge::after {
+  content: "";
+  display: block;
+  height: 8px;
+  margin-top: 0.35rem;
+  background-color: var(--origin-grey);
+  background-image:
+    repeating-linear-gradient(
+      90deg,
+      #2c2c2c 0 1.5px,
+      transparent 1.5px 7px,
+      #6b1e2a 7px 8.5px,
+      transparent 8.5px 14px
+    ),
+    repeating-linear-gradient(
+      0deg,
+      #2c2c2c 0 1.5px,
+      transparent 1.5px 7px,
+      #6b1e2a 7px 8.5px,
+      transparent 8.5px 14px
+    );
+  print-color-adjust: exact;
+  -webkit-print-color-adjust: exact;
 }
 
 /* Nursery DSBA two-page card */
@@ -1808,13 +2196,36 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     row-gap: .55rem;
     margin-top: .22rem;
   }
-  article.acd-sheet .acd-sheet-fees { margin-top: 0; }
+  article.acd-sheet.is-primary .acd-sheet-signs {
+    margin-top: .28rem;
+    gap: .35rem;
+  }
+  article.acd-sheet.is-primary .acd-sheet-signs > div {
+    padding: .28rem .38rem .32rem;
+  }
+  article.acd-sheet.is-primary .acd-sheet-sign-img {
+    height: 1.35rem;
+    margin: .08rem 0 .04rem;
+  }
+  article.acd-sheet.is-primary .acd-sheet-sign-line {
+    margin: .35rem 0 .08rem;
+    min-height: .7rem;
+  }
+  article.acd-sheet .acd-sheet-fees { margin-top: .28rem; }
   article.acd-sheet .acd-sheet-qr span,
   article.acd-sheet .acd-sheet-qr svg { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   article.acd-sheet .acd-sheet-figures { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0; }
   article.acd-sheet .acd-sheet-figures > div:nth-child(odd) { border-left: 1px solid rgba(212, 160, 23, .4); }
   article.acd-sheet .acd-sheet-figures > div:first-child { border-left: 0; }
   article.acd-sheet .acd-sheet-figures > div:nth-child(n + 3) { padding-top: 0; }
+  article.acd-sheet .acd-sheet-figures.is-primary {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1.5mm;
+  }
+  article.acd-sheet .acd-sheet-figures.is-primary > div {
+    padding: .28rem .35rem .3rem;
+    border-radius: 6px;
+  }
   article.acd-sheet table { min-width: 0; }
   article.acd-sheet a { color: inherit; text-decoration: none; }
   article.acd-sheet,
@@ -1843,7 +2254,17 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   article.acd-sheet .acd-sheet-figures > div.is-high,
   article.acd-sheet .acd-sheet-figures > div.is-mid,
   article.acd-sheet .acd-sheet-figures > div.is-low,
-  article.acd-sheet .acd-sheet-figures > div.is-attendance dd.acd-sheet-tick {
+  article.acd-sheet .acd-sheet-figures.is-primary > div,
+  article.acd-sheet .acd-sheet-figures > div.is-attendance dd.acd-sheet-tick,
+  article.acd-sheet.is-primary .acd-sheet-banner,
+  article.acd-sheet.is-primary .acd-sheet-banner::before,
+  article.acd-sheet.is-primary .acd-sheet-rules,
+  article.acd-sheet.is-primary .acd-sheet-title,
+  article.acd-sheet.is-primary .acd-sheet-edge::after,
+  article.acd-sheet.is-primary .acd-sheet-fees,
+  article.acd-sheet.is-primary .acd-sheet-signs > div,
+  article.acd-sheet.is-primary tfoot th,
+  article.acd-sheet.is-primary tfoot td {
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }

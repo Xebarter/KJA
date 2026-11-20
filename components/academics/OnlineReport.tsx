@@ -167,11 +167,13 @@ export function OnlineReport({
             </div>
           </>
         )}
-        <div className="kor-stat kor-stat-att">
-          <i className="fa-solid fa-calendar-check" aria-hidden="true" />
-          <span>Attendance</span>
-          <strong>{attendanceLabel(card.days_present, card.days_opened)}</strong>
-        </div>
+        {nursery || dsba ? (
+          <div className="kor-stat kor-stat-att">
+            <i className="fa-solid fa-calendar-check" aria-hidden="true" />
+            <span>Attendance</span>
+            <strong>{attendanceLabel(card.days_present, card.days_opened)}</strong>
+          </div>
+        ) : null}
       </section>
 
       {dsba ? (

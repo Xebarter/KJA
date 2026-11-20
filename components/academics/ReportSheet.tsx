@@ -12,7 +12,11 @@ import {
 import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
-import { NURSERY_HEAD_SIGNATURE_SRC, PRINCIPAL_SIGNATURE_SRC } from "@/lib/teacher-signatures";
+import {
+  NURSERY_HEAD_SIGNATURE_SRC,
+  PRINCIPAL_SIGNATURE_SRC,
+  primaryHeadSignatureSrc,
+} from "@/lib/teacher-signatures";
 import "./report-sheet.css";
 
 export type SheetLine = {
@@ -497,7 +501,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
   }
 
   return (
-    <article className="acd-sheet" aria-label={`${card.pupil_name}, ${sheetTitle}`}>
+    <article className={`acd-sheet${nursery ? "" : " is-primary"}`} aria-label={`${card.pupil_name}, ${sheetTitle}`}>
       <div className="acd-sheet-edge">
         <div className="acd-sheet-watermark" aria-hidden="true">
           <img src="/images/icon.png" alt="" />
@@ -510,36 +514,42 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <h3>{card.href ? <Link href={card.href}>{card.pupil_name}</Link> : card.pupil_name}</h3>
             <p className="acd-sheet-place">{[place, card.student_number].filter(Boolean).join("  ·  ")}</p>
           </div>
-          <dl className="acd-sheet-figures">
-            <div className={figureTone(card.overall_grade, card.overall_score)}>
-              <dt>{nursery ? "Overall" : "Average"}</dt>
-              <dd>{formatScore(card.overall_score, nursery)}</dd>
-            </div>
-            {!nursery ? (
+          <dl className={`acd-sheet-figures${nursery ? "" : " is-primary"}`}>
+            {nursery ? (
               <>
+                <div className={figureTone(card.overall_grade, card.overall_score)}>
+                  <dt>Overall</dt>
+                  <dd>{formatScore(card.overall_score, true)}</dd>
+                </div>
                 <div>
-                  <dt>AGG</dt>
+                  <dt>Progress</dt>
+                  <dd>Bands</dd>
+                </div>
+                <div className="is-attendance">
+                  <dt>Attendance</dt>
+                  <dd className="acd-sheet-tick" aria-label="Attendance recorded">
+                    <svg viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false">
+                      <path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8-8 1.4 1.4z" />
+                    </svg>
+                  </dd>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className={`is-metric is-average ${figureTone(card.overall_grade, card.overall_score) || ""}`.trim()}>
+                  <dt>Average</dt>
+                  <dd>{formatScore(card.overall_score, false)}</dd>
+                </div>
+                <div className="is-metric is-aggregate">
+                  <dt>Aggregate</dt>
                   <dd>{card.overall_aggregate != null ? String(card.overall_aggregate) : "-"}</dd>
                 </div>
-                <div className={figureTone(card.overall_grade, card.overall_score)}>
+                <div className={`is-metric is-grade ${figureTone(card.overall_grade, card.overall_score) || ""}`.trim()}>
                   <dt>Grade</dt>
                   <dd>{card.overall_grade || "-"}</dd>
                 </div>
               </>
-            ) : (
-              <div>
-                <dt>Progress</dt>
-                <dd>Bands</dd>
-              </div>
             )}
-            <div className="is-attendance">
-              <dt>Attendance</dt>
-              <dd className="acd-sheet-tick" aria-label="Attendance recorded">
-                <svg viewBox="0 0 24 24" width="1.1em" height="1.1em" aria-hidden="true" focusable="false">
-                  <path fill="currentColor" d="M9.2 16.6 4.8 12.2l1.4-1.4 3 3 8-8 1.4 1.4z" />
-                </svg>
-              </dd>
-            </div>
           </dl>
         </section>
 
@@ -573,12 +583,22 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                       </td>
                       {sets.map((set) => {
                         const part = line.parts?.find((entry) => entry.key === set.key);
-                        return <td key={set.key} className={`is-num is-set${toneClass}`}>{formatScore(part?.score ?? null, nursery)}</td>;
+                        return (
+                          <td key={set.key} className={`is-num is-set${toneClass}`}>
+                            {nursery ? formatScore(part?.score ?? null, true) : formatMark(part?.score ?? null)}
+                          </td>
+                        );
                       })}
                       <td className={`is-num is-score${toneClass}`}>
-                        <span className={`acd-sheet-figure${toneClass}`}>{nursery ? (line.grade || "-") : formatScore(line.score, false)}</span>
+                        <span className={`acd-sheet-figure${toneClass}`}>
+                          {nursery ? line.grade || "-" : formatMark(line.score)}
+                        </span>
                       </td>
-                      {!nursery ? <td className="is-num is-grade">{line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">-</span>}</td> : null}
+                      {!nursery ? (
+                        <td className="is-num is-grade">
+                          {line.grade ? <span className={`acd-grade is-${tone}`}>{line.grade}</span> : <span className="acd-sheet-empty">-</span>}
+                        </td>
+                      ) : null}
                       <td className="is-note" title={line.teacher_comment || undefined}>{line.teacher_comment || ""}</td>
                       <td className="is-sign">{line.teacher_initials || ""}</td>
                     </tr>
@@ -594,7 +614,9 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                   <tr>
                     <th>{nursery ? "Overall" : "Average"}</th>
                     {sets.map((set) => <td key={set.key} />)}
-                    <td className="is-num is-score">{formatScore(card.overall_score, nursery)}</td>
+                    <td className="is-num is-score">
+                      {nursery ? formatScore(card.overall_score, true) : formatMark(card.overall_score)}
+                    </td>
                     {!nursery ? <td className="is-num is-grade" /> : null}
                     <td className="is-note" />
                     <td className="is-sign" />
@@ -657,16 +679,44 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
             </div>
             {qr ?? <ReportQr id={card.id} />}
-            <section className="acd-sheet-fees" aria-label="Fees and the next term">
+          </section>
+
+          {!nursery ? (
+            <section className="acd-sheet-signs" aria-label="Signatures">
               <div>
-                <h3>School fees for next term</h3>
-                <FeeLines lines={card.fees ?? []} />
+                <p className="acd-sheet-sign-label">Class teacher</p>
+                {card.class_teacher_signature_src ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="acd-sheet-sign-img" src={card.class_teacher_signature_src} alt="" />
+                ) : (
+                  <div className="acd-sheet-sign-line" aria-hidden="true" />
+                )}
+                <p className="acd-sheet-sign-hint">{card.class_teacher_name || "Signature"}</p>
               </div>
               <div>
-                <h3>Next term starts on</h3>
-                <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "-"}</p>
+                <p className="acd-sheet-sign-label">Head of Section</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="acd-sheet-sign-img" src={primaryHeadSignatureSrc(card.class_code)} alt="" />
+                <p className="acd-sheet-sign-hint">Signature</p>
+              </div>
+              <div>
+                <p className="acd-sheet-sign-label">Principal</p>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img className="acd-sheet-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
+                <p className="acd-sheet-sign-hint">Signature</p>
               </div>
             </section>
+          ) : null}
+
+          <section className="acd-sheet-fees" aria-label="Fees and the next term">
+            <div>
+              <h3>School fees for next term</h3>
+              <FeeLines lines={card.fees ?? []} />
+            </div>
+            <div>
+              <h3>Next term starts on</h3>
+              <p className="acd-sheet-next">{formatReportDate(card.next_starts_on) || "-"}</p>
+            </div>
           </section>
         </div>
 
@@ -711,6 +761,13 @@ export function formatScore(score: number | null, nursery: boolean) {
   if (score === null || Number.isNaN(score)) return "-";
   if (nursery) return score >= 75 ? "Exceeding" : score >= 50 ? "Secure" : score >= 25 ? "Developing" : "Beginning";
   return `${num(score) ?? score}%`;
+}
+
+/** Primary table marks without a % suffix. */
+export function formatMark(score: number | null) {
+  if (score === null || Number.isNaN(score)) return "-";
+  const value = num(score);
+  return value == null ? String(score) : String(value);
 }
 
 export function ordinal(value: number) {

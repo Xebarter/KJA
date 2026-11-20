@@ -141,6 +141,15 @@ const LINE = rgb(0.922, 0.898, 0.851);
 const CREAM = rgb(0.969, 0.953, 0.918);
 const GREEN = rgb(0.071, 0.647, 0.294);
 
+/** Clevers Origin primary stationery (burgundy / charcoal / grey). */
+const ORIGIN_BURGUNDY = rgb(0.42, 0.118, 0.165);
+const ORIGIN_BURGUNDY_DEEP = rgb(0.31, 0.082, 0.125);
+const ORIGIN_CHARCOAL = rgb(0.102, 0.102, 0.102);
+const ORIGIN_MUTED = rgb(0.361, 0.361, 0.361);
+const ORIGIN_GREY = rgb(0.953, 0.953, 0.953);
+const ORIGIN_LINE = rgb(0.847, 0.847, 0.847);
+const ORIGIN_PLAID = rgb(0.173, 0.173, 0.173);
+
 function latin(text: string | null | undefined) {
   return String(text ?? "")
     .replace(/[\u2018\u2019]/g, "'")
@@ -201,6 +210,12 @@ function formatScore(score: number | null, nursery: boolean) {
   if (nursery) return score >= 75 ? "Exceeding" : score >= 50 ? "Secure" : score >= 25 ? "Developing" : "Beginning";
   const value = num(score) ?? score;
   return `${value}%`;
+}
+
+function formatMark(score: number | null) {
+  if (score === null || Number.isNaN(score)) return "-";
+  const value = num(score);
+  return value == null ? String(score) : String(value);
 }
 
 async function rowsIn<T>(ids: string[], load: (slice: string[], from: number, to: number) => PromiseLike<{ data: unknown; error: { message: string } | null }>) {
@@ -610,21 +625,47 @@ export async function buildReportCardsPdf(
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const crest = await embedRaster(pdf, crestBytes);
 
+  const theme = input.nursery
+    ? {
+        ink: INK,
+        muted: MUTED,
+        accent: GOLD,
+        accentInk: GOLD_INK,
+        paper: PAPER,
+        head: CREAM,
+        line: LINE,
+        ok: GREEN,
+        mesh: GOLD,
+        band: PAPER,
+      }
+    : {
+        ink: ORIGIN_CHARCOAL,
+        muted: ORIGIN_MUTED,
+        accent: ORIGIN_BURGUNDY,
+        accentInk: ORIGIN_BURGUNDY_DEEP,
+        paper: WHITE,
+        head: ORIGIN_GREY,
+        line: ORIGIN_LINE,
+        ok: ORIGIN_BURGUNDY,
+        mesh: ORIGIN_PLAID,
+        band: WHITE,
+      };
+
   const contentW = W - M * 2;
   let page: PDFPage | null = null;
   let y = H - M;
   let pageNo = 0;
   let continuedName = "";
   const stamp = (current: PDFPage) => {
-    current.drawText("Kampala Junior Academy", { x: M, y: 16, size: 7, font: regular, color: MUTED });
+    current.drawText("Kampala Junior Academy", { x: M, y: 16, size: 7, font: regular, color: theme.muted });
     const label = String(pageNo);
-    current.drawText(label, { x: W - M - regular.widthOfTextAtSize(label, 7), y: 16, size: 7, font: regular, color: MUTED });
+    current.drawText(label, { x: W - M - regular.widthOfTextAtSize(label, 7), y: 16, size: 7, font: regular, color: theme.muted });
   };
 
   const paintWatermark = (current: PDFPage) => {
     if (!crest) return;
     const size = 300;
-    current.drawImage(crest, { x: (W - size) / 2, y: 188, width: size, height: size, opacity: 0.1 });
+    current.drawImage(crest, { x: (W - size) / 2, y: 188, width: size, height: size, opacity: input.nursery ? 0.1 : 0.07 });
   };
 
   const openPage = (continued: boolean) => {
@@ -634,9 +675,9 @@ export async function buildReportCardsPdf(
     paintWatermark(page);
     y = H - M;
     if (!continued || !continuedName) return;
-    page.drawText(fit(`${continuedName} · continued`, bold, 9, contentW), { x: M, y: y - 11, size: 9, font: bold, color: INK });
+    page.drawText(fit(`${continuedName} · continued`, bold, 9, contentW), { x: M, y: y - 11, size: 9, font: bold, color: theme.ink });
     y -= 18;
-    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: GOLD });
+    page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 1, color: theme.accent });
     y -= 12;
   };
 
@@ -687,12 +728,12 @@ export async function buildReportCardsPdf(
 
   const drawHead = () => {
     const headH = columns.some((column) => column.sub) ? 26 : 16;
-    page!.drawRectangle({ x: M, y: y - headH, width: contentW, height: headH, color: CREAM });
+    page!.drawRectangle({ x: M, y: y - headH, width: contentW, height: headH, color: theme.head });
     let x = M + 4;
     for (const column of columns) {
       const label = fit(column.label, bold, 7.5, Math.max(16, column.width - 8)).toUpperCase();
-      page!.drawText(label, { x, y: y - (column.sub ? 11 : 12), size: column.sub ? 7 : 8, font: bold, color: MUTED });
-      if (column.sub) page!.drawText(column.sub, { x, y: y - 22, size: 8, font: bold, color: INK });
+      page!.drawText(label, { x, y: y - (column.sub ? 11 : 12), size: column.sub ? 7 : 8, font: bold, color: theme.muted });
+      if (column.sub) page!.drawText(column.sub, { x, y: y - 22, size: 8, font: bold, color: theme.ink });
       x += column.width;
     }
     y -= headH;
@@ -706,25 +747,48 @@ export async function buildReportCardsPdf(
     const BAND = 112;
     const bandTop = H - TOP;
     const bandBottom = bandTop - BAND;
-    page!.drawRectangle({ x: 0, y: bandBottom, width: W, height: BAND, color: PAPER });
+    page!.drawRectangle({ x: 0, y: bandBottom, width: W, height: BAND, color: theme.band });
     page!.pushOperators(pushGraphicsState(), rectangle(0, bandBottom, W, BAND), clip(), endPath());
-    const meshStep = 11;
+    const meshStep = input.nursery ? 11 : 9;
     let meshIndex = 0;
     for (let x = -BAND; x <= W + BAND; x += meshStep, meshIndex += 1) {
       const fine = meshIndex % 2 !== 0;
-      page!.drawLine({ start: { x, y: bandBottom }, end: { x: x + BAND, y: bandBottom + BAND }, thickness: fine ? 0.22 : 0.35, color: GOLD, opacity: fine ? 0.1 : 0.2 });
-      page!.drawLine({ start: { x, y: bandBottom + BAND }, end: { x: x + BAND, y: bandBottom }, thickness: fine ? 0.22 : 0.35, color: GOLD, opacity: fine ? 0.1 : 0.2 });
+      const meshColor = input.nursery ? theme.mesh : meshIndex % 3 === 0 ? theme.accent : theme.mesh;
+      page!.drawLine({
+        start: { x, y: bandBottom },
+        end: { x: x + BAND, y: bandBottom + BAND },
+        thickness: fine ? 0.22 : 0.35,
+        color: meshColor,
+        opacity: input.nursery ? (fine ? 0.1 : 0.2) : fine ? 0.08 : 0.14,
+      });
+      page!.drawLine({
+        start: { x, y: bandBottom + BAND },
+        end: { x: x + BAND, y: bandBottom },
+        thickness: fine ? 0.22 : 0.35,
+        color: meshColor,
+        opacity: input.nursery ? (fine ? 0.1 : 0.2) : fine ? 0.08 : 0.14,
+      });
     }
     page!.pushOperators(popGraphicsState());
-    page!.drawRectangle({ x: 0, y: bandTop - 2.6, width: W, height: 2.6, color: GOLD });
-    page!.drawRectangle({ x: 0, y: bandBottom - 2.4, width: W, height: 2.4, color: GOLD });
-    page!.drawRectangle({ x: 0, y: bandBottom - 4.4, width: W, height: 0.7, color: GOLD });
+    page!.drawRectangle({ x: 0, y: bandTop - 2.6, width: W, height: 2.6, color: theme.accent });
+    page!.drawRectangle({ x: 0, y: bandBottom - 2.4, width: W, height: 2.4, color: theme.accent });
+    page!.drawRectangle({ x: 0, y: bandBottom - 4.4, width: W, height: 0.7, color: input.nursery ? theme.accent : ORIGIN_CHARCOAL });
 
     const badge = 74;
     const badgeX = 34;
     const cx = badgeX + badge / 2;
     const cy = bandBottom + BAND / 2 - 1;
-    page!.drawCircle({ x: cx, y: cy, size: badge / 2 + 1.8, color: WHITE, borderColor: GOLD, borderWidth: 1.35 });
+    page!.drawCircle({
+      x: cx,
+      y: cy,
+      size: badge / 2 + 1.8,
+      color: WHITE,
+      borderColor: input.nursery ? theme.accent : ORIGIN_CHARCOAL,
+      borderWidth: 1.35,
+    });
+    if (!input.nursery) {
+      page!.drawCircle({ x: cx, y: cy, size: badge / 2 + 3.1, borderColor: theme.accent, borderWidth: 1.1 });
+    }
     if (crest) {
       const inset = 5;
       page!.drawImage(crest, {
@@ -739,7 +803,25 @@ export async function buildReportCardsPdf(
     const frameH = 64;
     const frameX = W - 34 - frameW;
     const frameY = bandBottom + (BAND - frameH) / 2;
-    page!.drawRectangle({ x: frameX, y: frameY, width: frameW, height: frameH, borderColor: GOLD, borderWidth: 1.15, color: CREAM });
+    page!.drawRectangle({
+      x: frameX,
+      y: frameY,
+      width: frameW,
+      height: frameH,
+      borderColor: input.nursery ? theme.accent : ORIGIN_CHARCOAL,
+      borderWidth: 1.15,
+      color: theme.head,
+    });
+    if (!input.nursery) {
+      page!.drawRectangle({
+        x: frameX - 1.6,
+        y: frameY - 1.6,
+        width: frameW + 3.2,
+        height: frameH + 3.2,
+        borderColor: theme.accent,
+        borderWidth: 1,
+      });
+    }
     const portrait = await embedRaster(pdf, photos?.get(card.id));
     if (portrait) {
       const maxW = frameW - 4;
@@ -757,7 +839,7 @@ export async function buildReportCardsPdf(
       const mark = monogram(card.pupil_name);
       const markSize = 12;
       const markW = bold.widthOfTextAtSize(mark, markSize);
-      page!.drawText(mark, { x: frameX + (frameW - markW) / 2, y: frameY + 26, size: markSize, font: bold, color: INK });
+      page!.drawText(mark, { x: frameX + (frameW - markW) / 2, y: frameY + 26, size: markSize, font: bold, color: theme.ink });
     }
 
     const textLeft = badgeX + badge + 16;
@@ -771,7 +853,7 @@ export async function buildReportCardsPdf(
     const establishedSize = 6.5;
     const establishedTracking = 0.85;
     const establishedW = trackedWidth(established, bold, establishedSize, establishedTracking);
-    drawTracked(page!, established, bold, establishedSize, textLeft + (textWidth - establishedW) / 2, cy + 30, establishedTracking, GOLD_INK);
+    drawTracked(page!, established, bold, establishedSize, textLeft + (textWidth - establishedW) / 2, cy + 30, establishedTracking, theme.accentInk);
     const kampala = "KAMPALA";
     let nameSize = 16;
     let nameTracking = 1.35;
@@ -788,62 +870,67 @@ export async function buildReportCardsPdf(
     }
     const nameW = trackedWidth(kampala, bold, nameSize, nameTracking);
     const academyW = trackedWidth(academy, bold, academySize, academyTracking);
-    drawTracked(page!, kampala, bold, nameSize, textLeft + (textWidth - nameW) / 2, cy + 10, nameTracking, INK);
-    drawTracked(page!, academy, bold, academySize, textLeft + (textWidth - academyW) / 2, cy - 4, academyTracking, GOLD_INK);
+    drawTracked(page!, kampala, bold, nameSize, textLeft + (textWidth - nameW) / 2, cy + 10, nameTracking, theme.ink);
+    drawTracked(page!, academy, bold, academySize, textLeft + (textWidth - academyW) / 2, cy - 4, academyTracking, theme.accentInk);
     const hair = 36;
     page!.drawLine({
       start: { x: textLeft + (textWidth - hair) / 2, y: cy - 12 },
       end: { x: textLeft + (textWidth + hair) / 2, y: cy - 12 },
       thickness: 0.7,
-      color: GOLD,
+      color: theme.accent,
     });
     const contact = "P.O. Box 6202    ·    info@kja.com    ·    +256 392 700 370";
     let contactSize = 8;
     while (contactSize > 6.5 && regular.widthOfTextAtSize(contact, contactSize) > textWidth) contactSize -= 0.25;
-    centerIn(contact, regular, contactSize, cy - 26, INK, textLeft, textWidth);
+    centerIn(contact, regular, contactSize, cy - 26, theme.ink, textLeft, textWidth);
 
     const titleBandH = 36;
     const titleTop = bandBottom - 5.8;
-    page!.drawRectangle({ x: 0, y: titleTop - titleBandH, width: W, height: titleBandH, color: CREAM });
+    page!.drawRectangle({ x: 0, y: titleTop - titleBandH, width: W, height: titleBandH, color: theme.head });
     const title = latin(normaliseReportTitle(card.report_title)).toUpperCase();
     const titleSize = 9;
     const titleW = bold.widthOfTextAtSize(title, titleSize);
     const titleX = (W - titleW) / 2;
     const titleRule = titleTop - 13;
-    page!.drawLine({ start: { x: M, y: titleRule }, end: { x: titleX - 10, y: titleRule }, thickness: 0.6, color: GOLD });
-    page!.drawLine({ start: { x: titleX + titleW + 10, y: titleRule }, end: { x: W - M, y: titleRule }, thickness: 0.6, color: GOLD });
-    page!.drawText(title, { x: titleX, y: titleTop - 16, size: titleSize, font: bold, color: INK });
+    page!.drawLine({ start: { x: M, y: titleRule }, end: { x: titleX - 10, y: titleRule }, thickness: 0.6, color: theme.accent });
+    page!.drawLine({ start: { x: titleX + titleW + 10, y: titleRule }, end: { x: W - M, y: titleRule }, thickness: 0.6, color: theme.accent });
+    page!.drawText(title, { x: titleX, y: titleTop - 16, size: titleSize, font: bold, color: theme.ink });
     const term = card.term_label.toUpperCase();
     const termSize = 8;
     const termW = regular.widthOfTextAtSize(term, termSize);
-    page!.drawText(term, { x: (W - termW) / 2, y: titleTop - 29, size: termSize, font: regular, color: MUTED });
+    page!.drawText(term, { x: (W - termW) / 2, y: titleTop - 29, size: termSize, font: regular, color: theme.muted });
     y = titleTop - titleBandH - 12;
     const pupilWidth = contentW * 0.4;
-    page!.drawText("PUPIL", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
-    page!.drawText(fit(card.pupil_name.toUpperCase(), bold, 11, pupilWidth), { x: M, y: y - 22, size: 11, font: bold, color: INK });
-    page!.drawText(fit([place, card.student_number].filter(Boolean).join("   ·   "), regular, 8, pupilWidth), { x: M, y: y - 34, size: 8, font: regular, color: MUTED });
-    const stats: [string, string][] = [
-      [input.nursery ? "Overall" : "Average", formatScore(card.overall_score, input.nursery)],
-      ["AGG", card.overall_aggregate != null ? String(card.overall_aggregate) : "-"],
-      ["Grade", card.overall_grade || "-"],
-      ["Attendance", "✓"],
-    ];
+    page!.drawText("PUPIL", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
+    page!.drawText(fit(card.pupil_name.toUpperCase(), bold, 11, pupilWidth), { x: M, y: y - 22, size: 11, font: bold, color: theme.ink });
+    page!.drawText(fit([place, card.student_number].filter(Boolean).join("   ·   "), regular, 8, pupilWidth), { x: M, y: y - 34, size: 8, font: regular, color: theme.muted });
+    const stats: [string, string][] = input.nursery
+      ? [
+          ["Overall", formatScore(card.overall_score, true)],
+          ["Progress", "Bands"],
+          ["Attendance", "✓"],
+        ]
+      : [
+          ["Average", formatScore(card.overall_score, false)],
+          ["Aggregate", card.overall_aggregate != null ? String(card.overall_aggregate) : "-"],
+          ["Grade", card.overall_grade || "-"],
+        ];
     const statX = M + pupilWidth + 10;
     const statW = (contentW - pupilWidth - 10) / stats.length;
     stats.forEach((fact, index) => {
       const x = statX + index * statW;
-      page!.drawText(fact[0].toUpperCase(), { x, y: y - 8, size: 6, font: bold, color: MUTED });
+      page!.drawText(fact[0].toUpperCase(), { x, y: y - 8, size: 6, font: bold, color: theme.accentInk });
       if (fact[0] === "Attendance") {
         const tickLeft = x + Math.max(0, (statW - 10) / 2);
         const tickY = y - 22;
-        page!.drawLine({ start: { x: tickLeft, y: tickY + 3 }, end: { x: tickLeft + 3.5, y: tickY }, thickness: 1.6, color: GREEN });
-        page!.drawLine({ start: { x: tickLeft + 3.5, y: tickY }, end: { x: tickLeft + 9, y: tickY + 7 }, thickness: 1.6, color: GREEN });
+        page!.drawLine({ start: { x: tickLeft, y: tickY + 3 }, end: { x: tickLeft + 3.5, y: tickY }, thickness: 1.6, color: theme.ok });
+        page!.drawLine({ start: { x: tickLeft + 3.5, y: tickY }, end: { x: tickLeft + 9, y: tickY + 7 }, thickness: 1.6, color: theme.ok });
       } else {
-        page!.drawText(fit(fact[1], bold, 9, statW - 6), { x, y: y - 22, size: 9, font: bold, color: INK });
+        page!.drawText(fit(fact[1], bold, 9, statW - 6), { x, y: y - 22, size: 9, font: bold, color: theme.ink });
       }
     });
     y -= 42;
-    page!.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: GOLD });
+    page!.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.6, color: theme.accent });
     y -= 8;
 
     const floor = 28;
@@ -871,7 +958,7 @@ export async function buildReportCardsPdf(
     const rowH = rowCount ? Math.min(16, (tableRoom - headH) / rowCount) : 0;
 
     if (!rowCount) {
-      page!.drawText("No subjects on this card yet.", { x: M, y: y - 12, size: 8, font: regular, color: MUTED });
+      page!.drawText("No subjects on this card yet.", { x: M, y: y - 12, size: 8, font: regular, color: theme.muted });
       y -= 14;
     } else {
       drawHead();
@@ -880,10 +967,10 @@ export async function buildReportCardsPdf(
           if (column.key === "subject") return line.subject_name;
           if (column.key.startsWith("set:")) {
             const part = line.parts?.find((entry) => entry.key === column.key.slice(4));
-            return formatScore(part?.score ?? null, input.nursery);
+            return input.nursery ? formatScore(part?.score ?? null, true) : formatMark(part?.score ?? null);
           }
-          if (column.key === "score") return formatScore(line.score, false);
-          if (column.key === "total") return formatScore(line.score, input.nursery);
+          if (column.key === "score") return formatMark(line.score);
+          if (column.key === "total") return input.nursery ? formatScore(line.score, true) : formatMark(line.score);
           if (column.key === "progress" || column.key === "grade") return line.grade || "-";
           if (column.key === "initials") return line.teacher_initials || "";
           return line.teacher_comment || "";
@@ -897,12 +984,21 @@ export async function buildReportCardsPdf(
           if (value) {
             const drawn = (column.key === "subject" ? bold : regular).widthOfTextAtSize(value, size);
             const left = column.key === "initials" ? x + Math.max(1, (column.width - drawn) / 2) : x + 2;
-            page!.drawText(value, { x: left, y: rowTop - size - 1.5, size, font: column.key === "subject" ? bold : regular, color: INK });
+            page!.drawText(value, {
+              x: left,
+              y: rowTop - size - 1.5,
+              size,
+              font: column.key === "subject" ? bold : regular,
+              color:
+                !input.nursery && (column.key === "score" || column.key === "total" || column.key === "grade")
+                  ? theme.accentInk
+                  : theme.ink,
+            });
           }
           x += column.width;
         });
         y = rowTop - rowH;
-        page!.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.35, color: LINE });
+        page!.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: 0.35, color: theme.line });
       }
     }
 
@@ -910,60 +1006,60 @@ export async function buildReportCardsPdf(
       .map((band) => `${band.label} ${Number.isInteger(band.min) ? band.min : band.min.toFixed(1)}-${Number.isInteger(band.max) ? band.max : band.max.toFixed(1)}`)
       .join("    ");
     y -= gap;
-    page!.drawText("GRADING SCALE", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
+    page!.drawText("GRADING SCALE", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
     let scaleSize = 7.5;
     while (scaleSize > 5.5 && regular.widthOfTextAtSize(bandText, scaleSize) > contentW - 86) scaleSize -= 0.25;
-    page!.drawText(fit(bandText, regular, scaleSize, contentW - 86), { x: M + 82, y: y - 8, size: scaleSize, font: regular, color: INK });
+    page!.drawText(fit(bandText, regular, scaleSize, contentW - 86), { x: M + 82, y: y - 8, size: scaleSize, font: regular, color: theme.ink });
     y -= scaleH;
 
     y -= gap;
-    page!.drawText("CO-CURRICULAR", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
+    page!.drawText("CO-CURRICULAR", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
     const actTop = y - actLabel;
     const actNameW = Math.round(contentW * 0.26);
     const actNoteW = contentW - actNameW;
-    page!.drawRectangle({ x: M, y: actTop - actH, width: contentW, height: actH, borderColor: GOLD, borderWidth: 0.6, color: WHITE });
-    page!.drawRectangle({ x: M, y: actTop - cocoHeadH, width: contentW, height: cocoHeadH, color: CREAM });
-    page!.drawLine({ start: { x: M + actNameW, y: actTop }, end: { x: M + actNameW, y: actTop - actH }, thickness: 0.4, color: GOLD });
-    page!.drawText("ACTIVITY", { x: M + 5, y: actTop - 10, size: 6, font: bold, color: MUTED });
-    page!.drawText("COMMENT", { x: M + actNameW + 5, y: actTop - 10, size: 6, font: bold, color: MUTED });
+    page!.drawRectangle({ x: M, y: actTop - actH, width: contentW, height: actH, borderColor: theme.accent, borderWidth: 0.6, color: WHITE });
+    page!.drawRectangle({ x: M, y: actTop - cocoHeadH, width: contentW, height: cocoHeadH, color: theme.head });
+    page!.drawLine({ start: { x: M + actNameW, y: actTop }, end: { x: M + actNameW, y: actTop - actH }, thickness: 0.4, color: theme.accent });
+    page!.drawText("ACTIVITY", { x: M + 5, y: actTop - 10, size: 6, font: bold, color: theme.muted });
+    page!.drawText("COMMENT", { x: M + actNameW + 5, y: actTop - 10, size: 6, font: bold, color: theme.muted });
     const cocoList = filledActivities.length ? filledActivities : [{ slot: 0, activity_name: "", level: null, comment: null }];
     cocoList.forEach((activity, index) => {
       const rowTop = actTop - cocoHeadH - index * cocoRowH;
       if (index > 0) {
-        page!.drawLine({ start: { x: M, y: rowTop }, end: { x: M + contentW, y: rowTop }, thickness: 0.35, color: LINE });
+        page!.drawLine({ start: { x: M, y: rowTop }, end: { x: M + contentW, y: rowTop }, thickness: 0.35, color: theme.line });
       }
       const name = fit(activity.activity_name || "", bold, 7.5, actNameW - 8);
-      if (name) page!.drawText(name, { x: M + 4, y: rowTop - 11, size: 7.5, font: bold, color: INK });
+      if (name) page!.drawText(name, { x: M + 4, y: rowTop - 11, size: 7.5, font: bold, color: theme.ink });
       const noteLines = wrap(activity.comment || "", regular, 7, actNoteW - 8, 2);
       noteLines.forEach((noteLine, lineIndex) => {
-        page!.drawText(noteLine, { x: M + actNameW + 4, y: rowTop - 10 - lineIndex * 9, size: 7, font: regular, color: INK });
+        page!.drawText(noteLine, { x: M + actNameW + 4, y: rowTop - 10 - lineIndex * 9, size: 7, font: regular, color: theme.ink });
       });
     });
     y = actTop - actH;
 
     y -= gap;
-    page!.drawText("CLASS TEACHER'S REPORT", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
+    page!.drawText("CLASS TEACHER'S REPORT", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
     if (card.class_teacher_name) {
       const teacher = fit(card.class_teacher_name, bold, 8, 180);
-      page!.drawText(teacher, { x: W - M - bold.widthOfTextAtSize(teacher, 8), y: y - 8, size: 8, font: bold, color: INK });
+      page!.drawText(teacher, { x: W - M - bold.widthOfTextAtSize(teacher, 8), y: y - 8, size: 8, font: bold, color: theme.ink });
     }
-    page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: W - M, y: y - 11 }, thickness: 0.5, color: GOLD });
+    page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: W - M, y: y - 11 }, thickness: 0.5, color: theme.accent });
     wrap(card.class_teacher_comment || "", regular, 8, contentW, 3).forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: y - 22 - index * 10, size: 8, font: regular, color: INK });
+      page!.drawText(noteLine, { x: M, y: y - 22 - index * 10, size: 8, font: regular, color: theme.ink });
     });
     y -= teacherH;
 
     y -= gap;
     const closingTop = y;
     const feesW = contentW - qrSize - qrGap;
-    page!.drawText("HEADTEACHER'S COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: MUTED });
-    page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: M + feesW, y: y - 11 }, thickness: 0.5, color: GOLD });
+    page!.drawText("HEADTEACHER'S COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
+    page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: M + feesW, y: y - 11 }, thickness: 0.5, color: theme.accent });
     const qrPng = await QRCode.toBuffer(reportOnlineUrl(card.id), {
       type: "png",
       margin: 1,
       width: 180,
       errorCorrectionLevel: "M",
-      color: { dark: "#19232bff", light: "#ffffffff" },
+      color: { dark: input.nursery ? "#19232bff" : "#1a1a1aff", light: "#ffffffff" },
     });
     const qrImage = await pdf.embedPng(qrPng);
     const qrX = W - M - qrSize;
@@ -972,48 +1068,85 @@ export async function buildReportCardsPdf(
     const online = "ONLINE REPORT";
     const onlineSize = 5.5;
     const onlineW = bold.widthOfTextAtSize(online, onlineSize);
-    page!.drawText(online, { x: qrX + (qrSize - onlineW) / 2, y: qrY - 8, size: onlineSize, font: bold, color: MUTED });
+    page!.drawText(online, { x: qrX + (qrSize - onlineW) / 2, y: qrY - 8, size: onlineSize, font: bold, color: theme.muted });
     const headLines = wrap(card.head_comment || "", regular, 8, feesW - 4, 2);
     headLines.forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: closingTop - 22 - index * 10, size: 8, font: regular, color: INK });
+      page!.drawText(noteLine, { x: M, y: closingTop - 22 - index * 10, size: 8, font: regular, color: theme.ink });
     });
     // Raise fees so its top sits beside the lower third of the QR, not as a full-width page footer.
     const afterComment = closingTop - 22 - Math.max(1, headLines.length) * 10 - 4;
     const besideQr = qrY + qrSize * 0.38;
     const feesTop = Math.min(afterComment, besideQr);
-    page!.drawRectangle({ x: M, y: feesTop - feesH, width: feesW, height: feesH, color: PAPER, borderColor: GOLD, borderWidth: 0.6 });
-    page!.drawRectangle({ x: M, y: feesTop - 2, width: feesW, height: 2, color: GOLD });
+    page!.drawRectangle({
+      x: M,
+      y: feesTop - feesH,
+      width: feesW,
+      height: feesH,
+      color: theme.paper,
+      borderColor: theme.accent,
+      borderWidth: 0.6,
+    });
+    page!.drawRectangle({ x: M, y: feesTop - 2, width: feesW, height: 2, color: theme.accent });
     const feesSplit = M + feesW * 0.62;
-    page!.drawLine({ start: { x: feesSplit, y: feesTop }, end: { x: feesSplit, y: feesTop - feesH }, thickness: 0.4, color: GOLD });
-    page!.drawText("SCHOOL FEES FOR NEXT TERM", { x: M + 8, y: feesTop - 14, size: 6.5, font: bold, color: GOLD_INK });
-    page!.drawText("NEXT TERM STARTS ON", { x: feesSplit + 8, y: feesTop - 14, size: 6.5, font: bold, color: GOLD_INK });
+    page!.drawLine({ start: { x: feesSplit, y: feesTop }, end: { x: feesSplit, y: feesTop - feesH }, thickness: 0.4, color: theme.accent });
+    page!.drawText("SCHOOL FEES FOR NEXT TERM", { x: M + 8, y: feesTop - 14, size: 6.5, font: bold, color: theme.accentInk });
+    page!.drawText("NEXT TERM STARTS ON", { x: feesSplit + 8, y: feesTop - 14, size: 6.5, font: bold, color: theme.accentInk });
     const feeLines = card.fees ?? [];
     if (!feeLines.length) {
-      page!.drawText("-", { x: M + 8, y: feesTop - 28, size: 9, font: bold, color: INK });
+      page!.drawText("-", { x: M + 8, y: feesTop - 28, size: 9, font: bold, color: theme.ink });
     } else {
       feeLines.forEach((line, index) => {
         const rowY = feesTop - 28 - index * 12;
-        page!.drawText(fit(line.name, regular, 8, feesW * 0.62 - 78), { x: M + 8, y: rowY, size: 8, font: regular, color: INK });
+        page!.drawText(fit(line.name, regular, 8, feesW * 0.62 - 78), { x: M + 8, y: rowY, size: 8, font: regular, color: theme.ink });
         const money = formatReportMoney(line.amount);
-        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: INK });
+        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: theme.ink });
       });
       if (feeLines.length > 1) {
         const total = feeLines.reduce((sum, line) => sum + line.amount, 0);
         const rowY = feesTop - 28 - feeLines.length * 12;
-        page!.drawText("Total", { x: M + 8, y: rowY, size: 8, font: bold, color: INK });
+        page!.drawText("Total", { x: M + 8, y: rowY, size: 8, font: bold, color: theme.ink });
         const money = formatReportMoney(total);
-        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: INK });
+        page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: theme.ink });
       }
     }
     const starts = formatReportDate(card.next_starts_on) || "-";
     const startsSize = regular.widthOfTextAtSize(starts, 8) > feesW * 0.38 - 16 ? 7 : 8;
-    page!.drawText(fit(starts, bold, startsSize, feesW * 0.38 - 16), { x: feesSplit + 8, y: feesTop - 30, size: startsSize, font: bold, color: INK });
+    page!.drawText(fit(starts, bold, startsSize, feesW * 0.38 - 16), {
+      x: feesSplit + 8,
+      y: feesTop - 30,
+      size: startsSize,
+      font: bold,
+      color: theme.ink,
+    });
     y = Math.min(feesTop - feesH, qrY - 10);
+
+    if (!input.nursery) {
+      const footerPlaidH = 7;
+      page!.drawRectangle({ x: 0, y: 0, width: W, height: footerPlaidH + 4, color: theme.head });
+      const step = 8;
+      for (let x = 0; x < W + step; x += step) {
+        page!.drawLine({
+          start: { x, y: 2 },
+          end: { x: x + footerPlaidH, y: 2 + footerPlaidH },
+          thickness: 0.45,
+          color: ORIGIN_PLAID,
+          opacity: 0.35,
+        });
+        page!.drawLine({
+          start: { x, y: 2 + footerPlaidH },
+          end: { x: x + footerPlaidH, y: 2 },
+          thickness: 0.45,
+          color: theme.accent,
+          opacity: 0.4,
+        });
+      }
+      page!.drawRectangle({ x: 0, y: footerPlaidH + 3, width: W, height: 1.2, color: theme.accent });
+    }
   }
 
   if (!page) {
     openPage(false);
-    page!.drawText("No report cards to export.", { x: M, y: y - 16, size: 12, font: bold, color: INK });
+    page!.drawText("No report cards to export.", { x: M, y: y - 16, size: 12, font: bold, color: theme.ink });
   }
   stamp(page!);
   return pdf.save();

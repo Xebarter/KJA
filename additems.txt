@@ -1,98 +1,39 @@
-Progress Codes (one shared nursery scale)
-M → Strong mastery
-S → Satisfactory Progress
-D → Developing
-NP → Needs more practice
-+/- → Stronger / weaker
-P → Progressing
-A → Area needs growth
-I → Improving
-NA → Not applicable
-NT → Not taught
-Domain / Skill Lists1. Functional / Living Skills
-Recites full name
-Tells his/her gender
-Tells his/her likes & dislikes
-Knows area of residence
-Asks and answers questions
-Names parents
-2. Writing Skills
-Likes to pretend to write
-Holds writing implements like crayons, painting brushes
-Understands that print carries a message
-Matches pictures to letter sounds
-Traces lowercase letters
-Colours within a shape
-Copies simple shapes and patterns
-Writes lowercase letters
-3. Language Skills
-Can express him/herself in vernacular
-Can express him/herself in English
-Has an increasing vocabulary of words
-Likes to look at picture books
-Likes to pretend to read books
-Understands that pictures carry a message
-Can tell a simple story from interpreting the pictures
-Can identify characters in a story using pictures
-Listens to short stories and answers questions
-Can pronounce sounds of letters
-Relates letter sounds to pictures
-Follows simple instructions
-4. Maths Skills
-Counts by rote to 10
-Recognizes numbers up to 5
-Writes/traces numbers up to 5
-Counts objects up to 5 and writes/traces the number
-Recites the days of the week
-Identifies and describes shapes like circle, triangle, square
-Recognizes and associates colours with objects
-Compares height i.e. tall, short
-Compares size i.e. big, small
-Compares length i.e. long, short
-Compares volume: full, empty
-Tells position left, right
-Tells position i.e. top, bottom
-Tells position i.e. front, middle, back
-5. Personal & Social Development
-Can be away from home without being upset
-Looks after own toilet needs
-Feels good about self
-Listens attentively
-Talks easily
-Likes teachers
-Gets along with other children
-Plays with other children
-Meets visitors without shyness
-Enters into conversation with other children
-Enters into conversation with adults
-Shares with others
-Cares for own belongings
-Respects authority
-Maintains self control
-Is helpful in class i.e. puts away toys
-Is able to stay on a task
-Is able to work independently
-6. Physical and Motor Skills
-Balances on one foot for 5 seconds
-Hops on spot
-Has increasing wrist control i.e. turns, twists, bends
-Jumps in place and off low objects such as steps
-Moves around obstacles with balance and direction
-Walks along a line on the floor/beam
-Throws a ball a short distance with accuracy
-7. Creative Art
-Paints and colours within a given picture
-Reads and draws simple pictures
-Identifies cuttings and sticks appropriately
-Uses writing and drawing tools with increasing control
-Uses playdough to model different shapes
-Works confidently with a variety of materials
-Identifies and names some colours
-8. Music
-Likes singing
-Follows action songs
-Claps hands in a set rhythm
-Recalls songs, chants and rhymes with ease
-Enjoys listening to music
-Gets involved in dancing
-Can perform in front of an audience
+### DESIGN DIRECTION: KJA PREMIUM REPORT CARD
+
+Design a premium, professionally typeset school report card inspired by the Clevers' Origin school uniform. The visual identity must reflect the uniform's distinctive charcoal grey, black, white and deep burgundy-red check pattern.
+
+**1. Colour palette**
+- Deep burgundy red as the primary accent colour.
+- Charcoal grey and near-black for strong headings and text.
+- White as the dominant background.
+- Light grey for subtle section backgrounds, table divisions and supporting elements.
+
+**2. Visual identity**
+Use the school's uniform pattern as a subtle design element. Introduce carefully controlled plaid/checkered detailing using charcoal, black, white and thin burgundy-red lines. The pattern can appear as a narrow header strip, footer accent, section divider or a small decorative panel. Avoid using large checkered backgrounds that interfere with readability.
+
+**3. Header design**
+Create an elegant report card header with the school logo, school name, campus details, academic year and term. Use a deep burgundy accent line and subtle plaid detailing to establish the school's identity. The header should look formal, prestigious and well-organised.
+
+**4. Typography**
+Use modern, professional typography. School and section headings should be bold and distinctive, while learner information, assessment details and teacher comments should use highly legible fonts. Use burgundy for important labels and charcoal for primary text.
+
+**5. Academic tables**
+Create clean, structured academic tables with:
+- Clear column headings.
+- Subtle grey row divisions.
+- Burgundy highlights for important scores, grades and performance indicators.
+- Consistent spacing and alignment.
+- Strong readability when printed.
+
+**6. Report sections**
+Use visually distinct but consistent sections for learner particulars, academic performance, co-curricular activities, teacher comments, attendance, conduct, overall performance and promotion recommendations.
+
+**7. Premium finishing**
+Introduce restrained burgundy borders, thin charcoal dividers, small plaid accents and carefully spaced information blocks. Use the uniform's shield/badge identity as inspiration for small report-card labels and achievement indicators.
+
+**8. Printing requirements**
+The report card must remain predominantly white to minimise printing costs. It must look excellent when printed on ordinary A4 paper in both colour and black and white. Avoid gradients, excessive decoration, heavy background fills and unnecessary graphical elements.
+
+**Overall aesthetic:** Premium British-inspired school stationery, modern academic editorial design, sophisticated, structured, elegant and distinctly recognisable as Clevers' Origin Schools.
+
+Maintain the existing report card's data structure, assessment calculations, grading logic and functionality. This is a visual redesign, not a change to the reporting system.

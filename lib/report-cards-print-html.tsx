@@ -111,14 +111,19 @@ async function crestDataUri() {
   return crestReady;
 }
 
-/** Inline Principal / Head of nursery signatures from public/signatures. */
+/** Inline school signatures from public/signatures for offline PDF print. */
 async function nurserySignatureDataUris() {
   if (cachedSignatures) return cachedSignatures;
   if (signaturesReady) return signaturesReady;
   signaturesReady = (async () => {
     const map = new Map<string, string>();
     const dir = path.join(process.cwd(), "public/signatures");
-    const names = ["principal.png", "head-of-nursery.png"];
+    const names = [
+      "principal.png",
+      "head-of-nursery.png",
+      "head-of-lower-primary.png",
+      "head-of-upper-primary.png",
+    ];
     await Promise.all(
       names.map(async (name) => {
         try {
@@ -200,11 +205,11 @@ export async function buildReportPrintHtml(input: {
   cards: StreamReportCard[];
   photos: Map<string, Uint8Array>;
 }): Promise<string> {
-  const [css, crest, nurseryArt, nurserySigns] = await Promise.all([
+  const [css, crest, nurseryArt, schoolSigns] = await Promise.all([
     printStyles(),
     crestDataUri(),
     input.nursery ? nurseryArtDataUris() : Promise.resolve(new Map<string, string>()),
-    input.nursery ? nurserySignatureDataUris() : Promise.resolve(new Map<string, string>()),
+    nurserySignatureDataUris(),
   ]);
   const qrs = await Promise.all(
     input.cards.map(async (card) => {
@@ -237,7 +242,7 @@ export async function buildReportPrintHtml(input: {
   // Crest / nursery art / signature paths in the sheet markup stay as public URLs - rewrite to data URIs.
   const withCrest = body.replaceAll('src="/images/icon.png"', `src="${crest}"`);
   const withArt = inlineNurseryArt(withCrest, nurseryArt);
-  const withSigns = inlineNurseryArt(withArt, nurserySigns);
+  const withSigns = inlineNurseryArt(withArt, schoolSigns);
 
   return `<!DOCTYPE html>
 <html lang="en">

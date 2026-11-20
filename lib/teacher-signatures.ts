@@ -1,13 +1,23 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { operationalCampus } from "@/lib/campuses";
 import { streamOf } from "@/lib/academics";
+import { bandForClassCode } from "@/lib/subject-bands";
 import { TEACHER_PHOTO_BUCKET } from "@/lib/teacher-photos";
 
 /** Reuses teacher-photos; paths are `{staffId}/sig-{timestamp}.{ext}`. */
 export const TEACHER_SIGNATURE_BUCKET = TEACHER_PHOTO_BUCKET;
 
 export const NURSERY_HEAD_SIGNATURE_SRC = "/signatures/head-of-nursery.png";
+export const LOWER_PRIMARY_HEAD_SIGNATURE_SRC = "/signatures/head-of-lower-primary.png";
+export const UPPER_PRIMARY_HEAD_SIGNATURE_SRC = "/signatures/head-of-upper-primary.png";
 export const PRINCIPAL_SIGNATURE_SRC = "/signatures/principal.png";
+
+/** Head of section image for a primary class (P1–P3 lower, P4–P7 upper). */
+export function primaryHeadSignatureSrc(classCode: string | null | undefined) {
+  return bandForClassCode(classCode) === "lower"
+    ? LOWER_PRIMARY_HEAD_SIGNATURE_SRC
+    : UPPER_PRIMARY_HEAD_SIGNATURE_SRC;
+}
 
 const SIGNATURE_TYPES: Record<string, string> = {
   "image/webp": "webp",
