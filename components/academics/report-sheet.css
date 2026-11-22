@@ -1960,6 +1960,26 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     break-inside: avoid;
     page-break-inside: avoid;
   }
+  /* Primary gained a signature row. Let it flow past one A4 page instead of clipping fees and signatures. */
+  article.acd-sheet.is-primary {
+    height: auto;
+    min-height: 297mm;
+    overflow: visible;
+    break-inside: auto;
+    page-break-inside: auto;
+  }
+  article.acd-sheet.is-primary .acd-sheet-edge {
+    height: auto;
+    min-height: calc(297mm - 3.5mm);
+    overflow: visible;
+  }
+  article.acd-sheet.is-primary .acd-sheet-edge::after {
+    margin-top: auto;
+  }
+  article.acd-sheet.is-primary .acd-sheet-lower {
+    gap: 1.4mm;
+    margin-bottom: 3mm;
+  }
   article.acd-sheet.is-nursery-dsba {
     height: auto;
     overflow: visible;

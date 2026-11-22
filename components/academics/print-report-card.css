@@ -1,0 +1,51 @@
+.rpt-print-preview {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  background: rgba(22, 18, 14, .62);
+}
+.rpt-print-preview-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .7rem 1rem;
+  background: #fff;
+  border-bottom: 1px solid #e6e1d6;
+}
+.rpt-print-preview-bar p {
+  margin: 0;
+  color: #3d3428;
+  font-size: .92rem;
+  font-weight: 650;
+}
+.rpt-print-preview-actions {
+  display: flex;
+  gap: .45rem;
+}
+.rpt-print-preview-actions button {
+  height: 34px;
+  padding: 0 .85rem;
+  border-radius: 8px;
+  border: 1px solid #d9d1c3;
+  background: #fff;
+  color: #3d3428;
+  font: inherit;
+  font-size: .88rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+.rpt-print-preview-actions button.is-primary {
+  border-color: #6b1e2a;
+  background: #6b1e2a;
+  color: #fff;
+}
+.rpt-print-preview iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  border: 0;
+  background: #525659;
+}

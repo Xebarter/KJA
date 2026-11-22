@@ -1,11 +1,13 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
-import { printPdfBlob } from "@/lib/client-print-pdf";
+import "./print-report-card.css";
+
+type Preview = { url: string; html: string | null };
 
 /**
- * Prints the exact same Playwright PDF as Download — not a browser reflow of the on-page sheet.
+ * Builds the same Playwright PDF as Download, then shows it before the print dialog.
  */
 export function PrintReportCardButton({
   href,
@@ -21,36 +23,28 @@ export function PrintReportCardButton({
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<Preview | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const frameRef = useRef<HTMLIFrameElement | null>(null);
+  const previewUrl = useRef<string | null>(null);
 
-  async function printHtml(html: string) {
-    const frame = document.createElement("iframe");
-    frame.setAttribute("aria-hidden", "true");
-    frame.style.cssText =
-      "position:fixed;left:0;top:0;width:210mm;height:297mm;border:0;opacity:0;pointer-events:none;z-index:-1";
-    document.body.appendChild(frame);
-    try {
-      const doc = frame.contentDocument;
-      const win = frame.contentWindow;
-      if (!doc || !win) throw new Error("The print sheet could not be opened.");
-      doc.open();
-      doc.write(html);
-      doc.close();
-      await new Promise<void>((resolve) => {
-        const done = () => resolve();
-        if (doc.readyState === "complete") {
-          requestAnimationFrame(() => requestAnimationFrame(done));
-          return;
-        }
-        frame.addEventListener("load", done, { once: true });
-        setTimeout(done, 1200);
-      });
-      if (doc.fonts?.ready) await doc.fonts.ready.catch(() => undefined);
-      win.focus();
-      win.print();
-    } finally {
-      setTimeout(() => frame.parentNode?.removeChild(frame), 1500);
-    }
+  useEffect(() => {
+    return () => {
+      if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    };
+  }, []);
+
+  function closePreview() {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = null;
+    setPreview(null);
+  }
+
+  function printPreview() {
+    const win = frameRef.current?.contentWindow;
+    if (!win) return;
+    win.focus();
+    win.print();
   }
 
   async function printCard() {
@@ -71,11 +65,17 @@ export function PrintReportCardButton({
       }
       const type = response.headers.get("content-type") || "";
       if (/pdf/i.test(type)) {
-        await printPdfBlob(await response.blob(), "Print report card");
+        if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+        const url = URL.createObjectURL(await response.blob());
+        previewUrl.current = url;
+        setPreview({ url, html: null });
         return;
       }
-      // Fallback when Playwright is unavailable and the server returned HTML / redirected to /sheet.
-      await printHtml(await response.text());
+      if (previewUrl.current) {
+        URL.revokeObjectURL(previewUrl.current);
+        previewUrl.current = null;
+      }
+      setPreview({ url: "", html: await response.text() });
     } catch (caught) {
       if (controller.signal.aborted) return;
       setError(caught instanceof Error ? caught.message : "Couldn't print this report card.");
@@ -105,6 +105,25 @@ export function PrintReportCardButton({
           setBusy(false);
         }}
       />
+      {preview ? (
+        <div className="rpt-print-preview" role="dialog" aria-modal="true" aria-label="Report card preview">
+          <div className="rpt-print-preview-bar">
+            <p>Report card preview</p>
+            <div className="rpt-print-preview-actions">
+              <button type="button" onClick={closePreview}>Close</button>
+              <button type="button" className="is-primary" onClick={printPreview}>
+                Print
+              </button>
+            </div>
+          </div>
+          <iframe
+            ref={frameRef}
+            title="Report card preview"
+            src={preview.html ? undefined : preview.url}
+            srcDoc={preview.html || undefined}
+          />
+        </div>
+      ) : null}
     </span>
   );
 }
