@@ -1151,252 +1151,198 @@ article.acd-sheet .acd-sheet-draft.is-approved {
   article.acd-sheet .acd-sheet-record { padding-right: .85rem; padding-left: .85rem; }
 }
 
-/* ——— Primary Origin theme (Clevers uniform: charcoal / burgundy / white) ——— */
+/* ——— Primary card: burgundy stationery, gold and clear grade colour ——— */
 article.acd-sheet.is-primary {
   --origin-burgundy: #6b1e2a;
   --origin-burgundy-deep: #4f1520;
-  --origin-burgundy-soft: #f3e8ea;
-  --origin-charcoal: #1a1a1a;
-  --origin-charcoal-soft: #3d3d3d;
-  --origin-grey: #f3f3f3;
-  --origin-grey-mid: #e6e6e6;
-  --origin-line: #d8d8d8;
-  --sheet-ink: var(--origin-charcoal);
-  --sheet-muted: #5c5c5c;
-  --sheet-border: rgba(107, 30, 42, 0.42);
-  --sheet-cream: #fff;
-  --sheet-gold: var(--origin-burgundy);
-  --sheet-gold-deep: var(--origin-burgundy-deep);
-  --sheet-gold-soft: var(--origin-burgundy-soft);
-  --sheet-green: var(--origin-burgundy);
-  --sheet-green-deep: var(--origin-burgundy-deep);
-  --sheet-green-soft: var(--origin-burgundy-soft);
-  --sheet-red: var(--origin-burgundy);
-  --sheet-red-deep: var(--origin-burgundy-deep);
-  --sheet-red-soft: var(--origin-burgundy-soft);
-  --sheet-amber: var(--origin-charcoal-soft);
-  --sheet-amber-soft: var(--origin-grey);
-  border-color: var(--origin-line);
-  box-shadow: 0 14px 36px rgba(26, 26, 26, 0.08);
+  --origin-burgundy-soft: #fde8ec;
+  --origin-gold: #e0a51a;
+  --origin-gold-deep: #9a6a08;
+  --origin-cream: #fff8ec;
+  --origin-ink: #1a1416;
+  --sheet-ink: var(--origin-ink);
+  --sheet-muted: #6b5344;
+  --sheet-border: rgba(224, 165, 26, .55);
+  --sheet-cream: var(--origin-cream);
+  --sheet-gold: var(--origin-gold);
+  --sheet-gold-deep: var(--origin-gold-deep);
+  --sheet-gold-soft: #fff3c4;
+  --sheet-green: #12a54b;
+  --sheet-green-deep: #0b7d38;
+  --sheet-green-soft: #d8f6e4;
+  --sheet-red: #e11d48;
+  --sheet-red-deep: #be123c;
+  --sheet-red-soft: #ffe4ea;
+  --sheet-amber: #c9970a;
+  --sheet-amber-soft: #fff3c4;
+  border-color: #efd08a;
+  background: linear-gradient(180deg, #fffdf8 0%, #fff 22%);
+  box-shadow: 0 16px 40px rgba(107, 30, 42, .08);
 }
 article.acd-sheet.is-primary .acd-sheet-watermark img {
-  opacity: 0.07;
+  opacity: .09;
   mix-blend-mode: multiply;
-  filter: grayscale(1);
+  filter: none;
 }
 article.acd-sheet.is-primary .acd-sheet-banner {
   border-top: 3px solid var(--origin-burgundy);
-  background: #fff;
+  background:
+    linear-gradient(180deg, #e7f8ee 0%, var(--origin-cream) 46%, #fff0f3 100%);
 }
 article.acd-sheet.is-primary .acd-sheet-banner::before {
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      rgba(44, 44, 44, 0.22) 0 1px,
-      transparent 1px 9px,
-      rgba(107, 30, 42, 0.35) 9px 10px,
-      transparent 10px 18px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      rgba(44, 44, 44, 0.18) 0 1px,
-      transparent 1px 9px,
-      rgba(107, 30, 42, 0.28) 9px 10px,
-      transparent 10px 18px
-    );
-  background-size: auto;
-  opacity: 0.55;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='52' viewBox='0 0 52 52'%3E%3Cg fill='none' stroke='%23c48912'%3E%3Cpath d='M0 26L26 0L52 26L26 52Z' stroke-width='.7' stroke-opacity='.5'/%3E%3Cpath d='M13 26L26 13L39 26L26 39Z' stroke-width='.45' stroke-opacity='.34'/%3E%3Cpath d='M19.5 26L26 19.5L32.5 26L26 32.5Z' stroke-width='.4' stroke-opacity='.26'/%3E%3C/g%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-position: center;
+  background-size: 52px 52px;
+  opacity: 1;
 }
 article.acd-sheet.is-primary .acd-sheet-crest {
   box-shadow:
     0 0 0 3px #fff,
-    0 0 0 4.5px var(--origin-charcoal),
+    0 0 0 4.5px var(--origin-gold),
     0 0 0 6.5px var(--origin-burgundy);
 }
 article.acd-sheet.is-primary .acd-sheet-face,
 article.acd-sheet.is-primary .acd-sheet-seal {
-  background: var(--origin-grey);
+  background: var(--origin-cream);
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 3.5px var(--origin-charcoal),
+    0 0 0 3.5px var(--origin-gold),
     0 0 0 5px var(--origin-burgundy);
 }
 article.acd-sheet.is-primary .acd-sheet-rules {
   height: 8px;
-  background-color: var(--origin-grey);
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      #2c2c2c 0 1.5px,
-      transparent 1.5px 7px,
-      #6b1e2a 7px 8.5px,
-      transparent 8.5px 14px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      #2c2c2c 0 1.5px,
-      transparent 1.5px 7px,
-      #6b1e2a 7px 8.5px,
-      transparent 8.5px 14px
-    );
+  background:
+    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) 0 0 / 100% 4.5px no-repeat,
+    linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 46%, var(--origin-burgundy-deep)) 0 5.25px / 100% 2px no-repeat,
+    var(--origin-cream);
 }
 article.acd-sheet.is-primary .acd-sheet-established {
   color: var(--origin-burgundy);
 }
 article.acd-sheet.is-primary .acd-sheet-school::after {
-  background: var(--origin-burgundy);
+  background: linear-gradient(90deg, var(--sheet-green), var(--sheet-gold), var(--origin-burgundy));
 }
 article.acd-sheet.is-primary .acd-sheet-academy {
   color: var(--origin-burgundy-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-contact span + span::before {
-  background: var(--origin-burgundy);
+  background: var(--origin-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-title {
   padding: 0.7rem 1.4rem 0.75rem;
-  background: var(--origin-grey);
-  border-bottom: 1px solid var(--origin-line);
+  background: linear-gradient(90deg, #e5f8ee, #fff4cc 48%, #ffe8ee);
+  border-bottom: 1px solid rgba(224, 165, 26, .45);
 }
 article.acd-sheet.is-primary .acd-sheet-title h2::before,
 article.acd-sheet.is-primary .acd-sheet-title h2::after {
-  height: 1.5px;
-  background: var(--origin-burgundy);
+  height: 2px;
+  background: linear-gradient(90deg, var(--sheet-green), var(--sheet-gold), var(--origin-burgundy));
 }
 article.acd-sheet.is-primary .acd-sheet-term {
   color: var(--origin-burgundy-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-identity {
-  border-bottom: 1px solid var(--origin-line);
+  border-bottom: 1px solid rgba(224, 165, 26, .4);
 }
 article.acd-sheet.is-primary .acd-sheet-kicker {
   color: var(--origin-burgundy);
 }
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-average {
-  --metric-fill: var(--origin-burgundy-soft);
-  --metric-edge: rgba(107, 30, 42, 0.35);
-  --metric-label: var(--origin-burgundy-deep);
-  --metric-ink: var(--origin-burgundy-deep);
-}
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-aggregate {
-  --metric-fill: var(--origin-grey);
-  --metric-edge: rgba(26, 26, 26, 0.18);
-  --metric-label: var(--origin-charcoal-soft);
-  --metric-ink: var(--origin-charcoal);
-}
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-grade {
-  --metric-fill: #ebebeb;
-  --metric-edge: rgba(26, 26, 26, 0.22);
-  --metric-label: var(--origin-charcoal-soft);
-  --metric-ink: var(--origin-charcoal);
-}
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-high {
-  --metric-fill: var(--origin-burgundy-soft);
-  --metric-edge: rgba(107, 30, 42, 0.4);
-  --metric-label: var(--origin-burgundy-deep);
-  --metric-ink: var(--origin-burgundy-deep);
-}
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-mid {
-  --metric-fill: #efefef;
-  --metric-edge: rgba(26, 26, 26, 0.2);
-  --metric-label: var(--origin-charcoal-soft);
-  --metric-ink: var(--origin-charcoal);
-}
-article.acd-sheet.is-primary .acd-sheet-figures.is-primary > div.is-low {
-  --metric-fill: #e8e0e2;
-  --metric-edge: rgba(107, 30, 42, 0.28);
-  --metric-label: var(--origin-burgundy-deep);
-  --metric-ink: var(--origin-burgundy-deep);
-}
 article.acd-sheet.is-primary .acd-sheet-table-wrap {
-  border: 1px solid var(--origin-line);
-  box-shadow: none;
+  border: 1px solid rgba(107, 30, 42, .22);
+  box-shadow: 0 8px 22px rgba(107, 30, 42, .05);
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th {
-  background: var(--origin-grey);
-  color: var(--origin-charcoal);
-  border-bottom: 1px solid var(--origin-burgundy);
+  background: linear-gradient(180deg, #842433 0%, var(--origin-burgundy) 100%);
+  color: #fff8ec;
+  border-bottom: 2px solid var(--origin-gold);
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
+  color: rgba(255, 244, 204, .92);
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr + tr td {
-  border-top: 1px solid var(--origin-grey-mid);
+  border-top: 1px solid rgba(224, 165, 26, .22);
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td {
-  background: #fafafa;
+  background: #fffaf2;
 }
-article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-high td,
-article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-mid td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-high td {
+  background: #f3fbf6;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-mid td {
+  background: #fff9e8;
+}
 article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-low td {
-  background: transparent;
+  background: #fff1f4;
 }
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td,
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td {
+  background: #e8f7ee;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td {
+  background: #fff4d4;
+}
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
-  background: #fafafa;
-}
-article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-high,
-article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-high {
-  color: var(--origin-burgundy-deep);
-}
-article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-mid,
-article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-mid {
-  color: var(--origin-charcoal);
-}
-article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-figure.is-low,
-article.acd-sheet.is-primary .acd-sheet-record .acd-grade.is-low {
-  color: var(--origin-burgundy);
+  background: #ffe8ee;
 }
 article.acd-sheet.is-primary tfoot th,
 article.acd-sheet.is-primary tfoot td {
   border-top: 1px solid var(--origin-burgundy);
-  background: var(--origin-burgundy-soft);
-  color: var(--origin-charcoal);
+  background: linear-gradient(180deg, #fff6d8, #fff0c8);
+  color: var(--origin-ink);
 }
 article.acd-sheet.is-primary .acd-sheet-scale li {
-  border-color: var(--origin-line);
-  background: var(--origin-grey);
+  border-color: rgba(224, 165, 26, .4);
+  background: var(--origin-cream);
 }
 article.acd-sheet.is-primary .acd-sheet-scale li.is-high {
-  background: var(--origin-burgundy-soft);
-  border-color: rgba(107, 30, 42, 0.35);
+  background: var(--sheet-green-soft);
+  border-color: rgba(18, 165, 75, .4);
 }
-article.acd-sheet.is-primary .acd-sheet-scale li.is-mid,
+article.acd-sheet.is-primary .acd-sheet-scale li.is-mid {
+  background: var(--sheet-gold-soft);
+  border-color: rgba(201, 151, 10, .45);
+}
 article.acd-sheet.is-primary .acd-sheet-scale li.is-low {
-  background: var(--origin-grey);
-  border-color: var(--origin-line);
+  background: var(--sheet-red-soft);
+  border-color: rgba(225, 29, 72, .32);
 }
 article.acd-sheet.is-primary .acd-sheet-coco-table {
-  border: 1px solid var(--origin-line);
+  border: 1px solid rgba(107, 30, 42, .2);
 }
 article.acd-sheet.is-primary .acd-sheet-coco-table thead th {
-  background: var(--origin-grey);
+  background: linear-gradient(180deg, #fff6d6, #ffeeb8);
   color: var(--origin-burgundy-deep);
-  border-bottom: 1px solid var(--origin-burgundy);
+  border-bottom: 2px solid var(--origin-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-report h3,
 article.acd-sheet.is-primary .acd-sheet-principal h3,
 article.acd-sheet.is-primary .acd-sheet-fees h3 {
   color: var(--origin-burgundy-deep);
-  border-bottom-color: var(--origin-line);
+  border-bottom-color: rgba(224, 165, 26, .4);
 }
 article.acd-sheet.is-primary .acd-sheet-report h3 em {
-  color: var(--origin-charcoal-soft);
+  color: var(--sheet-muted);
 }
 article.acd-sheet.is-primary .acd-sheet-report p.is-blank,
 article.acd-sheet.is-primary .acd-sheet-principal p.is-blank {
   background-image: linear-gradient(
     to bottom,
     transparent calc(100% - 1px),
-    rgba(107, 30, 42, 0.35) calc(100% - 1px)
+    rgba(224, 165, 26, .55) calc(100% - 1px)
   );
 }
 article.acd-sheet.is-primary .acd-sheet-fees {
-  border: 1px solid var(--origin-line);
+  border: 1px solid rgba(224, 165, 26, .45);
   background:
-    linear-gradient(var(--origin-burgundy), var(--origin-burgundy)) top / 100% 2.5px no-repeat,
-    #fff;
+    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) top / 100% 3px no-repeat,
+    linear-gradient(180deg, #fffaf0, #fff);
   box-shadow: none;
 }
 article.acd-sheet.is-primary .acd-sheet-fees > div + div {
-  border-left-color: var(--origin-line);
+  border-left-color: rgba(224, 165, 26, .35);
+}
+article.acd-sheet.is-primary .acd-sheet-next {
+  color: var(--origin-burgundy-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-signs {
   display: grid;
@@ -1410,10 +1356,10 @@ article.acd-sheet.is-primary .acd-sheet-signs > div {
   gap: 0.12rem;
   min-width: 0;
   padding: 0.35rem 0.45rem 0.4rem;
-  border: 1px solid var(--origin-line);
+  border: 1px solid rgba(224, 165, 26, .4);
   border-radius: 8px;
-  background: #fff;
-  box-shadow: inset 0 2px 0 var(--origin-burgundy);
+  background: linear-gradient(180deg, #fffaf0, #fff);
+  box-shadow: inset 0 2.5px 0 var(--origin-burgundy);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-label {
   margin: 0;
@@ -1435,7 +1381,7 @@ article.acd-sheet.is-primary .acd-sheet-sign-img {
 article.acd-sheet.is-primary .acd-sheet-sign-line {
   margin: 0.45rem 0 0.1rem;
   min-height: 0.85rem;
-  border-bottom: 1.5px solid rgba(26, 26, 26, 0.4);
+  border-bottom: 1.5px solid rgba(107, 30, 42, .45);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-hint {
   margin: 0;
@@ -1450,22 +1396,10 @@ article.acd-sheet.is-primary .acd-sheet-edge::after {
   display: block;
   height: 8px;
   margin-top: 0.35rem;
-  background-color: var(--origin-grey);
-  background-image:
-    repeating-linear-gradient(
-      90deg,
-      #2c2c2c 0 1.5px,
-      transparent 1.5px 7px,
-      #6b1e2a 7px 8.5px,
-      transparent 8.5px 14px
-    ),
-    repeating-linear-gradient(
-      0deg,
-      #2c2c2c 0 1.5px,
-      transparent 1.5px 7px,
-      #6b1e2a 7px 8.5px,
-      transparent 8.5px 14px
-    );
+  background:
+    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) 0 0 / 100% 4.5px no-repeat,
+    linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 46%, var(--origin-burgundy-deep)) 0 5.25px / 100% 2px no-repeat,
+    var(--origin-cream);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
 }
