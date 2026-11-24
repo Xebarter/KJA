@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  BEHAVIOR_CONDUCT,
   CONDUCT,
   DATE_KINDS,
   bandMidpoint,
@@ -611,7 +612,7 @@ export async function saveTeacherReport(formData: FormData): Promise<Result> {
       class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
       head_comment: text(formData, "head_comment", 2000) || null,
       cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
-      conduct: CONDUCT.includes(conduct as (typeof CONDUCT)[number]) ? conduct : null,
+      conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
       ...(staffName ? { class_teacher_name: staffName } : {}),
       updated_at: new Date().toISOString(),
       ...(publishing

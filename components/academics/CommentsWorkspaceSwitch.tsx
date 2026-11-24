@@ -9,6 +9,8 @@ export function CommentsWorkspaceSwitch({
   active,
   classCode,
   stream,
+  campus,
+  classCampus,
   base = `${ACADEMICS_BASE}/comments`,
   showBank = true,
   showNursery = true,
@@ -17,6 +19,8 @@ export function CommentsWorkspaceSwitch({
   active: CommentsWorkspace;
   classCode?: string | null;
   stream?: string | null;
+  campus?: string | null;
+  classCampus?: string | null;
   base?: string;
   showBank?: boolean;
   showNursery?: boolean;
@@ -29,6 +33,8 @@ export function CommentsWorkspaceSwitch({
     if (classCode) params.set("class", classCode);
     if (stream != null && stream !== "") params.set("stream", stream || "-");
     else if (stream === "") params.set("stream", "-");
+    if (campus) params.set("campus", campus);
+    if (classCampus) params.set("classCampus", classCampus);
     return `${base}?${params.toString()}`;
   }
 

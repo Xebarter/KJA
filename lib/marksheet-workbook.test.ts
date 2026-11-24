@@ -16,7 +16,7 @@ describe("marksheet workbook", () => {
       nursery: false,
       subjects: [{ name: "Mathematics", maxScore: 100, average: 80 }],
       pupils: [
-        { number: "12", name: "Amina", marks: [{ value: 90, tone: "high", percent: 90 }], average: 90, position: 1 },
+        { number: "12", name: "Amina", marks: [{ value: 90, tone: "high", percent: 90 }], average: 90, position: 1, behavior: "A" },
         { number: "4", name: "Ben", marks: [{ value: "Abs", tone: "missed", percent: null }], average: null, position: null },
       ],
       classAverage: 90,
@@ -32,6 +32,9 @@ describe("marksheet workbook", () => {
     expect(sheet.getCell(8, 3).font?.name).toBe("Bookman Old Style");
     expect(sheet.getCell(8, 4).value).toBe(90);
     expect(sheet.getCell(8, 6).value).toBe(1);
+    expect(sheet.getCell(7, 7).value).toBe("Behavior (A-D)");
+    expect(sheet.getCell(8, 7).value).toBe("A");
+    expect(sheet.getCell(8, 7).dataValidation?.formulae).toEqual(['"A,B,C,D"']);
     expect(sheet.getCell(9, 3).value).toBe("Ben");
     expect(sheet.getCell(9, 4).value).toBe("Abs");
     expect(sheet.getCell(10, 3).value).toBe("Class average");

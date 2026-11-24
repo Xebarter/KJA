@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { cancelRegister, saveAttendance } from "@/app/academics_office/(desk)/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { CampusFilter } from "@/components/academics/CampusFilter";
 import { OpenRegisters } from "@/components/academics/OpenRegisters";
 import { RegisterDesk } from "@/components/academics/RegisterDesk";
 import { AcademicsGate } from "@/components/academics/ui";
 import { ACADEMICS_BASE, classGroupKey, classLabel, groupPupils, kampalaToday, loadCurrentTerm, campusFromQuery, campusQuery, streamFromQuery, streamQuery, streamOf, type AttendanceStatus } from "@/lib/academics";
-import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
+import { CAMPUS_OPTIONS } from "@/lib/campuses";
 import { openAcademics } from "@/lib/academics-access";
 import { loadClosures, loadDayMarks, loadRoll } from "@/lib/academics-roll";
 
@@ -26,12 +27,14 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Attendance" state={opened} />;
   const { supabase, office, staffId, user, campuses } = opened.auth;
+  const campusOptions = campuses.length ? campuses : CAMPUS_OPTIONS;
   const today = kampalaToday();
   const date = /^\d{4}-\d{2}-\d{2}$/.test(query.date || "") ? query.date! : today;
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
   const campusRaw = campusFromQuery(query.campus);
-  const campus = campusRaw && CAMPUS_OPTIONS.includes(campusRaw as (typeof CAMPUS_OPTIONS)[number]) ? campusRaw : operationalCampus(null);
+  const selectedCampus =
+    campusRaw && campusOptions.includes(campusRaw as (typeof CAMPUS_OPTIONS)[number]) ? campusRaw : null;
 
   const [pupils, termPack, marks, closures] = await Promise.all([
     loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
@@ -43,7 +46,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const term = termPack.term;
   const marked = new Map(marks.map((mark) => [mark.student_id, mark]));
   const closed = new Set(closures.map((row) => classGroupKey(row.campus, row.class_code, row.stream)));
-  const groups = groupPupils(pupils).map((group) => ({
+  const groups = groupPupils(pupils)
+    .filter((group) => !selectedCampus || group.campus === selectedCampus)
+    .map((group) => ({
     key: classGroupKey(group.campus, group.code, group.stream),
     code: group.code,
     name: classLabel(group.code, group.stream, group.campus),
@@ -56,18 +61,16 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
     campus: group.campus,
     closed: closed.has(classGroupKey(group.campus, group.code, group.stream)),
     rows: group.pupils,
-  }));
+    }));
   const openGroups = date === today
     ? groups.filter((group) => group.pupils > 0 && group.done < group.pupils && !group.closed)
     : [];
-  const wantedCampus =
-    campusRaw && CAMPUS_OPTIONS.includes(campusRaw as (typeof CAMPUS_OPTIONS)[number]) ? campusRaw : null;
   const current =
     groups.find(
       (group) =>
         group.code === classCode &&
         (stream === null || group.stream === stream) &&
-        (!wantedCampus || group.campus === wantedCampus),
+        (!selectedCampus || group.campus === selectedCampus),
     ) || null;
   let classTeacherId = "";
   if (term && current) {
@@ -80,7 +83,9 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
   const next = current
     ? groups.slice(index + 1).find(stillOpen) || groups.slice(0, index).find(stillOpen) || null
     : null;
-  const dayHref = `${ACADEMICS_BASE}/attendance?date=${date}`;
+  const dayParams = new URLSearchParams({ date });
+  if (selectedCampus) dayParams.set("campus", selectedCampus);
+  const dayHref = `${ACADEMICS_BASE}/attendance?${dayParams.toString()}`;
 
   return (
     <div className="app-page ofc-page att-page">
@@ -103,6 +108,12 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
             {next ? <Link className="admin-hero-btn is-primary" href={next.href}><i className="fa-solid fa-arrow-right" aria-hidden="true" /> {next.name}</Link> : null}
           </>
         ) : null}
+      />
+      <CampusFilter
+        options={campusOptions}
+        selected={selectedCampus}
+        basePath={`${ACADEMICS_BASE}/attendance`}
+        query={{ date }}
       />
       {!current && openGroups.length ? (
         <OpenRegisters
@@ -130,6 +141,7 @@ export default async function AttendancePage({ searchParams }: { searchParams: P
         classCode={current?.code || ""}
         streamValue={current ? streamQuery(current.stream) : null}
         campusValue={current?.campus ?? null}
+        campusFilter={selectedCampus}
         groups={groups}
         current={current ? {
           name: current.name,

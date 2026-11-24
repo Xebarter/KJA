@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { generateReportComments, saveReport } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
 import type { SheetActivity, SheetLine } from "@/components/academics/ReportSheet";
-import { CONDUCT } from "@/lib/academics";
+import { BEHAVIOR_CONDUCT, CONDUCT } from "@/lib/academics";
 
 type Tab = "leaders" | "activities" | "subjects";
 type SubjectFilter = "open" | "done" | "all";
@@ -66,7 +66,7 @@ export function ReportRemarksEditor({
     const openSubjects = lines.some((line) => !filled(line.teacher_comment));
     return openSubjects && lines.length ? "subjects" : "leaders";
   });
-  const [conduct, setConduct] = useState(initialConduct || "");
+  const [conduct, setConduct] = useState(initialConduct === "Needs support" ? "Needs Help" : initialConduct || "");
   const [teacherNote, setTeacherNote] = useState(classTeacherComment || "");
   const [headNote, setHeadNote] = useState(headComment || "");
   const [subjectNotes, setSubjectNotes] = useState(() =>
@@ -250,7 +250,7 @@ export function ReportRemarksEditor({
                 </span>
               </header>
               <div className="rpt-conduct" role="group" aria-label="Conduct">
-                {CONDUCT.map((item) => (
+                {BEHAVIOR_CONDUCT.map((item) => (
                   <button
                     key={item}
                     type="button"

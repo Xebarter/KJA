@@ -42,6 +42,7 @@ export type RegisterDeskProps = {
   classCode: string;
   streamValue: string | null;
   campusValue?: string | null;
+  campusFilter?: string | null;
   groups: RegisterClass[];
   current: {
     name: string;
@@ -91,6 +92,7 @@ export function RegisterDesk({
   classCode,
   streamValue,
   campusValue,
+  campusFilter,
   groups,
   current,
   save,
@@ -112,7 +114,7 @@ export function RegisterDesk({
       params.set("class", classCode);
       if (streamValue !== null) params.set("stream", streamValue);
       if (campusValue) params.set("campus", campusValue);
-    }
+    } else if (campusFilter) params.set("campus", campusFilter);
     router.push(`${path}?${params}`);
   }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   bandMidpoint,
+  behaviorRatingForConduct,
   classLabel,
   classSection,
   kampalaLong,
@@ -291,6 +292,21 @@ export async function loadMarksheetExportPayload(input: {
   const saved = new Map(
     scores.map((score) => [`${score.assessment_id}|${score.student_id}`, { score: num(score.score), missed: Boolean(score.missed) }]),
   );
+  let conductByStudent = new Map<string, string | null>();
+  try {
+    const conductRows = await fetchAll<{ student_id: string; conduct: string | null }>((from, to) =>
+      input.supabase
+        .from("report_cards")
+        .select("student_id, conduct")
+        .eq("term_id", term.id)
+        .in("student_id", roster.map((pupil) => pupil.id))
+        .order("student_id")
+        .range(from, to),
+    );
+    conductByStudent = new Map(conductRows.map((row) => [row.student_id, row.conduct]));
+  } catch {
+    return { error: "The term behavior ratings could not be loaded.", status: 500 };
+  }
   const bands = ((bandsQuery.data || []) as Record<string, unknown>[]).map(mapBand);
   const subjects = columns.map((column) => ({
     id: assessmentsCombined || !combined ? column.papers[0].id : column.subjectId,
@@ -379,6 +395,7 @@ export async function loadMarksheetExportPayload(input: {
       otherAverage: weightedPercent(marks.filter((mark) => mark.kind === "cocurricular")),
       gaps: marks.filter((mark) => mark.expected && !mark.missed && mark.score === null).length,
       percents,
+      behavior: behaviorRatingForConduct(conductByStudent.get(pupil.id)),
     };
   });
 
@@ -450,6 +467,7 @@ export async function loadMarksheetExportPayload(input: {
       }),
       average: marksheetDisplayAverage(row, sort),
       position: positions.get(row.id) ?? null,
+      behavior: row.behavior,
     })),
     classAverage,
     logo,

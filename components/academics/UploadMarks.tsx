@@ -302,6 +302,7 @@ export function UploadMarks({
   const otherWithoutSkills = otherChosen.filter((paper) => paper.skillCount < 1);
   const otherWithSkills = otherChosen.filter((paper) => paper.skillCount > 0);
   const handed = preview?.sheets.reduce((sum, sheet) => sum + sheet.scores + sheet.missed, 0) ?? 0;
+  const actionCount = handed + (preview?.behavior || 0) || preview?.ready || 0;
   const previewNursery = Boolean(preview?.nursery || chosenNurseryOnly);
 
   async function download() {
@@ -633,7 +634,7 @@ export function UploadMarks({
                     <em>
                       {previewNursery
                         ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
-                        : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`}
+                        : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
                     </em>
                   </li>
                 ))}
@@ -659,7 +660,7 @@ export function UploadMarks({
               {preview.ready && !preview.issueCount ? (
                 <button type="button" className="asm-commit" disabled={busy !== ""} onClick={() => setAskSubmit(true)}>
                   <i className="fa-solid fa-paper-plane" aria-hidden="true" />
-                  {previewNursery ? "Submit skill codes" : "Submit marks"}
+                  {previewNursery ? "Submit skill codes" : preview.behavior ? "Submit marks & behavior" : "Submit marks"}
                 </button>
               ) : null}
             </div>
@@ -679,7 +680,7 @@ export function UploadMarks({
           <div className="asm-dialog" role="dialog" aria-modal="true" aria-labelledby="marks-submit-title">
             <header>
               <p>Workbook</p>
-              <h2 id="marks-submit-title">{previewNursery ? "Submit these skill codes" : "Submit these marks"}</h2>
+              <h2 id="marks-submit-title">{previewNursery ? "Submit these skill codes" : preview.behavior ? "Submit these marks and behavior ratings" : "Submit these marks"}</h2>
               <span>{preview.name}{preview.detail ? ` · ${preview.detail}` : ""}</span>
             </header>
             <ul>
@@ -690,13 +691,15 @@ export function UploadMarks({
                   <em>
                     {previewNursery
                       ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
-                      : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`}
+                      : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
                   </em>
                 </li>
               ))}
             </ul>
             <p>
-              {handed
+              {preview.behavior
+                ? `${nf(preview.behavior)} term behavior ${preview.behavior === 1 ? "rating" : "ratings"} will be saved to report cards.${handed ? " Marks are submitted and remain locked until the office unlocks them." : " No marks are being submitted."}`
+                : handed
                 ? previewNursery
                   ? "Every skill code in this workbook is handed in. The sitting shows as submitted until the office unlocks it."
                   : "Every mark in this workbook is handed in. It shows as submitted on the class marksheet, and it stays locked until the office unlocks it."
@@ -710,7 +713,7 @@ export function UploadMarks({
               <button type="button" className="asm-dialog-ghost" disabled={busy === "save"} onClick={() => setAskSubmit(false)}>Cancel</button>
               <button ref={submitRef} type="button" className="asm-commit" disabled={busy !== ""} onClick={save}>
                 <i className={`fa-solid ${busy === "save" ? "fa-spinner fa-spin" : "fa-paper-plane"}`} aria-hidden="true" />
-                {busy === "save" ? "Submitting" : `Submit ${nf(handed || preview.ready)}`}
+                {busy === "save" ? "Submitting" : `Submit ${nf(actionCount)}`}
               </button>
             </footer>
           </div>

@@ -70,7 +70,7 @@ export type PrimaryCommentSubject = {
   active: boolean;
 };
 
-type Selection = { code: string; stream: string };
+type Selection = { code: string; stream: string; campus: string };
 type Mode = "class" | "subjects" | "other";
 type FieldKind = "class" | "subject" | "activity";
 
@@ -100,11 +100,16 @@ function statusLabel(status: string | null, hasComment?: boolean) {
   return "Ready";
 }
 
-function classHref(base: string, code: string, stream: string, view?: string | null) {
+function classHref(base: string, code: string, stream: string, campus: string, view?: string | null) {
   const params = new URLSearchParams({
     class: code,
     stream: streamQuery(stream),
+    classCampus: campus,
   });
+  if (typeof window !== "undefined") {
+    const filterCampus = new URLSearchParams(window.location.search).get("campus");
+    if (filterCampus) params.set("campus", filterCampus);
+  }
   if (view) params.set("view", view);
   return `${base}?${params.toString()}`;
 }
@@ -116,14 +121,17 @@ function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
   if (!code) return null;
   const raw = params.get("stream");
   const stream = raw === null ? null : raw === "-" || raw === "" ? "" : raw.slice(0, 20);
-  const match = groups.find((group) => group.code === code && (stream === null || group.stream === stream));
-  return match ? { code: match.code, stream: match.stream } : null;
+  const campus = params.get("classCampus") || params.get("campus");
+  const match = groups.find(
+    (group) => group.code === code && (stream === null || group.stream === stream) && (!campus || group.campus === campus),
+  );
+  return match ? { code: match.code, stream: match.stream, campus: match.campus } : null;
 }
 
 function sameSelection(a: Selection | null, b: Selection | null) {
   if (!a && !b) return true;
   if (!a || !b) return false;
-  return a.code === b.code && a.stream === b.stream;
+  return a.code === b.code && a.stream === b.stream && a.campus === b.campus;
 }
 
 function errorMessage(raw: string) {
@@ -227,7 +235,7 @@ export function PrimaryCommentsDesk({
   }, []);
 
   useEffect(() => {
-    const next = selectionFromUrl(groups) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream } : null);
+    const next = selectionFromUrl(groups) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream, campus: groups[0].campus } : null);
     setSelected((prev) => (sameSelection(prev, next) ? prev : next));
   }, [groups]);
 
@@ -264,7 +272,7 @@ export function PrimaryCommentsDesk({
     setError("");
     setOk("");
     setExportOpen(false);
-    const url = classHref(commentsBase, next.code, next.stream, viewParam);
+    const url = classHref(commentsBase, next.code, next.stream, next.campus, viewParam);
     if (historyMode === "replace") window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   }
@@ -274,7 +282,7 @@ export function PrimaryCommentsDesk({
   }
 
   const selectedGroup = selected
-    ? groups.find((group) => group.code === selected.code && group.stream === selected.stream) || null
+    ? groups.find((group) => group.code === selected.code && group.stream === selected.stream && group.campus === selected.campus) || null
     : null;
 
   const classSubjects = useMemo(
@@ -370,7 +378,7 @@ export function PrimaryCommentsDesk({
         const text = (classByPupil.get(pupil.id)?.comment || "").trim();
         if (!text) blank += 1;
       }
-      map[`${group.code}|${group.stream}`] = blank;
+      map[`${group.campus}|${group.code}|${group.stream}`] = blank;
     }
     return map;
   }, [groups, classByPupil]);
@@ -680,7 +688,7 @@ export function PrimaryCommentsDesk({
           ? "Preparing Excel"
           : "Working";
 
-  const title = selectedGroup ? classLabel(selectedGroup.code, selectedGroup.stream) : "Primary comments";
+  const title = selectedGroup ? classLabel(selectedGroup.code, selectedGroup.stream, selectedGroup.campus) : "Primary comments";
   const modeHint =
     mode === "subjects" ? " · All subjects" : mode === "other" ? " · Other subjects" : " · All comments";
 

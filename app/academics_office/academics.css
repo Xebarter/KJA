@@ -25,6 +25,37 @@
 }
 .acd-toolbar .ofc-field { min-width: 10rem; }
 
+.acd-campus-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .55rem .8rem;
+  margin: 0 0 1rem;
+  color: var(--admin-muted, #6d6458);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.acd-campus-filter > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .4rem;
+}
+.acd-campus-filter a {
+  padding: .35rem .7rem;
+  border: 1px solid var(--admin-line, #e6e0d4);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--admin-navy, #19232b);
+  font-weight: 600;
+  text-decoration: none;
+}
+.acd-campus-filter a:hover,
+.acd-campus-filter a.is-on {
+  border-color: var(--admin-navy, #19232b);
+  background: var(--admin-navy, #19232b);
+  color: #fff;
+}
+
 .acd-cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));

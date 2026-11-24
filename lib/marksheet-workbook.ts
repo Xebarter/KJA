@@ -52,6 +52,7 @@ export type MarksheetWorkbookInput = {
     marks: MarksheetWorkbookMark[];
     average: number | null;
     position: number | null;
+    behavior?: string | null;
   }[];
   classAverage: number | null;
   logo?: Uint8Array | null;
@@ -175,7 +176,8 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   const firstSubject = 4;
   const averageCol = firstSubject + input.subjects.length;
   const positionCol = averageCol + 1;
-  const lastCol = positionCol;
+  const behaviorCol = positionCol + 1;
+  const lastCol = behaviorCol;
   const pupilCount = input.pupils.length;
   const firstData = headerRow + 1;
   const lastData = firstData + Math.max(pupilCount, 1) - 1;
@@ -190,6 +192,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   });
   sheet.getColumn(averageCol).width = 13;
   sheet.getColumn(positionCol).width = 12;
+  sheet.getColumn(behaviorCol).width = 16;
 
   const hasLogo = Boolean(input.logo?.byteLength);
   const brandCol = hasLogo ? 3 : 2;
@@ -247,12 +250,12 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   });
 
   const averageNote = input.nursery ? "Averages use the band midpoints." : "Averages are weighted.";
-  sheet.getRow(5).height = 18;
+  sheet.getRow(5).height = 28;
   paint(sheet.getCell(5, 1), { fill: solid(WHITE) });
-  merge(sheet, 5, 2, lastCol, `Arranged: ${input.sortLabel}.${input.combined ? "  All streams." : ""}  ${averageNote}`, {
+  merge(sheet, 5, 2, lastCol, `Arranged: ${input.sortLabel}.${input.combined ? "  All streams." : ""}  ${averageNote}  Behavior: A Excellent · B Good · C Fair · D Needs Help.`, {
     font: font(10, MUTED, false, { italic: true }),
     fill: solid(WHITE),
-    alignment: { vertical: "middle" },
+    alignment: { vertical: "middle", wrapText: true },
   });
 
   sheet.getRow(6).height = 8;
@@ -264,7 +267,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
       fill: solid(NAVY),
       border: { bottom: side("thin", GOLD) },
     });
-    merge(sheet, groupRow, averageCol, positionCol, "", {
+    merge(sheet, groupRow, averageCol, behaviorCol, "", {
       fill: solid(NAVY),
       border: { bottom: side("thin", GOLD) },
     });
@@ -297,6 +300,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   });
   headers.push({ col: averageCol, text: "Average", align: "center", paletteIndex: null });
   headers.push({ col: positionCol, text: "Position", align: "center", paletteIndex: null });
+  headers.push({ col: behaviorCol, text: "Behavior (A-D)", align: "center", paletteIndex: null });
   headers.forEach((header) => {
     const cell = sheet.getCell(headerRow, header.col);
     cell.value = header.text;
@@ -375,6 +379,28 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
         numFmt: "0",
       });
     }
+
+    const behavior = sheet.getCell(rowNumber, behaviorCol);
+    behavior.value = pupil.behavior || null;
+    behavior.dataValidation = {
+      type: "list",
+      allowBlank: true,
+      formulae: ['"A,B,C,D"'],
+      showErrorMessage: true,
+      errorStyle: "stop",
+      errorTitle: "Choose a behavior rating",
+      error: "Choose A, B, C, or D.",
+      showInputMessage: true,
+      promptTitle: "Behavior rating",
+      prompt: "A Excellent · B Good · C Fair · D Needs Help.",
+    };
+    paint(behavior, {
+      font: font(11, NAVY, true),
+      fill: baseFill,
+      alignment: { vertical: "middle", horizontal: "center" },
+      border: grid(),
+      numFmt: "@",
+    });
   });
 
   if (!pupilCount) {

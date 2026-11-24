@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   bandMidpoint,
+  behaviorRatingForConduct,
   classLabel,
   classOrder,
   classSection,
@@ -44,6 +45,7 @@ type PaperRow = {
   term_id: string;
   class_code: string;
   stream: string | null;
+  campus?: string | null;
   subject_id: string;
   name: string;
   kind: string;
@@ -320,7 +322,7 @@ export async function prepareMarksWorkbookResponse(
       const [primaryResult, dsbaResult] = await Promise.all([
         auth.supabase
           .from("assessments")
-          .select("id, term_id, class_code, stream, subject_id, name, kind, max_score, held_on, status")
+          .select("id, term_id, class_code, stream, campus, subject_id, name, kind, max_score, held_on, status")
           .in("id", slice),
         auth.supabase
           .from("developmental_assessments")
@@ -363,14 +365,14 @@ export async function prepareMarksWorkbookResponse(
       const sittingRows = await fetchAll<PaperRow>((from, to) => {
         let query = auth.supabase
           .from("assessments")
-          .select("id, term_id, class_code, stream, subject_id, name, kind, max_score, held_on, status")
+          .select("id, term_id, class_code, stream, campus, subject_id, name, kind, max_score, held_on, status")
           .eq("term_id", termId)
           .eq("name", sample.name)
           .eq("kind", sample.kind);
         query = sample.held_on ? query.eq("held_on", sample.held_on) : query.is("held_on", null);
         return query.order("id").range(from, to);
       });
-      const chosenKeys = new Set(papers.map((paper) => `${paper.class_code}|${streamOf(paper.stream)}`));
+      const chosenKeys = new Set(papers.map((paper) => `${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`));
       const { data: kindRows } = await auth.supabase.from("subjects").select("id, kind").eq("active", true);
       const otherIds = new Set(
         (kindRows || [])
@@ -380,7 +382,7 @@ export async function prepareMarksWorkbookResponse(
       const have = new Set(papers.map((paper) => paper.id));
       for (const row of sittingRows) {
         if (have.has(row.id)) continue;
-        if (!chosenKeys.has(`${row.class_code}|${streamOf(row.stream)}`)) continue;
+        if (!chosenKeys.has(`${row.class_code}|${streamOf(row.stream)}|${operationalCampus(row.campus)}`)) continue;
         if (!otherIds.has(row.subject_id)) continue;
         if (auth.allowedPaperIds && !auth.allowedPaperIds.has(row.id)) continue;
         papers.push(row);
@@ -430,9 +432,20 @@ export async function prepareMarksWorkbookResponse(
         return [String(subject.id), { kind: String(subject.kind || "core"), skills }] as const;
       }),
     );
-    const onRoll = new Set(roll.map((pupil) => `${pupil.class_code}|${streamOf(pupil.stream)}`));
-    const usable = open.filter((paper) => onRoll.has(`${paper.class_code}|${streamOf(paper.stream)}`));
+    const onRoll = new Set(roll.map((pupil) => `${pupil.class_code}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`));
+    const usable = open.filter((paper) => onRoll.has(`${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`));
     if (!usable.length) return new Response("None of the chosen classes have pupils on roll.", { status: 400 });
+    const pupilIds = [...new Set(roll.map((pupil) => pupil.id))];
+    const conductByStudent = new Map<string, string | null>();
+    for (let index = 0; index < pupilIds.length; index += 200) {
+      const { data, error } = await auth.supabase
+        .from("report_cards")
+        .select("student_id, conduct")
+        .eq("term_id", termId)
+        .in("student_id", pupilIds.slice(index, index + 200));
+      if (error) return new Response("The term behavior ratings could not be loaded.", { status: 500 });
+      for (const card of data || []) conductByStudent.set(String(card.student_id), card.conduct as string | null);
+    }
 
     const scores: { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: unknown }[] = [];
     for (let index = 0; index < usable.length; index += 80) {
@@ -502,10 +515,11 @@ export async function prepareMarksWorkbookResponse(
       }
       return {
         id: paper.id,
+        campus: operationalCampus(paper.campus),
         classCode: paper.class_code,
         className: className(paper.class_code),
         stream: streamOf(paper.stream),
-        label: classLabel(paper.class_code, paper.stream),
+        label: `${classLabel(paper.class_code, paper.stream)} · ${operationalCampus(paper.campus)}`,
         order: classOrder(paper.class_code) ?? 99,
         section: classSection(paper.class_code),
         subject: subjectName.get(paper.subject_id) || "Subject",
@@ -538,6 +552,8 @@ export async function prepareMarksWorkbookResponse(
         name: pupil.full_name,
         classCode: pupil.class_code || "",
         stream: streamOf(pupil.stream),
+        campus: operationalCampus(pupil.campus),
+        behavior: behaviorRatingForConduct(conductByStudent.get(pupil.id)),
       })),
       scores: marks,
       bands,

@@ -10,6 +10,7 @@ import {
   reopenTeacherReports,
 } from "@/app/teacher/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { CampusFilter } from "@/components/academics/CampusFilter";
 import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { Empty } from "@/components/academics/ui";
 import { StudentFace } from "@/components/StudentFace";
@@ -25,11 +26,12 @@ export type ReportCardRow = {
   status: string;
   class_code: string | null;
   stream: string | null;
+  campus?: string | null;
   overall_score: number | null;
   report_title?: string | null;
 };
 
-type Selection = { code: string; stream: string };
+type Selection = { code: string; stream: string; campus: string };
 type DeskMode = "office" | "class" | "admissions";
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -62,8 +64,10 @@ function sexLabel(sex: string | null) {
   return "";
 }
 
-function classHref(basePath: string, code: string, stream: string) {
-  return `${basePath}?class=${encodeURIComponent(code)}&stream=${encodeURIComponent(streamQuery(stream))}`;
+function classHref(basePath: string, code: string, stream: string, campus: string, filterCampus?: string | null) {
+  const params = new URLSearchParams({ class: code, stream: streamQuery(stream), classCampus: campus });
+  if (filterCampus) params.set("campus", filterCampus);
+  return `${basePath}?${params.toString()}`;
 }
 
 function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
@@ -73,14 +77,20 @@ function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
   if (!code) return null;
   const raw = params.get("stream");
   const stream = raw === null ? null : raw === "-" || raw === "" ? "" : raw.slice(0, 20);
-  const match = groups.find((group) => group.code === code && (stream === null || group.stream === stream));
-  return match ? { code: match.code, stream: match.stream } : null;
+  const campus = params.get("classCampus") || params.get("campus");
+  const match = groups.find(
+    (group) =>
+      group.code === code &&
+      (stream === null || group.stream === stream) &&
+      (!campus || group.campus === campus),
+  );
+  return match ? { code: match.code, stream: match.stream, campus: match.campus } : null;
 }
 
 function sameSelection(a: Selection | null, b: Selection | null) {
   if (!a && !b) return true;
   if (!a || !b) return false;
-  return a.code === b.code && a.stream === b.stream;
+  return a.code === b.code && a.stream === b.stream && a.campus === b.campus;
 }
 
 /** Report cards desk: class picks update the roll instantly without a server round trip. */
@@ -90,6 +100,8 @@ export function ReportsDesk({
   groups,
   cards,
   sittingsByClass,
+  campusOptions = [],
+  selectedCampus = null,
   basePath = `${ACADEMICS_BASE}/reports`,
   mode = "office",
 }: {
@@ -98,6 +110,8 @@ export function ReportsDesk({
   groups: ClassGroup<RollPupil>[];
   cards: ReportCardRow[];
   sittingsByClass: Record<string, ReportSitting[]>;
+  campusOptions?: readonly string[];
+  selectedCampus?: string | null;
   basePath?: string;
   mode?: DeskMode;
 }) {
@@ -114,12 +128,16 @@ export function ReportsDesk({
   const selectClass = useCallback(
     (next: Selection | null, historyMode: "push" | "replace" = "push") => {
       setSelection(next);
-      const url = next ? classHref(basePath, next.code, next.stream) : basePath;
+      const url = next
+        ? classHref(basePath, next.code, next.stream, next.campus, selectedCampus)
+        : selectedCampus
+          ? `${basePath}?campus=${encodeURIComponent(selectedCampus)}`
+          : basePath;
       if (`${window.location.pathname}${window.location.search}` === url) return;
       if (historyMode === "replace") window.history.replaceState(null, "", url);
       else window.history.pushState(null, "", url);
     },
-    [basePath],
+    [basePath, selectedCampus],
   );
 
   useEffect(() => {
@@ -132,7 +150,9 @@ export function ReportsDesk({
   }, []);
 
   const byPupil = useMemo(() => new Map(cards.map((card) => [card.student_id, card])), [cards]);
-  const selected = selection ? groups.find((group) => group.code === selection.code && group.stream === selection.stream) || null : null;
+  const selected = selection
+    ? groups.find((group) => group.code === selection.code && group.stream === selection.stream && group.campus === selection.campus) || null
+    : null;
   const selectedCards = selected ? selected.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is ReportCardRow => Boolean(card)) : [];
   const drafts = selectedCards.filter((card) => card.status === "draft").length;
   const approved = selectedCards.filter((card) => card.status === "approved").length;
@@ -162,6 +182,7 @@ export function ReportsDesk({
         .filter((section) => section.rows.length),
     [groups],
   );
+  const homeHref = selectedCampus ? `${basePath}?campus=${encodeURIComponent(selectedCampus)}` : basePath;
 
   if (!termId || !termLabel) {
     return (
@@ -182,7 +203,7 @@ export function ReportsDesk({
       <PageHeader
         kicker={admissionsMode ? "Nursery" : classMode ? "My class" : "Assessment"}
         icon={admissionsMode ? "fa-seedling" : "fa-file-lines"}
-        title={selected ? classLabel(selected.code, selected.stream) : admissionsMode ? "Nursery report cards" : "Report cards"}
+        title={selected ? classLabel(selected.code, selected.stream, selected.campus) : admissionsMode ? "Nursery report cards" : "Report cards"}
         description={
           selected
             ? admissionsMode
@@ -200,7 +221,7 @@ export function ReportsDesk({
           selected ? (
             <a
               className="admin-hero-btn"
-              href={basePath}
+              href={homeHref}
               onClick={(event) => {
                 if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                 event.preventDefault();
@@ -211,6 +232,11 @@ export function ReportsDesk({
             </a>
           ) : null
         }
+      />
+      <CampusFilter
+        options={campusOptions}
+        selected={selectedCampus}
+        basePath={basePath}
       />
       {!selected && draftTotal ? (
         <section className="rpt-alert" aria-label="Draft report cards">
@@ -224,16 +250,16 @@ export function ReportsDesk({
           {waiting.length ? (
             <ul className="rpt-alert-list">
               {waiting.map(({ group, drafts: count }) => (
-                <li key={`${group.code}-${group.stream}`}>
+                <li key={`${group.campus}-${group.code}-${group.stream}`}>
                   <a
-                    href={classHref(basePath, group.code, group.stream)}
+                    href={classHref(basePath, group.code, group.stream, group.campus, selectedCampus)}
                     onClick={(event) => {
                       if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                       event.preventDefault();
-                      selectClass({ code: group.code, stream: group.stream });
+                      selectClass({ code: group.code, stream: group.stream, campus: group.campus });
                     }}
                   >
-                    {classLabel(group.code, group.stream)}
+                    {classLabel(group.code, group.stream, group.campus)}
                     <em>{nf(count)}</em>
                   </a>
                 </li>
@@ -244,10 +270,10 @@ export function ReportsDesk({
         </section>
       ) : null}
       {selected ? (
-        <section className="rpt-strip" aria-label={classLabel(selected.code, selected.stream)}>
+        <section className="rpt-strip" aria-label={classLabel(selected.code, selected.stream, selected.campus)}>
           <div>
             <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-user-group" /></span>
-            <span className="rpt-stat-copy"><span>On the roll</span><strong>{nf(selected.pupils.length)}</strong><small>{classLabel(selected.code, selected.stream)}</small></span>
+            <span className="rpt-stat-copy"><span>On the roll</span><strong>{nf(selected.pupils.length)}</strong><small>{classLabel(selected.code, selected.stream, selected.campus)}</small></span>
           </div>
           <div className={drafts ? "is-warn" : ""}>
             <span className="rpt-stat-icon" aria-hidden="true"><i className="fa-solid fa-pen" /></span>
@@ -283,22 +309,22 @@ export function ReportsDesk({
                     const mine = group.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is ReportCardRow => Boolean(card));
                     const live = mine.filter((card) => card.status === "published").length;
                     const open = mine.filter((card) => card.status === "draft").length;
-                    const on = selected?.code === group.code && selected.stream === group.stream;
+                    const on = selected?.code === group.code && selected.stream === group.stream && selected.campus === group.campus;
                     return (
-                      <li key={`${group.code}-${group.stream}`}>
+                      <li key={`${group.campus}-${group.code}-${group.stream}`}>
                         <a
                           className={`${on ? "is-on" : ""}${open ? " is-draft" : ""}`}
-                          href={classHref(basePath, group.code, group.stream)}
+                          href={classHref(basePath, group.code, group.stream, group.campus, selectedCampus)}
                           aria-current={on ? "page" : undefined}
                           onClick={(event) => {
                             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
                             event.preventDefault();
-                            selectClass({ code: group.code, stream: group.stream }, on ? "replace" : "push");
+                            selectClass({ code: group.code, stream: group.stream, campus: group.campus }, on ? "replace" : "push");
                           }}
                         >
                           <span className="rpt-mark" aria-hidden="true">{group.code}</span>
                           <span>
-                            <strong>{classLabel(group.code, group.stream)}</strong>
+                            <strong>{classLabel(group.code, group.stream, group.campus)}</strong>
                             <small>{open ? `${nf(open)} draft${open === 1 ? "" : "s"}` : `${nf(group.pupils.length)} pupils`}</small>
                           </span>
                           {open ? <span className="rpt-drafts" aria-label={`${open} drafts`}>{nf(open)}</span> : <span className="rpt-mini">{nf(live)}/{nf(group.pupils.length)}</span>}
@@ -312,12 +338,12 @@ export function ReportsDesk({
           </ul>
         </section>
 
-        <section className="rpt-card" aria-label={selected ? classLabel(selected.code, selected.stream) : "Choose a class"}>
+        <section className="rpt-card" aria-label={selected ? classLabel(selected.code, selected.stream, selected.campus) : "Choose a class"}>
           <header className="rpt-card-head">
             <div className="rpt-card-title">
               <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-file-lines" /></span>
               <div>
-                <h2>{selected ? classLabel(selected.code, selected.stream) : "Choose a class"}</h2>
+                <h2>{selected ? classLabel(selected.code, selected.stream, selected.campus) : "Choose a class"}</h2>
                 <p>
                   {selected
                     ? admissionsMode

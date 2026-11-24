@@ -1,4 +1,6 @@
 import ExcelJS from "exceljs";
+import { BEHAVIOR_RATINGS } from "@/lib/academics";
+import { operationalCampus } from "@/lib/campuses";
 import { parseSkillLabels } from "@/lib/comment-engine/skills";
 
 const SCHOOL = "Kampala Junior Academy";
@@ -36,6 +38,7 @@ export class MarksBookError extends Error {
 
 export type MarksBookPaper = {
   id: string;
+  campus?: string | null;
   classCode: string;
   className: string;
   stream: string;
@@ -61,6 +64,8 @@ export type MarksBookPupil = {
   name: string;
   classCode: string;
   stream: string;
+  campus?: string | null;
+  behavior?: string | null;
 };
 
 export type MarksBookScore = {
@@ -101,6 +106,15 @@ export type MarksBookEntry = {
   skillLabel?: string;
 };
 
+export type MarksBookBehaviorEntry = {
+  sheet: string;
+  label: string;
+  cell: string;
+  studentId: string;
+  pupil: string;
+  raw: string;
+};
+
 export type MarksBookIssue = {
   sheet: string;
   cell: string;
@@ -116,6 +130,7 @@ export type ParsedMarksBook = {
   paperIds: string[];
   sheets: { name: string; label: string; subjects: string[]; expected: number }[];
   entries: MarksBookEntry[];
+  behaviors: MarksBookBehaviorEntry[];
   issues: MarksBookIssue[];
   issueCount: number;
   missing: { label: string; count: number }[];
@@ -129,6 +144,7 @@ type BuiltSheet = {
   pupils: number;
   papers: { column: number; paper: MarksBookPaper }[];
   skillColumns: { column: number; paperId: string; subject: string; skillLabel: string }[];
+  behaviorColumn: number;
   pupilRows: { row: number; pupil: MarksBookPupil }[];
 };
 
@@ -365,6 +381,7 @@ function groupPapers(input: MarksBookInput) {
     classCode: string;
     className: string;
     stream: string;
+    campus: string;
     label: string;
     order: number;
     section: "nursery" | "primary";
@@ -372,13 +389,15 @@ function groupPapers(input: MarksBookInput) {
     pupils: MarksBookPupil[];
   }>();
   for (const paper of input.papers) {
-    const key = `${paper.classCode}|${paper.stream}`;
+    const campus = operationalCampus(paper.campus);
+    const key = `${paper.classCode}|${paper.stream}|${campus}`;
     let group = groups.get(key);
     if (!group) {
       group = {
         classCode: paper.classCode,
         className: paper.className,
         stream: paper.stream,
+        campus,
         label: paper.label,
         order: paper.order,
         section: paper.section,
@@ -392,12 +411,16 @@ function groupPapers(input: MarksBookInput) {
   for (const group of groups.values()) {
     group.papers.sort((a, b) => a.sort - b.sort || a.subject.localeCompare(b.subject) || a.id.localeCompare(b.id));
     group.pupils = input.pupils
-      .filter((pupil) => pupil.classCode === group.classCode && pupil.stream === group.stream)
+      .filter((pupil) =>
+        pupil.classCode === group.classCode &&
+        pupil.stream === group.stream &&
+        operationalCampus(pupil.campus) === group.campus,
+      )
       .sort((a, b) => a.name.localeCompare(b.name) || a.number.localeCompare(b.number) || a.id.localeCompare(b.id));
   }
   return [...groups.values()]
     .filter((group) => group.pupils.length)
-    .sort((a, b) => a.order - b.order || a.stream.localeCompare(b.stream) || a.label.localeCompare(b.label));
+    .sort((a, b) => a.order - b.order || a.campus.localeCompare(b.campus) || a.stream.localeCompare(b.stream) || a.label.localeCompare(b.label));
 }
 
 function totalsLine(input: MarksBookInput, groups: ReturnType<typeof groupPapers>) {
@@ -458,6 +481,7 @@ function writeCover(sheet: ExcelJS.Worksheet, input: MarksBookInput, groups: Ret
     "Each class has its own tab along the bottom. One tab is one stream.",
     "Type each mark in the white cells. Half marks are allowed, and 0 is a real mark.",
     ...(nursery ? ["On a nursery sheet, choose the progress band from the list in the cell."] : []),
+    `Behavior: choose A = Excellent, B = Good, C = Fair, or D = Needs Help. CLEAR removes a saved rating.`,
     "Type ABS when a pupil missed the paper.",
     "Type CLEAR to remove a mark that is already saved. Leave a cell blank to leave that mark unchanged.",
     "Do not add or remove rows or columns. Upload this file on the Assessments page when it is complete.",
@@ -526,6 +550,11 @@ function savedValue(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBo
   return saved.score;
 }
 
+function savedBehavior(pupil: MarksBookPupil) {
+  const code = pupil.behavior?.trim().toUpperCase();
+  return BEHAVIOR_RATINGS.find((rating) => rating.code === code)?.code ?? null;
+}
+
 function savedSkill(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBookPupil, skillLabel: string) {
   const saved = input.scores.find((score) => score.assessmentId === paper.id && score.studentId === pupil.id);
   const row = (saved?.skills || []).find((skill) => skill.label.toLowerCase() === skillLabel.toLowerCase());
@@ -543,7 +572,8 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   const markColumns = columns.filter((column): column is Extract<SheetColumn, { kind: "mark" }> => column.kind === "mark");
   const showAverage = !nursery && markColumns.length > 1;
   const firstMark = 5;
-  const enteredCol = firstMark + columns.length;
+  const behaviorCol = firstMark + columns.length;
+  const enteredCol = behaviorCol + 1;
   const averageCol = showAverage ? enteredCol + 1 : 0;
   const lastCol = averageCol || enteredCol;
   const listCol = lastCol + 2;
@@ -561,6 +591,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   columns.forEach((column) => {
     sheet.getColumn(column.column).width = column.kind === "skill" ? 14 : column.kind === "skills_list" ? 28 : 18;
   });
+  sheet.getColumn(behaviorCol).width = 18;
   sheet.getColumn(enteredCol).width = 12;
   if (averageCol) sheet.getColumn(averageCol).width = 12;
 
@@ -593,12 +624,12 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   });
 
   const instruction = nursery
-    ? "Choose the progress band from the list. ABS means the pupil missed the paper. CLEAR removes a saved band. A blank cell leaves the saved band unchanged."
+    ? "Choose the progress band from the list. ABS means the pupil missed the paper. CLEAR removes a saved band. Behavior: A Excellent, B Good, C Fair, D Needs Help; CLEAR removes a rating."
     : hasYesSkills
-      ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. ABS means missed. CLEAR removes a saved mark. A blank mark cell leaves the saved mark unchanged."
+      ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating."
       : hasSkillsList
-        ? "Type the mark in the white cells. In Major skills learnt, list up to 4 skills on the first pupil row (comma-separated, e.g. rhythm, timing). Lower rows inherit that list. ABS means missed. CLEAR removes a saved mark."
-        : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. CLEAR removes a saved mark. A blank cell leaves the saved mark unchanged.";
+        ? "Type the mark in the white cells. In Major skills learnt, list up to 4 skills on the first pupil row (comma-separated, e.g. rhythm, timing). Lower rows inherit that list. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating."
+        : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating.";
   sheet.getRow(6).height = 36;
   merge(sheet, 6, 2, lastCol, instruction, {
     font: font(10, INK),
@@ -637,6 +668,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
       });
     }
   });
+  headers.push({ col: behaviorCol, text: "Behavior (A-D)", align: "center", fill: "FF6857A6" });
   headers.push({ col: enteredCol, text: "Entered", align: "center" });
   if (averageCol) headers.push({ col: averageCol, text: "Average", align: "center" });
   headers.forEach((header) => {
@@ -667,6 +699,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
       }
       return [];
     }),
+    behaviorColumn: behaviorCol,
     pupilRows: [],
   };
 
@@ -787,6 +820,29 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
           prompt,
         };
     });
+
+    const behavior = sheet.getCell(row, behaviorCol);
+    behavior.value = savedBehavior(pupil);
+    behavior.protection = { locked: false };
+    paint(behavior, {
+        font: font(11, NAVY, true),
+        fill: solid(WHITE),
+        alignment: { vertical: "middle", horizontal: "center" },
+        border: grid(),
+        numFmt: "@",
+    });
+    behavior.dataValidation = {
+        type: "list",
+        allowBlank: true,
+        formulae: [`"${BEHAVIOR_RATINGS.map((rating) => rating.code).join(",")},CLEAR"`],
+        showErrorMessage: true,
+        errorStyle: "stop",
+        errorTitle: "Choose a behavior rating",
+        error: "Choose A, B, C, D, or CLEAR.",
+        showInputMessage: true,
+        promptTitle: "Behavior rating",
+        prompt: "A Excellent · B Good · C Fair · D Needs Help. CLEAR removes a saved rating; blank leaves it unchanged.",
+    };
 
     const firstMarkCell = markLetters[0] || columnLetter(firstMark);
     const markRefs = markLetters.map((letter) => `${letter}${row}`);
@@ -987,13 +1043,13 @@ function writeKeys(workbook: ExcelJS.Workbook, input: MarksBookInput, built: Bui
   row += 2;
   sheet.getCell(row, 1).value = "PUPILS";
   row += 1;
-  ["sheet", "row", "student_id", "student_number", "name", "class_code", "stream"].forEach((header, index) => {
+  ["sheet", "row", "student_id", "student_number", "name", "class_code", "stream", "behavior_col"].forEach((header, index) => {
     sheet.getCell(row, index + 1).value = header;
   });
   built.forEach((entry) => {
     entry.pupilRows.forEach(({ row: pupilRow, pupil }) => {
       row += 1;
-      [entry.sheetName, pupilRow, pupil.id, pupil.number, pupil.name, pupil.classCode, pupil.stream]
+      [entry.sheetName, pupilRow, pupil.id, pupil.number, pupil.name, pupil.classCode, pupil.stream, entry.behaviorColumn]
         .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
     });
   });
@@ -1123,7 +1179,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
   }
 
   while (row < 8000 && plain(keys.getCell(row, 1).value) !== "PUPILS") row += 1;
-  const expected = new Map<string, { label: string; ids: Map<string, string> }>();
+  const expected = new Map<string, { label: string; ids: Map<string, string>; behaviorColumn: number }>();
   if (plain(keys.getCell(row, 1).value) === "PUPILS") {
     row += 2;
     while (row < 20000) {
@@ -1131,7 +1187,11 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
       if (!sheet) break;
       const id = plain(keys.getCell(row, 3).value);
       const name = plain(keys.getCell(row, 5).value);
-      const bucket = expected.get(sheet) ?? { label: papers.find((paper) => paper.sheet === sheet)?.label || sheet, ids: new Map<string, string>() };
+      const bucket = expected.get(sheet) ?? {
+        label: papers.find((paper) => paper.sheet === sheet)?.label || sheet,
+        ids: new Map<string, string>(),
+        behaviorColumn: Number(plain(keys.getCell(row, 8).value)) || 0,
+      };
       if (UUID.test(id)) bucket.ids.set(id, name);
       expected.set(sheet, bucket);
       row += 1;
@@ -1145,6 +1205,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     if (issues.length < 40) issues.push(issue);
   };
   const entries: MarksBookEntry[] = [];
+  const behaviors: MarksBookBehaviorEntry[] = [];
   const seen = new Map<string, Set<string>>();
   const bySheet = new Map<string, typeof papers>();
   for (const paper of papers) {
@@ -1199,7 +1260,15 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         const cell = worksheet.getCell(cursor, skill.column);
         return { skill, cell, formula: isFormula(cell.value), read: readCell(cell.value) };
       });
-      const typed = [...cells, ...skillCells].some((item) => !item.formula && (item.read.text || item.read.pending));
+      const behaviorColumn = roll?.behaviorColumn || 0;
+      const behaviorCell = behaviorColumn ? worksheet.getCell(cursor, behaviorColumn) : null;
+      const behaviorRead = behaviorCell ? readCell(behaviorCell.value) : null;
+      const behaviorFormula = behaviorCell ? isFormula(behaviorCell.value) : false;
+      const typed = [
+        ...cells,
+        ...skillCells,
+        ...(behaviorCell && behaviorRead ? [{ formula: behaviorFormula, read: behaviorRead }] : []),
+      ].some((item) => !item.formula && (item.read.text || item.read.pending));
       if (!UUID.test(id)) {
         if (typed) add({ sheet: label, cell: idCell.address, pupil: "", message: "A mark is on a row with no pupil. Download a fresh sheet rather than inserting rows." });
         else {
@@ -1219,6 +1288,18 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         continue;
       }
       found.add(id);
+      if (behaviorCell && behaviorRead && !behaviorFormula && behaviorRead.text) {
+        behaviors.push({
+          sheet: sheetName,
+          label,
+          cell: behaviorCell.address,
+          studentId: id,
+          pupil,
+          raw: behaviorRead.text,
+        });
+      } else if (behaviorCell && behaviorRead?.pending) {
+        add({ sheet: label, cell: behaviorCell.address, pupil, message: "Enter a behavior rating as A, B, C, or D, or CLEAR." });
+      }
       for (const item of cells) {
         if (!UUID.test(item.paper.paperId) || !Number.isInteger(item.paper.column)) continue;
         if (item.read.pending) {
@@ -1336,6 +1417,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     paperIds: [...new Set(papers.map((paper) => paper.paperId).filter((id) => UUID.test(id)))],
     sheets,
     entries,
+    behaviors,
     issues,
     issueCount,
     missing,

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { CampusFilter } from "@/components/academics/CampusFilter";
 import { DevelopmentalMarksheetDesk } from "@/components/academics/DevelopmentalMarksheetDesk";
 import { MarksheetDesk, type MarksheetPupil, type MarksheetStatus, type MarksheetSubject } from "@/components/academics/MarksheetDesk";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
@@ -25,7 +26,7 @@ import {
 } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
-import { operationalCampus } from "@/lib/campuses";
+import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
 import { marksheetHref, readMarksheetQuery, sittingColumns, type SittingPaper } from "@/lib/marksheet";
 import {
   groupSkillsByDomain,
@@ -105,8 +106,8 @@ function bandFor(bands: BandRow[], score: number) {
     || null;
 }
 
-function BackLink() {
-  return <Link href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>;
+function BackLink({ href }: { href: string }) {
+  return <Link href={href}>All papers</Link>;
 }
 
 export default async function MarksheetPage({
@@ -118,6 +119,21 @@ export default async function MarksheetPage({
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Marksheet" state={opened} />;
   const { supabase, office, user, staffId, campuses } = opened.auth;
+  const campusOptions = campuses.length ? campuses : CAMPUS_OPTIONS;
+  const selectedCampus =
+    query.campus && campusOptions.includes(query.campus as (typeof CAMPUS_OPTIONS)[number])
+      ? query.campus
+      : null;
+  const allPapersHref = selectedCampus
+    ? `${ACADEMICS_BASE}/assessments?campus=${encodeURIComponent(selectedCampus)}`
+    : `${ACADEMICS_BASE}/assessments`;
+  const campusFilter = (
+    <CampusFilter
+      options={campusOptions}
+      selected={selectedCampus}
+      basePath={PATH}
+    />
+  );
   const parsed = readMarksheetQuery({ name: query.name, kind: query.kind, held: query.held, classCode: query.class, stream: query.stream, combine: query.combine });
   const name = parsed?.name || "";
   const kind = parsed?.kind || "";
@@ -139,10 +155,10 @@ export default async function MarksheetPage({
 
   if (!classCode || stream === null) {
     const roll = await loadRoll(supabase, user.id, undefined, office ? campuses : undefined);
-    const groups = groupPupils(roll);
+    const groups = groupPupils(roll).filter((group) => !selectedCampus || group.campus === selectedCampus);
     const classChoices = groups.map((group) => ({
       key: `${group.campus}|${group.code}|${group.stream}`,
-      label: classLabel(group.code, group.stream),
+      label: classLabel(group.code, group.stream, group.campus),
       campus: group.campus || "Kitante",
       section: group.section,
       pupils: group.pupils.length,
@@ -153,23 +169,31 @@ export default async function MarksheetPage({
       }).toString()}`,
     }));
     return (
-      <MarksheetClassPicker
-        termLabel={term.label}
-        classes={classChoices}
-        kicker={LANDING.kicker}
-        kickerIcon={LANDING.kickerIcon}
-        lede="Choose a class stream, then open the assessment marksheet — primary sittings or nursery developmental codes."
-        panelTitle="Classes on the roll"
-        panelHint="Primary streams open subject sittings. Nursery streams open developmental assessments."
-        emptyTitle="No pupils on the roll"
-        emptyHint="Add pupils to a class register before opening a marksheet."
-      />
+      <>
+        {campusFilter}
+        <MarksheetClassPicker
+          termLabel={term.label}
+          classes={classChoices}
+          kicker={LANDING.kicker}
+          kickerIcon={LANDING.kickerIcon}
+          lede="Choose a class stream, then open the assessment marksheet — primary sittings or nursery developmental codes."
+          panelTitle="Classes on the roll"
+          panelHint="Primary streams open subject sittings. Nursery streams open developmental assessments."
+          emptyTitle="No pupils on the roll"
+          emptyHint="Add pupils to a class register before opening a marksheet."
+        />
+      </>
     );
   }
 
   const nursery = classSection(classCode) === "nursery";
+  const classesHref = selectedCampus
+    ? `${PATH}?campus=${encodeURIComponent(selectedCampus)}`
+    : PATH;
   if (nursery) {
-    const classListHref = `${PATH}?${new URLSearchParams({ class: classCode, stream: streamQuery(stream) }).toString()}`;
+    const classListParams = new URLSearchParams({ class: classCode, stream: streamQuery(stream) });
+    if (selectedCampus) classListParams.set("campus", selectedCampus);
+    const classListHref = `${PATH}?${classListParams.toString()}`;
     const dsbaQuery = await supabase
       .from("developmental_assessments")
       .select("*")
@@ -180,7 +204,7 @@ export default async function MarksheetPage({
     if (dsbaQuery.error) {
       return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: dsbaQuery.error.message }} />;
     }
-    const wantedCampus = (query.campus || "").trim();
+    const wantedCampus = selectedCampus || "";
     const dsbaRows = ((dsbaQuery.data || []) as Record<string, unknown>[])
       .map((row) => mapDevelopmentalAssessment(row))
       .filter((row) => {
@@ -227,6 +251,8 @@ export default async function MarksheetPage({
       const paper = dsbaRows.find((row) => row.id === selectedId);
       if (!paper) {
         return (
+          <>
+            {campusFilter}
           <div className="app-page ofc-page asm-page msh-page">
             <PageHeader
               kicker="Assessment"
@@ -237,15 +263,16 @@ export default async function MarksheetPage({
             />
             <Empty title="Sitting not found">That developmental sitting is not on this class list.</Empty>
           </div>
+          </>
         );
       }
       const divisionId = nurseryDivision(paper.class_code);
       if (!divisionId) {
         return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: "This class is not a nursery division." }} />;
       }
-      const campusFilter = wantedCampus || (paper.campus ? operationalCampus(paper.campus) : undefined);
+      const pupilCampus = wantedCampus || (paper.campus ? operationalCampus(paper.campus) : undefined);
       const [pupils, ratingRows, catalogue] = await Promise.all([
-        loadRoll(supabase, user.id, [paper.class_code], office ? (campusFilter ? [campusFilter] : campuses) : undefined).then((rows) =>
+        loadRoll(supabase, user.id, [paper.class_code], pupilCampus ? [pupilCampus] : office ? campuses : undefined).then((rows) =>
           rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
         ),
         fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
@@ -263,6 +290,8 @@ export default async function MarksheetPage({
       }
       if (!pupils.length) {
         return (
+          <>
+            {campusFilter}
           <div className="app-page ofc-page asm-page msh-page">
             <PageHeader
               kicker="Assessment"
@@ -273,6 +302,7 @@ export default async function MarksheetPage({
             />
             <Empty title="No pupils on this roll">Add pupils to this class before entering skill codes.</Empty>
           </div>
+          </>
         );
       }
       const grouped = groupSkillsByDomain(catalogue.domains, catalogue.skills);
@@ -285,8 +315,10 @@ export default async function MarksheetPage({
       }
       const phase = paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open";
       const exportParams = new URLSearchParams({ dsba: paper.id });
-      if (campusFilter) exportParams.set("campus", campusFilter);
+      if (pupilCampus) exportParams.set("campus", pupilCampus);
       return (
+        <>
+          {campusFilter}
         <DevelopmentalMarksheetDesk
           assessmentId={paper.id}
           domains={grouped.map((row) => ({
@@ -318,29 +350,36 @@ export default async function MarksheetPage({
             heldLabel: shortDay(paper.held_on),
             termLabel: term.label,
           }}
-          closeHref={sittings.length > 1 ? classListHref : `${ACADEMICS_BASE}/assessments`}
+          closeHref={sittings.length > 1 ? classListHref : allPapersHref}
           exportHref={`${PATH}/export?${exportParams.toString()}`}
           allowExport
         />
+        </>
       );
     }
 
     return (
+      <>
+      {campusFilter}
       <NurseryDsbaSittingPicker
         classLabel={classLabel(classCode, stream)}
         termLabel={term.label}
         campus={wantedCampus || undefined}
         sittings={sittings}
-        classesHref={PATH}
-        assessmentsHref={`${ACADEMICS_BASE}/assessments`}
+        classesHref={classesHref}
+        assessmentsHref={allPapersHref}
         kicker={LANDING.kicker}
         kickerIcon={LANDING.kickerIcon}
         emptyHint="Create a developmental assessment for this nursery class, then return here to enter codes."
       />
+      </>
     );
   }
 
-  const wantedCampus = (query.campus || "").trim();
+  const wantedCampus = selectedCampus || "";
+  const classListParams = new URLSearchParams({ class: classCode, stream: streamQuery(stream) });
+  if (selectedCampus) classListParams.set("campus", selectedCampus);
+  const classListHref = `${PATH}?${classListParams.toString()}`;
   if (!parsed) {
     const papersQuery = await supabase
       .from("assessments")
@@ -396,6 +435,8 @@ export default async function MarksheetPage({
       return a.kindLabel.localeCompare(b.kindLabel) || a.name.localeCompare(b.name);
     });
     return (
+      <>
+      {campusFilter}
       <MarksheetSittingPicker
         classLabel={classLabel(classCode, stream)}
         termLabel={term.label}
@@ -404,10 +445,11 @@ export default async function MarksheetPage({
         stream={stream}
         basePath={PATH}
         sittings={sittings}
-        classesHref={PATH}
+        classesHref={classesHref}
         kicker={LANDING.kicker}
         kickerIcon={LANDING.kickerIcon}
       />
+      </>
     );
   }
   const combineRequested = Boolean(parsed?.combine);
@@ -419,28 +461,38 @@ export default async function MarksheetPage({
     .eq("kind", kind)
     .eq("class_code", classCode);
   if (!combineRequested) papersRequest = papersRequest.eq("stream", stream);
+  if (selectedCampus) papersRequest = papersRequest.eq("campus", selectedCampus);
   papersRequest = held ? papersRequest.eq("held_on", held) : papersRequest.is("held_on", null);
   const [papersQuery, roll, taughtQuery] = await Promise.all([
     papersRequest,
-    loadRoll(supabase, user.id, undefined, office ? campuses : undefined),
+    loadRoll(supabase, user.id, undefined, selectedCampus ? [selectedCampus] : office ? campuses : undefined),
     !office && staffId
-      ? supabase.from("subject_teachers").select("subject_id, stream").eq("term_id", term.id).eq("class_code", classCode).eq("staff_id", staffId)
+      ? (() => {
+          let query = supabase.from("subject_teachers").select("subject_id, stream").eq("term_id", term.id).eq("class_code", classCode).eq("staff_id", staffId);
+          if (selectedCampus) query = query.eq("campus", selectedCampus);
+          return query;
+        })()
       : Promise.resolve({ data: [] as { subject_id: string; stream: string | null }[], error: null }),
   ]);
   if (papersQuery.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: papersQuery.error.message }} />;
   if (taughtQuery.error) return <AcademicsGate title="Marksheet" state={{ notice: "schema", message: taughtQuery.error.message }} />;
-  const classRoll = roll.filter((pupil) => pupil.class_code === classCode);
+  const classRoll = roll.filter(
+    (pupil) => pupil.class_code === classCode && (!selectedCampus || operationalCampus(pupil.campus) === selectedCampus),
+  );
   const streamCount = new Set(classRoll.map((pupil) => streamOf(pupil.stream))).size;
   const combined = combineRequested && streamCount > 1;
   const loaded = ((papersQuery.data || []) as PaperRow[]).map(sittingPaper).sort((a, b) => a.sort - b.sort || a.name.localeCompare(b.name) || a.stream.localeCompare(b.stream) || a.id.localeCompare(b.id));
   const papers = combined ? loaded : loaded.filter((paper) => paper.stream === stream);
-  const label = combined ? classLabel(classCode) : classLabel(classCode, stream);
+  const label = combined ? classLabel(classCode, undefined, selectedCampus) : classLabel(classCode, stream, selectedCampus);
   if (!papers.length) {
     return (
+      <>
+      {campusFilter}
       <div className="app-page ofc-page asm-page msh-page">
-        <PageHeader kicker="Assessment" icon="fa-table-cells" title={label} description={<>{term.label}. This assessment is not on the list for this class.</>} actions={<Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>} />
-        <Empty title="This marksheet is not on the list"><BackLink /></Empty>
+        <PageHeader kicker="Assessment" icon="fa-table-cells" title={label} description={<>{term.label}. This assessment is not on the list for this class.</>} actions={<Link className="admin-hero-btn" href={allPapersHref}>All papers</Link>} />
+        <Empty title="This marksheet is not on the list"><BackLink href={allPapersHref} /></Empty>
       </div>
+      </>
     );
   }
 
@@ -518,14 +570,19 @@ export default async function MarksheetPage({
 
   if (!roster.length) {
     return (
+      <>
+      {campusFilter}
       <div className="app-page ofc-page asm-page msh-page">
-        <PageHeader kicker="Assessment" icon="fa-table-cells" title={label} description={<>{sample?.name} · {kindLabel(kind)} · {shortDay(sample?.heldOn || null)} · {term.label}</>} actions={<Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>} />
+        <PageHeader kicker="Assessment" icon="fa-table-cells" title={label} description={<>{sample?.name} · {kindLabel(kind)} · {shortDay(sample?.heldOn || null)} · {term.label}</>} actions={<Link className="admin-hero-btn" href={allPapersHref}>All papers</Link>} />
         <Empty title="No pupils in this class" />
       </div>
+      </>
     );
   }
 
   return (
+    <>
+    {campusFilter}
     <MarksheetDesk
       subjects={subjects}
       pupils={pupils}
@@ -541,5 +598,6 @@ export default async function MarksheetPage({
       }}
       identity={{ termId: term.id, name, kind, heldOn: held, classCode, stream, combine: combined }}
     />
+    </>
   );
 }

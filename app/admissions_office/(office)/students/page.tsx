@@ -42,7 +42,11 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
   const auth = await requireOffice();
   if ("error" in auth) return <OfficeNotice title="Students" icon="fa-lock" heading="Not available"><p>{auth.error}</p></OfficeNotice>;
 
-  const filters = parseStudentFilters(await searchParams);
+  const parsedFilters = parseStudentFilters(await searchParams);
+  const filters =
+    !parsedFilters.campus || auth.campuses.some((campus) => campus === parsedFilters.campus)
+      ? parsedFilters
+      : { ...parsedFilters, campus: "" };
   const from = (filters.page - 1) * filters.size;
   const campusScope = { campuses: auth.campuses };
 
@@ -79,6 +83,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
         rows: (fallback.data || []) as unknown as RegisterRow[],
         total: exactCount(fallback.count),
         tilesCounts,
+        campuses: auth.campuses,
       });
     }
     return <LoadErrorNotice title="Students" message={error.message} fallbackHeading="The student register could not be loaded" />;
@@ -90,6 +95,7 @@ export default async function StudentsPage({ searchParams }: { searchParams: Pro
     rows: (data || []) as unknown as RegisterRow[],
     total: exactCount(count),
     tilesCounts,
+    campuses: auth.campuses,
   });
 }
 
@@ -99,12 +105,14 @@ function renderRegister({
   rows,
   total,
   tilesCounts,
+  campuses,
 }: {
   filters: StudentFilters;
   from: number;
   rows: RegisterRow[];
   total: number;
   tilesCounts: Awaited<ReturnType<typeof loadStudentRegisterTiles>>;
+  campuses: string[];
 }) {
   for (const row of rows) row.photo_url = studentPhotoUrl(row.id, row.photo_path ?? null);
   const pages = Math.max(1, Math.ceil(total / filters.size));
@@ -119,6 +127,7 @@ function renderRegister({
   const noun = (n: number) => `${statusLabel ? `${statusLabel} ` : ""}student${n === 1 ? "" : "s"}`;
   const scope = [
     filters.class ? `in ${className(filters.class)}${filters.stream ? `, stream ${filters.stream}` : ""}` : filters.stream ? `in stream ${filters.stream}` : "",
+    filters.campus ? `at ${filters.campus}` : "",
     !filters.class && filters.section ? `in the ${filters.section} section` : "",
     filters.house ? (filters.house === "none" ? "without a house" : `in ${filters.house} house`) : "",
     filters.sex === "M" ? "boys only" : filters.sex === "F" ? "girls only" : "",
@@ -197,7 +206,7 @@ function renderRegister({
       </nav>
 
       <section className="admin-card ofc-register" aria-labelledby="register-results">
-        <StudentFinder filters={filters} streams={streams} />
+        <StudentFinder filters={filters} streams={streams} campuses={campuses} />
 
         <header className="ofc-reg-results">
           <div>

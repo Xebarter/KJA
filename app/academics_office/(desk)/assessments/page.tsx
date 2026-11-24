@@ -2,8 +2,9 @@ import { AssessmentsDesk, type PaperCard } from "@/components/academics/Assessme
 import { SetAssessment } from "@/components/academics/SetAssessment";
 import { UploadMarks } from "@/components/academics/UploadMarks";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { CampusFilter } from "@/components/academics/CampusFilter";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
-import { ACADEMICS_BASE, ASSESSMENT_KINDS, classLabel, classOrder, classSection, groupPupils, kindLabel, mapSubject, loadCurrentTerm, streamOf, subjectFits } from "@/lib/academics";
+import { ACADEMICS_BASE, ASSESSMENT_KINDS, classGroupKey, classLabel, classOrder, classSection, groupPupils, kindLabel, mapSubject, loadCurrentTerm, streamOf, subjectFits } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { groupOf } from "@/lib/accounts-agg";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
@@ -11,6 +12,7 @@ import { loadRoll } from "@/lib/academics-roll";
 import { nurseryDivision, type NurseryDivisionId } from "@/lib/nursery-dsba";
 import { isCocurricularSubject } from "@/lib/subject-kind";
 import { fetchAll } from "@/lib/students";
+import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
 
 export const metadata = { title: "Assessments" };
 
@@ -25,6 +27,7 @@ type PaperRow = {
   weight: number | string;
   held_on: string | null;
   status: string | null;
+  campus: string | null;
 };
 
 const nf = (value: number) => value.toLocaleString("en-GB");
@@ -36,10 +39,15 @@ function shortDay(iso: string | null) {
   return date.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 }
 
-export default async function AssessmentsPage() {
+export default async function AssessmentsPage({ searchParams }: { searchParams: Promise<{ campus?: string }> }) {
+  const query = await searchParams;
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Assessments" state={opened} />;
   const { supabase, office, user, campuses } = opened.auth;
+  const campusOptions = campuses.length ? campuses : CAMPUS_OPTIONS;
+  const selectedCampus = campusOptions.includes(query.campus as (typeof CAMPUS_OPTIONS)[number])
+    ? query.campus || null
+    : null;
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
@@ -50,7 +58,7 @@ export default async function AssessmentsPage() {
       ? await fetchAll<PaperRow>((from, to) =>
           supabase
             .from("assessments")
-            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
+            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status, campus")
             .eq("term_id", term.id)
             .order("held_on", { ascending: false })
             .order("id")
@@ -69,7 +77,7 @@ export default async function AssessmentsPage() {
     term
       ? supabase
           .from("developmental_assessments")
-          .select("id, class_code, stream, name, kind, held_on, status")
+          .select("id, class_code, stream, name, kind, held_on, status, campus")
           .eq("term_id", term.id)
           .order("held_on", { ascending: false })
       : Promise.resolve({ data: [], error: null }),
@@ -100,7 +108,7 @@ export default async function AssessmentsPage() {
         rows = await fetchAll<PaperRow>((from, to) =>
           supabase
             .from("assessments")
-            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status")
+            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status, campus")
             .eq("term_id", term.id)
             .order("held_on", { ascending: false })
             .order("id")
@@ -134,19 +142,21 @@ export default async function AssessmentsPage() {
   }
   counts = counts ?? new Map<string, number>();
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
-  const groups = groupPupils(pupils);
-  const rolls = new Map(groups.map((group) => [`${group.code}|${group.stream}`, group.pupils.length]));
+  const groups = groupPupils(pupils).filter((group) => !selectedCampus || group.campus === selectedCampus);
+  const rolls = new Map(groups.map((group) => [classGroupKey(group.campus, group.code, group.stream), group.pupils.length]));
   const primaryPapers: PaperCard[] = rows
+    .filter((paper) => !selectedCampus || operationalCampus(paper.campus) === selectedCampus)
     .filter((paper) => classSection(paper.class_code) !== "nursery")
     .map((paper) => {
       const subject = subjectById.get(paper.subject_id);
       const subjectKind = subject?.kind === "cocurricular" ? ("cocurricular" as const) : ("core" as const);
+      const campus = operationalCampus(paper.campus);
       return {
         id: paper.id,
         href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
         name: paper.name,
         subject: subject?.name || "Subject",
-        classLabel: classLabel(paper.class_code, paper.stream),
+        classLabel: classLabel(paper.class_code, paper.stream, campus),
         classOrder: classOrder(paper.class_code) ?? 99,
         stream: streamOf(paper.stream),
         kind: paper.kind,
@@ -158,7 +168,7 @@ export default async function AssessmentsPage() {
         heldOn: shortDay(paper.held_on),
         heldOnIso: paper.held_on || "",
         entered: counts.get(paper.id) || 0,
-        roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+        roll: rolls.get(classGroupKey(campus, paper.class_code, paper.stream)) ?? 0,
         nursery: false,
         subjectOrder: subject?.sort_order ?? 0,
         subjectKind,
@@ -190,15 +200,19 @@ export default async function AssessmentsPage() {
         kind: string;
         held_on: string | null;
         status: string | null;
-      }[]).map((paper) => {
+        campus: string | null;
+      }[])
+      .filter((paper) => !selectedCampus || operationalCampus(paper.campus) === selectedCampus)
+      .map((paper) => {
         const division = nurseryDivision(paper.class_code);
         const skillCount = division ? skillsByDivision.get(division) || 0 : 0;
+        const campus = operationalCampus(paper.campus);
         return {
           id: paper.id,
           href: `${ACADEMICS_BASE}/assessments/dsba/${paper.id}`,
           name: paper.name,
           subject: "Developmental skills",
-          classLabel: classLabel(paper.class_code, paper.stream),
+          classLabel: classLabel(paper.class_code, paper.stream, campus),
           classOrder: classOrder(paper.class_code) ?? 99,
           stream: streamOf(paper.stream),
           kind: paper.kind,
@@ -210,7 +224,7 @@ export default async function AssessmentsPage() {
           heldOn: shortDay(paper.held_on),
           heldOnIso: paper.held_on || "",
           entered: dsbaEntered.get(paper.id) || 0,
-          roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+          roll: rolls.get(classGroupKey(campus, paper.class_code, paper.stream)) ?? 0,
           nursery: true,
           subjectOrder: 0,
           subjectKind: "core" as const,
@@ -234,6 +248,11 @@ export default async function AssessmentsPage() {
         icon="fa-pen-to-square"
         title="Assessments"
         description={term ? <>{term.label} · <strong>{nf(papers.length)}</strong> {papers.length === 1 ? "paper" : "papers"}.</> : "Set a current term in Accounts before adding papers."}
+      />
+      <CampusFilter
+        options={campusOptions}
+        selected={selectedCampus}
+        basePath={`${ACADEMICS_BASE}/assessments`}
       />
       {term ? (
         <>

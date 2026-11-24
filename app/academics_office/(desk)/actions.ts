@@ -3,6 +3,7 @@
 import {
   ACADEMICS_BASE,
   ATTENDANCE_STATUSES,
+  BEHAVIOR_CONDUCT,
   CONDUCT,
   DATE_KINDS,
   INTERVENTION_REASONS,
@@ -1986,7 +1987,7 @@ export async function saveReport(formData: FormData): Promise<Result> {
       class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
       head_comment: text(formData, "head_comment", 2000) || null,
       cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
-      conduct: CONDUCT.includes(conduct as (typeof CONDUCT)[number]) ? conduct : null,
+      conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
       updated_at: new Date().toISOString(),
       ...(publishing
         ? { status: "published", published_at: new Date().toISOString(), published_by: opened.auth.user.id }

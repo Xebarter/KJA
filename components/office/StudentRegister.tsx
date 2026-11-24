@@ -37,6 +37,7 @@ function activeFilters(filters: StudentFilters) {
   if (filters.section) pills.push({ key: "section", label: `Section: ${SECTIONS.find((entry) => entry.value === filters.section)?.label ?? filters.section}`, changes: { section: "", class: "" } });
   if (filters.class) pills.push({ key: "class", label: `Class: ${className(filters.class)}`, changes: { class: "" } });
   if (filters.stream) pills.push({ key: "stream", label: `Stream ${filters.stream}`, changes: { stream: "" } });
+  if (filters.campus) pills.push({ key: "campus", label: `Campus: ${filters.campus}`, changes: { campus: "" } });
   if (filters.house) pills.push({ key: "house", label: filters.house === "none" ? "No house" : `House: ${filters.house}`, changes: { house: "" } });
   if (filters.sex) pills.push({ key: "sex", label: filters.sex === "M" ? "Boys" : "Girls", changes: { sex: "" } });
   if (filters.medical) pills.push({ key: "medical", label: "Medical notes", changes: { medical: false } });
@@ -141,6 +142,7 @@ const CLEARED: Partial<StudentFilters> = {
   section: "",
   class: "",
   stream: "",
+  campus: "",
   house: "",
   sex: "",
   staff: false,
@@ -148,7 +150,7 @@ const CLEARED: Partial<StudentFilters> = {
   review: false,
 };
 
-export function StudentFinder({ filters, streams }: { filters: StudentFilters; streams: string[] }) {
+export function StudentFinder({ filters, streams, campuses }: { filters: StudentFilters; streams: string[]; campuses: string[] }) {
   const router = useRouter();
   const [q, setQ] = useState(filters.q);
   // Local copy so selects update immediately; the table follows once the server catches up.
@@ -196,6 +198,7 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
   const live = { ...draft, q: q.trim() };
   const pills = activeFilters(live);
   const streamOptions = [...new Set([...STREAMS, ...streams])].sort();
+  const campusOptions = [...campuses].sort((a, b) => a.localeCompare(b));
   const exportHref = studentFilterHref(live, { page: 1 }, `${OFFICE}/students/export`);
   const sheetHref = studentFilterHref(live, { page: 1 }, `${OFFICE}/students/sheet`);
 
@@ -274,6 +277,13 @@ export function StudentFinder({ filters, streams }: { filters: StudentFilters; s
           <select value={draft.stream} onChange={(event) => go({ stream: event.target.value })}>
             <option value="">Any stream</option>
             {streamOptions.map((stream) => <option key={stream} value={stream}>Stream {stream}</option>)}
+          </select>
+        </label>
+        <label className="ofc-finder-field">
+          <span>Campus</span>
+          <select value={draft.campus} onChange={(event) => go({ campus: event.target.value })}>
+            <option value="">All campuses</option>
+            {campusOptions.map((campus) => <option key={campus} value={campus}>{campus}</option>)}
           </select>
         </label>
         <label className="ofc-finder-field">

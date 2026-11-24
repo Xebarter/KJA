@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/admin/PageHeader";
 import { AcademicsNotice } from "@/components/academics/ui";
 import {
   ACADEMICS_BASE,
+  campusQuery,
   classLabel,
   dateKindLabel,
   groupPupils,
@@ -342,8 +343,8 @@ type OverviewLight = {
   today: string;
   pupils: Pupil[];
   groups: ReturnType<typeof groupPupils>;
-  unmarked: { code: string; stream: string; pupils: Pupil[]; done: number; complete: boolean }[];
-  registerState: { code: string; stream: string; pupils: Pupil[]; done: number; complete: boolean }[];
+  unmarked: { code: string; stream: string; campus: string; pupils: Pupil[]; done: number; complete: boolean }[];
+  registerState: { code: string; stream: string; campus: string; pupils: Pupil[]; done: number; complete: boolean }[];
   drafts: { id: string; student_id: string; status: string; published_at: string | null; class_code: string | null; stream: string | null }[];
   published: { id: string; student_id: string; status: string; published_at: string | null; class_code: string | null; stream: string | null }[];
   untaught: ReturnType<typeof groupPupils>;
@@ -438,10 +439,10 @@ function renderOverviewHome(light: OverviewLight, picture: AcademicPicture | nul
         { label: "Reports", value: nf(published.length), note: drafts.length ? `${nf(drafts.length)} to publish` : "Published", href: `${ACADEMICS_BASE}/reports` },
       ]}
       openClasses={unmarked.map((group) => ({
-        key: `${group.code}-${group.stream}`,
+        key: `${group.campus}-${group.code}-${group.stream}`,
         code: group.code,
-        name: classLabel(group.code, group.stream),
-        href: `${attendanceHref}&class=${group.code}&stream=${group.stream || "-"}`,
+        name: classLabel(group.code, group.stream, group.campus),
+        href: `${attendanceHref}&class=${group.code}&stream=${group.stream || "-"}&campus=${campusQuery(group.campus)}`,
         done: group.done,
         pupils: group.pupils.length,
       }))}

@@ -2,6 +2,7 @@ import { previewCommentEngine, saveCommentTemplate } from "@/app/academics_offic
 import { CommentsDesk } from "@/app/academics_office/(desk)/comments/CommentsDesk";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { CommentsWorkspaceSwitch } from "@/components/academics/CommentsWorkspaceSwitch";
+import { CampusFilter } from "@/components/academics/CampusFilter";
 import { friendlyCheck, templateReadout, toRuleCard, type DeskRule, type DeskTemplate, type DeskType } from "@/components/academics/comment-model";
 import { NurseryCommentsDesk, type NurseryCommentCard } from "@/components/academics/NurseryCommentsDesk";
 import {
@@ -14,6 +15,7 @@ import {
 } from "@/components/academics/PrimaryCommentsDesk";
 import { AcademicsGate, OfficeOnly } from "@/components/academics/ui";
 import {
+  ACADEMICS_BASE,
   groupPupils,
   loadCurrentTerm,
   mapSubject,
@@ -26,6 +28,7 @@ import { NURSERY_COMMENT_RULES } from "@/lib/comment-engine/nursery-defaults";
 import { buildNurserySamplePreview, buildSamplePreview } from "@/lib/comment-engine/preview";
 import { resolveNurseryClassTeacherComment } from "@/lib/nursery-class-comments";
 import { resolvePrimaryComment } from "@/lib/primary-report-comments";
+import { CAMPUS_OPTIONS, operationalCampus } from "@/lib/campuses";
 import "../assessments/assessments.css";
 import "./comments.css";
 
@@ -36,7 +39,7 @@ function asType(value: string): DeskType | null {
   return null;
 }
 
-type SearchParams = Promise<{ view?: string; class?: string; stream?: string }>;
+type SearchParams = Promise<{ view?: string; class?: string; stream?: string; campus?: string; classCampus?: string }>;
 
 export default async function CommentsSetupPage({ searchParams }: { searchParams: SearchParams }) {
   const opened = await openAcademics();
@@ -46,6 +49,15 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
   const params = await searchParams;
   const primaryView = params.view === "primary-comments";
   const nurseryView = params.view === "nursery-comments";
+  const campusOptions = opened.auth.campuses.length ? opened.auth.campuses : CAMPUS_OPTIONS;
+  const selectedCampus =
+    params.campus && campusOptions.includes(params.campus as (typeof CAMPUS_OPTIONS)[number])
+      ? params.campus
+      : null;
+  const campusFilterQuery = {
+    ...(primaryView ? { view: "primary-comments" } : {}),
+    ...(nurseryView ? { view: "nursery-comments" } : {}),
+  };
 
   if (primaryView) {
     const termPack = await loadCurrentTerm(opened.auth.supabase);
@@ -58,7 +70,7 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
       term
         ? opened.auth.supabase
             .from("report_cards")
-            .select("id, student_id, status, class_code, stream, class_teacher_comment")
+            .select("id, student_id, status, class_code, stream, campus, class_teacher_comment")
             .eq("term_id", term.id)
         : Promise.resolve({ data: [], error: null }),
       term
@@ -88,7 +100,10 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
       }
     }
 
-    const primaryGroups = groupPupils(pupils).filter((group) => group.section === "primary");
+    const campusPupils = selectedCampus
+      ? pupils.filter((pupil) => operationalCampus(pupil.campus) === selectedCampus)
+      : pupils;
+    const primaryGroups = groupPupils(campusPupils).filter((group) => group.section === "primary");
     const primaryCodes = new Set(primaryGroups.map((group) => group.code));
 
     const subjects: PrimaryCommentSubject[] = ((subjectsQuery.data || []) as Record<string, unknown>[])
@@ -112,9 +127,10 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
         status: string;
         class_code: string | null;
         stream: string | null;
+        campus: string | null;
         class_teacher_comment: string | null;
       }[])
-        .filter((card) => card.class_code && primaryCodes.has(card.class_code))
+        .filter((card) => card.class_code && primaryCodes.has(card.class_code) && (!selectedCampus || operationalCampus(card.campus) === selectedCampus))
         .map((card) => [card.student_id, card]),
     );
     const classStoreByStudent = new Map(
@@ -124,7 +140,9 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
         class_code: string | null;
         stream: string | null;
         campus: string | null;
-      }[]).map((row) => [row.student_id, row]),
+      }[])
+        .filter((row) => !selectedCampus || operationalCampus(row.campus) === selectedCampus)
+        .map((row) => [row.student_id, row]),
     );
 
     const classCards: PrimaryClassCommentCard[] = [];
@@ -295,10 +313,18 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
             )
           }
         />
+        <CampusFilter
+          options={campusOptions}
+          selected={selectedCampus}
+          basePath={`${ACADEMICS_BASE}/comments`}
+          query={campusFilterQuery}
+        />
         <CommentsWorkspaceSwitch
           active="primary-comments"
           classCode={params.class || null}
           stream={params.stream === "-" ? "" : params.stream || null}
+          campus={selectedCampus}
+          classCampus={params.classCampus || (params.class ? selectedCampus : null)}
         />
         <PrimaryCommentsDesk
           termLabel={term?.label ?? null}
@@ -325,7 +351,7 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
       term
         ? opened.auth.supabase
             .from("report_cards")
-            .select("id, student_id, status, class_code, stream, class_teacher_comment")
+            .select("id, student_id, status, class_code, stream, campus, class_teacher_comment")
             .eq("term_id", term.id)
         : Promise.resolve({ data: [], error: null }),
       term
@@ -342,7 +368,10 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
       return <AcademicsGate title="Nursery Comments" state={{ notice: "schema", message: storeQuery.error.message }} />;
     }
 
-    const nurseryGroups = groupPupils(pupils).filter((group) => group.section === "nursery");
+    const campusPupils = selectedCampus
+      ? pupils.filter((pupil) => operationalCampus(pupil.campus) === selectedCampus)
+      : pupils;
+    const nurseryGroups = groupPupils(campusPupils).filter((group) => group.section === "nursery");
     const nurseryCodes = new Set(nurseryGroups.map((group) => group.code));
     const cardByStudent = new Map(
       ((cardsQuery.data || []) as {
@@ -351,9 +380,10 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
         status: string;
         class_code: string | null;
         stream: string | null;
+        campus: string | null;
         class_teacher_comment: string | null;
       }[])
-        .filter((card) => card.class_code && nurseryCodes.has(card.class_code))
+        .filter((card) => card.class_code && nurseryCodes.has(card.class_code) && (!selectedCampus || operationalCampus(card.campus) === selectedCampus))
         .map((card) => [card.student_id, card]),
     );
     const storeByStudent = new Map(
@@ -363,7 +393,9 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
         class_code: string | null;
         stream: string | null;
         campus: string | null;
-      }[]).map((row) => [row.student_id, row]),
+      }[])
+        .filter((row) => !selectedCampus || operationalCampus(row.campus) === selectedCampus)
+        .map((row) => [row.student_id, row]),
     );
 
     const cards: NurseryCommentCard[] = [];
@@ -432,10 +464,18 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
             )
           }
         />
+        <CampusFilter
+          options={campusOptions}
+          selected={selectedCampus}
+          basePath={`${ACADEMICS_BASE}/comments`}
+          query={campusFilterQuery}
+        />
         <CommentsWorkspaceSwitch
           active="nursery-comments"
           classCode={params.class || null}
           stream={params.stream === "-" ? "" : params.stream || null}
+          campus={selectedCampus}
+          classCampus={params.classCampus || (params.class ? selectedCampus : null)}
         />
         <NurseryCommentsDesk
           termLabel={term?.label ?? null}

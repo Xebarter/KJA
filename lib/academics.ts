@@ -138,6 +138,24 @@ export const ATTENDANCE_STATUSES = [
 export type AttendanceStatus = (typeof ATTENDANCE_STATUSES)[number]["value"];
 
 export const CONDUCT = ["Excellent", "Good", "Fair", "Needs support"] as const;
+export const BEHAVIOR_CONDUCT = ["Excellent", "Good", "Fair", "Needs Help"] as const;
+export const BEHAVIOR_RATINGS = [
+  { code: "A", conduct: "Excellent" },
+  { code: "B", conduct: "Good" },
+  { code: "C", conduct: "Fair" },
+  { code: "D", conduct: "Needs Help" },
+] as const satisfies readonly { code: string; conduct: (typeof BEHAVIOR_CONDUCT)[number] }[];
+
+export type BehaviorRatingCode = (typeof BEHAVIOR_RATINGS)[number]["code"];
+
+export function conductForBehaviorRating(code: string) {
+  return BEHAVIOR_RATINGS.find((rating) => rating.code === code.toUpperCase())?.conduct ?? null;
+}
+
+export function behaviorRatingForConduct(conduct: string | null | undefined): BehaviorRatingCode | null {
+  if (conduct === "Needs support") return "D";
+  return BEHAVIOR_RATINGS.find((rating) => rating.conduct === conduct)?.code ?? null;
+}
 
 export const WEEKDAYS = [
   { value: 1, label: "Monday" },

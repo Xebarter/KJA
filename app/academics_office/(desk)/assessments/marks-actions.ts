@@ -1,9 +1,10 @@
 "use server";
 
-import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, logAcademics, mapBand, markbookClosed, num, streamOf } from "@/lib/academics";
+import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, conductForBehaviorRating, kindLabel, logAcademics, mapBand, markbookClosed, num, streamOf } from "@/lib/academics";
 import { requireAcademics } from "@/lib/academics-access";
 import { refreshAcademics } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
+import { operationalCampus } from "@/lib/campuses";
 import { mergeActivitySkills } from "@/lib/comment-engine/skills";
 import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-workbook";
 import {
@@ -24,11 +25,12 @@ import { isUuid } from "@/lib/students";
 export type MarksPreview = {
   name: string;
   detail: string;
-  sheets: { label: string; subjects: string[]; scores: number; missed: number; cleared: number }[];
+  sheets: { label: string; subjects: string[]; scores: number; missed: number; cleared: number; behavior?: number }[];
   warnings: string[];
   issues: { where: string; message: string }[];
   issueCount: number;
   ready: number;
+  behavior?: number;
   /** When true, preview copy talks about progress codes instead of marks. */
   nursery?: boolean;
 };
@@ -40,6 +42,7 @@ type PaperRow = {
   term_id: string;
   class_code: string;
   stream: string | null;
+  campus?: string | null;
   subject_id: string;
   name: string;
   kind: string;
@@ -386,7 +389,7 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   const papers: PaperRow[] = [];
   for (let index = 0; index < ids.length; index += 80) {
     const slice = ids.slice(index, index + 80);
-    const result = await auth.supabase.from("assessments").select("id, term_id, class_code, stream, subject_id, name, kind, max_score, held_on, status").in("id", slice);
+    const result = await auth.supabase.from("assessments").select("id, term_id, class_code, stream, campus, subject_id, name, kind, max_score, held_on, status").in("id", slice);
     if (result.error) return { error: "The markbooks in this workbook could not be checked." };
     papers.push(...((result.data || []) as PaperRow[]));
   }
@@ -394,20 +397,36 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   const signature = new Set(papers.map((paper) => `${paper.term_id}|${paper.name}|${paper.kind}|${paper.held_on || ""}`));
   if (signature.size !== 1) return { error: "This workbook mixes more than one assessment. Download a fresh sheet." };
 
+  let classTeacherKeys: Set<string> | null = null;
   if (!auth.office) {
     if (!auth.staffId) return { error: "This account is not a teacher sign-in." };
     const termId = papers[0].term_id;
-    const posts = await auth.supabase
-      .from("subject_teachers")
-      .select("class_code, stream, subject_id")
-      .eq("term_id", termId)
-      .eq("staff_id", auth.staffId);
-    if (posts.error) return { error: posts.error.message };
-    const allowed = new Set(
-      (posts.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}|${row.subject_id}`),
+    const [subjectPosts, classPosts] = await Promise.all([
+      auth.supabase
+        .from("subject_teachers")
+        .select("class_code, stream, campus, subject_id")
+        .eq("term_id", termId)
+        .eq("staff_id", auth.staffId),
+      auth.supabase
+        .from("class_teachers")
+        .select("class_code, stream, campus")
+        .eq("term_id", termId)
+        .eq("staff_id", auth.staffId),
+    ]);
+    if (subjectPosts.error) return { error: subjectPosts.error.message };
+    if (classPosts.error) return { error: classPosts.error.message };
+    const allowedSubjects = new Set(
+      (subjectPosts.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}|${operationalCampus(row.campus as string | null)}|${row.subject_id}`),
     );
-    const mine = papers.filter((paper) => allowed.has(`${paper.class_code}|${streamOf(paper.stream)}|${paper.subject_id}`));
-    if (!mine.length) return { error: "None of the markbooks in this workbook are subjects you teach." };
+    const allowedClasses = new Set(
+      (classPosts.data || []).map((row) => `${row.class_code}|${streamOf(row.stream as string | null)}|${operationalCampus(row.campus as string | null)}`),
+    );
+    classTeacherKeys = allowedClasses;
+    const mine = papers.filter((paper) => {
+      const classKey = `${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`;
+      return allowedClasses.has(classKey) || allowedSubjects.has(`${classKey}|${paper.subject_id}`);
+    });
+    if (!mine.length) return { error: "None of the markbooks in this workbook are assigned to your desk." };
     if (mine.length !== papers.length) {
       return { error: "This workbook includes subjects you do not teach. Download a sheet from your teacher desk instead." };
     }
@@ -442,8 +461,10 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
       : `${gap.label} is missing ${nf(gap.count)} pupils from the downloaded roll. Their saved marks stay as they are.`);
   }
 
-  const tally = new Map(parsed.sheets.map((sheet) => [sheet.name, { label: sheet.label, subjects: sheet.subjects, scores: 0, missed: 0, cleared: 0 }]));
+  const tally = new Map(parsed.sheets.map((sheet) => [sheet.name, { label: sheet.label, subjects: sheet.subjects, scores: 0, missed: 0, cleared: 0, behavior: 0 }]));
   const rows: { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: { label: string; acquired: boolean }[] }[] = [];
+  const behaviorRows: { studentId: string; conduct: string | null; sheet: string; pupil: string }[] = [];
+  const seenBehaviors = new Set<string>();
   const seen = new Set<string>();
   const acquiredBy = new Map<string, string[]>();
   const taughtBySubject = new Map<string, string[]>();
@@ -495,8 +516,12 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
       problem(where, `${entry.pupil || "This pupil"} is not on the active roll.`);
       continue;
     }
-    if ((pupil.class_code || "") !== paper.class_code || streamOf(pupil.stream) !== streamOf(paper.stream)) {
-      problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)}, so this mark was not taken.`);
+    if (
+      (pupil.class_code || "") !== paper.class_code ||
+      streamOf(pupil.stream) !== streamOf(paper.stream) ||
+      operationalCampus(pupil.campus) !== operationalCampus(paper.campus)
+    ) {
+      problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)} at ${operationalCampus(pupil.campus)}, so this mark was not taken.`);
       continue;
     }
     const nurseryPaper = classSection(paper.class_code) === "nursery";
@@ -547,6 +572,56 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     seen.add(key);
   }
 
+  for (const entry of parsed.behaviors) {
+    const where = [entry.label, entry.cell, entry.pupil].filter(Boolean).join(" · ");
+    const pupil = byPupil.get(entry.studentId);
+    if (!pupil) {
+      problem(where, `${entry.pupil || "This pupil"} is not on the active roll.`);
+      continue;
+    }
+    if (seenBehaviors.has(entry.studentId)) {
+      problem(where, `${entry.pupil || "This pupil"} has two behavior ratings in this workbook.`);
+      continue;
+    }
+    if (!auth.office) {
+      const classKey = `${pupil.class_code || ""}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`;
+      if (!classTeacherKeys?.has(classKey)) {
+        problem(where, "Only the pupil’s class teacher or Academics office can save a term behavior rating.");
+        continue;
+      }
+    }
+    const token = entry.raw.trim().toUpperCase();
+    const conduct = token === "CLEAR" || token === "REMOVE" ? null : conductForBehaviorRating(token);
+    if (conduct === null && token !== "CLEAR" && token !== "REMOVE") {
+      problem(where, "Choose A (Excellent), B (Good), C (Fair), D (Needs Help), or CLEAR.");
+      continue;
+    }
+    seenBehaviors.add(entry.studentId);
+    behaviorRows.push({ studentId: entry.studentId, conduct, sheet: entry.sheet, pupil: entry.pupil });
+    const bucket = tally.get(entry.sheet);
+    if (bucket) bucket.behavior += 1;
+  }
+
+  if (behaviorRows.length) {
+    const studentIds = behaviorRows.map((entry) => entry.studentId);
+    const cards = await auth.supabase
+      .from("report_cards")
+      .select("student_id, status")
+      .eq("term_id", sample.term_id)
+      .in("student_id", studentIds);
+    if (cards.error) return { error: "The term report-card behavior records could not be checked." };
+    const cardsByStudent = new Map((cards.data || []).map((card) => [String(card.student_id), String(card.status || "")]));
+    for (const entry of behaviorRows) {
+      const status = cardsByStudent.get(entry.studentId);
+      const where = [entry.sheet, entry.pupil].filter(Boolean).join(" · ");
+      if (!status) {
+        problem(where, "A report card has not been created for this pupil and term. Ask the Academics office to prepare the term reports first.");
+      } else if (!auth.office && status !== "draft" && status !== "approved") {
+        problem(where, "This pupil’s published report card cannot be changed from a workbook.");
+      }
+    }
+  }
+
   const preview: MarksPreview = {
     name: sample.name,
     detail: [kindLabel(sample.kind), shortDay(sample.held_on)].filter(Boolean).join(" · "),
@@ -554,11 +629,12 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     warnings,
     issues,
     issueCount,
-    ready: rows.length,
+    ready: rows.length + behaviorRows.length,
+    behavior: behaviorRows.length,
   };
   if (formData.get("intent") !== "commit") return { preview };
   if (issueCount) return { preview };
-  if (!rows.length) {
+  if (!rows.length && !behaviorRows.length) {
     return { preview, error: warnings[0] || "The workbook has no marks to save. Enter a mark, ABS, or CLEAR, then upload it again." };
   }
 
@@ -578,23 +654,59 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     }
     saved += slice.length;
   }
+  const behaviorByConduct = new Map<string, string[]>();
+  for (const entry of behaviorRows) {
+    const key = entry.conduct ?? "__clear__";
+    const ids = behaviorByConduct.get(key) || [];
+    ids.push(entry.studentId);
+    behaviorByConduct.set(key, ids);
+  }
+  let savedBehavior = 0;
+  for (const [conduct, studentIds] of behaviorByConduct) {
+    const { data, error } = await auth.supabase
+      .from("report_cards")
+      .update({ conduct: conduct === "__clear__" ? null : conduct })
+      .eq("term_id", sample.term_id)
+      .in("student_id", studentIds)
+      .select("student_id");
+    if (error || (data || []).length !== studentIds.length) {
+      return {
+        error: saved || savedBehavior
+          ? "Some workbook values were saved, but not all term behavior ratings could be updated. Check the report cards and upload the file again."
+          : error?.message || "The term behavior ratings could not be saved. Check that the report cards are still editable.",
+      };
+    }
+    savedBehavior += studentIds.length;
+  }
   const submitIds = [...new Set(rows.filter((row) => row.missed || row.score !== null).map((row) => row.assessment_id))];
   for (let index = 0; index < submitIds.length; index += 80) {
     const slice = submitIds.slice(index, index + 80);
     const { error } = await auth.supabase.from("assessments").update({ status: "submitted" }).in("id", slice).eq("status", "open");
-    if (error) return { error: "The marks were saved, but they could not be submitted. Open the class marksheet and approve the subjects that are complete." };
+    if (error) {
+      return {
+        error: savedBehavior
+          ? "Workbook values and term behavior ratings were saved, but the marks could not be submitted. Open the class marksheet and approve the subjects that are complete."
+          : "The marks were saved, but they could not be submitted. Open the class marksheet and approve the subjects that are complete.",
+      };
+    }
   }
   const scores = rows.filter((row) => !row.missed && row.score !== null).length;
   const missed = rows.filter((row) => row.missed).length;
   const cleared = rows.filter((row) => !row.missed && row.score === null).length;
+  const behaviorCleared = behaviorRows.filter((row) => row.conduct === null).length;
+  const behaviorSaved = savedBehavior - behaviorCleared;
   const lead = scores
     ? `Submitted ${nf(scores)} ${scores === 1 ? "mark" : "marks"} for ${sample.name}.`
     : missed
       ? `Submitted ${nf(missed)} ${missed === 1 ? "absence" : "absences"} for ${sample.name}.`
-      : `Updated ${sample.name}.`;
+      : savedBehavior
+        ? `Updated ${nf(savedBehavior)} term behavior ${savedBehavior === 1 ? "entry" : "entries"} for ${sample.name}.`
+        : `Updated ${sample.name}.`;
   const extra = [
     missed && scores ? `${nf(missed)} ${missed === 1 ? "pupil was" : "pupils were"} marked absent.` : "",
     cleared ? `${nf(cleared)} ${cleared === 1 ? "saved mark was" : "saved marks were"} removed.` : "",
+    behaviorSaved ? `${nf(behaviorSaved)} term behavior ${behaviorSaved === 1 ? "rating was" : "ratings were"} saved.` : "",
+    behaviorCleared ? `${nf(behaviorCleared)} saved behavior ${behaviorCleared === 1 ? "rating was" : "ratings were"} cleared.` : "",
     submitIds.length
       ? auth.office
         ? "They are submitted on the class marksheet."
@@ -603,10 +715,8 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   ].filter(Boolean).join(" ");
   await logAcademics(auth.supabase, auth.user.id, {
     kind: "marks",
-    body: submitIds.length
-      ? `Submitted marks for ${sample.name} from a workbook (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`
-      : `Uploaded marks for ${sample.name} (${nf(rows.length)} ${rows.length === 1 ? "cell" : "cells"}).`,
+    body: `Uploaded ${sample.name} workbook values (${nf(rows.length)} ${rows.length === 1 ? "mark cell" : "mark cells"}, ${nf(savedBehavior)} behavior ${savedBehavior === 1 ? "rating" : "ratings"}).`,
   });
-  refreshAcademics(`${ACADEMICS_BASE}/assessments`);
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`, `${ACADEMICS_BASE}/reports`, `/teacher/marksheet`, `/teacher/assessments`, `/teacher/reports`);
   return { ok: extra ? `${lead} ${extra}` : lead };
 }

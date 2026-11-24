@@ -20,9 +20,9 @@ export function PrimaryCommentsClassMenu({
   onChange,
 }: {
   groups: ClassGroup<RollPupil>[];
-  selected: { code: string; stream: string } | null;
+  selected: { code: string; stream: string; campus?: string } | null;
   blanksByKey: Record<string, number>;
-  onChange: (next: { code: string; stream: string }) => void;
+  onChange: (next: { code: string; stream: string; campus: string }) => void;
 }) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -30,10 +30,10 @@ export function PrimaryCommentsClassMenu({
   const listId = useId();
 
   const current = selected
-    ? groups.find((group) => group.code === selected.code && group.stream === selected.stream) || null
+    ? groups.find((group) => group.code === selected.code && group.stream === selected.stream && (!selected.campus || group.campus === selected.campus)) || null
     : null;
-  const label = current ? classLabel(current.code, current.stream) : "Choose class";
-  const blank = current ? blanksByKey[`${current.code}|${current.stream}`] || 0 : 0;
+  const label = current ? classLabel(current.code, current.stream, current.campus) : "Choose class";
+  const blank = current ? blanksByKey[`${current.campus}|${current.code}|${current.stream}`] || 0 : 0;
 
   useEffect(() => {
     if (!open) return;
@@ -55,8 +55,8 @@ export function PrimaryCommentsClassMenu({
     };
   }, [open]);
 
-  function pick(code: string, stream: string) {
-    onChange({ code, stream });
+  function pick(code: string, stream: string, campus: string) {
+    onChange({ code, stream, campus });
     setOpen(false);
     buttonRef.current?.focus();
   }
@@ -92,8 +92,8 @@ export function PrimaryCommentsClassMenu({
             </header>
             <ul>
               {groups.map((group) => {
-                const on = selected?.code === group.code && selected.stream === group.stream;
-                const gaps = blanksByKey[`${group.code}|${group.stream}`] || 0;
+                const on = selected?.code === group.code && selected.stream === group.stream && selected.campus === group.campus;
+                const gaps = blanksByKey[`${group.campus}|${group.code}|${group.stream}`] || 0;
                 return (
                   <li key={`${group.code}|${group.stream}|${group.campus}`}>
                     <button
@@ -101,13 +101,13 @@ export function PrimaryCommentsClassMenu({
                       role="option"
                       aria-selected={on}
                       className={`${on ? "is-on" : ""} is-sky`}
-                      onClick={() => pick(group.code, group.stream)}
+                      onClick={() => pick(group.code, group.stream, group.campus)}
                     >
                       <span className="msh-arrange-ico is-sky" aria-hidden="true">
                         <i className="fa-solid fa-users" />
                       </span>
                       <span>
-                        {classLabel(group.code, group.stream)}
+                        {classLabel(group.code, group.stream, group.campus)}
                         <small className="ncm-arrange-meta">
                           {gaps
                             ? `${gaps.toLocaleString("en-GB")} blank`
