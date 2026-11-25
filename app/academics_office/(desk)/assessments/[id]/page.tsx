@@ -6,6 +6,7 @@ import { AcademicsGate, Empty } from "@/components/academics/ui";
 import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, kindLabel, mapBand, num, streamOf, streamQuery } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadRoll } from "@/lib/academics-roll";
+import { operationalCampus } from "@/lib/campuses";
 import { marksheetHref } from "@/lib/marksheet";
 import { isUuid } from "@/lib/students";
 
@@ -26,13 +27,20 @@ export default async function MarkbookPage({ params }: { params: Promise<{ id: s
   const opened = await openAcademics();
   if ("notice" in opened) return <AcademicsGate title="Markbook" state={opened} />;
   const { supabase, office, user, campuses } = opened.auth;
-  const { data: paper, error } = await supabase.from("assessments").select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, term_id, status").eq("id", id).maybeSingle();
+  const { data: paper, error } = await supabase.from("assessments").select("id, class_code, stream, campus, subject_id, name, kind, max_score, weight, held_on, term_id, status").eq("id", id).maybeSingle();
   if (error) return <AcademicsGate title="Markbook" state={{ notice: "schema", message: error.message }} />;
   if (!paper) notFound();
   const nursery = classSection(paper.class_code) === "nursery";
+  const campus = operationalCampus(paper.campus);
   const maxScore = num(paper.max_score) ?? 100;
   const [pupils, scores, subject, bandsQuery] = await Promise.all([
-    loadRoll(supabase, user.id, undefined, office ? campuses : undefined).then((rows) => rows.filter((pupil) => pupil.class_code === paper.class_code && (pupil.stream || "") === (paper.stream || ""))),
+    loadRoll(supabase, user.id, [paper.class_code], office ? campuses : [campus]).then((rows) =>
+      rows.filter((pupil) =>
+        pupil.class_code === paper.class_code &&
+        streamOf(pupil.stream) === streamOf(paper.stream) &&
+        operationalCampus(pupil.campus) === campus,
+      ),
+    ),
     supabase.from("assessment_scores").select("student_id, score, missed").eq("assessment_id", id),
     supabase.from("subjects").select("name").eq("id", paper.subject_id).maybeSingle(),
     nursery ? supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order") : Promise.resolve({ data: [], error: null }),
@@ -48,10 +56,10 @@ export default async function MarkbookPage({ params }: { params: Promise<{ id: s
         kicker="Assessment"
         icon="fa-pen-to-square"
         title={String(paper.name)}
-        description={<>{subject.data?.name || "Subject"} · {classLabel(paper.class_code, paper.stream)} · {kindLabel(String(paper.kind))} · <strong>{phase === "approved" ? "Locked" : phase === "submitted" ? "Submitted" : "Open"}</strong></>}
+        description={<>{subject.data?.name || "Subject"} · {classLabel(paper.class_code, paper.stream, campus)} · {kindLabel(String(paper.kind))} · <strong>{phase === "approved" ? "Locked" : phase === "submitted" ? "Submitted" : "Open"}</strong></>}
         actions={
           <>
-            <Link className="admin-hero-btn" href={marksheetHref({ name: String(paper.name), kind: String(paper.kind), classCode: String(paper.class_code), stream: streamQuery(streamOf(paper.stream)), heldOn: paper.held_on || "" })}><i className="fa-solid fa-table-cells" aria-hidden="true" /> Class marksheet</Link>
+            <Link className="admin-hero-btn" href={marksheetHref({ name: String(paper.name), kind: String(paper.kind), classCode: String(paper.class_code), stream: streamQuery(streamOf(paper.stream)), heldOn: paper.held_on || "", campus })}><i className="fa-solid fa-table-cells" aria-hidden="true" /> Class marksheet</Link>
             <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/assessments`}>All papers</Link>
           </>
         }

@@ -3,9 +3,14 @@
 import { useEffect, useId, useMemo, useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  importPrimaryCommentsWorkbook as defaultImportPrimaryComments,
   savePrimaryActivityComment as defaultSavePrimaryActivityComment,
   savePrimaryClassComment as defaultSavePrimaryClassComment,
   savePrimarySubjectComment as defaultSavePrimarySubjectComment,
+} from "@/app/academics_office/(desk)/comments/comments-actions";
+import type {
+  PrimaryCommentsImportResult,
+  PrimaryCommentsPreview,
 } from "@/app/academics_office/(desk)/comments/comments-actions";
 import { PrimaryCommentsClassMenu } from "@/components/academics/PrimaryCommentsClassMenu";
 import { ProcessStatus } from "@/components/ProcessStatus";
@@ -25,6 +30,7 @@ import { printPdfBlob } from "@/lib/client-print-pdf";
 
 type SaveResult = { error?: string; ok?: string };
 type SaveAction = (formData: FormData) => Promise<SaveResult>;
+type ImportAction = (formData: FormData) => Promise<PrimaryCommentsImportResult>;
 
 export type PrimaryClassCommentCard = {
   student_id: string;
@@ -100,28 +106,40 @@ function statusLabel(status: string | null, hasComment?: boolean) {
   return "Ready";
 }
 
-function classHref(base: string, code: string, stream: string, campus: string, view?: string | null) {
+function classHref(
+  base: string,
+  code: string,
+  stream: string,
+  campus: string,
+  view?: string | null,
+  campusParameter = "campus",
+) {
   const params = new URLSearchParams({
     class: code,
     stream: streamQuery(stream),
     classCampus: campus,
   });
   if (typeof window !== "undefined") {
-    const filterCampus = new URLSearchParams(window.location.search).get("campus");
-    if (filterCampus) params.set("campus", filterCampus);
+    const current = new URLSearchParams(window.location.search);
+    for (const parameter of ["primaryCampus", "nurseryCampus"]) {
+      const filterCampus = current.get(parameter);
+      if (filterCampus) params.set(parameter, filterCampus);
+    }
+    const filterCampus = current.get(campusParameter) || (campusParameter !== "campus" ? current.get("campus") : null);
+    if (filterCampus) params.set(campusParameter, filterCampus);
   }
   if (view) params.set("view", view);
   return `${base}?${params.toString()}`;
 }
 
-function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
+function selectionFromUrl(groups: ClassGroup<RollPupil>[], campusParameter = "campus"): Selection | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const code = params.get("class");
   if (!code) return null;
   const raw = params.get("stream");
   const stream = raw === null ? null : raw === "-" || raw === "" ? "" : raw.slice(0, 20);
-  const campus = params.get("classCampus") || params.get("campus");
+  const campus = params.get("classCampus") || params.get(campusParameter);
   const match = groups.find(
     (group) => group.code === code && (stream === null || group.stream === stream) && (!campus || group.campus === campus),
   );
@@ -170,6 +188,9 @@ export function PrimaryCommentsDesk({
   commentsBase = `${ACADEMICS_BASE}/comments`,
   closeHref = `${ACADEMICS_BASE}/comments`,
   viewParam = "primary-comments",
+  campusParameter = "campus",
+  allowImport = true,
+  importComments = defaultImportPrimaryComments,
   saveClassComment = defaultSavePrimaryClassComment,
   saveSubjectComment = defaultSavePrimarySubjectComment,
   saveActivityComment = defaultSavePrimaryActivityComment,
@@ -185,6 +206,9 @@ export function PrimaryCommentsDesk({
   commentsBase?: string;
   closeHref?: string;
   viewParam?: string | null;
+  campusParameter?: string;
+  allowImport?: boolean;
+  importComments?: ImportAction;
   saveClassComment?: SaveAction;
   saveSubjectComment?: SaveAction;
   saveActivityComment?: SaveAction;
@@ -194,6 +218,7 @@ export function PrimaryCommentsDesk({
   const [portalHost, setPortalHost] = useState<HTMLDialogElement | null>(null);
   const exportRootRef = useRef<HTMLDivElement>(null);
   const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
   const exportListId = useId();
 
   const [selected, setSelected] = useState<Selection | null>(null);
@@ -211,6 +236,9 @@ export function PrimaryCommentsDesk({
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<PrimaryCommentsPreview | null>(null);
+  const [askSubmit, setAskSubmit] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -235,15 +263,15 @@ export function PrimaryCommentsDesk({
   }, []);
 
   useEffect(() => {
-    const next = selectionFromUrl(groups) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream, campus: groups[0].campus } : null);
+    const next = selectionFromUrl(groups, campusParameter) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream, campus: groups[0].campus } : null);
     setSelected((prev) => (sameSelection(prev, next) ? prev : next));
-  }, [groups]);
+  }, [campusParameter, groups]);
 
   useEffect(() => {
-    const onPop = () => setSelected(selectionFromUrl(groups));
+    const onPop = () => setSelected(selectionFromUrl(groups, campusParameter));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [groups]);
+  }, [campusParameter, groups]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -271,8 +299,11 @@ export function PrimaryCommentsDesk({
     setGapsOnly(false);
     setError("");
     setOk("");
+    setFile(null);
+    setPreview(null);
+    setAskSubmit(false);
     setExportOpen(false);
-    const url = classHref(commentsBase, next.code, next.stream, next.campus, viewParam);
+    const url = classHref(commentsBase, next.code, next.stream, next.campus, viewParam, campusParameter);
     if (historyMode === "replace") window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   }
@@ -574,6 +605,117 @@ export function PrimaryCommentsDesk({
     }
   }
 
+  async function downloadWorkbook() {
+    if (!termId || !selected || busy) return;
+    setExportOpen(false);
+    setBusy("download");
+    setError("");
+    setOk("");
+    try {
+      const response = await fetch(`${commentsBase}/primary-sheet`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          termId,
+          classCode: selected.code,
+          stream: selected.stream,
+          campus: selected.campus,
+        }),
+      });
+      if (!response.ok) {
+        setError(errorMessage(await response.text()));
+        return;
+      }
+      const blob = await response.blob();
+      if (!blob.size) {
+        setError("The workbook came back empty. Try again.");
+        return;
+      }
+      const filename = `KJA-primary-comments-${selected.code}${selected.stream ? `-${selected.stream}` : ""}-${selected.campus}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = filename;
+      anchor.click();
+      URL.revokeObjectURL(url);
+      setOk(`Workbook saved as ${filename}.`);
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "The workbook could not be downloaded.");
+    } finally {
+      setBusy("");
+    }
+  }
+
+  function uploadForm(nextFile: File, intent: "preview" | "commit") {
+    const data = new FormData();
+    data.set("file", nextFile);
+    data.set("intent", intent);
+    if (selected) {
+      data.set("desk_term_id", termId || "");
+      data.set("desk_class_code", selected.code);
+      data.set("desk_stream", selected.stream);
+      data.set("desk_campus", selected.campus);
+    }
+    return data;
+  }
+
+  async function stageWorkbook(nextFile: File) {
+    setOk("");
+    setPreview(null);
+    setAskSubmit(false);
+    if (dirtyCount) {
+      setFile(null);
+      setError("Save or discard the current comment drafts before uploading a workbook.");
+      return;
+    }
+    if (!nextFile.name.toLowerCase().endsWith(".xlsx")) {
+      setFile(null);
+      setError("Upload the Excel workbook (.xlsx) downloaded from this page.");
+      return;
+    }
+    setFile(nextFile);
+    setError("");
+    setBusy("read");
+    const outcome: PrimaryCommentsImportResult = await importComments(uploadForm(nextFile, "preview")).catch(() => ({
+      error: "That workbook could not be read. Try again.",
+    }));
+    setBusy("");
+    if (outcome.error && !outcome.preview) setError(outcome.error);
+    if (outcome.preview) {
+      setPreview(outcome.preview);
+      setAskSubmit(Boolean(outcome.preview.ready && !outcome.preview.issueCount));
+    }
+  }
+
+  async function commitWorkbook() {
+    if (!file || !preview || preview.issueCount || !preview.ready || busy) return;
+    if (dirtyCount) {
+      setError("Save or discard the current comment drafts before uploading a workbook.");
+      setAskSubmit(false);
+      return;
+    }
+    setBusy("save");
+    setError("");
+    setOk("");
+    const outcome: PrimaryCommentsImportResult = await importComments(uploadForm(file, "commit")).catch(() => ({
+      error: "The comments could not be saved. Try again.",
+    }));
+    setBusy("");
+    if (outcome.preview) setPreview(outcome.preview);
+    if (outcome.error) {
+      setError(outcome.error);
+      setAskSubmit(false);
+    }
+    if (outcome.ok) {
+      setOk(outcome.ok);
+      setFile(null);
+      setPreview(null);
+      setAskSubmit(false);
+      router.refresh();
+    }
+  }
+
   async function printCommentsPdf() {
     if (!termId || !selected || busy) return;
     const href = exportUrl("pdf");
@@ -799,12 +941,12 @@ export function PrimaryCommentsDesk({
               onClick={() => setExportOpen((open) => !open)}
             >
               <span className="msh-export-ico" aria-hidden="true">
-                <i className={`fa-solid ${busy === "pdf" || busy === "xlsx" ? "fa-spinner fa-spin" : "fa-file-export"}`} />
+                <i className={`fa-solid ${busy ? "fa-spinner fa-spin" : "fa-file-export"}`} />
               </span>
-              <strong>{busy === "pdf" || busy === "xlsx" ? "Preparing…" : "Export"}</strong>
+              <strong>{busy ? "Preparing…" : "Export"}</strong>
               <i className={`fa-solid fa-chevron-${exportOpen ? "up" : "down"}`} aria-hidden="true" />
             </button>
-            {exportOpen && busy !== "pdf" && busy !== "xlsx" ? (
+            {exportOpen && !busy ? (
               <div className="msh-export-menu" role="listbox" id={exportListId} aria-label="Export comments">
                 <button type="button" role="option" onClick={() => void exportFile("pdf")}>
                   <span className="msh-export-choice-ico" aria-hidden="true">
@@ -818,6 +960,31 @@ export function PrimaryCommentsDesk({
                   </span>
                   <span>Excel</span>
                 </button>
+                {allowImport ? (
+                  <>
+                    <div className="msh-export-menu-sep" aria-hidden="true" />
+                    <p className="msh-export-menu-label">Workbook</p>
+                    <button type="button" role="option" onClick={() => void downloadWorkbook()}>
+                      <span className="msh-export-choice-ico" aria-hidden="true">
+                        <i className="fa-solid fa-download" />
+                      </span>
+                      <span>Download workbook</span>
+                    </button>
+                    <button
+                      type="button"
+                      role="option"
+                      onClick={() => {
+                        setExportOpen(false);
+                        fileRef.current?.click();
+                      }}
+                    >
+                      <span className="msh-export-choice-ico" aria-hidden="true">
+                        <i className="fa-solid fa-upload" />
+                      </span>
+                      <span>Upload workbook</span>
+                    </button>
+                  </>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -831,6 +998,19 @@ export function PrimaryCommentsDesk({
             <i className={`fa-solid ${busy === "print" ? "fa-spinner fa-spin" : "fa-print"}`} aria-hidden="true" />
             {busy === "print" ? "Preparing…" : "Print"}
           </button>
+          {allowImport ? (
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              hidden
+              onChange={(event) => {
+                const next = event.target.files?.[0];
+                if (next) void stageWorkbook(next);
+                event.target.value = "";
+              }}
+            />
+          ) : null}
         </div>
 
         <div className="pcm-modes" role="tablist" aria-label="Comment type">
@@ -862,6 +1042,25 @@ export function PrimaryCommentsDesk({
             {error || ok}
           </p>
         )}
+
+        {preview && !askSubmit ? (
+          <div className="ncm-preview" role="status">
+            <div>
+              <strong>{preview.classLabel}</strong>
+              <span>{preview.detail}</span>
+              {preview.warnings.length ? <small>{preview.warnings.join(" ")}</small> : null}
+              {preview.issues.length ? (
+                <ul>
+                  {preview.issues.slice(0, 6).map((issue) => (
+                    <li key={`${issue.where}-${issue.message}`}>
+                      {issue.where}: {issue.message}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <div className="msh-form ncm-form">
           <div className="msh-scroll ncm-scroll">
@@ -1021,12 +1220,42 @@ export function PrimaryCommentsDesk({
                   : "All learners in this view have comments"}
             </p>
             <div className="msh-foot-actions">
+              {allowImport ? (
+                <button
+                  type="button"
+                  className="msh-ghost"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={Boolean(busy) || !selected}
+                >
+                  Upload workbook
+                </button>
+              ) : null}
               <button type="button" className="msh-go" onClick={() => void saveDirty()} disabled={Boolean(busy) || !dirtyCount}>
                 Save drafts
               </button>
             </div>
           </footer>
         </div>
+
+        {askSubmit && preview ? (
+          <div className="ncm-modal" role="dialog" aria-modal="true" aria-labelledby="pcm-import-title">
+            <div className="ncm-modal-card">
+              <header>
+                <h2 id="pcm-import-title">Save workbook comments?</h2>
+                <p>{preview.detail}</p>
+                {preview.warnings.length ? <p>{preview.warnings.join(" ")}</p> : null}
+              </header>
+              <div className="ncm-modal-actions">
+                <button type="button" className="msh-ghost" onClick={() => setAskSubmit(false)} disabled={Boolean(busy)}>
+                  Cancel
+                </button>
+                <button type="button" className="msh-go" onClick={() => void commitWorkbook()} disabled={Boolean(busy)}>
+                  Save comments
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </dialog>
     </>
   );

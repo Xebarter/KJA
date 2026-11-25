@@ -4,6 +4,7 @@ import { UploadMarks } from "@/components/academics/UploadMarks";
 import { AcademicsGate, Empty } from "@/components/academics/ui";
 import { AssessmentsBoard } from "@/components/teacher/AssessmentsBoard";
 import {
+  classGroupKey,
   classLabel,
   classOrder,
   classSection,
@@ -14,6 +15,7 @@ import {
 } from "@/lib/academics";
 import { groupOf } from "@/lib/accounts-agg";
 import { loadRoll } from "@/lib/academics-roll";
+import { operationalCampus } from "@/lib/campuses";
 import { nurseryDivision, type NurseryDivisionId } from "@/lib/nursery-dsba";
 import { fetchAll } from "@/lib/students";
 import { teacherDsbaVisible, teacherPaperVisible, teachesPost, TEACHER_BASE } from "@/lib/teacher";
@@ -122,7 +124,7 @@ export default async function TeacherAssessmentsPage() {
   const subjects = ((subjectsQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
   const subjectById = new Map(subjects.map((subject) => [subject.id, subject]));
   const counts = enteredById ?? new Map<string, number>();
-  const rolls = new Map(groupPupils(pupils).map((group) => [`${group.code}|${group.stream}`, group.pupils.length]));
+  const rolls = new Map(groupPupils(pupils).map((group) => [classGroupKey(group.campus, group.code, group.stream), group.pupils.length]));
 
   const skillsByDivision = new Map<NurseryDivisionId, number>();
   for (const id of divisionIds) skillsByDivision.set(id, 0);
@@ -140,12 +142,14 @@ export default async function TeacherAssessmentsPage() {
       const subject = subjectById.get(paper.subject_id);
       const subjectKind = subject?.kind === "cocurricular" ? ("cocurricular" as const) : ("core" as const);
       const canMark = teachesPost(posts, paper.class_code, streamOf(paper.stream), paper.subject_id, paper.campus || undefined);
+      const campus = operationalCampus(paper.campus);
       return {
         id: paper.id,
         ...(canMark ? { href: `${TEACHER_BASE}/assessments/${paper.id}` } : {}),
         name: paper.name,
         subject: subject?.name || "Subject",
-        classLabel: classLabel(paper.class_code, paper.stream),
+        classLabel: classLabel(paper.class_code, paper.stream, campus),
+        campus,
         classOrder: classOrder(paper.class_code) ?? 99,
         stream: streamOf(paper.stream),
         kind: paper.kind,
@@ -157,7 +161,7 @@ export default async function TeacherAssessmentsPage() {
         heldOn: shortDay(paper.held_on),
         heldOnIso: paper.held_on || "",
         entered: counts.get(paper.id) || 0,
-        roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+        roll: rolls.get(classGroupKey(campus, paper.class_code, paper.stream)) ?? 0,
         nursery: false,
         subjectOrder: subject?.sort_order ?? 0,
         subjectKind,
@@ -180,12 +184,14 @@ export default async function TeacherAssessmentsPage() {
         .map((paper) => {
           const division = nurseryDivision(paper.class_code);
           const skillCount = division ? skillsByDivision.get(division) || 0 : 0;
+          const campus = operationalCampus(paper.campus);
           return {
             id: paper.id,
             href: `${TEACHER_BASE}/assessments/dsba/${paper.id}`,
             name: paper.name,
             subject: "Developmental skills",
-            classLabel: classLabel(paper.class_code, paper.stream),
+            classLabel: classLabel(paper.class_code, paper.stream, campus),
+            campus,
             classOrder: classOrder(paper.class_code) ?? 99,
             stream: streamOf(paper.stream),
             kind: paper.kind,
@@ -197,7 +203,7 @@ export default async function TeacherAssessmentsPage() {
             heldOn: shortDay(paper.held_on),
             heldOnIso: paper.held_on || "",
             entered: ratingCounts.get(paper.id) || 0,
-            roll: rolls.get(`${paper.class_code}|${streamOf(paper.stream)}`) ?? 0,
+            roll: rolls.get(classGroupKey(campus, paper.class_code, paper.stream)) ?? 0,
             nursery: true,
             subjectOrder: 0,
             subjectKind: "core" as const,

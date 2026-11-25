@@ -596,7 +596,7 @@ export default async function MarksheetPage({
         heldLabel: shortDay(sample?.heldOn || null),
         termLabel: term.label,
       }}
-      identity={{ termId: term.id, name, kind, heldOn: held, classCode, stream, combine: combined }}
+      identity={{ termId: term.id, name, kind, heldOn: held, classCode, stream, combine: combined, campus: selectedCampus || undefined }}
     />
     </>
   );

@@ -39,7 +39,15 @@ function asType(value: string): DeskType | null {
   return null;
 }
 
-type SearchParams = Promise<{ view?: string; class?: string; stream?: string; campus?: string; classCampus?: string }>;
+type SearchParams = Promise<{
+  view?: string;
+  class?: string;
+  stream?: string;
+  campus?: string;
+  primaryCampus?: string;
+  nurseryCampus?: string;
+  classCampus?: string;
+}>;
 
 export default async function CommentsSetupPage({ searchParams }: { searchParams: SearchParams }) {
   const opened = await openAcademics();
@@ -50,13 +58,17 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
   const primaryView = params.view === "primary-comments";
   const nurseryView = params.view === "nursery-comments";
   const campusOptions = opened.auth.campuses.length ? opened.auth.campuses : CAMPUS_OPTIONS;
-  const selectedCampus =
-    params.campus && campusOptions.includes(params.campus as (typeof CAMPUS_OPTIONS)[number])
-      ? params.campus
-      : null;
+  const validCampus = (value?: string) =>
+    value && campusOptions.includes(value as (typeof CAMPUS_OPTIONS)[number]) ? value : null;
+  const legacyCampus = validCampus(params.campus);
+  const primaryCampus = params.primaryCampus === undefined ? legacyCampus : validCampus(params.primaryCampus);
+  const nurseryCampus = params.nurseryCampus === undefined ? legacyCampus : validCampus(params.nurseryCampus);
+  const selectedCampus = primaryView ? primaryCampus : nurseryView ? nurseryCampus : null;
   const campusFilterQuery = {
     ...(primaryView ? { view: "primary-comments" } : {}),
     ...(nurseryView ? { view: "nursery-comments" } : {}),
+    ...(primaryView && nurseryCampus ? { nurseryCampus } : {}),
+    ...(nurseryView && primaryCampus ? { primaryCampus } : {}),
   };
 
   if (primaryView) {
@@ -318,12 +330,14 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
           selected={selectedCampus}
           basePath={`${ACADEMICS_BASE}/comments`}
           query={campusFilterQuery}
+          parameter="primaryCampus"
         />
         <CommentsWorkspaceSwitch
           active="primary-comments"
           classCode={params.class || null}
           stream={params.stream === "-" ? "" : params.stream || null}
-          campus={selectedCampus}
+          primaryCampus={primaryCampus}
+          nurseryCampus={nurseryCampus}
           classCampus={params.classCampus || (params.class ? selectedCampus : null)}
         />
         <PrimaryCommentsDesk
@@ -335,6 +349,7 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
           activityCards={activityCards}
           subjectMarks={subjectMarks}
           subjects={subjects}
+          campusParameter="primaryCampus"
         />
       </div>
     );
@@ -469,12 +484,14 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
           selected={selectedCampus}
           basePath={`${ACADEMICS_BASE}/comments`}
           query={campusFilterQuery}
+          parameter="nurseryCampus"
         />
         <CommentsWorkspaceSwitch
           active="nursery-comments"
           classCode={params.class || null}
           stream={params.stream === "-" ? "" : params.stream || null}
-          campus={selectedCampus}
+          primaryCampus={primaryCampus}
+          nurseryCampus={nurseryCampus}
           classCampus={params.classCampus || (params.class ? selectedCampus : null)}
         />
         <NurseryCommentsDesk
@@ -482,6 +499,7 @@ export default async function CommentsSetupPage({ searchParams }: { searchParams
           termId={term?.id ?? null}
           groups={nurseryGroups}
           cards={cards}
+          campusParameter="nurseryCampus"
         />
       </div>
     );

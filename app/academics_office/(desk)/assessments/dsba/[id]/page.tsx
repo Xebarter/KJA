@@ -45,10 +45,14 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
     return <AcademicsGate title="Developmental assessment" state={{ notice: "schema", message: "This class is not a nursery division." }} />;
   }
 
-  const campusFilter = paper.campus ? operationalCampus(paper.campus) : undefined;
+  const campusFilter = operationalCampus(paper.campus);
   const [pupils, ratingRows, catalogue, termQuery] = await Promise.all([
-    loadRoll(supabase, user.id, [paper.class_code], office ? (campusFilter ? [campusFilter] : campuses) : undefined).then((rows) =>
-      rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
+    loadRoll(supabase, user.id, [paper.class_code], office ? campuses : [campusFilter]).then((rows) =>
+      rows.filter((pupil) =>
+        pupil.class_code === paper.class_code &&
+        streamOf(pupil.stream) === streamOf(paper.stream) &&
+        operationalCampus(pupil.campus) === campusFilter,
+      ),
     ),
     fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
       supabase
@@ -75,7 +79,7 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
           title={paper.name}
           description={
             <>
-              Developmental skills · {classLabel(paper.class_code, paper.stream)} · {kindLabel(paper.kind)}
+              Developmental skills · {classLabel(paper.class_code, paper.stream, campusFilter)} · {kindLabel(paper.kind)}
             </>
           }
           actions={
@@ -100,7 +104,7 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
 
   const phase = paper.status === "approved" ? "approved" : paper.status === "submitted" ? "submitted" : "open";
   const exportParams = new URLSearchParams({ dsba: paper.id });
-  if (campusFilter) exportParams.set("campus", campusFilter);
+  exportParams.set("campus", campusFilter);
   const termLabel = (termQuery.data as { label?: string } | null)?.label || "Current term";
 
   return (
@@ -129,7 +133,7 @@ export default async function DevelopmentalMarkbookPage({ params }: { params: Pr
       phase={phase}
       office={office}
       heading={{
-        classLabel: classLabel(paper.class_code, paper.stream),
+        classLabel: classLabel(paper.class_code, paper.stream, campusFilter),
         sittingName: paper.name,
         kindLabel: kindLabel(paper.kind),
         heldLabel: shortDay(paper.held_on),

@@ -14,6 +14,7 @@ export type PaperCard = {
   name: string;
   subject: string;
   classLabel: string;
+  campus: string;
   classOrder: number;
   stream: string;
   kind: string;
@@ -305,6 +306,7 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                               classCode: sample.classCode,
                               stream: sample.stream,
                               heldOn: sample.heldOnIso,
+                              campus: sample.campus,
                             })
                         : null;
                       return (

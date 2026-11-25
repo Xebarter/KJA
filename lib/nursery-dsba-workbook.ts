@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { operationalCampus } from "@/lib/campuses";
 import type { ProgressCodeRow, SkillValueKind } from "@/lib/nursery-dsba";
 import { parseSkillNumericValue } from "@/lib/nursery-dsba";
 
@@ -65,6 +66,7 @@ export type NurseryDsbaBookPupil = {
   name: string;
   classCode: string;
   stream: string;
+  campus: string;
 };
 
 export type NurseryDsbaBookPaper = {
@@ -261,7 +263,11 @@ function groupPapers(input: NurseryDsbaBookInput) {
     .map((paper) => ({
       ...paper,
       pupils: input.pupils
-        .filter((pupil) => pupil.classCode === paper.classCode && pupil.stream === paper.stream)
+        .filter((pupil) =>
+          pupil.classCode === paper.classCode &&
+          pupil.stream === paper.stream &&
+          operationalCampus(pupil.campus) === operationalCampus(paper.campus),
+        )
         .sort((a, b) => a.name.localeCompare(b.name) || a.number.localeCompare(b.number) || a.id.localeCompare(b.id)),
       skills: [...paper.skills].sort(
         (a, b) =>
@@ -515,7 +521,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
     border: { bottom: side("medium", GOLD) },
   });
 
-  const streamHeading = paper.stream ? `${paper.className}   ·   ${paper.stream}` : paper.className;
+  const streamHeading = [paper.className, paper.stream, paper.campus].filter(Boolean).join("   ·   ");
   sheet.getRow(4).height = 20;
   merge(sheet, 4, 2, lastCol, `${streamHeading}   ·   Developmental skills`, {
     font: font(13, INK, true),

@@ -101,6 +101,10 @@ export type MarksWorkbookAuth = {
   allowedPaperIds?: Set<string>;
 };
 
+export function shouldExpandOtherMarkbooks(subjectIds: readonly string[]) {
+  return new Set(subjectIds).size > 1;
+}
+
 function workbookResponse(bytes: Buffer | Uint8Array, filename: string) {
   const bodyBytes = Uint8Array.from(Buffer.from(bytes));
   try {
@@ -163,9 +167,17 @@ async function prepareNurseryDsbaWorkbookResponse(
     loadRoll(auth.supabase, auth.userId, classCodes),
   ]);
 
-  const onRoll = new Set(roll.map((pupil) => `${pupil.class_code}|${streamOf(pupil.stream)}`));
-  const usable = open.filter((paper) => onRoll.has(`${paper.class_code}|${streamOf(paper.stream)}`));
+  const onRoll = new Set(roll.map((pupil) => `${pupil.class_code}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`));
+  const usable = open.filter((paper) =>
+    onRoll.has(`${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`),
+  );
   if (!usable.length) return new Response("None of the chosen nursery classes have pupils on roll.", { status: 400 });
+  const usableKeys = new Set(
+    usable.map((paper) => `${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`),
+  );
+  const selectedRoll = roll.filter((pupil) =>
+    usableKeys.has(`${pupil.class_code}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`),
+  );
 
   const bookPapers: NurseryDsbaBookPaper[] = [];
   let progressCodes: ProgressCodeRow[] = [];
@@ -201,7 +213,7 @@ async function prepareNurseryDsbaWorkbookResponse(
     );
     if (!skills.length) {
       return new Response(
-        `No developmental skills are linked to ${classLabel(paper.class_code, paper.stream)} yet.`,
+        `No developmental skills are linked to ${classLabel(paper.class_code, paper.stream, operationalCampus(paper.campus))} yet.`,
         { status: 400 },
       );
     }
@@ -211,7 +223,7 @@ async function prepareNurseryDsbaWorkbookResponse(
       classCode: paper.class_code,
       className: className(paper.class_code),
       stream: streamOf(paper.stream),
-      label: classLabel(paper.class_code, paper.stream),
+      label: classLabel(paper.class_code, paper.stream, operationalCampus(paper.campus)),
       order: classOrder(paper.class_code) ?? 99,
       skills,
     });
@@ -275,12 +287,13 @@ async function prepareNurseryDsbaWorkbookResponse(
     heldOnIso: usable[0].held_on || "",
     preparedOn: longDay(kampalaToday()),
     papers: bookPapers,
-    pupils: roll.map((pupil) => ({
+    pupils: selectedRoll.map((pupil) => ({
       id: pupil.id,
       number: pupil.student_number || "",
       name: pupil.full_name,
       classCode: pupil.class_code || "",
       stream: streamOf(pupil.stream),
+      campus: operationalCampus(pupil.campus),
     })),
     ratings,
     progressCodes,
@@ -361,7 +374,7 @@ export async function prepareMarksWorkbookResponse(
     }
 
     // Pull Other subjects for the chosen classes when the picker only had Academic papers.
-    if (auth.office || !auth.allowedPaperIds) {
+    if ((auth.office || !auth.allowedPaperIds) && shouldExpandOtherMarkbooks(papers.map((paper) => paper.subject_id))) {
       const sittingRows = await fetchAll<PaperRow>((from, to) => {
         let query = auth.supabase
           .from("assessments")

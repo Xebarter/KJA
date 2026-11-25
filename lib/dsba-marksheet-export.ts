@@ -65,10 +65,18 @@ export async function loadDsbaMarksheetExportBundle(input: {
   const paper = mapDevelopmentalAssessment(paperRow as Record<string, unknown>);
   const divisionId = nurseryDivision(paper.class_code);
   if (!divisionId) return { error: "This class is not a nursery division.", status: 400 } as const;
+  const paperCampus = operationalCampus(paper.campus);
+  if (input.campuses?.length && !input.campuses.includes(paperCampus)) {
+    return { error: "That developmental assessment is not available for your campus.", status: 403 } as const;
+  }
 
   const [pupils, ratingRows, catalogue, termQuery] = await Promise.all([
-    loadRoll(input.supabase, input.userId, [paper.class_code], input.campuses).then((rows) =>
-      rows.filter((pupil) => pupil.class_code === paper.class_code && streamOf(pupil.stream) === streamOf(paper.stream)),
+    loadRoll(input.supabase, input.userId, [paper.class_code], [paperCampus]).then((rows) =>
+      rows.filter((pupil) =>
+        pupil.class_code === paper.class_code &&
+        streamOf(pupil.stream) === streamOf(paper.stream) &&
+        operationalCampus(pupil.campus) === paperCampus,
+      ),
     ),
     fetchAll<{ student_id: string; skill_id: string; progress_code_id: string | null; numeric_value: number | null }>((from, to) =>
       input.supabase
@@ -132,11 +140,11 @@ export async function loadDsbaMarksheetExportBundle(input: {
     papers: [
       {
         id: paper.id,
-        campus: operationalCampus(paper.campus),
+        campus: paperCampus,
         classCode: paper.class_code,
         className: className(paper.class_code),
         stream: streamOf(paper.stream),
-        label: classLabel(paper.class_code, paper.stream),
+        label: classLabel(paper.class_code, paper.stream, paperCampus),
         order: classOrder(paper.class_code) ?? 99,
         skills: skills.map((skill) => ({
           id: skill.id,
@@ -155,6 +163,7 @@ export async function loadDsbaMarksheetExportBundle(input: {
       name: pupil.full_name,
       classCode: pupil.class_code || "",
       stream: streamOf(pupil.stream),
+      campus: operationalCampus(pupil.campus),
     })),
     ratings,
     progressCodes,
@@ -172,13 +181,13 @@ export async function loadDsbaMarksheetExportBundle(input: {
     ok: true as const,
     paper,
     termLabel: termQuery.data?.label || "Current term",
-    classLabel: classLabel(paper.class_code, paper.stream),
+    classLabel: classLabel(paper.class_code, paper.stream, paperCampus),
     skills,
     pupils: orderedPupils,
     codes,
     progressCodes,
     book,
-    filenameBase: nurseryDsbaWorkbookFilename(paper.name, [classLabel(paper.class_code, paper.stream)]).replace(/\.xlsx$/i, ""),
+    filenameBase: nurseryDsbaWorkbookFilename(paper.name, [classLabel(paper.class_code, paper.stream, paperCampus)]).replace(/\.xlsx$/i, ""),
   };
 }
 

@@ -44,28 +44,40 @@ function statusLabel(status: string | null, hasComment?: boolean) {
   return "Ready";
 }
 
-function classHref(base: string, code: string, stream: string, campus: string, view?: string | null) {
+function classHref(
+  base: string,
+  code: string,
+  stream: string,
+  campus: string,
+  view?: string | null,
+  campusParameter = "campus",
+) {
   const params = new URLSearchParams({
     class: code,
     stream: streamQuery(stream),
     classCampus: campus,
   });
   if (typeof window !== "undefined") {
-    const filterCampus = new URLSearchParams(window.location.search).get("campus");
-    if (filterCampus) params.set("campus", filterCampus);
+    const current = new URLSearchParams(window.location.search);
+    for (const parameter of ["primaryCampus", "nurseryCampus"]) {
+      const filterCampus = current.get(parameter);
+      if (filterCampus) params.set(parameter, filterCampus);
+    }
+    const filterCampus = current.get(campusParameter) || (campusParameter !== "campus" ? current.get("campus") : null);
+    if (filterCampus) params.set(campusParameter, filterCampus);
   }
   if (view) params.set("view", view);
   return `${base}?${params.toString()}`;
 }
 
-function selectionFromUrl(groups: ClassGroup<RollPupil>[]): Selection | null {
+function selectionFromUrl(groups: ClassGroup<RollPupil>[], campusParameter = "campus"): Selection | null {
   if (typeof window === "undefined") return null;
   const params = new URLSearchParams(window.location.search);
   const code = params.get("class");
   if (!code) return null;
   const raw = params.get("stream");
   const stream = raw === null ? null : raw === "-" || raw === "" ? "" : raw.slice(0, 20);
-  const campus = params.get("classCampus") || params.get("campus");
+  const campus = params.get("classCampus") || params.get(campusParameter);
   const match = groups.find(
     (group) => group.code === code && (stream === null || group.stream === stream) && (!campus || group.campus === campus),
   );
@@ -92,6 +104,7 @@ export function NurseryCommentsDesk({
   commentsBase = `${ACADEMICS_BASE}/comments`,
   closeHref = `${ACADEMICS_BASE}/comments`,
   viewParam = "nursery-comments",
+  campusParameter = "campus",
   allowImport = true,
   saveComment = defaultSaveNurseryComment,
   importComments = defaultImportNurseryComments,
@@ -103,6 +116,7 @@ export function NurseryCommentsDesk({
   commentsBase?: string;
   closeHref?: string;
   viewParam?: string | null;
+  campusParameter?: string;
   allowImport?: boolean;
   saveComment?: SaveAction;
   importComments?: ImportAction;
@@ -140,15 +154,15 @@ export function NurseryCommentsDesk({
   }, []);
 
   useEffect(() => {
-    const next = selectionFromUrl(groups) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream, campus: groups[0].campus } : null);
+    const next = selectionFromUrl(groups, campusParameter) || (groups[0] ? { code: groups[0].code, stream: groups[0].stream, campus: groups[0].campus } : null);
     setSelected((prev) => (sameSelection(prev, next) ? prev : next));
-  }, [groups]);
+  }, [campusParameter, groups]);
 
   useEffect(() => {
-    const onPop = () => setSelected(selectionFromUrl(groups));
+    const onPop = () => setSelected(selectionFromUrl(groups, campusParameter));
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [groups]);
+  }, [campusParameter, groups]);
 
   useEffect(() => {
     if (!exportOpen) return;
@@ -180,7 +194,7 @@ export function NurseryCommentsDesk({
     setFile(null);
     setAskSubmit(false);
     setExportOpen(false);
-    const url = classHref(commentsBase, next.code, next.stream, next.campus, viewParam);
+    const url = classHref(commentsBase, next.code, next.stream, next.campus, viewParam, campusParameter);
     if (mode === "replace") window.history.replaceState(null, "", url);
     else window.history.pushState(null, "", url);
   }

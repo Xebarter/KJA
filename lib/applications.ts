@@ -133,8 +133,8 @@ export function personName(profile: { full_name?: string | null; email?: string 
   return profile?.full_name?.trim() || profile?.email || "Former admin";
 }
 
-export function initials(name: string) {
-  const parts = name.replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean);
+export function initials(name: string | null | undefined) {
+  const parts = (name ?? "").replace(/@.*/, "").split(/[\s._-]+/).filter(Boolean);
   return ((parts[0]?.[0] ?? "?") + (parts[1]?.[0] ?? "")).toUpperCase();
 }
 

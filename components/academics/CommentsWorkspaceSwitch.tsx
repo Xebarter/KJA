@@ -10,6 +10,8 @@ export function CommentsWorkspaceSwitch({
   classCode,
   stream,
   campus,
+  primaryCampus,
+  nurseryCampus,
   classCampus,
   base = `${ACADEMICS_BASE}/comments`,
   showBank = true,
@@ -20,6 +22,8 @@ export function CommentsWorkspaceSwitch({
   classCode?: string | null;
   stream?: string | null;
   campus?: string | null;
+  primaryCampus?: string | null;
+  nurseryCampus?: string | null;
   classCampus?: string | null;
   base?: string;
   showBank?: boolean;
@@ -30,11 +34,15 @@ export function CommentsWorkspaceSwitch({
 
   function deskHref(view: "nursery-comments" | "primary-comments") {
     const params = new URLSearchParams({ view });
+    const targetCampus = view === "nursery-comments" ? nurseryCampus : primaryCampus;
     if (classCode) params.set("class", classCode);
     if (stream != null && stream !== "") params.set("stream", stream || "-");
     else if (stream === "") params.set("stream", "-");
     if (campus) params.set("campus", campus);
-    if (classCampus) params.set("classCampus", classCampus);
+    if (primaryCampus) params.set("primaryCampus", primaryCampus);
+    if (nurseryCampus) params.set("nurseryCampus", nurseryCampus);
+    if (targetCampus) params.set("classCampus", targetCampus);
+    else if (classCampus) params.set("classCampus", classCampus);
     return `${base}?${params.toString()}`;
   }
 

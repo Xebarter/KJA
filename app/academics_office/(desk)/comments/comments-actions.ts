@@ -1,8 +1,17 @@
 "use server";
 
-import { classSection, streamOf } from "@/lib/academics";
+import {
+  classLabel,
+  classSection,
+  isCocurricularSubject,
+  loadCurrentTerm,
+  mapSubject,
+  streamOf,
+  subjectFits,
+} from "@/lib/academics";
 import { requireAcademics } from "@/lib/academics-access";
 import { refreshAcademics } from "@/lib/academics-refresh";
+import { isCampusId, operationalCampus } from "@/lib/campuses";
 import {
   mirrorNurseryCommentsOntoCards,
   upsertNurseryClassComments,
@@ -11,6 +20,17 @@ import {
   NurseryCommentsBookError,
   parseNurseryCommentsWorkbook,
 } from "@/lib/nursery-comments-workbook";
+import {
+  mirrorPrimaryActivityCommentsOntoSlots,
+  mirrorPrimaryClassCommentsOntoCards,
+  upsertPrimaryActivityComments,
+  upsertPrimaryClassComments,
+} from "@/lib/primary-report-comments";
+import {
+  parsePrimaryCommentsWorkbook,
+  PrimaryCommentsBookError,
+  type PrimaryCommentsBookIssue,
+} from "@/lib/primary-comments-workbook";
 import { isUuid } from "@/lib/students";
 
 export type NurseryCommentsPreview = {
@@ -27,6 +47,21 @@ export type NurseryCommentsImportResult = {
   error?: string;
   ok?: string;
   preview?: NurseryCommentsPreview;
+};
+
+export type PrimaryCommentsPreview = {
+  classLabel: string;
+  detail: string;
+  warnings: string[];
+  issues: { where: string; message: string }[];
+  issueCount: number;
+  ready: number;
+};
+
+export type PrimaryCommentsImportResult = {
+  error?: string;
+  ok?: string;
+  preview?: PrimaryCommentsPreview;
 };
 
 type Result = { error?: string; ok?: string };
@@ -255,6 +290,270 @@ export async function importNurseryComments(formData: FormData): Promise<Nursery
   return {
     ok: `Saved ${nf(updates.length)} nursery comment${updates.length === 1 ? "" : "s"} for ${classLabel}.`,
     preview: { ...preview, ready: updates.length },
+  };
+}
+
+export async function importPrimaryCommentsWorkbook(formData: FormData): Promise<PrimaryCommentsImportResult> {
+  const auth = await requireAcademics("comments");
+  if ("error" in auth) return { error: auth.error };
+  if (!auth.office) return { error: "Only the academics office can do that." };
+
+  const intent = String(formData.get("intent") || "preview");
+  const file = formData.get("file");
+  if (!(file instanceof File) || !file.size) return { error: "Choose the Excel workbook downloaded from this page." };
+  if (!file.name.toLowerCase().endsWith(".xlsx")) {
+    return { error: "Upload the Excel workbook (.xlsx) downloaded from this page." };
+  }
+
+  let parsed: Awaited<ReturnType<typeof parsePrimaryCommentsWorkbook>>;
+  try {
+    parsed = await parsePrimaryCommentsWorkbook(Buffer.from(await file.arrayBuffer()));
+  } catch (error) {
+    return {
+      error:
+        error instanceof PrimaryCommentsBookError
+          ? error.message
+          : "That file could not be read. Download a fresh workbook from Primary Comments.",
+    };
+  }
+
+  if (classSection(parsed.classCode) !== "primary") return { error: "This workbook is not for a primary class." };
+  if (!isCampusId(parsed.campus)) return { error: "This workbook does not have a valid campus." };
+  if (auth.campuses.length && !auth.campuses.includes(parsed.campus)) {
+    return { error: "That campus is outside your desk scope." };
+  }
+  const requested = {
+    termId: String(formData.get("desk_term_id") || "").trim(),
+    classCode: String(formData.get("desk_class_code") || "").trim(),
+    stream: streamOf(String(formData.get("desk_stream") || "")),
+    campus: String(formData.get("desk_campus") || "").trim(),
+  };
+  if (
+    (requested.termId && requested.termId !== parsed.termId) ||
+    (requested.classCode && requested.classCode !== parsed.classCode) ||
+    (formData.has("desk_stream") && requested.stream !== streamOf(parsed.stream)) ||
+    (requested.campus && requested.campus !== parsed.campus)
+  ) {
+    return { error: "This workbook is for a different selected class, stream, campus, or term." };
+  }
+  const termPack = await loadCurrentTerm(auth.supabase);
+  if (termPack.error) return { error: termPack.error };
+  if (!termPack.term || termPack.term.id !== parsed.termId) {
+    return { error: "This workbook is not for the current term. Download a fresh workbook." };
+  }
+
+  const subjectsResult = await auth.supabase.from("subjects").select("*").eq("active", true).order("sort_order");
+  if (subjectsResult.error) return { error: "The active Other Subjects list could not be checked." };
+  const currentSubjects = (subjectsResult.data || [])
+    .map((row) => mapSubject(row as Record<string, unknown>))
+    .filter((subject) => subjectFits(subject, parsed.classCode) && isCocurricularSubject(subject))
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
+    .slice(0, 4);
+  const slotMismatch = parsed.subjects.length !== currentSubjects.length || Array.from({ length: 4 }, (_, index) => {
+    const slot = index + 1;
+    const uploaded = parsed.subjects.find((subject) => subject.slot === slot);
+    const current = currentSubjects[index];
+    return (uploaded?.slot || 0) !== (current ? slot : 0) ||
+      (uploaded?.subjectId || "") !== (current?.id || "") ||
+      (uploaded?.name || "") !== (current?.name || "");
+  }).some(Boolean);
+  if (slotMismatch) {
+    return { error: "The Other Subjects columns have changed since this workbook was made. Download a fresh workbook." };
+  }
+
+  const issues: PrimaryCommentsBookIssue[] = [...parsed.issues];
+  const warnings: string[] = [];
+  const invalidStudentIds = new Set<string>();
+  const studentIds = [...new Set(parsed.pupils.map((pupil) => pupil.studentId))];
+  if (studentIds.length !== parsed.pupils.length) {
+    issues.push({ sheet: "", cell: "", pupil: "", message: "The workbook contains duplicate pupil rows." });
+  }
+  const students: {
+    id: string;
+    class_code: string | null;
+    stream: string | null;
+    campus: string | null;
+    status: string | null;
+  }[] = [];
+  for (let index = 0; index < studentIds.length; index += 80) {
+    const result = await auth.supabase
+      .from("students")
+      .select("id, class_code, stream, campus, status")
+      .in("id", studentIds.slice(index, index + 80));
+    if (result.error) return { error: "The learners in this workbook could not be checked." };
+    students.push(...((result.data || []) as typeof students));
+  }
+  const studentById = new Map(students.map((student) => [student.id, student]));
+  const cards: {
+    id: string;
+    student_id: string;
+    status: string;
+    class_code: string | null;
+    stream: string | null;
+    campus: string | null;
+  }[] = [];
+  for (let index = 0; index < studentIds.length; index += 80) {
+    const result = await auth.supabase
+      .from("report_cards")
+      .select("id, student_id, status, class_code, stream, campus")
+      .eq("term_id", parsed.termId)
+      .in("student_id", studentIds.slice(index, index + 80));
+    if (result.error) return { error: "The report cards for this workbook could not be checked." };
+    cards.push(...((result.data || []) as typeof cards));
+  }
+  const cardByStudent = new Map(cards.map((card) => [card.student_id, card]));
+
+  for (const pupil of parsed.pupils) {
+    const student = studentById.get(pupil.studentId);
+    if (!student) {
+      issues.push({ sheet: pupil.sheet, cell: "", pupil: pupil.name, message: "Learner is no longer on the roll." });
+      invalidStudentIds.add(pupil.studentId);
+      continue;
+    }
+    if ((student.status && student.status !== "active") ||
+      student.class_code !== parsed.classCode ||
+      streamOf(student.stream) !== streamOf(parsed.stream) ||
+      operationalCampus(student.campus) !== parsed.campus) {
+      issues.push({ sheet: pupil.sheet, cell: "", pupil: pupil.name, message: "Learner is no longer active in this class, stream, and campus." });
+      invalidStudentIds.add(pupil.studentId);
+      continue;
+    }
+    const card = cardByStudent.get(pupil.studentId);
+    if (
+      card &&
+      (card.class_code !== parsed.classCode ||
+        streamOf(card.stream) !== streamOf(parsed.stream) ||
+        operationalCampus(card.campus) !== parsed.campus)
+    ) {
+      issues.push({ sheet: pupil.sheet, cell: "", pupil: pupil.name, message: "The learner's report card belongs to a different class, stream, or campus." });
+      invalidStudentIds.add(pupil.studentId);
+      continue;
+    }
+    if (pupil.reportId && card && card.id !== pupil.reportId) {
+      warnings.push(`${pupil.name}: report card was re-prepared; comments will be saved to the current card.`);
+    }
+  }
+
+  const entryByStudent = new Map(parsed.entries.map((entry) => [entry.studentId, entry]));
+  const classUpdates: {
+    student_id: string;
+    term_id: string;
+    campus: string;
+    class_code: string;
+    stream: string;
+    comment: string | null;
+  }[] = [];
+  const activityUpdates: {
+    student_id: string;
+    term_id: string;
+    campus: string;
+    class_code: string;
+    stream: string;
+    slot: number;
+    subject_id: string;
+    activity_name: string;
+    comment: string | null;
+  }[] = [];
+  const mirrorClass = new Map<string, string | null>();
+  const mirrorActivity = new Map<string, { comment: string | null; subject_id: string; activity_name: string }>();
+
+  for (const entry of entryByStudent.values()) {
+    const pupil = parsed.pupils.find((item) => item.studentId === entry.studentId);
+    const student = studentById.get(entry.studentId);
+    if (!pupil || !student || invalidStudentIds.has(entry.studentId)) continue;
+    const card = cardByStudent.get(entry.studentId);
+    if (card?.status === "published") {
+      warnings.push(`${entry.pupil}: published card left unchanged.`);
+      continue;
+    }
+    if (entry.classComment !== undefined) {
+      classUpdates.push({
+        student_id: entry.studentId,
+        term_id: parsed.termId,
+        campus: parsed.campus,
+        class_code: parsed.classCode,
+        stream: streamOf(parsed.stream),
+        comment: entry.classComment,
+      });
+      mirrorClass.set(entry.studentId, entry.classComment);
+    }
+    for (const activity of entry.activities) {
+      activityUpdates.push({
+        student_id: entry.studentId,
+        term_id: parsed.termId,
+        campus: parsed.campus,
+        class_code: parsed.classCode,
+        stream: streamOf(parsed.stream),
+        slot: activity.slot,
+        subject_id: activity.subjectId,
+        activity_name: activity.name,
+        comment: activity.comment,
+      });
+      mirrorActivity.set(`${entry.studentId}|${activity.slot}`, {
+        comment: activity.comment,
+        subject_id: activity.subjectId,
+        activity_name: activity.name,
+      });
+    }
+  }
+
+  const ready = classUpdates.length + activityUpdates.length;
+  const learnerCount = new Set([
+    ...classUpdates.map((entry) => entry.student_id),
+    ...activityUpdates.map((entry) => entry.student_id),
+  ]).size;
+  const label = classLabel(parsed.classCode, parsed.stream);
+  const preview: PrimaryCommentsPreview = {
+    classLabel: label,
+    detail: `${nf(ready)} comment field${ready === 1 ? "" : "s"} for ${nf(learnerCount)} learner${learnerCount === 1 ? "" : "s"} ready · ${label} · ${parsed.campus}`,
+    warnings: [...new Set(warnings)],
+    issues: issues.map((issue) => ({
+      where: [issue.sheet, issue.cell, issue.pupil].filter(Boolean).join(" · "),
+      message: issue.message,
+    })),
+    issueCount: issues.length,
+    ready,
+  };
+
+  if (intent !== "commit") return { preview };
+  if (issues.length) return { error: "Fix the workbook issues before saving.", preview };
+  if (!ready) return { error: "No comments to save. Fill comment cells, then upload again.", preview };
+
+  try {
+    await upsertPrimaryClassComments(
+      auth.supabase,
+      classUpdates.map((entry) => ({ ...entry, updated_by: auth.user.id })),
+    );
+    await upsertPrimaryActivityComments(
+      auth.supabase,
+      activityUpdates.map((entry) => ({
+        ...entry,
+        updated_by: auth.user.id,
+      })),
+    );
+    await mirrorPrimaryClassCommentsOntoCards(auth.supabase, {
+      termId: parsed.termId,
+      studentIds: [...mirrorClass.keys()],
+      commentsByStudent: mirrorClass,
+      clearBlank: true,
+    });
+    await mirrorPrimaryActivityCommentsOntoSlots(auth.supabase, {
+      termId: parsed.termId,
+      studentIds: [...new Set(activityUpdates.map((entry) => entry.student_id))],
+      commentsByKey: mirrorActivity,
+      clearBlank: true,
+    });
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "The comments could not be saved.",
+      preview,
+    };
+  }
+
+  await refreshAcademics("/academics_office/comments");
+  return {
+    ok: `Saved ${nf(ready)} comment field${ready === 1 ? "" : "s"} for ${nf(learnerCount)} learner${learnerCount === 1 ? "" : "s"} in ${label}.`,
+    preview,
   };
 }
 
