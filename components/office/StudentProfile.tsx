@@ -26,7 +26,11 @@ export function StudentStatusActions({ id, name, status, classCode }: { id: stri
   const [action, setAction] = useState<Action | null>(null);
   const { result, setResult, pending, run } = useOfficeAction();
   const actions: Action[] = status === "active"
-    ? LEAVING_ACTIONS.filter((entry) => entry.status !== "graduated" || classCode === "P7").map((entry) => ({ ...entry, tone: TONES[entry.status] }))
+    ? LEAVING_ACTIONS.filter((entry) => entry.status !== "graduated" || classCode === "P7").map((entry) => ({
+        ...entry,
+        label: entry.status === "left" ? "Archive" : entry.label,
+        tone: TONES[entry.status],
+      }))
     : [READMIT];
 
   const open = (next: Action) => {
@@ -70,7 +74,9 @@ export function StudentStatusActions({ id, name, status, classCode }: { id: stri
                 <p>
                   {action.status === "active"
                     ? <>Put <strong>{name}</strong> back on the active register.</>
-                    : <><strong>{name}</strong> will leave the active register. Their record and history are kept.</>}
+                    : action.status === "left"
+                      ? <><strong>{name}</strong> will be archived as Left and removed from the active register. Their record and history are kept.</>
+                      : <><strong>{name}</strong> will leave the active register. Their record and history are kept.</>}
                 </p>
               </div>
             </div>

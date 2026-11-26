@@ -678,7 +678,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               <h3><span>Headteacher&apos;s comment</span></h3>
               <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
             </div>
-            {qr ?? <ReportQr id={card.id} />}
+            {nursery ? qr ?? <ReportQr id={card.id} /> : null}
           </section>
 
           {!nursery ? (

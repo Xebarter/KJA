@@ -447,6 +447,7 @@ export function studentSearchFilter(raw: string) {
     everyWord(words, ["full_name", "preferred_name"]),
     everyWord(words, ["father_name"]),
     everyWord(words, ["mother_name"]),
+    everyWord(words, ["mailing_name", "home_area"]),
     `student_number.ilike.${like}`,
     `family_code.ilike.${like}`,
     `father_email.ilike.${like}`,
@@ -483,15 +484,22 @@ export function studentsQuery(
   if (search) query = query.or(search);
   switch (filters.sort) {
     case "name":
-      return query.order("full_name", { ascending: true });
+      return query.order("full_name", { ascending: true }).order("id", { ascending: true });
     case "number":
-      return query.order("student_number", { ascending: true });
+      return query.order("student_number", { ascending: true }).order("id", { ascending: true });
     case "newest":
-      return query.order("enrolled_on", { ascending: false, nullsFirst: false }).order("full_name");
+      return query
+        .order("enrolled_on", { ascending: false, nullsFirst: false })
+        .order("full_name", { ascending: true })
+        .order("id", { ascending: true });
     case "age":
-      return query.order("date_of_birth", { ascending: false, nullsFirst: false });
+      return query.order("date_of_birth", { ascending: false, nullsFirst: false }).order("id", { ascending: true });
     default:
-      return query.order("class_order", { ascending: true, nullsFirst: false }).order("stream").order("full_name");
+      return query
+        .order("class_order", { ascending: true, nullsFirst: false })
+        .order("stream", { ascending: true })
+        .order("full_name", { ascending: true })
+        .order("id", { ascending: true });
   }
 }
 

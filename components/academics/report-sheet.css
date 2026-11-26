@@ -353,7 +353,7 @@ article.acd-sheet .acd-sheet-figures > div.is-attendance dd.acd-sheet-tick svg {
   height: 1.15rem;
 }
 
-/* Primary result tiles — compact, solid colour fills */
+/* Primary result tiles — light jewel-tone washes with restrained accents */
 article.acd-sheet .acd-sheet-figures.is-primary {
   display: grid;
   flex: 1.4;
@@ -363,9 +363,9 @@ article.acd-sheet .acd-sheet-figures.is-primary {
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div {
   --metric-ink: var(--sheet-ink);
-  --metric-label: #6a5a3e;
-  --metric-fill: #fff8e8;
-  --metric-edge: rgba(212, 160, 23, .45);
+  --metric-label: var(--sheet-muted);
+  --metric-fill: #fffdfc;
+  --metric-edge: rgba(41, 38, 42, .18);
   min-width: 0;
   margin: 0;
   padding: .28rem .4rem .32rem;
@@ -376,40 +376,40 @@ article.acd-sheet .acd-sheet-figures.is-primary > div {
   box-shadow: none;
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-average {
-  --metric-fill: #e8f8ee;
-  --metric-edge: rgba(18, 165, 75, .35);
-  --metric-label: var(--sheet-green-deep);
-  --metric-ink: var(--sheet-green-deep);
+  --metric-fill: #edf6f3;
+  --metric-edge: rgba(28, 124, 116, .42);
+  --metric-label: #17645e;
+  --metric-ink: #17645e;
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-aggregate {
-  --metric-fill: #fff6d6;
-  --metric-edge: rgba(212, 160, 23, .45);
-  --metric-label: var(--sheet-gold-deep);
+  --metric-fill: #fbf5e8;
+  --metric-edge: rgba(194, 154, 82, .48);
+  --metric-label: #85642c;
   --metric-ink: var(--sheet-ink);
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-grade {
-  --metric-fill: #ffe8ee;
-  --metric-edge: rgba(225, 29, 72, .28);
-  --metric-label: var(--sheet-red-deep);
-  --metric-ink: var(--sheet-red-deep);
+  --metric-fill: #edf4ff;
+  --metric-edge: rgba(36, 99, 166, .35);
+  --metric-label: #194878;
+  --metric-ink: #194878;
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-high {
-  --metric-fill: #d4f5e3;
-  --metric-edge: rgba(18, 165, 75, .4);
-  --metric-label: var(--sheet-green-deep);
-  --metric-ink: var(--sheet-green-deep);
+  --metric-fill: #eaf5f1;
+  --metric-edge: rgba(28, 124, 116, .42);
+  --metric-label: #17645e;
+  --metric-ink: #17645e;
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-mid {
-  --metric-fill: #fff3c4;
-  --metric-edge: rgba(201, 151, 10, .4);
-  --metric-label: #9a6f00;
-  --metric-ink: #9a6f00;
+  --metric-fill: #fbf5e8;
+  --metric-edge: rgba(194, 154, 82, .42);
+  --metric-label: #85642c;
+  --metric-ink: #85642c;
 }
 article.acd-sheet .acd-sheet-figures.is-primary > div.is-low {
-  --metric-fill: #ffe4ea;
-  --metric-edge: rgba(225, 29, 72, .35);
-  --metric-label: var(--sheet-red-deep);
-  --metric-ink: var(--sheet-red-deep);
+  --metric-fill: #fff0ed;
+  --metric-edge: rgba(237, 112, 91, .42);
+  --metric-label: #a34235;
+  --metric-ink: #a34235;
 }
 article.acd-sheet .acd-sheet-figures.is-primary dt {
   margin: 0;
@@ -1151,174 +1151,193 @@ article.acd-sheet .acd-sheet-draft.is-approved {
   article.acd-sheet .acd-sheet-record { padding-right: .85rem; padding-left: .85rem; }
 }
 
-/* ——— Primary card: burgundy stationery, gold and clear grade colour ——— */
+/* ——— Primary card: bright blue, fresh green and sunshine accents ——— */
 article.acd-sheet.is-primary {
-  --origin-burgundy: #6b1e2a;
-  --origin-burgundy-deep: #4f1520;
-  --origin-burgundy-soft: #fde8ec;
-  --origin-gold: #e0a51a;
-  --origin-gold-deep: #9a6a08;
-  --origin-cream: #fff8ec;
-  --origin-ink: #1a1416;
+  --origin-primary: #2463a6;
+  --origin-primary-deep: #194878;
+  --origin-gold: #f2be35;
+  --origin-gold-deep: #8a6400;
+  --origin-cream: #fffefa;
+  --origin-ink: #253347;
   --sheet-ink: var(--origin-ink);
-  --sheet-muted: #6b5344;
-  --sheet-border: rgba(224, 165, 26, .55);
+  --sheet-muted: #5b6878;
+  --sheet-border: rgba(36, 99, 166, .25);
   --sheet-cream: var(--origin-cream);
   --sheet-gold: var(--origin-gold);
   --sheet-gold-deep: var(--origin-gold-deep);
-  --sheet-gold-soft: #fff3c4;
-  --sheet-green: #12a54b;
-  --sheet-green-deep: #0b7d38;
-  --sheet-green-soft: #d8f6e4;
-  --sheet-red: #e11d48;
-  --sheet-red-deep: #be123c;
-  --sheet-red-soft: #ffe4ea;
-  --sheet-amber: #c9970a;
-  --sheet-amber-soft: #fff3c4;
-  border-color: #efd08a;
-  background: linear-gradient(180deg, #fffdf8 0%, #fff 22%);
-  box-shadow: 0 16px 40px rgba(107, 30, 42, .08);
+  --sheet-gold-soft: #fff7dc;
+  --sheet-green: #2e9b68;
+  --sheet-green-deep: #176b48;
+  --sheet-green-soft: #e9f7ee;
+  --sheet-red: #ed705b;
+  --sheet-red-deep: #a34235;
+  --sheet-red-soft: #fff0ed;
+  --sheet-amber: #a76b00;
+  --sheet-amber-soft: #fff7dc;
+  border-color: #bdd5ee;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(36, 99, 166, .08);
 }
 article.acd-sheet.is-primary .acd-sheet-watermark img {
-  opacity: .09;
+  opacity: .055;
   mix-blend-mode: multiply;
   filter: none;
 }
 article.acd-sheet.is-primary .acd-sheet-banner {
-  border-top: 3px solid var(--origin-burgundy);
-  background:
-    linear-gradient(180deg, #e7f8ee 0%, var(--origin-cream) 46%, #fff0f3 100%);
+  border-top: 3px solid var(--origin-primary);
+  background: #f8fbff;
 }
 article.acd-sheet.is-primary .acd-sheet-banner::before {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='52' viewBox='0 0 52 52'%3E%3Cg fill='none' stroke='%23c48912'%3E%3Cpath d='M0 26L26 0L52 26L26 52Z' stroke-width='.7' stroke-opacity='.5'/%3E%3Cpath d='M13 26L26 13L39 26L26 39Z' stroke-width='.45' stroke-opacity='.34'/%3E%3Cpath d='M19.5 26L26 19.5L32.5 26L26 32.5Z' stroke-width='.4' stroke-opacity='.26'/%3E%3C/g%3E%3C/svg%3E");
+  background-image:
+    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
+    linear-gradient(90deg, transparent 0 7px, rgba(242, 190, 53, .34) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
+    linear-gradient(0deg, transparent 0 7px, rgba(242, 190, 53, .34) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px);
+  background-color: rgba(255, 254, 250, .65);
   background-repeat: repeat;
   background-position: center;
-  background-size: 52px 52px;
+  background-size: 32px 32px, 32px 32px, 32px 32px, 32px 32px;
   opacity: 1;
 }
 article.acd-sheet.is-primary .acd-sheet-crest {
   box-shadow:
     0 0 0 3px #fff,
-    0 0 0 4.5px var(--origin-gold),
-    0 0 0 6.5px var(--origin-burgundy);
+    0 0 0 4.5px var(--origin-primary),
+    0 0 0 6.5px var(--origin-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-face,
 article.acd-sheet.is-primary .acd-sheet-seal {
   background: var(--origin-cream);
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 3.5px var(--origin-gold),
-    0 0 0 5px var(--origin-burgundy);
+    0 0 0 3.5px var(--origin-primary),
+    0 0 0 5px var(--origin-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-rules {
   height: 8px;
   background:
-    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) 0 0 / 100% 4.5px no-repeat,
-    linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 46%, var(--origin-burgundy-deep)) 0 5.25px / 100% 2px no-repeat,
+    linear-gradient(90deg, var(--origin-primary) 0 36%, var(--sheet-green) 36% 67%, var(--origin-gold) 67% 84%, var(--sheet-red) 84%) 0 0 / 100% 3px no-repeat,
+    linear-gradient(90deg, rgba(36, 99, 166, .48), rgba(46, 155, 104, .48) 36% 67%, rgba(242, 190, 53, .58) 84%, rgba(237, 112, 91, .38)) 0 4px / 100% 1px no-repeat,
     var(--origin-cream);
 }
 article.acd-sheet.is-primary .acd-sheet-established {
-  color: var(--origin-burgundy);
+  color: var(--origin-primary);
 }
 article.acd-sheet.is-primary .acd-sheet-school::after {
-  background: linear-gradient(90deg, var(--sheet-green), var(--sheet-gold), var(--origin-burgundy));
+  background: linear-gradient(90deg, var(--origin-primary), var(--sheet-green) 48%, var(--origin-gold), var(--sheet-red));
 }
 article.acd-sheet.is-primary .acd-sheet-academy {
-  color: var(--origin-burgundy-deep);
+  color: var(--origin-primary-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-contact span + span::before {
   background: var(--origin-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-title {
   padding: 0.7rem 1.4rem 0.75rem;
-  background: linear-gradient(90deg, #e5f8ee, #fff4cc 48%, #ffe8ee);
-  border-bottom: 1px solid rgba(224, 165, 26, .45);
+  background-color: #f8fbff;
+  background-image:
+    linear-gradient(90deg, rgba(36, 99, 166, .1) 1px, transparent 1px),
+    linear-gradient(rgba(46, 155, 104, .08) 1px, transparent 1px),
+    linear-gradient(90deg, #f3f8ff, #fff 50%, #f1fbf4);
+  background-size: 12px 12px, 12px 12px, 100% 100%;
+  border-bottom: 1px solid rgba(36, 99, 166, .28);
 }
 article.acd-sheet.is-primary .acd-sheet-title h2::before,
 article.acd-sheet.is-primary .acd-sheet-title h2::after {
-  height: 2px;
-  background: linear-gradient(90deg, var(--sheet-green), var(--sheet-gold), var(--origin-burgundy));
+  height: 1px;
+  background: linear-gradient(90deg, var(--origin-primary), var(--sheet-green) 48%, var(--origin-gold), var(--sheet-red));
 }
 article.acd-sheet.is-primary .acd-sheet-term {
-  color: var(--origin-burgundy-deep);
+  color: var(--origin-primary-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-identity {
-  border-bottom: 1px solid rgba(224, 165, 26, .4);
+  border-bottom: 1px solid rgba(36, 99, 166, .2);
 }
 article.acd-sheet.is-primary .acd-sheet-kicker {
-  color: var(--origin-burgundy);
+  color: var(--origin-primary);
 }
 article.acd-sheet.is-primary .acd-sheet-table-wrap {
-  border: 1px solid rgba(107, 30, 42, .22);
-  box-shadow: 0 8px 22px rgba(107, 30, 42, .05);
+  border: 1px solid rgba(41, 38, 42, .18);
+  box-shadow: 0 6px 18px rgba(41, 38, 42, .04);
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th {
-  background: linear-gradient(180deg, #842433 0%, var(--origin-burgundy) 100%);
-  color: #fff8ec;
-  border-bottom: 2px solid var(--origin-gold);
+  background-color: #f6faff;
+  background-image:
+    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .22) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .22) 31px 32px),
+    linear-gradient(90deg, transparent 0 7px, rgba(242, 190, 53, .36) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
+    linear-gradient(0deg, transparent 0 7px, rgba(242, 190, 53, .36) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
+    linear-gradient(180deg, #fffefa, #f0f7ff);
+  background-size: 32px 32px, 32px 32px, 32px 32px, 32px 32px, 100% 100%;
+  color: var(--origin-primary-deep);
+  border-bottom: 2px solid var(--origin-primary);
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
-  color: rgba(255, 244, 204, .92);
+  color: var(--sheet-muted);
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr + tr td {
-  border-top: 1px solid rgba(224, 165, 26, .22);
+  border-top: 1px solid rgba(41, 38, 42, .08);
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td {
-  background: #fffaf2;
+  background: #faf9f8;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-high td {
-  background: #f3fbf6;
+  background: #f0f8f5;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-mid td {
-  background: #fff9e8;
+  background: #fcf8ed;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-low td {
-  background: #fff1f4;
+  background: #fff5f2;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td {
-  background: #e8f7ee;
+  background: #eaf4f0;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td {
-  background: #fff4d4;
+  background: #f8f1df;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
-  background: #ffe8ee;
+  background: #ffede8;
 }
 article.acd-sheet.is-primary tfoot th,
 article.acd-sheet.is-primary tfoot td {
-  border-top: 1px solid var(--origin-burgundy);
-  background: linear-gradient(180deg, #fff6d8, #fff0c8);
+  border-top: 1px solid var(--origin-primary);
+  background: linear-gradient(90deg, #eef5ff, #fff 50%, #f0f9f2);
   color: var(--origin-ink);
 }
 article.acd-sheet.is-primary .acd-sheet-scale li {
-  border-color: rgba(224, 165, 26, .4);
-  background: var(--origin-cream);
+  border-color: rgba(36, 99, 166, .18);
+  background: #fff;
 }
 article.acd-sheet.is-primary .acd-sheet-scale li.is-high {
   background: var(--sheet-green-soft);
-  border-color: rgba(18, 165, 75, .4);
+  border-color: rgba(66, 109, 99, .28);
 }
 article.acd-sheet.is-primary .acd-sheet-scale li.is-mid {
   background: var(--sheet-gold-soft);
-  border-color: rgba(201, 151, 10, .45);
+  border-color: rgba(140, 112, 65, .3);
 }
 article.acd-sheet.is-primary .acd-sheet-scale li.is-low {
   background: var(--sheet-red-soft);
-  border-color: rgba(225, 29, 72, .32);
+  border-color: rgba(237, 112, 91, .3);
 }
 article.acd-sheet.is-primary .acd-sheet-coco-table {
-  border: 1px solid rgba(107, 30, 42, .2);
+  border: 1px solid rgba(41, 38, 42, .16);
 }
 article.acd-sheet.is-primary .acd-sheet-coco-table thead th {
-  background: linear-gradient(180deg, #fff6d6, #ffeeb8);
-  color: var(--origin-burgundy-deep);
-  border-bottom: 2px solid var(--origin-gold);
+  background:
+    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .18) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .18) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
+    linear-gradient(90deg, #fffefa, #f0f7ff);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+  color: var(--origin-primary-deep);
+  border-bottom: 1px solid var(--origin-primary);
 }
 article.acd-sheet.is-primary .acd-sheet-report h3,
 article.acd-sheet.is-primary .acd-sheet-principal h3,
 article.acd-sheet.is-primary .acd-sheet-fees h3 {
-  color: var(--origin-burgundy-deep);
-  border-bottom-color: rgba(224, 165, 26, .4);
+  color: var(--origin-primary-deep);
+  border-bottom-color: rgba(36, 99, 166, .24);
 }
 article.acd-sheet.is-primary .acd-sheet-report h3 em {
   color: var(--sheet-muted);
@@ -1328,21 +1347,21 @@ article.acd-sheet.is-primary .acd-sheet-principal p.is-blank {
   background-image: linear-gradient(
     to bottom,
     transparent calc(100% - 1px),
-    rgba(224, 165, 26, .55) calc(100% - 1px)
+    rgba(36, 99, 166, .28) calc(100% - 1px)
   );
 }
 article.acd-sheet.is-primary .acd-sheet-fees {
-  border: 1px solid rgba(224, 165, 26, .45);
+  border: 1px solid rgba(36, 99, 166, .2);
   background:
-    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) top / 100% 3px no-repeat,
-    linear-gradient(180deg, #fffaf0, #fff);
+    linear-gradient(90deg, var(--origin-primary) 0 36%, var(--sheet-green) 36% 67%, var(--origin-gold) 67% 84%, var(--sheet-red) 84%) top / 100% 2px no-repeat,
+    #fff;
   box-shadow: none;
 }
 article.acd-sheet.is-primary .acd-sheet-fees > div + div {
-  border-left-color: rgba(224, 165, 26, .35);
+  border-left-color: rgba(41, 38, 42, .14);
 }
 article.acd-sheet.is-primary .acd-sheet-next {
-  color: var(--origin-burgundy-deep);
+  color: var(--origin-primary-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-signs {
   display: grid;
@@ -1356,14 +1375,14 @@ article.acd-sheet.is-primary .acd-sheet-signs > div {
   gap: 0.12rem;
   min-width: 0;
   padding: 0.35rem 0.45rem 0.4rem;
-  border: 1px solid rgba(224, 165, 26, .4);
+  border: 1px solid rgba(41, 38, 42, .16);
   border-radius: 8px;
-  background: linear-gradient(180deg, #fffaf0, #fff);
-  box-shadow: inset 0 2.5px 0 var(--origin-burgundy);
+  background: linear-gradient(180deg, #fbfaf9, #fff);
+  box-shadow: inset 0 2px 0 rgba(36, 99, 166, .72);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-label {
   margin: 0;
-  color: var(--origin-burgundy-deep);
+  color: var(--origin-primary-deep);
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.08em;
@@ -1381,7 +1400,7 @@ article.acd-sheet.is-primary .acd-sheet-sign-img {
 article.acd-sheet.is-primary .acd-sheet-sign-line {
   margin: 0.45rem 0 0.1rem;
   min-height: 0.85rem;
-  border-bottom: 1.5px solid rgba(107, 30, 42, .45);
+  border-bottom: 1.5px solid rgba(36, 99, 166, .38);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-hint {
   margin: 0;
@@ -1397,8 +1416,8 @@ article.acd-sheet.is-primary .acd-sheet-edge::after {
   height: 8px;
   margin-top: 0.35rem;
   background:
-    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 46%, var(--origin-burgundy)) 0 0 / 100% 4.5px no-repeat,
-    linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 46%, var(--origin-burgundy-deep)) 0 5.25px / 100% 2px no-repeat,
+    linear-gradient(90deg, var(--origin-primary) 0 36%, var(--sheet-green) 36% 67%, var(--origin-gold) 67% 84%, var(--sheet-red) 84%) 0 0 / 100% 3px no-repeat,
+    linear-gradient(90deg, rgba(36, 99, 166, .48), rgba(46, 155, 104, .48) 36% 67%, rgba(242, 190, 53, .58) 84%, rgba(237, 112, 91, .38)) 0 4px / 100% 1px no-repeat,
     var(--origin-cream);
   print-color-adjust: exact;
   -webkit-print-color-adjust: exact;
