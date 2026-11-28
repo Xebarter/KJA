@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { setAssessments } from "@/app/academics_office/(desk)/actions";
 import { DeskForm } from "@/components/academics/Form";
 import { DEFAULT_CAMPUS, type CampusId } from "@/lib/campuses";
+import { shortSetTitle } from "@/lib/report-column-titles";
 
 export type AssessmentKindOption = { value: string; label: string; weight: number; name: string };
 
@@ -126,6 +127,14 @@ export function SetAssessment({
             setName(event.target.value);
             setNameEdited(true);
           }}
+        />
+      </label>
+      <label className="ofc-field">
+        <span>Report card header <small>(optional)</small></span>
+        <input
+          name="report_header"
+          maxLength={24}
+          placeholder={`Auto (${shortSetTitle(name) || "EOT"})`}
         />
       </label>
       <div className="asm-pair">

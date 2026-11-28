@@ -231,6 +231,7 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
                           className={`asb-row${on ? " is-on" : ""}${subject.active ? "" : " is-hidden"}`}
                           data-tone={String(index % 8)}
                           aria-pressed={on}
+                          aria-current={on ? "true" : undefined}
                           onClick={() => pick(subject.id)}
                         >
                           <span className="asb-row-icon" aria-hidden="true">
@@ -247,7 +248,15 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
                           </span>
                           <span className={`asb-badge${subject.active ? "" : " is-locked"}`}>{subject.active ? "Active" : "Hidden"}</span>
                           <span className="asb-go">
-                            Open <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                            {on ? (
+                              <>
+                                <i className="fa-solid fa-check" aria-hidden="true" /> Selected
+                              </>
+                            ) : (
+                              <>
+                                Open <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                              </>
+                            )}
                           </span>
                         </button>
                       </li>
@@ -267,7 +276,11 @@ export function SubjectsDesk({ subjects, classes, save }: { subjects: SubjectRow
           )}
         </section>
 
-        <aside className="asb-panel asb-editor" ref={editorRef} aria-label={current ? `Edit ${current.name}` : "Add a subject"}>
+        <aside
+          className={`asb-panel asb-editor${current ? " is-selected" : ""}`}
+          ref={editorRef}
+          aria-label={current ? `Edit ${current.name}` : "Add a subject"}
+        >
           <SubjectForm key={current?.id ?? "new"} subject={current} classes={classes} save={commit} />
         </aside>
       </div>
@@ -280,18 +293,19 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
   const kindId = useId();
   const visibleId = useId();
   const [name, setName] = useState(subject?.name ?? "");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(subject?.code ?? "");
   const [kind, setKind] = useState<SubjectKind>(subject?.kind === "cocurricular" ? "cocurricular" : "core");
   const [skills, setSkills] = useState((subject?.default_skills || []).join(", "));
   const [picked, setPicked] = useState<SubjectBandId[]>(
     subject ? bandsForSubject(subject).filter((band) => band !== "nursery") : ["lower", "upper"],
   );
+  const [sortOrder, setSortOrder] = useState(subject ? String(subject.sort_order) : "");
   const [active, setActive] = useState(subject ? subject.active : true);
   const [confirming, setConfirming] = useState(false);
 
   const stored = spanForBands(picked);
   const title = name.trim() || (subject ? "Untitled" : "New subject");
-  const badge = subject?.code || code.trim().toUpperCase();
+  const badge = code.trim().toUpperCase();
   const isOther = kind === "cocurricular";
   const note = isOther
     ? "Goes on the co-curricular table, not the marks table."
@@ -307,7 +321,18 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
   return (
     <DeskForm action={async (data) => {
       const outcome = await save(data);
-      if (outcome.ok && data.get("intent") !== "delete") setConfirming(false);
+      if (outcome.ok && data.get("intent") !== "delete") {
+        setConfirming(false);
+        if (outcome.subject) {
+          setCode(outcome.subject.code);
+          setName(outcome.subject.name);
+          setKind(outcome.subject.kind === "cocurricular" ? "cocurricular" : "core");
+          setSkills((outcome.subject.default_skills || []).join(", "));
+          setPicked(bandsForSubject(outcome.subject).filter((band) => band !== "nursery"));
+          setSortOrder(String(outcome.subject.sort_order));
+          setActive(outcome.subject.active);
+        }
+      }
       return outcome;
     }} className={`asb-form${subject ? "" : " is-new"}`} refresh={false}>
       {subject ? <input type="hidden" name="id" value={subject.id} /> : null}
@@ -317,7 +342,7 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
             {badge || <i className="fa-solid fa-plus" />}
           </span>
           <div>
-            <p>{subject ? "Editing subject" : "Create subject"}</p>
+            <p>{subject ? "Selected subject" : "Create subject"}</p>
             <h2>{title}</h2>
           </div>
         </div>
@@ -339,23 +364,21 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
       >
         <div className="asb-block">
           <p className="asb-step"><span>1</span> Identity</p>
-          <div className={`asb-identity${subject ? " is-named" : ""}`}>
-            {subject ? null : (
-              <label className="ofc-field asb-code-field">
-                <span>Code</span>
-                <input
-                  name="code"
-                  required
-                  minLength={2}
-                  maxLength={20}
-                  placeholder="FRE"
-                  autoComplete="off"
-                  spellCheck={false}
-                  value={code}
-                  onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
-                />
-              </label>
-            )}
+          <div className="asb-identity">
+            <label className="ofc-field asb-code-field">
+              <span>Code</span>
+              <input
+                name="code"
+                required
+                minLength={2}
+                maxLength={20}
+                placeholder="FRE"
+                autoComplete="off"
+                spellCheck={false}
+                value={code}
+                onChange={(event) => setCode(event.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""))}
+              />
+            </label>
             <label className="ofc-field asb-name-field">
               <span>Name</span>
               <input
@@ -425,17 +448,30 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
         ) : null}
 
         <div className="asb-block asb-visible-block">
-          <div className="asb-visible-head">
-            <p id={visibleId}>On class lists</p>
-            <div className="asb-seg is-two is-compact" role="radiogroup" aria-labelledby={visibleId}>
-              <label className={active ? "is-on" : ""}>
-                <input type="radio" name="active" value="1" checked={active} onChange={() => setActive(true)} />
-                Shown
-              </label>
-              <label className={!active ? "is-on" : ""}>
-                <input type="radio" name="active" value="0" checked={!active} onChange={() => setActive(false)} />
-                Hidden
-              </label>
+          <div className="asb-pair">
+            <label className="ofc-field">
+              <span>Sort order</span>
+              <input
+                name="sort_order"
+                type="number"
+                step={1}
+                placeholder={isOther ? "80" : "50"}
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value)}
+              />
+            </label>
+            <div className="asb-visible-head" style={{ alignSelf: "end" }}>
+              <p id={visibleId}>On class lists</p>
+              <div className="asb-seg is-two is-compact" role="radiogroup" aria-labelledby={visibleId}>
+                <label className={active ? "is-on" : ""}>
+                  <input type="radio" name="active" value="1" checked={active} onChange={() => setActive(true)} />
+                  Shown
+                </label>
+                <label className={!active ? "is-on" : ""}>
+                  <input type="radio" name="active" value="0" checked={!active} onChange={() => setActive(false)} />
+                  Hidden
+                </label>
+              </div>
             </div>
           </div>
         </div>
@@ -445,17 +481,17 @@ function SubjectForm({ subject, classes, save }: { subject: SubjectRow | null; c
         {subject ? (
           confirming ? (
             <div className="asb-delete" role="group" aria-label={`Delete ${subject.name}`}>
-              <p>Delete {subject.name}? Teacher assignments for it are removed too.</p>
+              <p>Delete {subject.name} permanently? All teacher assignments, assessments, marks, report lines, timetable slots, schemes, and homework for it will be removed.</p>
               <button type="button" onClick={() => setConfirming(false)}>Cancel</button>
-              <button type="submit" formNoValidate name="intent" value="delete">Delete</button>
+              <button type="submit" formNoValidate name="intent" value="delete">Delete permanently</button>
             </div>
           ) : (
             <button type="button" className="asb-delete-start" onClick={() => setConfirming(true)}>Delete</button>
           )
         ) : (
-          <p className="asb-foot-hint">Ready when the name and sections are set.</p>
+          <p className="asb-foot-hint">Ready when the code, name, and sections are set.</p>
         )}
-        <button className="admin-btn" type="submit" disabled={!stored || (!subject && code.trim().length < 2) || name.trim().length < 2}>
+        <button className="admin-btn" type="submit" disabled={!stored || code.trim().length < 2 || name.trim().length < 2}>
           {subject ? "Save changes" : "Add subject"}
         </button>
       </footer>

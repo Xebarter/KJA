@@ -69,7 +69,6 @@ export async function POST(request: Request) {
     .map((row) => mapSubject(row as Record<string, unknown>))
     .filter((subject) => subjectFits(subject, classCode) && isCocurricularSubject(subject))
     .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
-    .slice(0, 4)
     .map((subject, index): PrimaryCommentsBookSubject => ({
       slot: index + 1,
       subjectId: subject.id,

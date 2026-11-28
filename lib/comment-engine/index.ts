@@ -18,6 +18,17 @@ export { countWords, countSentences, validateComment, containsFirstName } from "
 export { classifyPercentage, classifyLevel, mergeSettings, DEFAULT_SETTINGS, subjectPercent } from "./bands";
 export { buildPerformanceProfile, levelFromBand } from "./analyse";
 export { generateCommentsForReport } from "./generate";
+export {
+  GROK_ENGINE_VERSION,
+  grokApiKey,
+  grokModel,
+  buildLearnerPromptPayload,
+  sanitizeGrokComment,
+  parseGrokBatchResponse,
+  generateGrokCommentsBatch,
+  applyGrokToGenerationResult,
+} from "./grok";
+export type { GrokCommentPair, GrokLearnerRequest } from "./grok";
 export { loadActiveCommentConfig, validateConfiguration } from "./config";
 export { defaultCommentConfig } from "./defaults";
 export { parseSkillLabels, mergeActivitySkills, skillsFromJson, joinSkillNames } from "./skills";
@@ -38,3 +49,4 @@ export {
   draftNeedsComments,
   ensureDraftReportComments,
 } from "./persist";
+export type { ClassCommentOptions, ClassCommentSummary } from "./persist";

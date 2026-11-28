@@ -146,6 +146,72 @@
 .rpt-directory a.is-draft:hover,
 .rpt-directory a.is-draft.is-on { background: #fff0f2; }
 
+.rpt-section-check {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  cursor: pointer;
+  user-select: none;
+}
+.rpt-section-check input {
+  width: .95rem;
+  height: .95rem;
+  margin: 0;
+  accent-color: #19232b;
+  cursor: pointer;
+}
+.rpt-dir-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  margin: 0 .55rem;
+  border-radius: 12px;
+  transition: background-color .12s ease;
+}
+.rpt-dir-row.is-checked {
+  background: rgba(201, 162, 39, .1);
+}
+.rpt-dir-row > a {
+  margin: 0;
+}
+.rpt-dir-check {
+  display: grid;
+  place-items: center;
+  padding: .55rem .15rem .55rem .55rem;
+  cursor: pointer;
+}
+.rpt-dir-check input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: #19232b;
+  cursor: pointer;
+}
+.rpt-batch-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .65rem;
+  padding: .75rem 1rem;
+  border-top: 1px solid #ece6db;
+  background: #fdfbf7;
+  color: #19232b;
+  font-size: .82rem;
+}
+.rpt-batch-bar strong { font-variant-numeric: tabular-nums; }
+.rpt-batch-bar-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+}
+.rpt-btn.is-sm {
+  min-height: 32px;
+  padding: 0 .75rem;
+  font-size: .78rem;
+}
+
 .rpt-alert {
   display: grid;
   gap: .8rem;
@@ -424,6 +490,130 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .rpt-dialog .acd-feedback { margin: 0; }
 
+.rpt-batch-dialog {
+  max-width: 600px;
+}
+.rpt-batch-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .32rem;
+  max-height: 5.5rem;
+  overflow: auto;
+  padding: .45rem .55rem;
+  border: 1px solid #ece6db;
+  border-radius: 10px;
+  background: #faf8f5;
+}
+.rpt-batch-chip {
+  padding: .16rem .5rem;
+  border: 1px solid #e3dacb;
+  border-radius: 999px;
+  background: #fff;
+  color: #19232b;
+  font-size: .73rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.rpt-batch-section {
+  display: grid;
+  gap: .5rem;
+  padding: .75rem .85rem;
+  border: 1px solid #ece6db;
+  border-radius: 12px;
+  background: #fff;
+}
+.rpt-batch-section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: .5rem;
+}
+.rpt-batch-section-head strong {
+  color: #19232b;
+  font-size: .84rem;
+  font-weight: 800;
+}
+.rpt-batch-section-head span {
+  color: #8a8174;
+  font-size: .74rem;
+  font-weight: 600;
+}
+.rpt-batch-note {
+  display: flex;
+  align-items: flex-start;
+  gap: .45rem;
+  margin: 0;
+  padding: .55rem .7rem;
+  border-radius: 10px;
+  background: #fdf6e7;
+  color: #7c5210;
+  font-size: .78rem;
+  line-height: 1.4;
+}
+.rpt-batch-note i { margin-top: .15rem; }
+.rpt-batch-progress {
+  display: grid;
+  gap: .85rem;
+}
+.rpt-batch-meter {
+  height: 8px;
+  border-radius: 999px;
+  background: #ece6db;
+  overflow: hidden;
+}
+.rpt-batch-meter span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #127238;
+  transition: width .2s ease;
+}
+.rpt-batch-results {
+  margin: 0;
+  padding: 0;
+  max-height: min(48vh, 22rem);
+  overflow: auto;
+  list-style: none;
+  border: 1px solid #ece6db;
+  border-radius: 12px;
+}
+.rpt-batch-results li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: .75rem;
+  padding: .6rem .8rem;
+  border-top: 1px solid #f2ede4;
+}
+.rpt-batch-results li:first-child { border-top: 0; }
+.rpt-batch-results strong {
+  display: block;
+  color: #19232b;
+  font-size: .84rem;
+  font-weight: 700;
+}
+.rpt-batch-results small {
+  display: block;
+  margin-top: .12rem;
+  color: #6b6358;
+  font-size: .74rem;
+  line-height: 1.35;
+}
+.rpt-batch-badge {
+  flex: 0 0 auto;
+  padding: .16rem .5rem;
+  border-radius: 999px;
+  font-style: normal;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+  white-space: nowrap;
+}
+.rpt-batch-badge.is-prepared { background: #e7f3ea; color: #127238; }
+.rpt-batch-badge.is-unchanged { background: #eef1f5; color: #475569; }
+.rpt-batch-badge.is-skipped { background: #fdf6e7; color: #8a5a12; }
+.rpt-batch-badge.is-failed { background: #fdebed; color: #b42332; }
+
 .rpt-preview { display: grid; gap: 1.25rem; padding: 1.15rem; }
 .rpt-preview-page .rpt-preview { padding: 0; }
 .rpt-preview-page article.acd-sheet {
@@ -496,10 +686,11 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-set {
   width: var(--set-col, 3.35rem);
 }
+/* Comment takes the width the set columns leave over (colgroup sets the rest). */
 .rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-note,
 .rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-note {
-  width: 8.5rem;
-  max-width: 8.5rem;
+  width: auto;
+  max-width: none;
   white-space: normal;
 }
 .rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-sign,

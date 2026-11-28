@@ -11,6 +11,7 @@ import {
   bandMidpoint,
   bandsForSection,
   classLabel,
+  assessmentSetKey,
   classSection,
   gradeBandSection,
   gradeBandSectionsToLoad,
@@ -41,8 +42,11 @@ import {
   defaultCommentConfig,
   generateAndSaveReportComments,
   generateClassReportComments,
+  grokApiKey,
   loadActiveCommentConfig,
   validateComment,
+  type ClassCommentOptions,
+  type ClassCommentSummary,
 } from "@/lib/comment-engine";
 import { buildNurserySamplePreview, buildSamplePreview, previewPlainText, type CommentPreview } from "@/lib/comment-engine/preview";
 import { renderAlertEmail } from "@/lib/email/layout";
@@ -865,7 +869,7 @@ export async function saveSubject(formData: FormData): Promise<Result> {
   if (formData.get("intent") === "delete") return removeSubject(opened.auth, id);
   const name = text(formData, "name", 80);
   const code = text(formData, "code", 20).toUpperCase().replace(/[^A-Z0-9-]/g, "");
-  if (!id && code.length < 2) return { error: "Enter a short code, such as ENG." };
+  if (code.length < 2) return { error: "Enter a short code, such as ENG." };
   if (name.length < 2) return { error: "Enter the subject name." };
   // Nursery academics use developmental domains (DSBA); subject catalogue is primary-facing.
   const bands = formData
@@ -876,6 +880,12 @@ export async function saveSubject(formData: FormData): Promise<Result> {
   const span = spanForBands(bands);
   if (!span) return { error: "Choose Lower and/or Upper primary. Nursery uses Domains on this page." };
   const kind = text(formData, "kind", 20) === "cocurricular" ? "cocurricular" : "core";
+  const rawOrder = text(formData, "sort_order", 6);
+  const parsedOrder = rawOrder === "" ? null : Number(rawOrder);
+  if (parsedOrder !== null && (!Number.isFinite(parsedOrder) || !Number.isInteger(parsedOrder))) {
+    return { error: "Sort order must be a whole number." };
+  }
+  const sortOrder = parsedOrder ?? (kind === "cocurricular" ? 80 : 50);
   const skills = kind === "cocurricular"
     ? text(formData, "default_skills", 500)
         .split(/[\n,;|/]+/)
@@ -885,17 +895,25 @@ export async function saveSubject(formData: FormData): Promise<Result> {
         .slice(0, 8)
     : [];
   const row = {
+    code,
     name,
     section: span.section,
     kind,
+    sort_order: sortOrder,
     applies_from: span.applies_from,
     applies_to: span.applies_to,
     active: formData.get("active") !== "0",
     default_skills: skills,
   };
+  let previousName: string | null = null;
+  if (id) {
+    if (!isUuid(id)) return { error: "Choose a subject to edit." };
+    const { data: existing } = await opened.auth.supabase.from("subjects").select("name").eq("id", id).maybeSingle();
+    previousName = typeof existing?.name === "string" ? existing.name : null;
+  }
   const query = id
     ? opened.auth.supabase.from("subjects").update(row).eq("id", id).select("*").single()
-    : opened.auth.supabase.from("subjects").insert({ ...row, code, sort_order: Number(text(formData, "sort_order", 6) || (kind === "cocurricular" ? "80" : "50")) }).select("*").single();
+    : opened.auth.supabase.from("subjects").insert(row).select("*").single();
   const { data, error } = await query;
   if (error || !data) {
     if (/kind|default_skills|check constraint|42703/i.test(error?.message || "")) {
@@ -903,8 +921,26 @@ export async function saveSubject(formData: FormData): Promise<Result> {
     }
     return { error: error?.message.includes("duplicate") ? "That subject code is already in use." : error?.message || "The subject could not be saved." };
   }
-  refreshSubjectCatalogue();
+  if (id && previousName !== null && previousName !== name) {
+    await Promise.all([
+      opened.auth.supabase.from("report_lines").update({ subject_name: name }).eq("subject_id", id),
+      opened.auth.supabase.from("report_card_activities").update({ activity_name: name }).eq("subject_id", id),
+      opened.auth.supabase.from("primary_activity_comments").update({ activity_name: name }).eq("subject_id", id),
+    ]);
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "setup",
+      body: `Renamed subject ${previousName} to ${name} (${code}).`,
+    });
+    refreshAcademics(`${ACADEMICS_BASE}/subjects`, `${ACADEMICS_BASE}/reports`, `${ACADEMICS_BASE}/assessments`);
+  } else {
+    refreshSubjectCatalogue();
+  }
   return { ok: id ? "Subject updated." : `${name} added.`, subject: mapSubject(data as Record<string, unknown>) };
+}
+
+function isMissingRelation(error: { code?: string; message?: string } | null) {
+  if (!error) return false;
+  return error.code === "42P01" || /does not exist|schema cache/i.test(error.message || "");
 }
 
 async function removeSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>, id: string): Promise<Result> {
@@ -913,10 +949,37 @@ async function removeSubject(auth: NonNullable<Awaited<ReturnType<typeof gate>>[
   if (lookupError) return { error: lookupError.message };
   const name = String(data?.name || "").trim();
   if (!name) return { error: "That subject is already gone." };
+
+  const dependentTables = [
+    "report_line_parts",
+    "report_lines",
+    "report_card_activities",
+    "primary_activity_comments",
+    "generated_report_comments",
+    "assessments",
+    "timetable_slots",
+    "schemes",
+    "homework_assignments",
+  ] as const;
+
+  for (const table of dependentTables) {
+    const { error: depError } = await auth.supabase.from(table).delete().eq("subject_id", id);
+    if (depError && !isMissingRelation(depError)) {
+      return { error: `Could not clear ${table.replace(/_/g, " ")} for ${name}: ${depError.message}` };
+    }
+  }
+
   const { error } = await auth.supabase.from("subjects").delete().eq("id", id);
-  if (error) return { error: /foreign key|violates/i.test(error.message) ? `${name} is already in use. Hide it instead of deleting it.` : error.message };
+  if (error) return { error: error.message };
   await logAcademics(auth.supabase, auth.user.id, { kind: "setup", body: `Deleted the subject ${name}.` });
-  refreshSubjectCatalogue();
+  refreshAcademics(
+    `${ACADEMICS_BASE}/subjects`,
+    `${ACADEMICS_BASE}/assessments`,
+    `${ACADEMICS_BASE}/reports`,
+    `${ACADEMICS_BASE}/timetable`,
+    `${ACADEMICS_BASE}/schemes`,
+    `${ACADEMICS_BASE}/homework`,
+  );
   return { ok: `${name} deleted.`, removedId: id };
 }
 
@@ -1177,6 +1240,7 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   const scope = text(formData, "scope", 10);
   const kind = text(formData, "kind", 20);
   const name = text(formData, "name", 120);
+  const reportHeader = text(formData, "report_header", 24);
   const heldOn = text(formData, "held_on", 10);
   const campusText = text(formData, "campus", 80);
   if (!termId) return { error: "Set a current term before adding papers." };
@@ -1256,6 +1320,7 @@ export async function setAssessments(formData: FormData): Promise<Result> {
       stream: entry.stream,
       subject_id: subject.id,
       name,
+      report_header: reportHeader || null,
       kind: kind as AssessmentKind,
       max_score: primaryMax,
       weight,
@@ -1291,7 +1356,15 @@ export async function setAssessments(formData: FormData): Promise<Result> {
   );
   const fresh = rows.filter((row) => !taken.has(`${row.campus}|${row.class_code}|${row.stream}|${row.subject_id}|${name.toLowerCase()}`));
   if (fresh.length) {
-    const { error } = await opened.auth.supabase.from("assessments").insert(fresh);
+    let { error } = await opened.auth.supabase.from("assessments").insert(fresh);
+    if (error && /report_header|42703|schema cache/i.test(error.message)) {
+      if (reportHeader) {
+        return { error: "Custom report card headers need supabase/0097_assessment_report_header.sql in the Supabase SQL editor." };
+      }
+      const fallbackFresh = fresh.map(({ report_header: _omit, ...rest }) => rest);
+      const retry = await opened.auth.supabase.from("assessments").insert(fallbackFresh);
+      error = retry.error;
+    }
     if (error) return { error: error.message };
     const touched = new Set(fresh.map((row) => row.class_code));
     const where = scope === "one" ? className(groups[0].code) : `${touched.size} ${touched.size === 1 ? "class" : "classes"}`;
@@ -1407,6 +1480,310 @@ export async function setAssessmentShare(formData: FormData): Promise<Result> {
   });
   refreshAcademics(`${ACADEMICS_BASE}/assessments`);
   return { ok: `${name} is now ${share}% of the subject total. Prepare the report cards again to show it.` };
+}
+
+export async function updateAssessmentSet(formData: FormData): Promise<Result> {
+  const opened = await gate("assessments");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return blocked;
+  const termId = text(formData, "term_id", 40);
+  const oldName = text(formData, "old_name", 120);
+  const kind = text(formData, "kind", 20);
+  const heldOn = text(formData, "held_on", 10);
+  const newName = text(formData, "name", 120);
+  const reportHeader = text(formData, "report_header", 24);
+  const sectionsEdited = text(formData, "sections_edited", 2) === "1";
+  const wantedSections = new Set(
+    formData
+      .getAll("sections")
+      .map((value) => String(value).trim())
+      .filter((value): value is "nursery" | "lower" | "upper" =>
+        value === "nursery" || value === "lower" || value === "upper",
+      ),
+  );
+  if (!isUuid(termId) || oldName.length < 2 || !KINDS.has(kind)) return { error: "Choose the assessment to edit." };
+  if (heldOn && !/^\d{4}-\d{2}-\d{2}$/.test(heldOn)) return { error: "Choose the assessment to edit." };
+  if (newName.length < 2) return { error: "Enter a name of at least 2 characters." };
+  if (sectionsEdited && !wantedSections.size) {
+    return { error: "Select at least one section, or use Delete to remove this assessment." };
+  }
+
+  const renamed = newName !== oldName;
+  if (renamed) {
+    let dupQuery = opened.auth.supabase
+      .from("assessments")
+      .select("id")
+      .eq("term_id", termId)
+      .eq("name", newName)
+      .eq("kind", kind);
+    dupQuery = heldOn ? dupQuery.eq("held_on", heldOn) : dupQuery.is("held_on", null);
+    const dup = await dupQuery.limit(1);
+    if (!dup.error && dup.data?.length) {
+      return { error: `An assessment named “${newName}” already exists on that date.` };
+    }
+  }
+
+  // Snapshot existing rows before mutating so we know campuses, weights, and sections.
+  let existingPrimaryQuery = opened.auth.supabase
+    .from("assessments")
+    .select("id, campus, class_code, stream, subject_id, max_score, weight")
+    .eq("term_id", termId)
+    .eq("name", oldName)
+    .eq("kind", kind);
+  existingPrimaryQuery = heldOn ? existingPrimaryQuery.eq("held_on", heldOn) : existingPrimaryQuery.is("held_on", null);
+  const existingPrimaryRes = await existingPrimaryQuery;
+  if (existingPrimaryRes.error) return { error: "The assessment could not be loaded." };
+  const existingPrimaryRows = (existingPrimaryRes.data || []) as {
+    id: string;
+    campus: string | null;
+    class_code: string;
+    stream: string | null;
+    subject_id: string;
+    max_score: number | string;
+    weight: number | string;
+  }[];
+
+  let existingDsbaQuery = opened.auth.supabase
+    .from("developmental_assessments")
+    .select("id, campus, class_code, stream")
+    .eq("term_id", termId)
+    .eq("name", oldName)
+    .eq("kind", kind);
+  existingDsbaQuery = heldOn ? existingDsbaQuery.eq("held_on", heldOn) : existingDsbaQuery.is("held_on", null);
+  const existingDsbaRes = await existingDsbaQuery;
+  const existingDsbaRows = !existingDsbaRes.error
+    ? ((existingDsbaRes.data || []) as { id: string; campus: string | null; class_code: string; stream: string | null }[])
+    : [];
+
+  if (!existingPrimaryRows.length && !existingDsbaRows.length) {
+    return { error: "That assessment is no longer on the list." };
+  }
+
+  let primaryCount = existingPrimaryRows.length;
+  if (existingPrimaryRows.length) {
+    let primaryQuery = opened.auth.supabase
+      .from("assessments")
+      .update({ name: newName, report_header: reportHeader || null })
+      .eq("term_id", termId)
+      .eq("name", oldName)
+      .eq("kind", kind);
+    primaryQuery = heldOn ? primaryQuery.eq("held_on", heldOn) : primaryQuery.is("held_on", null);
+    let primaryRes = await primaryQuery.select("id");
+    if (primaryRes.error && /report_header|42703|schema cache/i.test(primaryRes.error.message)) {
+      if (reportHeader) {
+        return { error: "Custom report card headers need supabase/0097_assessment_report_header.sql in the Supabase SQL editor." };
+      }
+      let retryQuery = opened.auth.supabase
+        .from("assessments")
+        .update({ name: newName })
+        .eq("term_id", termId)
+        .eq("name", oldName)
+        .eq("kind", kind);
+      retryQuery = heldOn ? retryQuery.eq("held_on", heldOn) : retryQuery.is("held_on", null);
+      primaryRes = await retryQuery.select("id");
+    }
+    if (primaryRes.error) return { error: "The assessment could not be updated." };
+    primaryCount = primaryRes.data?.length ?? primaryCount;
+  }
+
+  let dsbaCount = existingDsbaRows.length;
+  if (renamed && existingDsbaRows.length) {
+    let dsbaQuery = opened.auth.supabase
+      .from("developmental_assessments")
+      .update({ name: newName })
+      .eq("term_id", termId)
+      .eq("name", oldName)
+      .eq("kind", kind);
+    dsbaQuery = heldOn ? dsbaQuery.eq("held_on", heldOn) : dsbaQuery.is("held_on", null);
+    const dsbaRes = await dsbaQuery.select("id");
+    if (!dsbaRes.error) dsbaCount = dsbaRes.data?.length ?? dsbaCount;
+  }
+
+  let addedPrimary = 0;
+  let removedPrimary = 0;
+  let addedNursery = 0;
+  let removedNursery = 0;
+
+  if (sectionsEdited) {
+    const sittingCampuses = new Set<string>([
+      ...existingPrimaryRows.map((row) => operationalCampus(row.campus)),
+      ...existingDsbaRows.map((row) => operationalCampus(row.campus)),
+    ]);
+    const samplePrimary = existingPrimaryRows[0];
+    const primaryMax = samplePrimary ? (num(samplePrimary.max_score) ?? 100) : 100;
+    const primaryWeight = samplePrimary ? (num(samplePrimary.weight) ?? kindWeight(kind)) : kindWeight(kind);
+
+    // 1. Remove unchecked sections
+    const removePrimaryIds = existingPrimaryRows
+      .filter((row) => !wantedSections.has(gradeBandSection(row.class_code)))
+      .map((row) => row.id)
+      .filter(isUuid);
+    for (let index = 0; index < removePrimaryIds.length; index += 100) {
+      const slice = removePrimaryIds.slice(index, index + 100);
+      const delScores = await opened.auth.supabase.from("assessment_scores").delete().in("assessment_id", slice);
+      if (delScores.error) return { error: "Marks for the removed section could not be cleared." };
+      const delPapers = await opened.auth.supabase.from("assessments").delete().in("id", slice);
+      if (delPapers.error) return { error: "Markbooks for the removed section could not be removed." };
+      removedPrimary += slice.length;
+    }
+
+    if (!wantedSections.has("nursery") && existingDsbaRows.length) {
+      const removeDsbaIds = existingDsbaRows.map((row) => row.id).filter(isUuid);
+      for (let index = 0; index < removeDsbaIds.length; index += 100) {
+        const slice = removeDsbaIds.slice(index, index + 100);
+        const delRatings = await opened.auth.supabase.from("skill_ratings").delete().in("assessment_id", slice);
+        if (delRatings.error) return { error: "Nursery skill codes could not be cleared." };
+        const delDsba = await opened.auth.supabase.from("developmental_assessments").delete().in("id", slice);
+        if (delDsba.error) return { error: "Nursery assessments could not be removed." };
+        removedNursery += slice.length;
+      }
+    }
+
+    // 2. Add newly checked sections across the sitting's campuses
+    const pupils = await loadRoll(
+      opened.auth.supabase,
+      opened.auth.user.id,
+      undefined,
+      opened.auth.office ? opened.auth.campuses : undefined,
+    );
+    const groups = groupPupils(pupils).filter((entry) => sittingCampuses.has(operationalCampus(entry.campus)));
+
+    if (wantedSections.has("nursery")) {
+      const existingDsbaKeys = new Set(
+        existingDsbaRows.map((row) => `${operationalCampus(row.campus)}|${row.class_code}|${streamOf(row.stream)}`),
+      );
+      const freshDsba = groups
+        .filter((entry) => entry.section === "nursery")
+        .filter((entry) => !existingDsbaKeys.has(`${operationalCampus(entry.campus)}|${entry.code}|${streamOf(entry.stream)}`))
+        .map((entry) => ({
+          term_id: termId,
+          campus: operationalCampus(entry.campus),
+          class_code: entry.code,
+          stream: entry.stream,
+          name: newName,
+          kind: kind as AssessmentKind,
+          held_on: heldOn || null,
+          created_by: opened.auth.user.id,
+        }));
+      if (freshDsba.length) {
+        const { error: dsbaInsErr } = await opened.auth.supabase.from("developmental_assessments").insert(freshDsba);
+        if (dsbaInsErr) return { error: dsbaSchemaHint(dsbaInsErr.message) };
+        addedNursery = freshDsba.length;
+      }
+    }
+
+    if (wantedSections.has("lower") || wantedSections.has("upper")) {
+      const { data: subjectRows, error: subjectError } = await opened.auth.supabase
+        .from("subjects")
+        .select("*")
+        .eq("active", true);
+      if (subjectError) return { error: subjectError.message };
+      const subjects = ((subjectRows || []) as Record<string, unknown>[]).map(mapSubject);
+
+      const existingPrimaryKeys = new Set(
+        existingPrimaryRows.map(
+          (row) => `${operationalCampus(row.campus)}|${row.class_code}|${streamOf(row.stream)}|${row.subject_id}`,
+        ),
+      );
+      const freshPrimary = groups
+        .filter((entry) => entry.section !== "nursery" && wantedSections.has(gradeBandSection(entry.code)))
+        .flatMap((entry) =>
+          subjects
+            .filter((subject) => subjectFits(subject, entry.code))
+            .filter(
+              (subject) =>
+                !existingPrimaryKeys.has(
+                  `${operationalCampus(entry.campus)}|${entry.code}|${streamOf(entry.stream)}|${subject.id}`,
+                ),
+            )
+            .map((subject) => ({
+              term_id: termId,
+              campus: operationalCampus(entry.campus),
+              class_code: entry.code,
+              stream: entry.stream,
+              subject_id: subject.id,
+              name: newName,
+              report_header: reportHeader || null,
+              kind: kind as AssessmentKind,
+              max_score: primaryMax,
+              weight: primaryWeight,
+              held_on: heldOn || null,
+              created_by: opened.auth.user.id,
+            })),
+        );
+      if (freshPrimary.length) {
+        let { error: insErr } = await opened.auth.supabase.from("assessments").insert(freshPrimary);
+        if (insErr && /report_header|42703|schema cache/i.test(insErr.message)) {
+          if (reportHeader) {
+            return { error: "Custom report card headers need supabase/0097_assessment_report_header.sql in the Supabase SQL editor." };
+          }
+          const fallback = freshPrimary.map(({ report_header: _omit, ...rest }) => rest);
+          const retry = await opened.auth.supabase.from("assessments").insert(fallback);
+          insErr = retry.error;
+        }
+        if (insErr) return { error: insErr.message };
+        addedPrimary = freshPrimary.length;
+        primaryCount += addedPrimary;
+      }
+    }
+  }
+
+  // Sync existing report cards for this term so renamed labels & custom headers appear immediately.
+  if (primaryCount > 0) {
+    const oldSetKey = assessmentSetKey(kind, oldName);
+    const newSetKey = assessmentSetKey(kind, newName);
+    const { data: termCards } = await opened.auth.supabase
+      .from("report_cards")
+      .select("id")
+      .eq("term_id", termId);
+    const cardIds = (termCards || []).map((row) => String(row.id)).filter(isUuid);
+    for (let index = 0; index < cardIds.length; index += 100) {
+      const slice = cardIds.slice(index, index + 100);
+      const patch: Record<string, unknown> = {
+        set_key: newSetKey,
+        label: newName,
+        report_header: reportHeader || null,
+      };
+      const sync = await opened.auth.supabase
+        .from("report_line_parts")
+        .update(patch)
+        .in("report_card_id", slice)
+        .eq("set_key", oldSetKey);
+      if (sync.error && /report_header|42703|schema cache/i.test(sync.error.message)) {
+        await opened.auth.supabase
+          .from("report_line_parts")
+          .update({ set_key: newSetKey, label: newName })
+          .in("report_card_id", slice)
+          .eq("set_key", oldSetKey);
+      }
+    }
+  }
+
+  const sectionChanges = [
+    addedPrimary ? `added ${addedPrimary} primary ${addedPrimary === 1 ? "markbook" : "markbooks"}` : "",
+    addedNursery ? `added ${addedNursery} nursery ${addedNursery === 1 ? "class" : "classes"}` : "",
+    removedPrimary ? `removed ${removedPrimary} primary ${removedPrimary === 1 ? "markbook" : "markbooks"}` : "",
+    removedNursery ? `removed ${removedNursery} nursery ${removedNursery === 1 ? "class" : "classes"}` : "",
+  ].filter(Boolean);
+
+  const summaryParts = [
+    renamed ? `Renamed “${oldName}” to “${newName}”` : `Updated “${newName}”`,
+    reportHeader ? `report card header “${reportHeader}”` : "",
+    ...sectionChanges,
+  ].filter(Boolean);
+  await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+    kind: "marks",
+    body: `${summaryParts.join(" · ")}.`,
+  });
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`, `${ACADEMICS_BASE}/reports`, `/teacher/assessments`, `/teacher/reports`);
+  const detailText = [
+    reportHeader ? `header: ${reportHeader}` : "",
+    ...sectionChanges,
+  ].filter(Boolean).join(" · ");
+  return {
+    ok: detailText ? `Saved “${newName}” (${detailText}).` : `Saved “${newName}”.`,
+  };
 }
 
 export async function saveScores(formData: FormData): Promise<Result> {
@@ -1748,8 +2125,8 @@ function previewHref(classCode: string, stream: string, campus?: string) {
 async function fillDraftComments(
   auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
   input: { classCode: string; stream: string; termId: string; campus?: string },
-  options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
-) {
+  options: ClassCommentOptions = {},
+): Promise<ClassCommentSummary> {
   try {
     return await generateClassReportComments(auth.supabase, input, auth.user.id, options);
   } catch (error) {
@@ -1759,6 +2136,8 @@ async function fillDraftComments(
       succeeded: 0,
       failed: 0,
       skipped: 0,
+      ai: 0,
+      fallback: 0,
       errors: [{ reportId: "", messages: [error instanceof Error ? error.message : "Comments could not be generated."] }],
     };
   }
@@ -1820,9 +2199,9 @@ export async function prepareReports(formData: FormData): Promise<Result> {
   const reportTitle = text(formData, "report_title", 80);
   try {
     const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, campus, sets: chosen.sets, reportTitle });
-    // Only fill blank remarks, and skip provenance/audit writes on prepare - that trail is the slow path.
-    // Re-prepare after marks change stays fast; use "Regenerate comments" when a full rewrite is needed.
-    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream, campus }, { onlyBlank: true, skipTrail: true });
+    // Every draft gets fresh AI Class Teacher and Principal remarks, except remarks typed or uploaded by hand.
+    // Subject and co-curricular remarks already on a card are kept. Provenance/audit writes stay off here (slow path).
+    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream, campus }, { rewriteAi: true, skipTrail: true });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, {
       kind: "report",
       body: `Prepared report cards for ${classLabel(classCode, stream, campus)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
@@ -1834,14 +2213,60 @@ export async function prepareReports(formData: FormData): Promise<Result> {
     }
     const parts = [
       result.prepared ? `Prepared ${result.prepared} report ${result.prepared === 1 ? "card" : "cards"}` : null,
-      comments.succeeded ? `filled comments on ${comments.succeeded}` : null,
-      comments.skipped ? `left ${comments.skipped} with existing remarks` : null,
+      comments.ai ? `AI (Grok) wrote class teacher and principal comments on ${comments.ai}` : null,
+      comments.fallback ? `${comments.fallback} used template comments${grokApiKey() ? " (AI did not reply for them)" : " (AI key not set on the server)"}` : null,
+      comments.skipped ? `left ${comments.skipped} with manual or uploaded remarks` : null,
     ].filter(Boolean);
     const note = comments.errors[0]?.messages[0];
     const warning = "warning" in result ? result.warning : undefined;
     return {
       ok: `${parts.join(", ")}.${note && !comments.succeeded ? ` ${note}` : ""}${warning ? ` ${warning}` : ""}`.trim(),
       href,
+    };
+  } catch (error) {
+    return { error: error instanceof Error ? error.message : "Reports could not be prepared." };
+  }
+}
+
+export type BatchReportResult = {
+  prepared?: number;
+  commented?: number;
+  skippedRemarks?: number;
+  warning?: string;
+  note?: string;
+  error?: string;
+};
+
+export async function prepareBatchReport(formData: FormData): Promise<BatchReportResult> {
+  const opened = await gate("reports");
+  if (!opened.auth) return { error: opened.error };
+  const blocked = officeOnly(opened.auth);
+  if (blocked) return { error: blocked.error };
+  const campusErr = campusFormError(formData);
+  if (campusErr) return { error: campusErr.error };
+  const { classCode, stream, termId, campus } = group(formData);
+  if (!termId || !classCode) return { error: "Choose a term and a class." };
+  if (opened.auth.campuses.length && !opened.auth.campuses.includes(campus)) {
+    return { error: "That campus is outside your desk scope." };
+  }
+  const chosen = reportSetsFromForm(formData);
+  if ("error" in chosen) return { error: chosen.error };
+  const reportTitle = text(formData, "report_title", 80);
+  try {
+    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, campus, sets: chosen.sets, reportTitle });
+    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream, campus }, { onlyBlank: true, skipTrail: true });
+    await logAcademics(opened.auth.supabase, opened.auth.user.id, {
+      kind: "report",
+      body: `Prepared report cards for ${classLabel(classCode, stream, campus)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
+    });
+    const note = comments.errors[0]?.messages[0];
+    const warning = "warning" in result ? result.warning : undefined;
+    return {
+      prepared: result.prepared,
+      commented: comments.succeeded,
+      skippedRemarks: comments.skipped,
+      warning,
+      note: note && !comments.succeeded ? note : undefined,
     };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Reports could not be prepared." };
@@ -2015,19 +2440,25 @@ export async function saveReport(formData: FormData): Promise<Result> {
   if (current.status === "published") return { error: "Published report cards stay as they were issued." };
   if (publishing && current.status !== "approved") return { error: "Approve the class before publishing this card." };
   const conduct = text(formData, "conduct", 40);
-  const { error } = await opened.auth.supabase
+  const { normalizeClubsList } = await import("@/lib/report-clubs");
+  const clubs = normalizeClubsList(text(formData, "clubs", 300));
+  const basePatch = {
+    class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
+    head_comment: text(formData, "head_comment", 2000) || null,
+    cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
+    conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
+    updated_at: new Date().toISOString(),
+    ...(publishing
+      ? { status: "published", published_at: new Date().toISOString(), published_by: opened.auth.user.id }
+      : {}),
+  };
+  let { error } = await opened.auth.supabase
     .from("report_cards")
-    .update({
-      class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
-      head_comment: text(formData, "head_comment", 2000) || null,
-      cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
-      conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
-      updated_at: new Date().toISOString(),
-      ...(publishing
-        ? { status: "published", published_at: new Date().toISOString(), published_by: opened.auth.user.id }
-        : {}),
-    })
+    .update({ ...basePatch, clubs })
     .eq("id", id);
+  if (error && /clubs|42703|schema cache/i.test(error.message)) {
+    ({ error } = await opened.auth.supabase.from("report_cards").update(basePatch).eq("id", id));
+  }
   if (error) return { error: error.message };
   const comments: { report_card_id: string; subject_id: string; teacher_comment: string | null }[] = [];
   for (const [key, value] of formData.entries()) {
@@ -2059,7 +2490,16 @@ export async function saveReport(formData: FormData): Promise<Result> {
     skills: { label: string; acquired: boolean }[];
     comment: string | null;
   }[] = [];
-  for (const slot of [1, 2, 3, 4]) {
+  const slotSet = new Set<number>([1, 2, 3, 4]);
+  for (const key of formData.keys()) {
+    const match = /^activity_(?:name|comment|level|score|skills|acquired)_(\d+)$/.exec(key);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isInteger(parsed) && parsed >= 1) slotSet.add(parsed);
+    }
+  }
+  const slots = [...slotSet].sort((a, b) => a - b);
+  for (const slot of slots) {
     const name = text(formData, `activity_name_${slot}`, 80) || null;
     const levelRaw = text(formData, `activity_level_${slot}`, 40);
     let level = CONDUCT.includes(levelRaw as (typeof CONDUCT)[number]) ? levelRaw : null;
@@ -2121,7 +2561,7 @@ export async function generateReportComments(formData: FormData): Promise<Result
     if (!apply.ok) {
       return { error: apply.errors.slice(0, 3).join(" ") || "Some comments need review.", href: `${ACADEMICS_BASE}/reports/${id}` };
     }
-    return { ok: "Comments generated from the active template bank.", href: `${ACADEMICS_BASE}/reports/${id}` };
+    return { ok: "Comments generated.", href: `${ACADEMICS_BASE}/reports/${id}` };
   } catch (error) {
     return { error: error instanceof Error ? error.message : "Comments could not be generated." };
   }

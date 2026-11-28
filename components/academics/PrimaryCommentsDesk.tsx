@@ -325,7 +325,7 @@ export function PrimaryCommentsDesk({
     [classSubjects],
   );
   const cocurricularSubjects = useMemo(
-    () => classSubjects.filter((subject) => isCocurricularSubject(subject)).slice(0, 4),
+    () => classSubjects.filter((subject) => isCocurricularSubject(subject)),
     [classSubjects],
   );
 

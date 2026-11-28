@@ -160,50 +160,6 @@ const PROTECT: Partial<ExcelJS.WorksheetProtection> = {
   pivotTables: false,
 };
 
-function writeCover(sheet: ExcelJS.Worksheet, input: NurseryCommentsBookInput) {
-  sheet.properties.showGridLines = false;
-  sheet.views = [{ showGridLines: false }];
-  sheet.getColumn(1).width = 3;
-  sheet.getColumn(2).width = 78;
-  sheet.getColumn(3).width = 3;
-
-  const title = sheet.getCell(3, 2);
-  title.value = SCHOOL;
-  paint(title, { font: font(18, INK, true) });
-
-  const subtitle = sheet.getCell(4, 2);
-  subtitle.value = "Nursery comments workbook";
-  paint(subtitle, { font: font(14, GOLD, true) });
-
-  const meta = sheet.getCell(6, 2);
-  meta.value = `${input.className}${input.stream ? ` · ${input.stream}` : ""} · ${input.term}`;
-  paint(meta, { font: font(11, MUTED) });
-
-  const prepared = sheet.getCell(7, 2);
-  prepared.value = `Prepared ${input.preparedOn}`;
-  paint(prepared, { font: font(10, MUTED, false, true) });
-
-  const steps = [
-    "Open the class sheet. Only the Comment column is editable (white cells).",
-    "Comments are saved to the learner for this term — they keep even if report cards are cancelled.",
-    "Leave a cell blank to keep the comment already saved. Type CLEAR to remove it.",
-    "Do not add or remove rows or columns, and do not rename the sheet.",
-    "Published report cards are locked — their comments will not change on upload.",
-    "Save as .xlsx and upload the file on the Nursery Comments page.",
-  ];
-  steps.forEach((step, index) => {
-    const cell = sheet.getCell(10 + index, 2);
-    cell.value = `${index + 1}. ${step}`;
-    paint(cell, { font: font(11, INK), alignment: { wrapText: true, vertical: "top" } });
-    sheet.getRow(10 + index).height = 22;
-  });
-
-  const tip = sheet.getCell(18, 2);
-  tip.value = `${input.pupils.length} learner${input.pupils.length === 1 ? "" : "s"} on this sheet.`;
-  paint(tip, { font: font(11, GREEN, true), fill: solid(GREEN_BG), alignment: { vertical: "middle" } });
-  sheet.getRow(18).height = 28;
-}
-
 function writeKeys(workbook: ExcelJS.Workbook, input: NurseryCommentsBookInput, sheetName: string) {
   const sheet = workbook.addWorksheet("_KJA", { state: "veryHidden" });
   const pairs: [string, string | number][] = [
@@ -386,11 +342,8 @@ export async function buildNurseryCommentsWorkbook(input: NurseryCommentsBookInp
   workbook.created = new Date();
   workbook.modified = new Date();
 
-  const cover = workbook.addWorksheet("Cover", { properties: { tabColor: { argb: GOLD }, showGridLines: false } });
-  writeCover(cover, input);
   const classSheet = writeClassSheet(workbook, input);
   writeKeys(workbook, input, classSheet.name);
-  await cover.protect("", { ...PROTECT });
   await classSheet.protect("", PROTECT);
 
   const raw = await workbook.xlsx.writeBuffer();

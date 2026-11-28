@@ -22,6 +22,7 @@ type PaperRow = {
   stream: string;
   subject_id: string;
   name: string;
+  report_header?: string | null;
   kind: string;
   max_score: number | string;
   weight: number | string;
@@ -51,20 +52,35 @@ export default async function AssessmentsPage({ searchParams }: { searchParams: 
   const termPack = await loadCurrentTerm(supabase);
   if (termPack.error) return <AcademicsGate title="Assessments" state={{ notice: "schema", message: termPack.error }} />;
   const term = termPack.term;
+  const loadPapers = async (termId: string) => {
+    try {
+      return await fetchAll<PaperRow>((from, to) =>
+        supabase
+          .from("assessments")
+          .select("id, class_code, stream, subject_id, name, report_header, kind, max_score, weight, held_on, status, campus")
+          .eq("term_id", termId)
+          .order("held_on", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : "";
+      if (!/report_header|42703|schema cache/i.test(msg)) throw error;
+      return fetchAll<PaperRow>((from, to) =>
+        supabase
+          .from("assessments")
+          .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status, campus")
+          .eq("term_id", termId)
+          .order("held_on", { ascending: false })
+          .order("id")
+          .range(from, to),
+      );
+    }
+  };
   let papersLoadError: string | null = null;
   let rows: PaperRow[] = [];
   try {
-    rows = term
-      ? await fetchAll<PaperRow>((from, to) =>
-          supabase
-            .from("assessments")
-            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status, campus")
-            .eq("term_id", term.id)
-            .order("held_on", { ascending: false })
-            .order("id")
-            .range(from, to),
-        )
-      : [];
+    rows = term ? await loadPapers(term.id) : [];
   } catch (error) {
     papersLoadError = error instanceof Error ? error.message : "Assessments could not be loaded.";
   }
@@ -105,15 +121,7 @@ export default async function AssessmentsPage({ searchParams }: { searchParams: 
     try {
       const filled = await ensureOtherMarkbooks(supabase, term.id, user.id);
       if (filled.added > 0) {
-        rows = await fetchAll<PaperRow>((from, to) =>
-          supabase
-            .from("assessments")
-            .select("id, class_code, stream, subject_id, name, kind, max_score, weight, held_on, status, campus")
-            .eq("term_id", term.id)
-            .order("held_on", { ascending: false })
-            .order("id")
-            .range(from, to),
-        );
+        rows = await loadPapers(term.id);
         otherFillNote = `Added ${filled.added.toLocaleString("en-GB")} Other ${filled.added === 1 ? "markbook" : "markbooks"} so they appear in the workbook picker.`;
       }
     } catch {
@@ -155,6 +163,7 @@ export default async function AssessmentsPage({ searchParams }: { searchParams: 
         id: paper.id,
         href: `${ACADEMICS_BASE}/assessments/${paper.id}`,
         name: paper.name,
+        reportHeader: typeof paper.report_header === "string" && paper.report_header.trim() ? paper.report_header.trim() : null,
         subject: subject?.name || "Subject",
         classLabel: classLabel(paper.class_code, paper.stream, campus),
         campus,

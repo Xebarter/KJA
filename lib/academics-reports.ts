@@ -54,6 +54,7 @@ type Assessment = {
   id: string;
   subject_id: string;
   name: string;
+  report_header?: string | null;
   kind: string;
   max_score: number;
   weight: number;
@@ -64,6 +65,7 @@ type StoredPart = {
   subject_id: string;
   set_key: string;
   label: string;
+  report_header?: string | null;
   share: number | string | null;
   score: number | string | null;
   sort_order: number | string | null;
@@ -517,11 +519,24 @@ export async function prepareClassReports(
 
   let assessmentsQuery = supabase
     .from("assessments")
-    .select("id, subject_id, name, kind, max_score, weight")
+    .select("id, subject_id, name, report_header, kind, max_score, weight")
     .eq("term_id", input.termId)
     .eq("class_code", input.classCode)
     .eq("stream", stream);
   if (input.campus) assessmentsQuery = assessmentsQuery.eq("campus", input.campus);
+  const assessmentsPromise = assessmentsQuery.then(async (res) => {
+    if (res.error && /report_header|42703|schema cache/i.test(res.error.message)) {
+      let fallback = supabase
+        .from("assessments")
+        .select("id, subject_id, name, kind, max_score, weight")
+        .eq("term_id", input.termId)
+        .eq("class_code", input.classCode)
+        .eq("stream", stream);
+      if (input.campus) fallback = fallback.eq("campus", input.campus);
+      return fallback;
+    }
+    return res;
+  });
   let teacherQuery = supabase
     .from("class_teachers")
     .select("staff_id, teaching_staff(full_name)")
@@ -544,7 +559,7 @@ export async function prepareClassReports(
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("grade_bands").select("*").order("sort_order"),
     supabase.from("division_bands").select("*").order("sort_order"),
-    assessmentsQuery,
+    assessmentsPromise,
     teacherQuery.maybeSingle(),
     supabase
       .from("report_cards")
@@ -570,7 +585,7 @@ export async function prepareClassReports(
   const subjectRows = ((subjects.data || []) as Record<string, unknown>[]).map(mapSubject);
   const fitting = subjectRows.filter((subject) => subjectFits(subject, input.classCode));
   const academic = fitting.filter(isAcademicSubject);
-  const cocurricular = fitting.filter(isCocurricularSubject).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name)).slice(0, 4);
+  const cocurricular = fitting.filter(isCocurricularSubject).sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
   const bandRows = ((bands.data || []) as Record<string, unknown>[]).map(mapBand);
   const divisionRows: DivisionBand[] = divisions.error
     ? []
@@ -580,6 +595,7 @@ export async function prepareClassReports(
     id: String(row.id),
     subject_id: String(row.subject_id),
     name: String(row.name || "Assessment"),
+    report_header: typeof row.report_header === "string" && row.report_header.trim() ? row.report_header.trim() : null,
     kind: String(row.kind || ""),
     max_score: num(row.max_score) ?? 100,
     weight: num(row.weight) ?? 1,
@@ -679,12 +695,12 @@ export async function prepareClassReports(
           const mark = scores.get(`${paper.id}:${pupil.id}`);
           return { score: mark?.score ?? null, max: paper.max_score, weight: 1, missed: mark?.missed ?? false };
         }));
-        return [{ key: set.key, label: set.label, share: set.share, score, sort: set.sort, weight: set.weight }];
+        return [{ key: set.key, label: set.label, report_header: set.report_header ?? null, share: set.share, score, sort: set.sort, weight: set.weight }];
       });
       const percent = weightedPercent(parts.map((part) => ({ score: part.score, max: 100, weight: part.weight, missed: false })));
       const grade = gradeFor(bandRows, markSection, percent);
       return { subject, percent, grade, parts };
-    }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null; parts: { key: string; label: string; share: number; score: number | null; sort: number; weight: number }[] } => Boolean(line));
+    }).filter((line): line is { subject: SubjectRow; percent: number | null; grade: BandRow | null; parts: { key: string; label: string; report_header: string | null; share: number; score: number | null; sort: number; weight: number }[] } => Boolean(line));
 
     const present = presentByPupil.get(pupil.id) || 0;
     const scored = lines.filter((line) => line.percent !== null);
@@ -776,6 +792,7 @@ export async function prepareClassReports(
           subject_id: line.subject.id,
           set_key: part.key,
           label: part.label,
+          report_header: part.report_header,
           share: part.share,
           score: part.score,
           sort_order: part.sort,
@@ -802,9 +819,21 @@ export async function prepareClassReports(
     // Clear then upsert so a changed sitting mix cannot leave orphan set keys behind.
     await deleteChunks(cardIds, (slice) => supabase.from("report_line_parts").delete().in("report_card_id", slice));
     if (parts.length) {
-      await writeChunks(parts, (slice) =>
-        supabase.from("report_line_parts").upsert(slice, { onConflict: "report_card_id,subject_id,set_key" }),
-      );
+      try {
+        await writeChunks(parts, (slice) =>
+          supabase.from("report_line_parts").upsert(slice, { onConflict: "report_card_id,subject_id,set_key" }),
+        );
+      } catch (upsertError) {
+        const msg = upsertError instanceof Error ? upsertError.message : "";
+        if (/report_header|42703|schema cache/i.test(msg)) {
+          const fallbackParts = parts.map(({ report_header: _omit, ...rest }) => rest);
+          await writeChunks(fallbackParts, (slice) =>
+            supabase.from("report_line_parts").upsert(slice, { onConflict: "report_card_id,subject_id,set_key" }),
+          );
+        } else {
+          throw upsertError;
+        }
+      }
     }
   } catch (error) {
     throw new Error(partsSchemaMessage(error instanceof Error ? error.message : "Report parts could not be saved."));
@@ -868,23 +897,18 @@ export async function prepareClassReports(
             ?? null,
         });
       });
-      for (let slot = cocurricular.length + 1; slot <= 4; slot += 1) {
-        activities.push({
-          report_card_id: id,
-          slot,
-          subject_id: null,
-          activity_name: null,
-          level: null,
-          score: null,
-          max_score: null,
-          skills: [],
-          comment: storedActivityComments.get(`${row.pupil.id}|${slot}`) ?? null,
-        });
-      }
+    }
+    if (draftIds.length) {
+      await deleteChunks(draftIds, (slice) =>
+        supabase.from("report_card_activities").delete().in("report_card_id", slice).gt("slot", cocurricular.length),
+      );
     }
     if (activities.length) {
       const { error: activityError } = await supabase.from("report_card_activities").upsert(activities, { onConflict: "report_card_id,slot" });
       if (activityError) {
+        if (/slot_check|check constraint/i.test(activityError.message)) {
+          throw new Error(`${activityError.message}. Run supabase/0099_unlimited_cocurricular_slots.sql in the Supabase SQL editor.`);
+        }
         if (/comment|42703/i.test(activityError.message)) {
           throw new Error(`${activityError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
         }
@@ -1095,11 +1119,22 @@ export async function loadReportParts(supabase: SupabaseClient, cardIds: string[
       rows.push(...await fetchAll<StoredPart>((from, to) =>
         supabase
           .from("report_line_parts")
-          .select("report_card_id, subject_id, set_key, label, share, score, sort_order")
+          .select("report_card_id, subject_id, set_key, label, report_header, share, score, sort_order")
           .in("report_card_id", slice)
           .order("report_card_id")
           .range(from, to),
-      ));
+      ).catch(async (err) => {
+        const msg = err instanceof Error ? err.message : "";
+        if (!/report_header|42703|schema cache/i.test(msg)) throw err;
+        return fetchAll<StoredPart>((from, to) =>
+          supabase
+            .from("report_line_parts")
+            .select("report_card_id, subject_id, set_key, label, share, score, sort_order")
+            .in("report_card_id", slice)
+            .order("report_card_id")
+            .range(from, to),
+        );
+      }));
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
@@ -1112,6 +1147,7 @@ export async function loadReportParts(supabase: SupabaseClient, cardIds: string[
     list.push({
       key: row.set_key,
       label: row.label,
+      report_header: typeof row.report_header === "string" && row.report_header.trim() ? row.report_header.trim() : null,
       share: num(row.share) ?? 0,
       score: num(row.score),
       sort: num(row.sort_order) ?? 0,

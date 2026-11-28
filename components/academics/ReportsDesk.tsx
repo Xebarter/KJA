@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { prepareAdmissionsNurseryReports } from "@/app/admissions_office/(office)/report-cards/actions";
 import {
@@ -10,6 +11,7 @@ import {
   reopenTeacherReports,
 } from "@/app/teacher/actions";
 import { PageHeader } from "@/components/admin/PageHeader";
+import { BatchGenerateReportsDialog } from "@/components/academics/BatchGenerateReportsDialog";
 import { CampusFilter } from "@/components/academics/CampusFilter";
 import { StreamReportBar } from "@/components/academics/StreamReportBar";
 import { Empty } from "@/components/academics/ui";
@@ -115,11 +117,20 @@ export function ReportsDesk({
   basePath?: string;
   mode?: DeskMode;
 }) {
+  const router = useRouter();
   const classMode = mode === "class";
   const admissionsMode = mode === "admissions";
+  const canBatch = mode === "office" && Boolean(selectedCampus);
   const [selection, setSelection] = useState<Selection | null>(null);
+  const [checkedKeys, setCheckedKeys] = useState<Set<string>>(() => new Set());
+  const [batchOpen, setBatchOpen] = useState(false);
   const groupsRef = useRef(groups);
   groupsRef.current = groups;
+
+  useEffect(() => {
+    setCheckedKeys(new Set());
+    setBatchOpen(false);
+  }, [selectedCampus]);
 
   useLayoutEffect(() => {
     setSelection(selectionFromUrl(groupsRef.current));
@@ -182,6 +193,42 @@ export function ReportsDesk({
         .filter((section) => section.rows.length),
     [groups],
   );
+  const groupKey = (group: ClassGroup<RollPupil>) => `${group.campus}|${group.code}|${group.stream}`;
+  const checkedGroups = useMemo(
+    () => (canBatch ? groups.filter((group) => checkedKeys.has(groupKey(group))) : []),
+    [canBatch, groups, checkedKeys],
+  );
+  const defaultBatchTitle = useMemo(() => {
+    for (const group of checkedGroups) {
+      for (const pupil of group.pupils) {
+        const title = byPupil.get(pupil.id)?.report_title;
+        if (title) return title;
+      }
+    }
+    return undefined;
+  }, [checkedGroups, byPupil]);
+
+  const toggleChecked = (key: string) => {
+    setCheckedKeys((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleSectionChecked = (rows: ClassGroup<RollPupil>[], checkAll: boolean) => {
+    setCheckedKeys((current) => {
+      const next = new Set(current);
+      for (const row of rows) {
+        const key = groupKey(row);
+        if (checkAll) next.add(key);
+        else next.delete(key);
+      }
+      return next;
+    });
+  };
+
   const homeHref = selectedCampus ? `${basePath}?campus=${encodeURIComponent(selectedCampus)}` : basePath;
 
   if (!termId || !termLabel) {
@@ -296,22 +343,53 @@ export function ReportsDesk({
               <span className="rpt-card-icon" aria-hidden="true"><i className="fa-solid fa-table-cells" /></span>
               <div>
                 <h2>Classes</h2>
-                <p>{classMode ? "Your streams this term." : "Open one stream at a time."}</p>
+                <p>
+                  {classMode
+                    ? "Your streams this term."
+                    : canBatch
+                      ? "Check classes to generate together, or click one to open it."
+                      : "Open one stream at a time."}
+                </p>
               </div>
             </div>
           </header>
           <ul className="rpt-directory">
-            {sections.map((section) => (
-              <li key={section.section}>
-                <h2 className="rpt-section"><span>{section.label}</span><em>{nf(section.rows.length)}</em></h2>
-                <ul>
-                  {section.rows.map((group) => {
-                    const mine = group.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is ReportCardRow => Boolean(card));
-                    const live = mine.filter((card) => card.status === "published").length;
-                    const open = mine.filter((card) => card.status === "draft").length;
-                    const on = selected?.code === group.code && selected.stream === group.stream && selected.campus === group.campus;
-                    return (
-                      <li key={`${group.campus}-${group.code}-${group.stream}`}>
+            {sections.map((section) => {
+              const checkedInSection = canBatch
+                ? section.rows.filter((row) => checkedKeys.has(groupKey(row))).length
+                : 0;
+              const allSectionChecked = canBatch && section.rows.length > 0 && checkedInSection === section.rows.length;
+              const someSectionChecked = canBatch && checkedInSection > 0 && checkedInSection < section.rows.length;
+              return (
+                <li key={section.section}>
+                  <h2 className="rpt-section">
+                    {canBatch ? (
+                      <label className="rpt-section-check">
+                        <input
+                          type="checkbox"
+                          checked={allSectionChecked}
+                          ref={(node) => {
+                            if (node) node.indeterminate = someSectionChecked;
+                          }}
+                          onChange={(event) => toggleSectionChecked(section.rows, event.target.checked)}
+                          aria-label={`Select all ${section.label} classes`}
+                        />
+                        <span>{section.label}</span>
+                      </label>
+                    ) : (
+                      <span>{section.label}</span>
+                    )}
+                    <em>{nf(section.rows.length)}</em>
+                  </h2>
+                  <ul>
+                    {section.rows.map((group) => {
+                      const mine = group.pupils.map((pupil) => byPupil.get(pupil.id)).filter((card): card is ReportCardRow => Boolean(card));
+                      const live = mine.filter((card) => card.status === "published").length;
+                      const open = mine.filter((card) => card.status === "draft").length;
+                      const on = selected?.code === group.code && selected.stream === group.stream && selected.campus === group.campus;
+                      const key = groupKey(group);
+                      const checked = canBatch && checkedKeys.has(key);
+                      const link = (
                         <a
                           className={`${on ? "is-on" : ""}${open ? " is-draft" : ""}`}
                           href={classHref(basePath, group.code, group.stream, group.campus, selectedCampus)}
@@ -329,13 +407,55 @@ export function ReportsDesk({
                           </span>
                           {open ? <span className="rpt-drafts" aria-label={`${open} drafts`}>{nf(open)}</span> : <span className="rpt-mini">{nf(live)}/{nf(group.pupils.length)}</span>}
                         </a>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
-            ))}
+                      );
+                      return (
+                        <li key={`${group.campus}-${group.code}-${group.stream}`}>
+                          {canBatch ? (
+                            <div className={`rpt-dir-row${checked ? " is-checked" : ""}`}>
+                              <label className="rpt-dir-check">
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleChecked(key)}
+                                  aria-label={`Select ${classLabel(group.code, group.stream, group.campus)}`}
+                                />
+                              </label>
+                              {link}
+                            </div>
+                          ) : (
+                            link
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </li>
+              );
+            })}
           </ul>
+          {canBatch && checkedGroups.length > 0 ? (
+            <div className="rpt-batch-bar" role="region" aria-label="Selected classes actions">
+              <span>
+                <strong>{nf(checkedGroups.length)}</strong> {checkedGroups.length === 1 ? "class" : "classes"} selected
+              </span>
+              <div className="rpt-batch-bar-actions">
+                <button
+                  type="button"
+                  className="rpt-btn is-ghost is-sm"
+                  onClick={() => setCheckedKeys(new Set())}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  className="rpt-btn is-sm"
+                  onClick={() => setBatchOpen(true)}
+                >
+                  Generate ({nf(checkedGroups.length)})
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="rpt-card" aria-label={selected ? classLabel(selected.code, selected.stream, selected.campus) : "Choose a class"}>
@@ -421,6 +541,18 @@ export function ReportsDesk({
           )}
         </section>
       </div>
+      {canBatch && selectedCampus && termId ? (
+        <BatchGenerateReportsDialog
+          open={batchOpen}
+          onClose={() => setBatchOpen(false)}
+          onComplete={() => router.refresh()}
+          termId={termId}
+          campus={selectedCampus}
+          groups={checkedGroups}
+          sittingsByClass={sittingsByClass}
+          defaultTitle={defaultBatchTitle}
+        />
+      ) : null}
     </div>
   );
 }

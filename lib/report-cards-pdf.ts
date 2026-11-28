@@ -1078,7 +1078,7 @@ export async function buildReportCardsPdf(
     y -= gap;
     const closingTop = y;
     const feesW = contentW - qrSize - qrGap;
-    page!.drawText("HEADTEACHER'S COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
+    page!.drawText(input.nursery ? "HEADTEACHER'S COMMENT" : "PRINCIPAL'S COMMENT", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
     page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: M + feesW, y: y - 11 }, thickness: 0.5, color: theme.accent });
     const qrPng = await QRCode.toBuffer(reportOnlineUrl(card.id), {
       type: "png",

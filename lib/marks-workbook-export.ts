@@ -8,14 +8,17 @@ import {
   kampalaToday,
   kindLabel,
   mapBand,
+  mapSubject,
   markbookClosed,
   num,
   streamOf,
+  subjectFits,
 } from "@/lib/academics";
 import { ensureOtherMarkbooks } from "@/lib/academics-other-papers";
 import { loadRoll } from "@/lib/academics-roll";
 import { operationalCampus } from "@/lib/campuses";
 import { contentDisposition } from "@/lib/download-headers";
+import { loadActiveClubsByStudent, normalizeClubsList } from "@/lib/report-clubs";
 import {
   buildMarksWorkbook,
   marksWorkbookFilename,
@@ -39,6 +42,7 @@ import {
 } from "@/lib/nursery-dsba-workbook";
 import { isCocurricularSubject } from "@/lib/subject-kind";
 import { className, fetchAll, isUuid } from "@/lib/students";
+import { primaryActivityCommentMapForTerm } from "@/lib/primary-report-comments";
 
 type PaperRow = {
   id: string;
@@ -413,15 +417,17 @@ export async function prepareMarksWorkbookResponse(
 
     const subjectIds = [...new Set(open.map((paper) => paper.subject_id))];
     const classCodes = [...new Set(open.map((paper) => paper.class_code))];
-    const [termQuery, subjectQuery, roll, bandsQuery] = await Promise.all([
+    const [termQuery, subjectQuery, catalogueQuery, roll, bandsQuery] = await Promise.all([
       auth.supabase.from("fee_terms").select("label").eq("id", termId).maybeSingle(),
       auth.supabase.from("subjects").select("id, name, sort_order, kind, default_skills").in("id", subjectIds),
+      auth.supabase.from("subjects").select("id, code, name, section, kind, sort_order, applies_from, applies_to, active, default_skills").eq("active", true),
       loadRoll(auth.supabase, auth.userId, classCodes),
       open.some((paper) => classSection(paper.class_code) === "nursery")
         ? auth.supabase.from("grade_bands").select("*").eq("section", "nursery").order("sort_order")
         : Promise.resolve({ data: [], error: null }),
     ]);
     if (subjectQuery.error) return new Response("The subjects could not be loaded.", { status: 500 });
+    if (catalogueQuery.error) return new Response("The subjects could not be loaded.", { status: 500 });
     if (bandsQuery.error) return new Response("The progress bands could not be loaded.", { status: 500 });
 
     const subjectName = new Map((subjectQuery.data || []).map((subject) => [String(subject.id), String(subject.name)]));
@@ -445,20 +451,70 @@ export async function prepareMarksWorkbookResponse(
         return [String(subject.id), { kind: String(subject.kind || "core"), skills }] as const;
       }),
     );
+    const catalogue = ((catalogueQuery.data || []) as Record<string, unknown>[]).map(mapSubject);
+    const commentSlotsByClass = new Map<string, Map<string, number>>();
+    const commentSlotFor = (classCode: string, subjectId: string) => {
+      let slots = commentSlotsByClass.get(classCode);
+      if (!slots) {
+        const ranked = catalogue
+          .filter((subject) => subject.active && subjectFits(subject, classCode) && isCocurricularSubject(subject))
+          .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+        slots = new Map(ranked.map((subject, index) => [subject.id, index + 1]));
+        commentSlotsByClass.set(classCode, slots);
+      }
+      return slots.get(subjectId) ?? null;
+    };
     const onRoll = new Set(roll.map((pupil) => `${pupil.class_code}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`));
     const usable = open.filter((paper) => onRoll.has(`${paper.class_code}|${streamOf(paper.stream)}|${operationalCampus(paper.campus)}`));
     if (!usable.length) return new Response("None of the chosen classes have pupils on roll.", { status: 400 });
     const pupilIds = [...new Set(roll.map((pupil) => pupil.id))];
     const conductByStudent = new Map<string, string | null>();
+    const clubsByStudent = new Map<string, string | null>();
     for (let index = 0; index < pupilIds.length; index += 200) {
-      const { data, error } = await auth.supabase
+      const slice = pupilIds.slice(index, index + 200);
+      let { data, error } = await auth.supabase
         .from("report_cards")
-        .select("student_id, conduct")
+        .select("student_id, conduct, clubs")
         .eq("term_id", termId)
-        .in("student_id", pupilIds.slice(index, index + 200));
+        .in("student_id", slice);
+      if (error && /clubs|42703|schema cache/i.test(error.message)) {
+        const fallback = await auth.supabase
+          .from("report_cards")
+          .select("student_id, conduct")
+          .eq("term_id", termId)
+          .in("student_id", slice);
+        data = (fallback.data || []).map((row) => ({ ...row, clubs: null }));
+        error = fallback.error;
+      }
       if (error) return new Response("The term behavior ratings could not be loaded.", { status: 500 });
-      for (const card of data || []) conductByStudent.set(String(card.student_id), card.conduct as string | null);
+      for (const card of data || []) {
+        const sid = String(card.student_id);
+        conductByStudent.set(sid, card.conduct as string | null);
+        clubsByStudent.set(sid, normalizeClubsList(card.clubs as string | null));
+      }
     }
+    const missingClubs = pupilIds.filter((id) => !clubsByStudent.get(id));
+    if (missingClubs.length) {
+      const activeClubs = await loadActiveClubsByStudent(auth.supabase, missingClubs);
+      for (const [sid, list] of activeClubs) {
+        if (list.length) clubsByStudent.set(sid, list.join(", "));
+      }
+    }
+    let activityCommentMap = new Map<string, string>();
+    try {
+      activityCommentMap = await primaryActivityCommentMapForTerm(auth.supabase, termId, pupilIds);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!/primary_activity_comments|schema cache|does not exist/i.test(message)) {
+        return new Response("The Other subject comments could not be loaded.", { status: 500 });
+      }
+    }
+    const activityComments = [...activityCommentMap.entries()].flatMap(([key, comment]) => {
+      const split = key.lastIndexOf("|");
+      const slot = Number(key.slice(split + 1));
+      if (split < 0 || !Number.isInteger(slot) || slot < 1 || !comment.trim()) return [];
+      return [{ studentId: key.slice(0, split), slot, comment: comment.trim() }];
+    });
 
     const scores: { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: unknown }[] = [];
     for (let index = 0; index < usable.length; index += 80) {
@@ -540,6 +596,8 @@ export async function prepareMarksWorkbookResponse(
         sort: subjectOrder.get(paper.subject_id) ?? 0,
         skills,
         skillsFreeText: other && skills.length === 0,
+        subjectId: paper.subject_id,
+        commentSlot: classSection(paper.class_code) === "primary" ? commentSlotFor(paper.class_code, paper.subject_id) : null,
       };
     });
     const bands: MarksBookBand[] = ((bandsQuery.data || []) as Record<string, unknown>[]).map(mapBand).map((band) => ({
@@ -567,9 +625,11 @@ export async function prepareMarksWorkbookResponse(
         stream: streamOf(pupil.stream),
         campus: operationalCampus(pupil.campus),
         behavior: behaviorRatingForConduct(conductByStudent.get(pupil.id)),
+        clubs: clubsByStudent.get(pupil.id) || null,
       })),
       scores: marks,
       bands,
+      activityComments,
     });
     const labels = [...new Set(bookPapers.map((paper) => paper.label))];
     return workbookResponse(bytes, marksWorkbookFilename(papers[0].name, labels));

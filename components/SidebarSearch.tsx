@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect, useId, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
 import type { SidebarHit } from "@/lib/sidebar-search";
 
 function placeMatches(place: SidebarHit, query: string) {
@@ -40,7 +40,7 @@ export function SidebarSearch({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const listId = useId();
+  const listId = `${id}-list`;
   const [query, setQuery] = useState("");
   const [hits, setHits] = useState<SidebarHit[]>([]);
   const [open, setOpen] = useState(false);

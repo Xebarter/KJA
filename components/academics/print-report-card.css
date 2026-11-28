@@ -1,51 +1,669 @@
-.rpt-print-preview {
+/* ——— Report Card Print Studio ——— */
+
+.rpt-studio {
+  --studio-bg: #111827;
+  --studio-bar: #0c192c;
+  --studio-bar-edge: rgba(255, 255, 255, .1);
+  --studio-surface: rgba(255, 255, 255, .08);
+  --studio-surface-hover: rgba(255, 255, 255, .15);
+  --studio-ink: #f8fafc;
+  --studio-muted: #94a3b8;
+  --studio-navy: #17386a;
+  --studio-gold: #f2be35;
   position: fixed;
   inset: 0;
   z-index: 20000;
   display: flex;
   flex-direction: column;
-  background: #525659;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  background:
+    radial-gradient(ellipse 80% 55% at 50% 0%, rgba(23, 56, 106, .36), transparent 72%),
+    var(--studio-bg);
+  color: var(--studio-ink);
+  font-family: Nunito, Roboto, "Segoe UI", system-ui, sans-serif;
+  animation: rpt-studio-in .18s ease-out;
 }
-.rpt-print-preview-bar {
+
+/* Keep the Print Studio cleanly below the Electron custom titlebar & Windows caption overlay. */
+html.kja-is-desktop .rpt-studio {
+  top: var(--kja-desktop-titlebar-height, 48px);
+}
+
+@supports (left: env(titlebar-area-x)) {
+  html.kja-is-desktop .rpt-studio {
+    top: env(titlebar-area-height, var(--kja-desktop-titlebar-height, 48px));
+  }
+}
+
+@keyframes rpt-studio-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Top toolbar — flex layout so actions & Back/Close never clip off-screen */
+.rpt-studio-bar {
+  position: relative;
+  z-index: 2;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: .75rem;
-  padding: .7rem 1rem;
-  background: #fff;
-  border-bottom: 1px solid #e6e1d6;
+  gap: .85rem;
+  min-height: 58px;
+  padding: .55rem 1rem;
+  background: linear-gradient(180deg, #10233e 0%, var(--studio-bar) 100%);
+  border-bottom: 1px solid var(--studio-bar-edge);
+  box-shadow: 0 1px 0 rgba(242, 190, 53, .22), 0 8px 24px rgba(0, 0, 0, .28);
+  box-sizing: border-box;
+  width: 100%;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
-.rpt-print-preview-bar p {
-  margin: 0;
-  color: #3d3428;
-  font-size: .92rem;
-  font-weight: 650;
+
+.rpt-studio-bar button {
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
 }
-.rpt-print-preview-actions {
+
+/* Left cluster: Back button + document identity */
+.rpt-studio-left {
   display: flex;
-  gap: .45rem;
+  align-items: center;
+  gap: .65rem;
+  min-width: 0;
+  flex: 1 1 auto;
 }
-.rpt-print-preview-actions button {
+
+.rpt-studio-back {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: .38rem;
   height: 34px;
-  padding: 0 .85rem;
+  padding: 0 .8rem 0 .62rem;
   border-radius: 8px;
-  border: 1px solid #d9d1c3;
-  background: #fff;
-  color: #3d3428;
+  border: 1px solid rgba(255, 255, 255, .18);
+  background: var(--studio-surface);
+  color: #f1f5f9;
   font: inherit;
-  font-size: .88rem;
-  font-weight: 650;
+  font-size: .82rem;
+  font-weight: 700;
+  white-space: nowrap;
   cursor: pointer;
+  transition: background-color .14s ease, border-color .14s ease;
 }
-.rpt-print-preview-actions button.is-primary {
-  border-color: #6b1e2a;
-  background: #6b1e2a;
+
+.rpt-studio-back:hover {
+  background: var(--studio-surface-hover);
+  border-color: rgba(255, 255, 255, .32);
+}
+
+.rpt-studio-meta {
+  min-width: 0;
+}
+
+.rpt-studio-meta h2 {
+  margin: 0;
+  color: var(--studio-ink);
+  font-size: .92rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rpt-studio-meta p {
+  margin: .12rem 0 0;
+  color: var(--studio-muted);
+  font-size: .74rem;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Segmented zoom controls (center) */
+.rpt-studio-zoom {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid rgba(255, 255, 255, .1);
+}
+
+.rpt-studio-zoom button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 .45rem;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: #e2e8f0;
+  font: inherit;
+  font-size: .74rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color .14s ease, color .14s ease;
+}
+
+.rpt-studio-zoom button:hover:not(:disabled) {
+  background: var(--studio-surface-hover);
   color: #fff;
 }
-.rpt-print-preview iframe {
+
+.rpt-studio-zoom button:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+.rpt-studio-zoom-readout {
+  min-width: 44px;
+  text-align: center;
+  color: #f1f5f9;
+  font-size: .76rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
+
+.rpt-studio-zoom-sep {
+  width: 1px;
+  height: 16px;
+  margin: 0 3px;
+  background: rgba(255, 255, 255, .14);
+}
+
+.rpt-studio-zoom button.rpt-studio-fit {
+  padding: 0 .6rem;
+  letter-spacing: .03em;
+}
+
+.rpt-studio-zoom button.rpt-studio-fit.is-active {
+  background: rgba(242, 190, 53, .18);
+  color: var(--studio-gold);
+}
+
+/* Action cluster (right) */
+.rpt-studio-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .5rem;
+}
+
+.rpt-studio-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: .45rem;
+  height: 36px;
+  padding: 0 .9rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 700;
+  letter-spacing: .01em;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color .15s ease, border-color .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+
+.rpt-studio-btn:disabled {
+  opacity: .55;
+  cursor: default;
+}
+
+.rpt-studio-btn.is-secondary {
+  border-color: rgba(255, 255, 255, .2);
+  background: var(--studio-surface);
+  color: #f1f5f9;
+}
+
+.rpt-studio-btn.is-secondary:hover:not(:disabled) {
+  border-color: rgba(255, 255, 255, .34);
+  background: var(--studio-surface-hover);
+}
+
+.rpt-studio-btn.is-secondary.is-saved {
+  border-color: rgba(52, 211, 153, .45);
+  background: rgba(16, 185, 129, .18);
+  color: #a7f3d0;
+}
+
+.rpt-studio-btn.is-primary {
+  border-color: rgba(242, 190, 53, .55);
+  background: linear-gradient(180deg, #f5c84c 0%, #dfa518 100%);
+  color: #0e1d35;
+  box-shadow: 0 2px 10px rgba(242, 190, 53, .24);
+}
+
+.rpt-studio-btn.is-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #fad366 0%, #e7b127 100%);
+  box-shadow: 0 4px 16px rgba(242, 190, 53, .34);
+}
+
+.rpt-studio-btn.is-primary:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.rpt-studio-kbd {
+  display: inline-block;
+  margin-left: .12rem;
+  padding: .08rem .35rem;
+  border-radius: 4px;
+  background: rgba(14, 29, 53, .16);
+  color: #0e1d35;
+  font-family: inherit;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .02em;
+}
+
+.rpt-studio-divider {
+  flex: 0 0 auto;
+  width: 1px;
+  height: 22px;
+  background: rgba(255, 255, 255, .16);
+}
+
+.rpt-studio-close {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  background: transparent;
+  color: #cbd5e1;
+  cursor: pointer;
+  transition: background-color .14s ease, color .14s ease, border-color .14s ease;
+}
+
+.rpt-studio-close:hover {
+  background: rgba(239, 68, 68, .2);
+  border-color: rgba(248, 113, 113, .45);
+  color: #fecaca;
+}
+
+.rpt-studio-bar button:focus-visible {
+  outline: 2px solid var(--studio-gold);
+  outline-offset: 2px;
+}
+
+/* Inline notice banner */
+.rpt-studio-notice {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .65rem;
+  padding: .55rem 1rem;
+  font-size: .82rem;
+  font-weight: 600;
+}
+
+.rpt-studio-notice.is-error {
+  background: #451a1d;
+  border-bottom: 1px solid rgba(248, 113, 113, .35);
+  color: #fecaca;
+}
+
+.rpt-studio-notice.is-info {
+  background: #132a4a;
+  border-bottom: 1px solid rgba(242, 190, 53, .35);
+  color: #e2e8f0;
+}
+
+.rpt-studio-notice button {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: .25rem;
+  border: 0;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, .12);
+  color: inherit;
+  cursor: pointer;
+}
+
+.rpt-studio-notice button:hover {
+  background: rgba(255, 255, 255, .22);
+}
+
+/* Paper stage */
+.rpt-studio-stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.rpt-studio-frame {
   flex: 1 1 auto;
   width: 100%;
+  height: 100%;
   min-height: 0;
   border: 0;
-  background: #525659;
+  background: transparent;
+}
+
+.rpt-studio-frame.is-pdf {
+  background: #2b313a;
+}
+
+/* A4 loading skeleton */
+.rpt-studio-skeleton-wrap {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  padding: 1.75rem 1.25rem;
+  overflow: auto;
+}
+
+.rpt-studio-sheet-skeleton {
+  width: min(100%, 440px);
+  aspect-ratio: 210 / 297;
+  max-height: calc(100vh - 190px);
+  padding: 20px 22px;
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .5), 0 4px 16px rgba(0, 0, 0, .28);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow: hidden;
+}
+
+.rpt-skel-banner {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 38px;
+  align-items: center;
+  gap: 12px;
+}
+
+.rpt-skel-circle,
+.rpt-skel-rect,
+.rpt-skel-line,
+.rpt-skel-tiles span,
+.rpt-skel-thead,
+.rpt-skel-row {
+  display: block;
+  background: linear-gradient(90deg, #e9eef5 25%, #f4f7fb 50%, #e9eef5 75%);
+  background-size: 200% 100%;
+  animation: rpt-skel-shimmer 1.35s ease-in-out infinite;
+}
+
+.rpt-skel-circle {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+}
+
+.rpt-skel-rect {
+  width: 38px;
+  height: 46px;
+  border-radius: 4px;
+}
+
+.rpt-skel-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+}
+
+.rpt-skel-line {
+  height: 10px;
+  border-radius: 4px;
+}
+
+.rpt-skel-line.is-title {
+  width: 72%;
+  height: 14px;
+}
+
+.rpt-skel-line.is-sub {
+  width: 50%;
+  height: 8px;
+}
+
+.rpt-skel-rule {
+  height: 3px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #17386a, #f2be35);
+  opacity: .5;
+}
+
+.rpt-skel-identity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.rpt-skel-line.is-name {
+  width: 42%;
+  height: 14px;
+}
+
+.rpt-skel-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 44px);
+  gap: 6px;
+}
+
+.rpt-skel-tiles span {
+  height: 28px;
+  border-radius: 5px;
+}
+
+.rpt-skel-table {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.rpt-skel-thead {
+  height: 28px;
+  border-radius: 4px;
+  background: linear-gradient(90deg, #17386a 25%, #234d8a 50%, #17386a 75%);
+  background-size: 200% 100%;
+  opacity: .8;
+}
+
+.rpt-skel-row {
+  height: 18px;
+  border-radius: 3px;
+}
+
+@keyframes rpt-skel-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+.rpt-studio-loading-label {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  margin: 0;
+  padding: .42rem .95rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, .8);
+  border: 1px solid rgba(255, 255, 255, .12);
+  color: #e2e8f0;
+  font-size: .8rem;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.rpt-studio-spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(242, 190, 53, .28);
+  border-top-color: var(--studio-gold);
+  border-radius: 50%;
+  animation: rpt-studio-spin .75s linear infinite;
+}
+
+.rpt-studio-spinner.is-inline {
+  width: 13px;
+  height: 13px;
+  border-color: rgba(255, 255, 255, .28);
+  border-top-color: #fff;
+}
+
+@keyframes rpt-studio-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Error card */
+.rpt-studio-error {
+  margin: auto;
+  width: min(92%, 420px);
+  padding: 1.75rem 1.5rem;
+  border-radius: 14px;
+  background: #162235;
+  border: 1px solid rgba(255, 255, 255, .12);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, .45);
+  text-align: center;
+}
+
+.rpt-studio-error h3 {
+  margin: 0 0 .4rem;
+  color: #f8fafc;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.rpt-studio-error p {
+  margin: 0;
+  color: var(--studio-muted);
+  font-size: .84rem;
+  line-height: 1.45;
+}
+
+.rpt-studio-error-actions {
+  display: flex;
+  justify-content: center;
+  gap: .55rem;
+  margin-top: 1.25rem;
+}
+
+/* Bottom status bar */
+.rpt-studio-foot {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: .42rem 1.15rem;
+  background: #0b1525;
+  border-top: 1px solid rgba(255, 255, 255, .08);
+  color: var(--studio-muted);
+  font-size: .72rem;
+  font-weight: 600;
+}
+
+.rpt-studio-foot strong {
+  color: #cbd5e1;
+  font-weight: 700;
+}
+
+.rpt-studio-hints {
+  display: inline-flex;
+  align-items: center;
+  gap: .95rem;
+}
+
+.rpt-studio-hints kbd {
+  display: inline-block;
+  margin-right: .22rem;
+  padding: .05rem .32rem;
+  border-radius: 4px;
+  border: 1px solid rgba(255, 255, 255, .14);
+  background: rgba(255, 255, 255, .06);
+  color: #e2e8f0;
+  font-family: inherit;
+  font-size: .66rem;
+  font-weight: 700;
+}
+
+/* Responsive */
+@media (max-width: 960px) {
+  .rpt-studio-zoom {
+    display: none;
+  }
+  .rpt-studio-kbd {
+    display: none;
+  }
+  .rpt-studio-foot {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .rpt-studio-bar {
+    padding: .5rem .7rem;
+    gap: .5rem;
+  }
+  .rpt-studio-divider,
+  .rpt-studio-meta p,
+  .rpt-studio-close {
+    display: none;
+  }
+  .rpt-studio-btn.is-secondary span {
+    display: none;
+  }
+  .rpt-studio-btn.is-secondary {
+    width: 36px;
+    padding: 0;
+  }
+  .rpt-studio-btn.is-primary {
+    padding: 0 .8rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rpt-studio {
+    animation: none;
+  }
+  .rpt-skel-circle,
+  .rpt-skel-rect,
+  .rpt-skel-line,
+  .rpt-skel-tiles span,
+  .rpt-skel-thead,
+  .rpt-skel-row,
+  .rpt-studio-spinner {
+    animation: none;
+  }
 }

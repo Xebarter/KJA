@@ -206,7 +206,7 @@ export async function saveTeacherPrimaryActivityComment(formData: FormData): Pro
   const classCode = String(formData.get("class_code") || "").trim();
   const stream = streamOf(String(formData.get("stream") || ""));
   const campus = String(formData.get("campus") || "").trim();
-  if (!isUuid(studentId) || !isUuid(termId) || slot < 1 || slot > 4) {
+  if (!isUuid(studentId) || !isUuid(termId) || !Number.isInteger(slot) || slot < 1) {
     return { error: "This learner or activity slot could not be matched." };
   }
   if (!classCode || classSection(classCode) !== "primary") {

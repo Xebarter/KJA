@@ -160,7 +160,6 @@ const font = (size: number, color: string, bold = false, italic = false): Font =
   italic,
   color: { argb: color },
 });
-const linkFont = (): Font => ({ name: FACE, size: 11, bold: true, underline: true, color: { argb: SKY } });
 
 function columnLetter(index: number) {
   let n = index;
@@ -242,10 +241,6 @@ function uniqueSheetName(label: string, used: Set<string>) {
   return name;
 }
 
-function quoteSheet(name: string) {
-  return `'${name.replace(/'/g, "''")}'`;
-}
-
 export function nurseryDsbaWorkbookFilename(name: string, labels: string[]) {
   const scope = labels.length === 1 ? labels[0] : `${labels.length} classes`;
   const raw = `KJA nursery skills - ${name} - ${scope}`
@@ -286,192 +281,6 @@ function savedCode(input: NurseryDsbaBookInput, assessmentId: string, studentId:
     (rating) => rating.assessmentId === assessmentId && rating.studentId === studentId && rating.skillId === skillId,
   );
   return row?.code || null;
-}
-
-function writeCover(sheet: ExcelJS.Worksheet, input: NurseryDsbaBookInput, built: BuiltSheet[]) {
-  sheet.properties.tabColor = { argb: GOLD };
-  sheet.properties.showGridLines = false;
-  sheet.pageSetup = {
-    paperSize: 9,
-    orientation: "landscape",
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 1,
-    horizontalCentered: true,
-    margins: { left: 0.55, right: 0.55, top: 0.55, bottom: 0.5, header: 0.25, footer: 0.25 },
-  };
-  sheet.headerFooter = { oddFooter: `&L&"${FACE}"${headerEscape(SCHOOL)}&C&"${FACE}"Confidential&R&"${FACE}"Page &P of &N` };
-  sheet.views = [{ state: "normal", showGridLines: false, zoomScale: 115, activeCell: "B4" }];
-  [2.4, 8, 34, 12, 12, 16, 3, 18, 28].forEach((width, index) => {
-    sheet.getColumn(index + 1).width = width;
-  });
-
-  const last = 6;
-  sheet.getRow(1).height = 6;
-  merge(sheet, 1, 1, 9, "", { fill: solid(GOLD) });
-  sheet.getRow(2).height = 4;
-  merge(sheet, 2, 1, 9, "", { fill: solid(GOLD_SOFT) });
-
-  sheet.getRow(3).height = 18;
-  paint(sheet.getCell(3, 2), { font: font(10, GOLD, true), alignment: { vertical: "middle" } });
-  sheet.getCell(3, 2).value = SCHOOL.toUpperCase();
-  merge(sheet, 3, 5, last, "Nursery · Developmental skills", {
-    font: font(10, MUTED, false, true),
-    alignment: { vertical: "middle", horizontal: "right" },
-  });
-
-  sheet.getRow(4).height = 34;
-  merge(sheet, 4, 2, last, "Skills workbook", {
-    font: font(24, INK, true),
-    alignment: { vertical: "middle" },
-    border: { bottom: side("medium", GOLD) },
-  });
-
-  sheet.getRow(5).height = 22;
-  merge(sheet, 5, 2, last, input.name, {
-    font: font(15, INK, true),
-    alignment: { vertical: "middle" },
-  });
-
-  sheet.getRow(6).height = 18;
-  merge(sheet, 6, 2, last, `${input.term}   ·   ${input.kindLabel}   ·   ${input.heldOn || "Date not set"}`, {
-    font: font(11, MUTED),
-    alignment: { vertical: "middle", wrapText: true },
-  });
-
-  const steps = [
-    "Open the class tab for your stream. Every skill for that class is on one sheet.",
-    "Click a skill cell: pick a progress code from the list, or type a whole number where the skill asks for one.",
-    "Leave a cell blank to keep a saved value. Type CLEAR to remove a saved value.",
-    "Do not insert or delete rows or columns. Upload this file on Assessments when finished.",
-  ];
-
-  sheet.getRow(8).height = 20;
-  merge(sheet, 8, 2, last, "How to complete it", {
-    font: font(12, INK, true),
-    alignment: { vertical: "middle" },
-  });
-  steps.forEach((step, index) => {
-    const row = 9 + index;
-    sheet.getRow(row).height = 20;
-    paint(sheet.getCell(row, 2), {
-      font: font(11, GOLD, true),
-      fill: solid(GOLD_SOFT),
-      alignment: { vertical: "middle", horizontal: "center" },
-      border: hairline(),
-    });
-    sheet.getCell(row, 2).value = String(index + 1);
-    merge(sheet, row, 3, last, step, {
-      font: font(11, INK),
-      fill: solid(PAPER),
-      alignment: { vertical: "middle", wrapText: true },
-      border: hairline(),
-    });
-  });
-
-  // Progress codes reference (easy scan, two columns)
-  const codeHead = 9 + steps.length + 1;
-  sheet.getRow(codeHead).height = 20;
-  merge(sheet, codeHead, 2, last, "Progress codes", {
-    font: font(12, INK, true),
-    alignment: { vertical: "middle" },
-  });
-  const codeStart = codeHead + 1;
-  sheet.getRow(codeStart).height = 20;
-  [
-    { col: 2, text: "Code" },
-    { col: 3, text: "Meaning" },
-    { col: 5, text: "Code" },
-    { col: 6, text: "Meaning" },
-  ].forEach((header) => {
-    paint(sheet.getCell(codeStart, header.col), {
-      font: font(9, WHITE, true),
-      fill: solid(INK),
-      alignment: { vertical: "middle", horizontal: header.text === "Code" ? "center" : "left" },
-      border: hairline(),
-    });
-    sheet.getCell(codeStart, header.col).value = header.text;
-  });
-  paint(sheet.getCell(codeStart, 4), { fill: solid(PAPER) });
-
-  const mid = Math.ceil(input.progressCodes.length / 2);
-  const leftCodes = input.progressCodes.slice(0, mid);
-  const rightCodes = input.progressCodes.slice(mid);
-  const codeRows = Math.max(leftCodes.length, rightCodes.length, 1);
-  for (let index = 0; index < codeRows; index += 1) {
-    const row = codeStart + 1 + index;
-    sheet.getRow(row).height = 18;
-    const fill = index % 2 ? solid(ZEBRA) : solid(WHITE);
-    const left = leftCodes[index];
-    const right = rightCodes[index];
-    [
-      { col: 2, value: left?.code || "", bold: true, center: true },
-      { col: 3, value: left?.label || "", bold: false, center: false },
-      { col: 5, value: right?.code || "", bold: true, center: true },
-      { col: 6, value: right?.label || "", bold: false, center: false },
-    ].forEach((item) => {
-      const cell = sheet.getCell(row, item.col);
-      cell.value = item.value;
-      paint(cell, {
-        font: font(10, item.bold ? GREEN : INK, item.bold),
-        fill,
-        alignment: { vertical: "middle", horizontal: item.center ? "center" : "left" },
-        border: hairline(),
-      });
-    });
-    paint(sheet.getCell(row, 4), { fill: solid(PAPER) });
-  }
-
-  const classHead = codeStart + codeRows + 2;
-  sheet.getRow(classHead).height = 20;
-  merge(sheet, classHead, 2, last, "Classes in this workbook", {
-    font: font(12, INK, true),
-    alignment: { vertical: "middle" },
-  });
-  const columns = ["Class", "Skills", "Pupils", "Open sheet"];
-  const headerRow = classHead + 1;
-  sheet.getRow(headerRow).height = 22;
-  columns.forEach((label, index) => {
-    paint(sheet.getCell(headerRow, index + 2), {
-      font: font(9, WHITE, true),
-      fill: solid(INK),
-      alignment: { vertical: "middle", horizontal: index === 0 ? "left" : "center" },
-      border: hairline(),
-    });
-    sheet.getCell(headerRow, index + 2).value = label;
-  });
-
-  built.forEach((entry, index) => {
-    const row = headerRow + 1 + index;
-    sheet.getRow(row).height = 22;
-    const fill = index % 2 ? solid(ZEBRA) : solid(WHITE);
-    [entry.label, entry.skillCount, entry.pupils].forEach((value, cellIndex) => {
-      const cell = sheet.getCell(row, cellIndex + 2);
-      cell.value = value;
-      paint(cell, {
-        font: cellIndex === 0 ? font(11, INK, true) : font(11, INK),
-        fill,
-        alignment: { vertical: "middle", horizontal: cellIndex === 0 ? "left" : "center" },
-        border: hairline(),
-      });
-    });
-    const link = sheet.getCell(row, 5);
-    link.value = { formula: `HYPERLINK("#${quoteSheet(entry.sheetName)}!B4","Open")`, result: "Open" };
-    paint(link, {
-      font: linkFont(),
-      fill,
-      alignment: { vertical: "middle", horizontal: "center" },
-      border: hairline(),
-    });
-  });
-
-  const close = headerRow + built.length + 2;
-  sheet.getRow(close).height = 28;
-  merge(sheet, close, 2, last, `Prepared ${input.preparedOn}  ·  ${SCHOOL}  ·  Confidential`, {
-    font: font(9, MUTED, false, true),
-    alignment: { vertical: "middle", wrapText: true },
-  });
-  sheet.pageSetup.printArea = `A1:I${close}`;
 }
 
 function domainToneIndex(skills: NurseryDsbaBookSkill[]) {
@@ -538,13 +347,15 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: NurseryDsbaBookInput
     { font: font(10, MUTED), alignment: { vertical: "middle" } },
   );
 
-  sheet.getRow(6).height = 30;
+  const codeKey = input.progressCodes.map((row) => `${row.code} = ${row.label}`).join(" · ");
+  const guide = `Progress-code skills use the dropdown. Number skills take a whole number (for example 50). Blank keeps a saved value. CLEAR removes it.${codeKey ? ` Codes: ${codeKey}.` : ""}`;
+  sheet.getRow(6).height = Math.max(30, 16 + Math.ceil(guide.length / 110) * 14);
   merge(
     sheet,
     6,
     2,
     lastCol,
-    "Progress-code skills use the dropdown. Number skills take a whole number (for example 50). Blank keeps a saved value. CLEAR removes it. See Cover for the code key.",
+    guide,
     {
       font: font(10, INK),
       fill: solid(GOLD_SOFT),
@@ -856,8 +667,7 @@ export async function buildNurseryDsbaWorkbook(input: NurseryDsbaBookInput) {
   workbook.modified = new Date();
   workbook.calcProperties.fullCalcOnLoad = true;
 
-  const cover = workbook.addWorksheet("Cover", { properties: { tabColor: { argb: GOLD }, showGridLines: false } });
-  const used = new Set<string>(["cover", "_kja"]);
+  const used = new Set<string>(["_kja"]);
   const sheets: ExcelJS.Worksheet[] = [];
   const built: BuiltSheet[] = [];
   for (const paper of groups) {
@@ -865,9 +675,7 @@ export async function buildNurseryDsbaWorkbook(input: NurseryDsbaBookInput) {
     sheets.push(written.sheet);
     built.push(written.built);
   }
-  writeCover(cover, input, built);
   writeKeys(workbook, input, built);
-  await cover.protect("", { ...PROTECT });
   for (const sheet of sheets) await sheet.protect("", PROTECT);
 
   const raw = await workbook.xlsx.writeBuffer();

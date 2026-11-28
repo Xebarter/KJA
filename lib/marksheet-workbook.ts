@@ -53,6 +53,7 @@ export type MarksheetWorkbookInput = {
     average: number | null;
     position: number | null;
     behavior?: string | null;
+    clubs?: string | null;
   }[];
   classAverage: number | null;
   logo?: Uint8Array | null;
@@ -177,7 +178,8 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   const averageCol = firstSubject + input.subjects.length;
   const positionCol = averageCol + 1;
   const behaviorCol = positionCol + 1;
-  const lastCol = behaviorCol;
+  const clubsCol = behaviorCol + 1;
+  const lastCol = clubsCol;
   const pupilCount = input.pupils.length;
   const firstData = headerRow + 1;
   const lastData = firstData + Math.max(pupilCount, 1) - 1;
@@ -193,6 +195,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   sheet.getColumn(averageCol).width = 13;
   sheet.getColumn(positionCol).width = 12;
   sheet.getColumn(behaviorCol).width = 16;
+  sheet.getColumn(clubsCol).width = 24;
 
   const hasLogo = Boolean(input.logo?.byteLength);
   const brandCol = hasLogo ? 3 : 2;
@@ -267,7 +270,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
       fill: solid(NAVY),
       border: { bottom: side("thin", GOLD) },
     });
-    merge(sheet, groupRow, averageCol, behaviorCol, "", {
+    merge(sheet, groupRow, averageCol, clubsCol, "", {
       fill: solid(NAVY),
       border: { bottom: side("thin", GOLD) },
     });
@@ -301,6 +304,7 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
   headers.push({ col: averageCol, text: "Average", align: "center", paletteIndex: null });
   headers.push({ col: positionCol, text: "Position", align: "center", paletteIndex: null });
   headers.push({ col: behaviorCol, text: "Behavior (A-D)", align: "center", paletteIndex: null });
+  headers.push({ col: clubsCol, text: "Clubs", align: "left", paletteIndex: null });
   headers.forEach((header) => {
     const cell = sheet.getCell(headerRow, header.col);
     cell.value = header.text;
@@ -398,6 +402,16 @@ export async function buildMarksheetWorkbook(input: MarksheetWorkbookInput) {
       font: font(11, NAVY, true),
       fill: baseFill,
       alignment: { vertical: "middle", horizontal: "center" },
+      border: grid(),
+      numFmt: "@",
+    });
+
+    const clubs = sheet.getCell(rowNumber, clubsCol);
+    clubs.value = pupil.clubs || null;
+    paint(clubs, {
+      font: font(10, INK, false),
+      fill: baseFill,
+      alignment: { vertical: "middle", horizontal: "left", wrapText: true },
       border: grid(),
       numFmt: "@",
     });

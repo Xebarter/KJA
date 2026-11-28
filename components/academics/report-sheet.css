@@ -1354,84 +1354,277 @@ article.acd-sheet.is-primary .acd-sheet-term {
   color: var(--primary-header-green-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-identity {
-  border-bottom: 1px solid rgba(36, 99, 166, .2);
+  border-bottom: 1px solid rgba(11, 125, 56, .22);
 }
-article.acd-sheet.is-primary .acd-sheet-kicker {
+article.acd-sheet.is-primary .acd-sheet-title h2 {
   color: var(--origin-primary);
 }
+article.acd-sheet.is-primary .acd-sheet-kicker {
+  color: var(--primary-header-green-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-record > .acd-sheet-kicker {
+  color: var(--origin-primary);
+}
+article.acd-sheet.is-primary .acd-sheet-scale > .acd-sheet-kicker {
+  color: var(--primary-header-gold-deep);
+}
 article.acd-sheet.is-primary .acd-sheet-activities > .acd-sheet-kicker {
-  font-weight: 800;
+  color: var(--primary-header-green-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-title h2,
+article.acd-sheet.is-primary .acd-sheet-term,
+article.acd-sheet.is-primary .acd-sheet-kicker,
+article.acd-sheet.is-primary .acd-sheet-activities > .acd-sheet-kicker,
+article.acd-sheet.is-primary .acd-sheet-pupil h3,
+article.acd-sheet.is-primary .acd-sheet-figures dt,
+article.acd-sheet.is-primary .acd-sheet-record thead th,
+article.acd-sheet.is-primary .acd-sheet-record tfoot th,
+article.acd-sheet.is-primary .acd-sheet-coco-table thead th,
+article.acd-sheet.is-primary .acd-sheet-report h3,
+article.acd-sheet.is-primary .acd-sheet-report h3 span,
+article.acd-sheet.is-primary .acd-sheet-principal h3,
+article.acd-sheet.is-primary .acd-sheet-principal h3 span,
+article.acd-sheet.is-primary .acd-sheet-closing h3,
+article.acd-sheet.is-primary .acd-sheet-closing h3 span,
+article.acd-sheet.is-primary .acd-sheet-fees h3,
+article.acd-sheet.is-primary .acd-sheet-sign-label {
+  font-weight: 800 !important;
+}
+/* ——— Primary academic record: faint gold-and-green header, quiet body ——— */
+article.acd-sheet.is-primary {
+  --rec-navy: #17386a;
+  --rec-navy-deep: #0f2a50;
+  --rec-navy-ink: #12305a;
+  --rec-head: #fff4cc;
+  --rec-head-result: #ffe7a6;
+  --rec-head-band: #dff6e8;
+  --rec-head-ink: #3a3218;
+  --rec-head-muted: #1d6a3c;
+  --rec-gold: #f2be35;
+  --rec-gold-soft: #f6d98a;
+  --rec-line: #e3e9f1;
+  --rec-zebra: #f6f8fb;
+  --rec-result: #eef3fa;
+  --rec-result-zebra: #e8eff8;
 }
 article.acd-sheet.is-primary .acd-sheet-table-wrap {
-  border: 1px solid rgba(41, 38, 42, .18);
-  box-shadow: 0 6px 18px rgba(41, 38, 42, .04);
+  border: 1px solid #c9d5e6;
+  border-radius: 4px;
+  box-shadow: 0 4px 14px rgba(18, 48, 90, .06);
 }
+
+/* Column widths come from a <colgroup> so the two-tier header cannot skew them. */
+article.acd-sheet.is-primary .acd-sheet-record col.c-subject { width: var(--subject-col, 10rem); }
+article.acd-sheet.is-primary .acd-sheet-record col.c-set { width: var(--set-col, 3.4rem); }
+article.acd-sheet.is-primary .acd-sheet-record col.c-score { width: 3.9rem; }
+article.acd-sheet.is-primary .acd-sheet-record col.c-grade { width: 3.4rem; }
+article.acd-sheet.is-primary .acd-sheet-record col.c-sign { width: 3.3rem; }
+
+/* Header */
 article.acd-sheet.is-primary .acd-sheet-record thead th {
-  padding: .58rem .42rem .5rem;
-  background-color: var(--primary-header-green-deep);
-  background-image:
-    linear-gradient(90deg, transparent 0 15px, rgba(255, 255, 255, .13) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .2) 31px 32px),
-    linear-gradient(0deg, transparent 0 15px, rgba(255, 255, 255, .13) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .2) 31px 32px),
-    linear-gradient(90deg, transparent 0 7px, rgba(225, 255, 239, .08) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .14) 23px 24px),
-    linear-gradient(0deg, transparent 0 7px, rgba(225, 255, 239, .08) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .14) 23px 24px),
-    linear-gradient(115deg, var(--primary-header-green-deep), var(--primary-header-green) 58%, var(--primary-header-green-deep));
-  background-size: 32px 32px, 32px 32px, 32px 32px, 32px 32px, 100% 100%;
-  color: #fff;
-  font-size: .72rem;
-  letter-spacing: .035em;
-  border-bottom: 3px solid var(--primary-header-gold);
-  text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
-  container-type: inline-size;
+  padding: .5rem .4rem .45rem;
+  border-bottom: 1.5px solid var(--rec-gold);
+  border-left: 1px solid rgba(36, 56, 79, .08);
+  border-radius: 0;
+  background: linear-gradient(180deg, #fffdf6 0%, var(--rec-head) 100%);
+  color: var(--rec-head-ink);
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  line-height: 1.2;
+  text-align: center;
+  text-shadow: none;
+  text-transform: uppercase;
+  vertical-align: middle;
+  container-type: normal;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-subject-head {
+  padding-left: .6rem;
+  border-left: 0;
   text-align: left;
 }
-article.acd-sheet.is-primary .acd-sheet-record thead th > .acd-sheet-header-label {
-  font-size: min(clamp(.58rem, 22cqi, .78rem), calc(100cqi * var(--header-title-fit-factor, 1)));
-  letter-spacing: .025em;
-  line-height: 1.15;
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-note {
+  padding-left: .5rem;
+  font-size: .66rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-align: left;
   white-space: normal;
 }
-article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
-  font-size: clamp(.48rem, 17cqi, .62rem);
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-sign {
+  padding-left: .1rem;
+  padding-right: .1rem;
+  font-size: .56rem;
+  letter-spacing: .03em;
+  text-align: center;
+  white-space: nowrap;
 }
-article.acd-sheet.is-primary .acd-sheet-record thead th + th {
-  border-left: 1px solid rgba(255, 255, 255, .18);
+/* Result columns sit a touch deeper in the same gold. */
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-score,
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-grade {
+  background: linear-gradient(180deg, #fff8df 0%, var(--rec-head-result) 100%);
+  border-left-color: rgba(36, 56, 79, .1);
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-grade { border-left-color: rgba(36, 56, 79, .08); }
+/* Group band over the assessment columns. */
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-group {
+  padding: .26rem .4rem;
+  border-bottom: 1px solid rgba(242, 190, 53, .7);
+  background: linear-gradient(180deg, #f3fbf6 0%, var(--rec-head-band) 100%);
+  color: var(--rec-head-muted);
+  font-size: .56rem;
+  font-weight: 800;
+  letter-spacing: .24em;
+  text-indent: .24em;
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th.is-set {
+  padding: .38rem .2rem .36rem;
+  container-type: normal;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-set .acd-sheet-col-title {
+  display: block;
+  max-height: none;
+  overflow: visible;
+  font-size: .74rem;
+  font-weight: 800;
+  letter-spacing: .06em;
+  line-height: 1.1;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-set .acd-sheet-col-weight {
+  display: inline-block;
+  margin-top: .2rem;
+  padding: .04rem .32rem;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px rgba(180, 148, 70, .4);
+  color: #7a6230;
+  font-size: .54rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  line-height: 1.25;
+  text-transform: none;
+}
+article.acd-sheet.is-primary .acd-sheet-record table.is-compact thead th.is-set .acd-sheet-col-title { font-size: .66rem; letter-spacing: .04em; }
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense thead th.is-set { padding-left: .1rem; padding-right: .1rem; }
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense thead th.is-set .acd-sheet-col-title { font-size: .6rem; letter-spacing: .02em; }
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense thead th.is-set .acd-sheet-col-weight { padding: .02rem .24rem; font-size: .5rem; }
+
+/* Body */
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td {
+  padding-top: .3rem;
+  padding-bottom: .3rem;
+  border-top: 1px solid var(--rec-line);
+  border-bottom: 0;
+  background: #fff;
+  color: var(--origin-ink);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:first-child td { border-top: 0; }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td { background: var(--rec-zebra); }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td + td { border-left: 1px solid #edf1f6; }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.acd-sheet-subject {
+  padding-left: .6rem;
+  color: var(--primary-header-ink);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.acd-sheet-subject strong {
+  --subject-word-max-size: .86rem;
+  font-size: .86rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  line-height: 1.18;
+}
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense tbody tr td.acd-sheet-subject strong {
+  --subject-word-max-size: .78rem;
+  font-size: .78rem;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td .acd-sheet-figure {
+  font-family: Nunito, "Segoe UI", system-ui, sans-serif;
+  font-size: .9rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense tbody tr td.is-note { font-size: .7rem; line-height: 1.2; }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-set,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-set.is-high,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-set.is-mid,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-set.is-low {
+  color: #2b3b52;
+  font-size: .84rem;
+  font-weight: 600;
+  text-align: center;
+}
+article.acd-sheet.is-primary .acd-sheet-record table.is-dense tbody tr td.is-set { font-size: .76rem; }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-score,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-grade {
+  text-align: center;
+  background: var(--rec-result);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td.is-score,
+article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td.is-grade {
+  background: var(--rec-result-zebra);
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-score { border-left: 1px solid #c9d5e6; }
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-note {
+  width: auto;
+  max-width: none;
+  padding-left: .5rem;
+  color: #34455c;
+  font-size: .78rem;
+  font-weight: 600;
+  line-height: 1.25;
+  white-space: normal;
+}
+article.acd-sheet.is-primary .acd-sheet-record tbody tr td.is-sign {
+  color: var(--primary-header-ink);
+  font-size: .76rem;
+  font-weight: 700;
+  text-align: center;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-note { width: auto; max-width: none; }
+
+/* Footer */
+article.acd-sheet.is-primary .acd-sheet-record tfoot th,
+article.acd-sheet.is-primary .acd-sheet-record tfoot td {
+  border-top: 2px solid var(--primary-header-green);
+  background: #eef8f2;
+  color: var(--primary-header-ink);
+}
+article.acd-sheet.is-primary .acd-sheet-record tfoot th {
+  padding-left: .6rem;
+  font-size: .7rem;
+  font-weight: 800;
+  letter-spacing: .16em;
   text-align: left;
 }
-article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
-  color: rgba(255, 255, 255, .78);
+article.acd-sheet.is-primary .acd-sheet-record tfoot td.is-score {
+  text-align: center;
+  background: #e3f5ea;
+  font-weight: 800;
+}
+
+/* Key for shortened assessment titles */
+article.acd-sheet .acd-sheet-colkey {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .1rem .95rem;
+  margin: .32rem 0 0;
+  padding: 0 .1rem;
+  color: var(--sheet-muted);
+  font-size: .6rem;
   font-weight: 600;
+  line-height: 1.35;
 }
-article.acd-sheet.is-primary .acd-sheet-record tbody tr + tr td {
-  border-top: 1px solid rgba(41, 38, 42, .08);
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even) td {
-  background: #faf9f8;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-high td {
-  background: #f0f8f5;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-mid td {
-  background: #fcf8ed;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr.is-tone-low td {
-  background: #fff5f2;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td {
-  background: #eaf4f0;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td {
-  background: #f8f1df;
-}
-article.acd-sheet.is-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
-  background: #ffede8;
-}
-article.acd-sheet.is-primary tfoot th,
-article.acd-sheet.is-primary tfoot td {
-  border-top: 1px solid var(--origin-primary);
-  background: linear-gradient(90deg, #eef5ff, #fff 50%, #f0f9f2);
-  color: var(--origin-ink);
+article.acd-sheet .acd-sheet-colkey b {
+  margin-right: .22rem;
+  color: var(--primary-header-gold-deep, #a67c0a);
+  font-weight: 800;
+  letter-spacing: .05em;
 }
 article.acd-sheet.is-primary .acd-sheet-scale li {
   border-color: rgba(36, 99, 166, .18);
@@ -1454,18 +1647,27 @@ article.acd-sheet.is-primary .acd-sheet-coco-table {
 }
 article.acd-sheet.is-primary .acd-sheet-coco-table thead th {
   background:
-    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .18) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
-    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .18) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
-    linear-gradient(90deg, #fffefa, #f0f7ff);
+    linear-gradient(90deg, transparent 0 15px, rgba(18, 165, 75, .16) 15px 16px, transparent 16px 31px, rgba(225, 29, 72, .12) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(18, 165, 75, .16) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .16) 31px 32px),
+    linear-gradient(90deg, #f4fbf6, #fff9ee);
   background-size: 32px 32px, 32px 32px, 100% 100%;
-  color: var(--origin-primary-deep);
+  color: var(--origin-primary);
   border-bottom: 1px solid var(--origin-primary);
 }
-article.acd-sheet.is-primary .acd-sheet-report h3,
-article.acd-sheet.is-primary .acd-sheet-principal h3,
-article.acd-sheet.is-primary .acd-sheet-fees h3 {
-  color: var(--origin-primary-deep);
-  border-bottom-color: rgba(36, 99, 166, .24);
+article.acd-sheet.is-primary .acd-sheet-report h3 {
+  border-bottom-color: rgba(36, 99, 166, .28);
+}
+article.acd-sheet.is-primary .acd-sheet-report h3 span {
+  color: var(--origin-primary);
+}
+article.acd-sheet.is-primary .acd-sheet-principal h3 {
+  border-bottom-color: rgba(190, 18, 60, .28);
+}
+article.acd-sheet.is-primary .acd-sheet-fees > div:first-child h3 {
+  color: var(--primary-header-gold-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-fees > div:last-child h3 {
+  color: var(--primary-header-green-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-report h3 em {
   color: var(--sheet-muted);
@@ -1475,7 +1677,7 @@ article.acd-sheet.is-primary .acd-sheet-principal p.is-blank {
   background-image: linear-gradient(
     to bottom,
     transparent calc(100% - 1px),
-    rgba(36, 99, 166, .28) calc(100% - 1px)
+    rgba(190, 18, 60, .22) calc(100% - 1px)
   );
 }
 article.acd-sheet.is-primary .acd-sheet-fees {
@@ -1489,7 +1691,7 @@ article.acd-sheet.is-primary .acd-sheet-fees > div + div {
   border-left-color: rgba(41, 38, 42, .14);
 }
 article.acd-sheet.is-primary .acd-sheet-next {
-  color: var(--origin-primary-deep);
+  color: var(--primary-header-red-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-signs {
   display: grid;
@@ -1506,15 +1708,27 @@ article.acd-sheet.is-primary .acd-sheet-signs > div {
   border: 1px solid rgba(41, 38, 42, .16);
   border-radius: 8px;
   background: linear-gradient(180deg, #fbfaf9, #fff);
-  box-shadow: inset 0 2px 0 rgba(36, 99, 166, .72);
+  box-shadow: inset 0 2px 0 var(--primary-header-green);
+}
+article.acd-sheet.is-primary .acd-sheet-signs > div:nth-child(2) {
+  box-shadow: inset 0 2px 0 var(--origin-primary);
+}
+article.acd-sheet.is-primary .acd-sheet-signs > div:nth-child(3) {
+  box-shadow: inset 0 2px 0 var(--primary-header-red);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-label {
   margin: 0;
-  color: var(--origin-primary-deep);
+  color: var(--primary-header-green-deep);
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+article.acd-sheet.is-primary .acd-sheet-signs > div:nth-child(2) .acd-sheet-sign-label {
+  color: var(--origin-primary);
+}
+article.acd-sheet.is-primary .acd-sheet-signs > div:nth-child(3) .acd-sheet-sign-label {
+  color: var(--primary-header-red-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-img {
   display: block;
@@ -1531,7 +1745,7 @@ article.acd-sheet.is-primary .acd-sheet-sign-img.is-principal-signature {
 article.acd-sheet.is-primary .acd-sheet-sign-line {
   margin: 0.45rem 0 0.1rem;
   min-height: 0.85rem;
-  border-bottom: 1.5px solid rgba(36, 99, 166, .38);
+  border-bottom: 1.5px solid rgba(11, 125, 56, .38);
 }
 article.acd-sheet.is-primary .acd-sheet-sign-hint {
   margin: 0;
@@ -1545,28 +1759,18 @@ article.acd-sheet.is-primary.is-lower-primary .acd-sheet-table-wrap {
   background: transparent;
 }
 article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr td {
-  background: rgba(255, 255, 255, .42);
+  background: rgba(255, 255, 255, .5);
 }
 article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even) td {
-  background: rgba(250, 249, 248, .46);
+  background: rgba(246, 248, 251, .56);
 }
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-high td {
-  background: rgba(240, 248, 245, .5);
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr td.is-score,
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr td.is-grade {
+  background: rgba(238, 243, 250, .62);
 }
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td {
-  background: rgba(234, 244, 240, .5);
-}
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-mid td {
-  background: rgba(252, 248, 237, .5);
-}
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td {
-  background: rgba(248, 241, 223, .5);
-}
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-low td {
-  background: rgba(255, 245, 242, .5);
-}
-article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
-  background: rgba(255, 237, 232, .5);
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even) td.is-score,
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even) td.is-grade {
+  background: rgba(232, 239, 248, .66);
 }
 article.acd-sheet.is-primary.is-lower-primary .acd-sheet-coco-table thead th {
   background: linear-gradient(

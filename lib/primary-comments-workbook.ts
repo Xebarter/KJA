@@ -168,35 +168,6 @@ function statusLabel(status: string) {
   return "Ready";
 }
 
-function writeCover(sheet: ExcelJS.Worksheet, input: PrimaryCommentsBookInput) {
-  sheet.properties.showGridLines = false;
-  sheet.views = [{ showGridLines: false }];
-  sheet.getColumn(2).width = 95;
-  sheet.getCell(3, 2).value = SCHOOL;
-  paint(sheet.getCell(3, 2), { font: font(18, INK, true) });
-  sheet.getCell(4, 2).value = "Primary comments workbook";
-  paint(sheet.getCell(4, 2), { font: font(14, GOLD, true) });
-  sheet.getCell(6, 2).value = `${input.className} · ${input.campus} · ${input.term}`;
-  paint(sheet.getCell(6, 2), { font: font(11, MUTED) });
-  sheet.getCell(7, 2).value = `Prepared ${input.preparedOn}`;
-  paint(sheet.getCell(7, 2), { font: font(10, MUTED, false, true) });
-
-  const steps = [
-    "Edit the Class Teacher and/or Other Subjects comment columns on the class sheet.",
-    "Leave a cell blank to keep its saved comment unchanged. Type CLEAR to remove a saved comment.",
-    "Do not add, remove, or reorder rows or columns, or rename the class sheet.",
-    "Published report cards are locked and will not be changed by an upload.",
-    "Save as .xlsx and upload it on the Primary Comments page.",
-  ];
-  steps.forEach((step, index) => {
-    sheet.getCell(10 + index, 2).value = `${index + 1}. ${step}`;
-    paint(sheet.getCell(10 + index, 2), { font: font(11, INK), alignment: { wrapText: true, vertical: "top" } });
-    sheet.getRow(10 + index).height = 23;
-  });
-  sheet.getCell(17, 2).value = `${input.pupils.length} learner${input.pupils.length === 1 ? "" : "s"} · ${input.subjects.length} Other Subjects column${input.subjects.length === 1 ? "" : "s"}`;
-  paint(sheet.getCell(17, 2), { font: font(11, GREEN, true), fill: solid(GREEN_BG) });
-}
-
 function writeKeys(workbook: ExcelJS.Workbook, input: PrimaryCommentsBookInput, sheetName: string) {
   const sheet = workbook.addWorksheet("_KJA", { state: "veryHidden" });
   [
@@ -387,11 +358,8 @@ export async function buildPrimaryCommentsWorkbook(input: PrimaryCommentsBookInp
   workbook.category = "Comments";
   workbook.created = new Date();
   workbook.modified = new Date();
-  const cover = workbook.addWorksheet("Cover", { properties: { tabColor: { argb: GOLD }, showGridLines: false } });
-  writeCover(cover, input);
   const classSheet = writeClassSheet(workbook, input);
   writeKeys(workbook, input, classSheet.name);
-  await cover.protect("", PROTECT);
   await classSheet.protect("", PROTECT);
   return Buffer.from(await workbook.xlsx.writeBuffer());
 }

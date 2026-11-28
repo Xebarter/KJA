@@ -36,7 +36,8 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     });
     const bytes = await buildReportCardsPdfFromHtml(html);
     const safeName = (card.pupil_name || "report-card").replace(/[^\w\- ]+/g, "").trim().replace(/\s+/g, "-") || "report-card";
-    return pdfResponse(bytes, `${safeName}.pdf`, true);
+    const download = url.searchParams.get("download") === "1";
+    return pdfResponse(bytes, `${safeName}.pdf`, !download);
   } catch (error) {
     const message = error instanceof Error ? error.message : "Couldn't build the report card.";
     if (/Chrome|Edge|browser|playwright/i.test(message)) {

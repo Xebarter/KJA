@@ -2,25 +2,28 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { classSection, streamOf } from "@/lib/academics";
 import { loadReportSkillLines } from "@/lib/academics-reports";
 import { operationalCampus } from "@/lib/campuses";
-import { nurseryCommentMapForTerm, upsertNurseryClassComments } from "@/lib/nursery-class-comments";
+import { nurseryCommentMapForTerm } from "@/lib/nursery-class-comments";
 import {
   isPrimaryStoreMissing,
   primaryActivityCommentMapForTerm,
   primaryClassCommentMapForTerm,
   primarySubjectCommentMapForTerm,
   upsertPrimaryActivityComments,
-  upsertPrimaryClassComments,
   upsertPrimarySubjectComments,
 } from "@/lib/primary-report-comments";
+import { loadActiveClubsByStudent, parseClubsList } from "@/lib/report-clubs";
 import { subjectPercent } from "./bands";
 import { loadActiveCommentConfig } from "./config";
 import { generateCommentsForReport } from "./generate";
+import { applyGrokToGenerationResult, generateGrokCommentsBatch } from "./grok";
 import { learnerFirstName } from "./names";
+import { promotionForLearner, type ClassSequenceRow } from "./promotion";
 import { skillsFromJson } from "./skills";
 import type {
   ActivityInput,
   ActivityLevel,
   GenerationResult,
+  LearnerPromotion,
   NurserySkillLineInput,
   ReportInput,
   SubjectResultInput,
@@ -28,18 +31,56 @@ import type {
 
 const LEVELS = new Set(["Excellent", "Good", "Fair", "Needs support"]);
 
+/** Term number (1 to 3) from fee_terms; null when the term is unknown. */
+async function loadTermNumber(supabase: SupabaseClient, termId: string): Promise<number | null> {
+  if (!termId) return null;
+  const { data, error } = await supabase.from("fee_terms").select("term").eq("id", termId).maybeSingle();
+  if (error) throw new Error(error.message);
+  const term = Number(data?.term);
+  return Number.isInteger(term) ? term : null;
+}
+
+/** Class sequence (RC, C2, C3, C4, P1 ... P7) from school_classes, ordered by sort_order. */
+async function loadClassSequence(supabase: SupabaseClient): Promise<ClassSequenceRow[]> {
+  const { data, error } = await supabase.from("school_classes").select("code, name, sort_order").order("sort_order");
+  if (error) throw new Error(error.message);
+  return (data || []) as ClassSequenceRow[];
+}
+
+/** Term number plus next-class info for one learner. Promotion is only set on Term 3. */
+async function loadPromotionContext(
+  supabase: SupabaseClient,
+  termId: string,
+  classCode: string,
+): Promise<{ termNumber: number | null; promotion: LearnerPromotion | null }> {
+  const termNumber = await loadTermNumber(supabase, termId);
+  if (termNumber !== 3) return { termNumber, promotion: null };
+  const classes = await loadClassSequence(supabase);
+  return { termNumber, promotion: promotionForLearner(termNumber, classCode, classes) };
+}
+
 export async function loadReportInput(supabase: SupabaseClient, reportId: string): Promise<ReportInput> {
-  const { data: card, error } = await supabase
+  let { data: card, error } = await supabase
     .from("report_cards")
-    .select("id, student_id, class_code, stream, term_id, status")
+    .select("id, student_id, class_code, stream, term_id, status, conduct, clubs")
     .eq("id", reportId)
     .maybeSingle();
+  if (error && /clubs|42703|schema cache/i.test(error.message)) {
+    const fallback = await supabase
+      .from("report_cards")
+      .select("id, student_id, class_code, stream, term_id, status, conduct")
+      .eq("id", reportId)
+      .maybeSingle();
+    card = fallback.data ? { ...fallback.data, clubs: null } : null;
+    error = fallback.error;
+  }
   if (error) throw new Error(error.message);
   if (!card) throw new Error("This report card could not be found.");
 
   const nursery = classSection(String(card.class_code)) === "nursery";
+  const cardClubs = parseClubsList(card.clubs as string | null);
 
-  const [{ data: pupil, error: pupilError }, { data: lines, error: lineError }, { data: activities, error: activityError }, skillMap] =
+  const [{ data: pupil, error: pupilError }, { data: lines, error: lineError }, { data: activities, error: activityError }, skillMap, activeClubsMap] =
     await Promise.all([
       supabase.from("students").select("full_name, preferred_name, given_names, sex").eq("id", card.student_id).maybeSingle(),
       supabase
@@ -54,9 +95,16 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
       nursery
         ? loadReportSkillLines(supabase, [reportId])
         : Promise.resolve(new Map<string, NurserySkillLineInput[]>()),
+      cardClubs.length
+        ? Promise.resolve(new Map<string, string[]>())
+        : loadActiveClubsByStudent(supabase, [String(card.student_id)]),
     ]);
   if (pupilError) throw new Error(pupilError.message);
   if (lineError) throw new Error(lineError.message);
+
+  const clubs = cardClubs.length ? cardClubs : (activeClubsMap.get(String(card.student_id)) || []);
+  const conduct = card.conduct ? String(card.conduct) : null;
+  const promo = await loadPromotionContext(supabase, String(card.term_id), String(card.class_code));
 
   const skillLines: NurserySkillLineInput[] = nursery
     ? (skillMap.get(reportId) || []).map((row) => ({
@@ -80,12 +128,12 @@ export async function loadReportInput(supabase: SupabaseClient, reportId: string
         .eq("report_card_id", reportId)
         .order("slot");
       if (fallback.error) throw new Error(fallback.error.message);
-      return finishReportInput(card, pupil, lines || [], fallback.data || [], { nursery, skillLines });
+      return finishReportInput(card, pupil, lines || [], fallback.data || [], { nursery, skillLines, conduct, clubs, ...promo });
     }
     throw new Error(activityError.message);
   }
 
-  return finishReportInput(card, pupil, lines || [], activities || [], { nursery, skillLines });
+  return finishReportInput(card, pupil, lines || [], activities || [], { nursery, skillLines, conduct, clubs, ...promo });
 }
 
 function finishReportInput(
@@ -93,10 +141,17 @@ function finishReportInput(
   pupil: { full_name?: string | null; preferred_name?: string | null; given_names?: string | null; sex?: string | null } | null,
   lines: { subject_id: unknown; subject_name?: unknown; score?: unknown; max_score?: unknown }[],
   activities: { slot: unknown; activity_name?: unknown; level?: unknown; score?: unknown; max_score?: unknown; skills?: unknown }[],
-  nurseryBits: { nursery: boolean; skillLines: NurserySkillLineInput[] } = { nursery: false, skillLines: [] },
+  extras: {
+    nursery: boolean;
+    skillLines: NurserySkillLineInput[];
+    conduct?: string | null;
+    clubs?: string[];
+    termNumber?: number | null;
+    promotion?: LearnerPromotion | null;
+  } = { nursery: false, skillLines: [] },
 ): ReportInput {
   const firstName = learnerFirstName(pupil || {});
-  const subjects: SubjectResultInput[] = nurseryBits.nursery
+  const subjects: SubjectResultInput[] = extras.nursery
     ? []
     : lines.map((line, index) => {
         const score = line.score == null ? null : Number(line.score);
@@ -113,9 +168,14 @@ function finishReportInput(
         };
       });
 
-  const activityRows: ActivityInput[] = nurseryBits.nursery
-    ? [1, 2, 3, 4].map((slot) => ({ slot, activityName: null, level: null, score: null, maxScore: null, skills: [] }))
-    : [1, 2, 3, 4].map((slot) => {
+  const activitySlots = extras.nursery
+    ? [1, 2, 3, 4]
+    : [...new Set([1, 2, 3, 4, ...activities.map((item) => Number(item.slot)).filter((slot) => Number.isInteger(slot) && slot >= 1)])].sort(
+        (a, b) => a - b,
+      );
+  const activityRows: ActivityInput[] = extras.nursery
+    ? activitySlots.map((slot) => ({ slot, activityName: null, level: null, score: null, maxScore: null, skills: [] }))
+    : activitySlots.map((slot) => {
         const row = activities.find((item) => Number(item.slot) === slot);
         const level = row?.level && LEVELS.has(String(row.level)) ? (String(row.level) as ActivityLevel) : null;
         const score = row && "score" in row && row.score != null ? Number(row.score) : null;
@@ -140,8 +200,12 @@ function finishReportInput(
     termId: String(card.term_id),
     subjects,
     activities: activityRows,
-    nursery: nurseryBits.nursery,
-    skillLines: nurseryBits.skillLines,
+    conduct: extras.conduct ?? null,
+    clubs: extras.clubs ?? [],
+    termNumber: extras.termNumber ?? null,
+    promotion: extras.promotion ?? null,
+    nursery: extras.nursery,
+    skillLines: extras.skillLines,
   };
 }
 
@@ -168,8 +232,15 @@ export async function applyGeneration(
     // Leave existing text; surface error
     if (!cocoUnit.text) errors.push(...(cocoUnit.validation.errors.length ? cocoUnit.validation.errors : [cocoUnit.explanation]));
   }
+  if (classUnit?.text) cardPatch.ai_class_comment = classUnit.text;
+  if (headUnit?.text) cardPatch.ai_head_comment = headUnit.text;
 
-  const { error: cardError } = await supabase.from("report_cards").update(cardPatch).eq("id", reportId).eq("status", "draft");
+  let { error: cardError } = await supabase.from("report_cards").update(cardPatch).eq("id", reportId).eq("status", "draft");
+  if (cardError && /ai_class_comment|ai_head_comment|42703/i.test(cardError.message)) {
+    // supabase/0098 not run yet: save the remarks without the engine-text columns.
+    const { ai_class_comment: _aiClass, ai_head_comment: _aiHead, ...legacyPatch } = cardPatch;
+    ({ error: cardError } = await supabase.from("report_cards").update(legacyPatch).eq("id", reportId).eq("status", "draft"));
+  }
   if (cardError) throw new Error(cardError.message);
 
   const { data: cardMeta } = await supabase
@@ -178,44 +249,6 @@ export async function applyGeneration(
     .eq("id", reportId)
     .maybeSingle();
   const section = cardMeta ? classSection(String(cardMeta.class_code)) : null;
-
-  if (classUnit?.text && cardMeta) {
-    if (section === "nursery") {
-      try {
-        await upsertNurseryClassComments(supabase, [
-          {
-            student_id: String(cardMeta.student_id),
-            term_id: String(cardMeta.term_id),
-            campus: cardMeta.campus,
-            class_code: cardMeta.class_code,
-            stream: streamOf(cardMeta.stream),
-            comment: classUnit.text,
-            updated_by: actorId,
-          },
-        ]);
-      } catch (storeError) {
-        const message = storeError instanceof Error ? storeError.message : "";
-        if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
-      }
-    } else if (section === "primary") {
-      try {
-        await upsertPrimaryClassComments(supabase, [
-          {
-            student_id: String(cardMeta.student_id),
-            term_id: String(cardMeta.term_id),
-            campus: cardMeta.campus,
-            class_code: cardMeta.class_code,
-            stream: streamOf(cardMeta.stream),
-            comment: classUnit.text,
-            updated_by: actorId,
-          },
-        ]);
-      } catch (storeError) {
-        const message = storeError instanceof Error ? storeError.message : "";
-        if (!isPrimaryStoreMissing(message)) throw storeError;
-      }
-    }
-  }
 
   if (subjectComments.length) {
     const { data: lines, error: lineError } = await supabase
@@ -259,6 +292,9 @@ export async function applyGeneration(
   }
 
   if (activityComments.length) {
+    const storedActivities = section === "primary" && cardMeta
+      ? await primaryActivityCommentMapForTerm(supabase, String(cardMeta.term_id), [String(cardMeta.student_id)]).catch(() => new Map<string, string>())
+      : new Map<string, string>();
     const { data: rows, error: activityError } = await supabase
       .from("report_card_activities")
       .select("slot, activity_name, level, score, max_score, skills, subject_id")
@@ -272,25 +308,33 @@ export async function applyGeneration(
     const bySlot = new Map((rows || []).map((row) => [Number(row.slot), row]));
     const updates = activityComments
       .filter((unit) => unit.activitySlot && bySlot.has(unit.activitySlot))
-      .map((unit) => ({
-        ...bySlot.get(unit.activitySlot!),
-        report_card_id: reportId,
-        slot: unit.activitySlot,
-        comment: unit.text,
-      }));
+      .map((unit) => {
+        const kept = cardMeta ? storedActivities.get(`${cardMeta.student_id}|${unit.activitySlot}`) || "" : "";
+        return {
+          ...bySlot.get(unit.activitySlot!),
+          report_card_id: reportId,
+          slot: unit.activitySlot,
+          comment: kept || unit.text,
+          kept: Boolean(kept),
+        };
+      });
     if (updates.length) {
-      const { error: saveError } = await supabase.from("report_card_activities").upsert(updates, { onConflict: "report_card_id,slot" });
+      const { error: saveError } = await supabase.from("report_card_activities").upsert(
+        updates.map(({ kept: _kept, ...row }) => row),
+        { onConflict: "report_card_id,slot" },
+      );
       if (saveError) {
         if (/comment|42703/i.test(saveError.message)) {
           throw new Error(`${saveError.message}. Run supabase/0030_activity_comments.sql in the Supabase SQL editor.`);
         }
         throw new Error(saveError.message);
       }
-      if (section === "primary" && cardMeta) {
+      const fresh = updates.filter((row) => !row.kept);
+      if (section === "primary" && cardMeta && fresh.length) {
         try {
           await upsertPrimaryActivityComments(
             supabase,
-            updates.map((row) => ({
+            fresh.map((row) => ({
               student_id: String(cardMeta.student_id),
               term_id: String(cardMeta.term_id),
               slot: Number(row.slot),
@@ -339,24 +383,68 @@ export async function generateAndSaveReportComments(
   if (!config) throw new Error("No active comment configuration. Open Comments under Setup.");
 
   const input = await loadReportInput(supabase, reportId);
-  const result = generateCommentsForReport(input, config);
+  const base = generateCommentsForReport(input, config);
+  const grokMap = await generateGrokCommentsBatch([{ input, profile: base.profile }]);
+  const result = applyGrokToGenerationResult(base, grokMap.get(reportId));
   const apply = await applyGeneration(supabase, reportId, actorId, result);
   return { result, apply };
+}
+
+export type ClassCommentOptions = {
+  /** Only touch cards with no remarks yet. */
+  onlyBlank?: boolean;
+  skipTrail?: boolean;
+  /**
+   * Used by "Generate report cards": every draft gets fresh AI Class Teacher and Principal comments,
+   * but only where the current text is still engine-owned (blank, last AI text, or template text).
+   * Manual edits and uploaded store comments are kept. Existing subject/co-curricular remarks are kept too.
+   */
+  rewriteAi?: boolean;
+};
+
+export type ClassCommentSummary = {
+  processed: number;
+  succeeded: number;
+  failed: number;
+  skipped: number;
+  /** Cards whose Class Teacher and/or Principal comment came from Grok. */
+  ai: number;
+  /** Cards that fell back to template text because Grok was unavailable or returned nothing. */
+  fallback: number;
+  errors: { reportId: string; messages: string[] }[];
+};
+
+/** True when the engine may overwrite this remark: blank, the last AI/engine text, or the template text. */
+export function engineOwnsRemark(current: string | null | undefined, lastEngine: string | null | undefined, template: string | null | undefined) {
+  const value = (current || "").trim();
+  if (!value) return true;
+  return value === (lastEngine || "").trim() || value === (template || "").trim();
 }
 
 export async function generateClassReportComments(
   supabase: SupabaseClient,
   input: { termId: string; classCode: string; stream: string; campus?: string },
   actorId: string,
-  options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
-): Promise<{ processed: number; succeeded: number; failed: number; skipped: number; errors: { reportId: string; messages: string[] }[] }> {
-  const { data: cards, error } = await supabase
+  options: ClassCommentOptions = {},
+): Promise<ClassCommentSummary> {
+  let { data: cards, error } = await supabase
     .from("report_cards")
-    .select("id, student_id, class_code, stream, campus, term_id, class_teacher_comment, head_comment, cocurricular_comment")
+    .select("id, student_id, class_code, stream, campus, term_id, conduct, clubs, class_teacher_comment, head_comment, cocurricular_comment")
     .eq("term_id", input.termId)
     .eq("class_code", input.classCode)
     .eq("stream", input.stream)
     .eq("status", "draft");
+  if (error && /clubs|42703|schema cache/i.test(error.message)) {
+    const fallback = await supabase
+      .from("report_cards")
+      .select("id, student_id, class_code, stream, campus, term_id, conduct, class_teacher_comment, head_comment, cocurricular_comment")
+      .eq("term_id", input.termId)
+      .eq("class_code", input.classCode)
+      .eq("stream", input.stream)
+      .eq("status", "draft");
+    cards = (fallback.data || []).map((row) => ({ ...row, clubs: null }));
+    error = fallback.error;
+  }
   if (error) throw new Error(error.message);
   const allDrafts = (cards || []) as {
     id: string;
@@ -365,6 +453,8 @@ export async function generateClassReportComments(
     stream: string | null;
     campus: string | null;
     term_id: string;
+    conduct: string | null;
+    clubs: string | null;
     class_teacher_comment: string | null;
     head_comment: string | null;
     cocurricular_comment: string | null;
@@ -372,15 +462,30 @@ export async function generateClassReportComments(
   const drafts = input.campus
     ? allDrafts.filter((card) => operationalCampus(card.campus) === input.campus)
     : allDrafts;
-  if (!drafts.length) return { processed: 0, succeeded: 0, failed: 0, skipped: 0, errors: [] };
+  const emptySummary: ClassCommentSummary = { processed: 0, succeeded: 0, failed: 0, skipped: 0, ai: 0, fallback: 0, errors: [] };
+  if (!drafts.length) return emptySummary;
 
   const config = await loadActiveCommentConfig(supabase);
   if (!config) throw new Error("No active comment configuration. Open Comments under Setup.");
 
+  // All drafts share one term, so the term number and class sequence are loaded once per call.
+  const termNumber = await loadTermNumber(supabase, input.termId);
+  const classSequence = termNumber === 3 ? await loadClassSequence(supabase) : [];
+
   const reportIds = drafts.map((card) => card.id);
   const studentIds = [...new Set(drafts.map((card) => card.student_id))];
   const nurseryClass = classSection(input.classCode) === "nursery";
-  const [pupils, lines, activities, skillMap] = await Promise.all([
+  // Last engine-written remarks. Null when the ai_* columns (supabase/0098) have not been run yet.
+  const aiRows = await fetchIn<{ id: unknown; ai_class_comment?: string | null; ai_head_comment?: string | null }>(
+    reportIds,
+    (slice) => supabase.from("report_cards").select("id, ai_class_comment, ai_head_comment").in("id", slice),
+  ).catch(() => null);
+  const aiColumnsReady = aiRows !== null;
+  const aiByCard = new Map((aiRows || []).map((row) => [String(row.id), row]));
+  const missingClubStudents = drafts
+    .filter((card) => !parseClubsList(card.clubs).length)
+    .map((card) => card.student_id);
+  const [pupils, lines, activities, skillMap, activeClubsMap] = await Promise.all([
     fetchIn<{ id: string; full_name?: string | null; preferred_name?: string | null; given_names?: string | null; sex?: string | null }>(
       studentIds,
       (slice) => supabase.from("students").select("id, full_name, preferred_name, given_names, sex").in("id", slice),
@@ -393,6 +498,9 @@ export async function generateClassReportComments(
     nurseryClass
       ? loadReportSkillLines(supabase, reportIds)
       : Promise.resolve(new Map<string, NurserySkillLineInput[]>()),
+    missingClubStudents.length
+      ? loadActiveClubsByStudent(supabase, missingClubStudents)
+      : Promise.resolve(new Map<string, string[]>()),
   ]);
   const pupilById = new Map(pupils.map((pupil) => [String(pupil.id), pupil]));
   const linesByCard = groupBy(lines, (line) => String(line.report_card_id));
@@ -406,20 +514,15 @@ export async function generateClassReportComments(
   const primarySubjectStore = primaryClass
     ? await primarySubjectCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
     : new Map<string, string>();
+  const primaryActivityStore = primaryClass
+    ? await primaryActivityCommentMapForTerm(supabase, input.termId, studentIds).catch(() => new Map<string, string>())
+    : new Map<string, string>();
 
   const now = new Date().toISOString();
   const writtenIds: string[] = [];
   const cardWrites: Record<string, unknown>[] = [];
   const lineWrites: Record<string, unknown>[] = [];
   const activityWrites: Record<string, unknown>[] = [];
-  const storeWrites: {
-    student_id: string;
-    term_id: string;
-    campus: string | null;
-    class_code: string | null;
-    stream: string;
-    comment: string | null;
-  }[] = [];
   const primarySubjectStoreWrites: {
     student_id: string;
     term_id: string;
@@ -443,18 +546,39 @@ export async function generateClassReportComments(
   const provenance: Record<string, unknown>[] = [];
   const audits: Record<string, unknown>[] = [];
   const recordTrail = !options.skipTrail;
+  const rewriteAi = Boolean(options.rewriteAi);
   let skipped = 0;
   let succeeded = 0;
   let failed = 0;
   const errors: { reportId: string; messages: string[] }[] = [];
 
+  type PendingCard = {
+    card: (typeof drafts)[number];
+    reportId: string;
+    cardLines: typeof lines;
+    storeText: string;
+    reportInput: ReportInput;
+    base: GenerationResult;
+    ownsClass: boolean;
+    ownsHead: boolean;
+    keepDetail: boolean;
+    onlyMissingActivities: boolean;
+  };
+  const pending: PendingCard[] = [];
+
   for (const card of drafts) {
     const reportId = String(card.id);
     const cardLines = linesByCard.get(reportId) || [];
+    const cardActivities = activitiesByCard.get(reportId) || [];
+    const hasBlankActivity = !nurseryClass
+      && cardActivities.some((row) => Boolean(String(row.activity_name || "").trim()) && !String(("comment" in row ? row.comment : null) || "").trim());
     const storeText = storeComments.get(String(card.student_id)) || "";
     const hasPrimarySubjectStore = primaryClass
       && [...primarySubjectStore.keys()].some((key) => key.startsWith(`${card.student_id}|`));
-    if (options.onlyBlank && (nurseryClass || primaryClass) && storeText && !card.class_teacher_comment?.trim()) {
+    // Rewrite mode keeps existing subject/co-curricular remarks; only the class and principal remarks are refreshed.
+    const keepDetail = rewriteAi
+      && (Boolean(card.cocurricular_comment?.trim()) || cardLines.some((line) => Boolean(line.teacher_comment?.trim())));
+    if (!rewriteAi && options.onlyBlank && (nurseryClass || primaryClass) && storeText && !card.class_teacher_comment?.trim() && card.head_comment?.trim() && !hasBlankActivity) {
       cardWrites.push({
         id: reportId,
         class_teacher_comment: storeText,
@@ -463,17 +587,19 @@ export async function generateClassReportComments(
       skipped += 1;
       continue;
     }
-    if (
-      options.onlyBlank
+    const blankCardSkip = Boolean(
+      !rewriteAi
+      && options.onlyBlank
       && (
         !isBlankCard(card, cardLines, nurseryClass)
-        || ((nurseryClass || primaryClass) && storeText)
-        || hasPrimarySubjectStore
-      )
-    ) {
+        || (hasPrimarySubjectStore && Boolean(card.head_comment?.trim()))
+      ),
+    );
+    if (blankCardSkip && !hasBlankActivity) {
       skipped += 1;
       continue;
     }
+    const onlyMissingActivities = blankCardSkip && hasBlankActivity;
     const skillLines: NurserySkillLineInput[] = nurseryClass
       ? (skillMap.get(reportId) || []).map((row) => ({
           skill_id: row.skill_id,
@@ -486,44 +612,109 @@ export async function generateClassReportComments(
           skill_sort: row.skill_sort,
         }))
       : [];
+    const cardClubs = parseClubsList(card.clubs);
+    const clubs = cardClubs.length ? cardClubs : (activeClubsMap.get(String(card.student_id)) || []);
     const reportInput = finishReportInput(
       card,
       pupilById.get(String(card.student_id)) || null,
       cardLines,
       activitiesByCard.get(reportId) || [],
-      { nursery: nurseryClass, skillLines },
+      {
+        nursery: nurseryClass,
+        skillLines,
+        conduct: card.conduct,
+        clubs,
+        termNumber,
+        promotion: termNumber === 3 ? promotionForLearner(termNumber, String(card.class_code || ""), classSequence) : null,
+      },
     );
-    const result = generateCommentsForReport(reportInput, config);
+    const base = generateCommentsForReport(reportInput, config);
+    const templateClass = base.units.find((unit) => unit.commentType === "class_teacher")?.text ?? null;
+    const templateHead = base.units.find((unit) => unit.commentType === "headteacher")?.text ?? null;
+    const ai = aiByCard.get(reportId);
+    const ownsClass = rewriteAi ? engineOwnsRemark(card.class_teacher_comment, ai?.ai_class_comment, templateClass) : true;
+    const ownsHead = rewriteAi ? engineOwnsRemark(card.head_comment, ai?.ai_head_comment, templateHead) : true;
+    if (rewriteAi && keepDetail && !ownsClass && !ownsHead && !storeText && !hasBlankActivity) {
+      // Both remarks were edited by hand and the details are already written: nothing to change.
+      skipped += 1;
+      continue;
+    }
+    pending.push({ card, reportId, cardLines, storeText, reportInput, base, ownsClass, ownsHead, keepDetail, onlyMissingActivities });
+  }
+
+  const grokPending = pending.filter((item) => !item.onlyMissingActivities);
+  const grokMap = grokPending.length
+    ? await generateGrokCommentsBatch(grokPending.map((item) => ({ input: item.reportInput, profile: item.base.profile })))
+    : new Map();
+  let aiCount = 0;
+  let fallbackCount = 0;
+
+  for (const { card, reportId, cardLines, storeText, base, ownsClass, ownsHead, keepDetail, onlyMissingActivities } of pending) {
+    const grokPair = grokMap.get(reportId);
+    if (!onlyMissingActivities) {
+      if (grokPair?.classTeacher || grokPair?.principal) aiCount += 1;
+      else fallbackCount += 1;
+    }
+    const result = applyGrokToGenerationResult(base, grokPair);
     const messages: string[] = [];
     const classUnit = result.units.find((unit) => unit.commentType === "class_teacher");
     const headUnit = result.units.find((unit) => unit.commentType === "headteacher");
     const cocoUnit = result.units.find((unit) => unit.commentType === "cocurricular" && !unit.activitySlot);
-    if (!nurseryClass && cocoUnit && !cocoUnit.text && (cocoUnit.status === "needs_review" || cocoUnit.status === "failed")) {
+    if (!onlyMissingActivities && !nurseryClass && cocoUnit && !cocoUnit.text && (cocoUnit.status === "needs_review" || cocoUnit.status === "failed")) {
       messages.push(...(cocoUnit.validation.errors.length ? cocoUnit.validation.errors : [cocoUnit.explanation]));
     }
     writtenIds.push(reportId);
-    const nextClassComment = classUnit?.text || card.class_teacher_comment;
-    // Update by id — do not upsert on (student_id, term_id); campus is NOT NULL and must not be dropped.
-    cardWrites.push({
-      id: reportId,
-      class_teacher_comment: nextClassComment,
-      head_comment: nurseryClass ? card.head_comment : headUnit?.text || card.head_comment,
-      cocurricular_comment: nurseryClass ? card.cocurricular_comment : cocoUnit?.text || card.cocurricular_comment,
-      updated_at: now,
-    });
-    if ((nurseryClass || primaryClass) && classUnit?.text) {
-      storeWrites.push({
-        student_id: String(card.student_id),
-        term_id: String(card.term_id),
-        campus: card.campus,
-        class_code: card.class_code,
-        stream: streamOf(card.stream),
-        comment: classUnit.text,
-      });
+    if (!onlyMissingActivities) {
+      // Uploaded/manual comments stored in primary_class_comments / nursery_class_comments always override AI.
+      const previousAi = aiByCard.get(reportId);
+      let nextClassComment: string | null;
+      let nextHeadComment: string | null;
+      // Last engine-written text, kept so the next "Generate report cards" can tell engine text from manual edits.
+      let engineClass = previousAi?.ai_class_comment ?? null;
+      let engineHead = previousAi?.ai_head_comment ?? null;
+      if (rewriteAi) {
+        // Take fresh AI/engine text only where the remark is engine-owned. If Grok gave nothing for this card,
+        // keep existing text and only let the template fill a blank remark.
+        const classFromEngine = ownsClass && Boolean(classUnit?.text) && (Boolean(grokPair?.classTeacher) || !card.class_teacher_comment?.trim());
+        const headFromEngine = ownsHead && Boolean(headUnit?.text) && (Boolean(grokPair?.principal) || !card.head_comment?.trim());
+        nextClassComment = storeText || (classFromEngine ? classUnit?.text ?? null : card.class_teacher_comment);
+        nextHeadComment = headFromEngine ? headUnit?.text ?? null : card.head_comment;
+        if (!storeText && classFromEngine) engineClass = classUnit?.text ?? null;
+        if (headFromEngine) engineHead = headUnit?.text ?? null;
+      } else {
+        nextClassComment = storeText || classUnit?.text || card.class_teacher_comment;
+        nextHeadComment = headUnit?.text || card.head_comment;
+        engineClass = storeText ? engineClass : classUnit?.text ?? null;
+        engineHead = headUnit?.text ?? null;
+      }
+      // Update by id — do not upsert on (student_id, term_id); campus is NOT NULL and must not be dropped.
+      const cardWrite: Record<string, unknown> = {
+        id: reportId,
+        class_teacher_comment: nextClassComment,
+        head_comment: nextHeadComment,
+        cocurricular_comment: keepDetail || nurseryClass ? card.cocurricular_comment : cocoUnit?.text || card.cocurricular_comment,
+        updated_at: now,
+      };
+      if (aiColumnsReady) {
+        cardWrite.ai_class_comment = engineClass;
+        cardWrite.ai_head_comment = engineHead;
+      }
+      cardWrites.push(cardWrite);
     }
     const knownLines = new Map(cardLines.map((line) => [String(line.subject_id), line]));
     const knownActivities = new Map((activitiesByCard.get(reportId) || []).map((row) => [Number(row.slot), row]));
     for (const unit of result.units) {
+      if (onlyMissingActivities && !(unit.commentType === "cocurricular" && unit.activitySlot)) continue;
+      if (keepDetail && unit.commentType !== "class_teacher" && unit.commentType !== "headteacher") {
+        // Still fill any co-curricular activity row whose comment is currently blank.
+        if (unit.commentType === "cocurricular" && unit.activitySlot) {
+          const existingRow = knownActivities.get(unit.activitySlot);
+          const existingComment = String((existingRow && "comment" in existingRow ? existingRow.comment : null) || "").trim();
+          if (existingComment) continue;
+        } else {
+          continue;
+        }
+      }
       if (unit.commentType === "subject_teacher" && unit.text && unit.subjectId && knownLines.has(unit.subjectId)) {
         const line = knownLines.get(unit.subjectId);
         lineWrites.push({
@@ -546,6 +737,9 @@ export async function generateClassReportComments(
       }
       if (unit.commentType === "cocurricular" && unit.activitySlot && unit.text && knownActivities.has(unit.activitySlot)) {
         const row = knownActivities.get(unit.activitySlot);
+        const existingComment = String((row && "comment" in row ? row.comment : null) || "").trim();
+        if (onlyMissingActivities && existingComment) continue;
+        const kept = primaryActivityStore.get(`${card.student_id}|${unit.activitySlot}`) || "";
         activityWrites.push({
           report_card_id: reportId,
           slot: unit.activitySlot,
@@ -554,9 +748,9 @@ export async function generateClassReportComments(
           score: "score" in (row || {}) ? (row as { score?: unknown }).score ?? null : null,
           max_score: "max_score" in (row || {}) ? (row as { max_score?: unknown }).max_score ?? null : null,
           skills: "skills" in (row || {}) ? (row as { skills?: unknown }).skills ?? [] : [],
-          comment: unit.text,
+          comment: kept || unit.text,
         });
-        if (primaryClass) {
+        if (primaryClass && !kept) {
           primaryActivityStoreWrites.push({
             student_id: String(card.student_id),
             term_id: String(card.term_id),
@@ -609,36 +803,6 @@ export async function generateClassReportComments(
         })
       : Promise.resolve(),
   ]);
-  if (storeWrites.length) {
-    try {
-      if (nurseryClass) {
-        await upsertNurseryClassComments(
-          supabase,
-          storeWrites.map((row) => ({
-            ...row,
-            campus: operationalCampus(row.campus),
-            updated_by: actorId,
-          })),
-        );
-      } else if (primaryClass) {
-        await upsertPrimaryClassComments(
-          supabase,
-          storeWrites.map((row) => ({
-            ...row,
-            campus: operationalCampus(row.campus),
-            updated_by: actorId,
-          })),
-        );
-      }
-    } catch (storeError) {
-      const message = storeError instanceof Error ? storeError.message : "";
-      if (nurseryClass) {
-        if (!/nursery_class_comments|schema cache|does not exist/i.test(message)) throw storeError;
-      } else if (!isPrimaryStoreMissing(message)) {
-        throw storeError;
-      }
-    }
-  }
   if (primarySubjectStoreWrites.length) {
     try {
       await upsertPrimarySubjectComments(
@@ -671,7 +835,7 @@ export async function generateClassReportComments(
   }
   if (recordTrail) await replaceProvenance(supabase, writtenIds, provenance, audits);
 
-  return { processed: drafts.length, succeeded, failed, skipped, errors };
+  return { processed: drafts.length, succeeded, failed, skipped, ai: aiCount, fallback: fallbackCount, errors };
 }
 
 /** True when a draft card still needs the engine to fill remarks. */
@@ -686,7 +850,7 @@ export async function draftNeedsComments(
   },
 ) {
   const nursery = classSection(card?.class_code) === "nursery";
-  if (nursery) return !card?.class_teacher_comment?.trim();
+  if (nursery) return !card?.class_teacher_comment?.trim() && !card?.head_comment?.trim();
   const hasCardCopy = Boolean(
     card?.class_teacher_comment?.trim() || card?.head_comment?.trim() || card?.cocurricular_comment?.trim(),
   );
@@ -785,7 +949,7 @@ function isBlankCard(
   lines: { teacher_comment?: string | null }[],
   nursery = false,
 ) {
-  if (nursery) return !card.class_teacher_comment?.trim();
+  if (nursery) return !card.class_teacher_comment?.trim() && !card.head_comment?.trim();
   if (card.class_teacher_comment?.trim() || card.head_comment?.trim() || card.cocurricular_comment?.trim()) return false;
   return !lines.some((line) => Boolean(line.teacher_comment?.trim()));
 }
@@ -831,14 +995,14 @@ async function fetchIn<T>(
 
 async function loadActivities(supabase: SupabaseClient, reportIds: string[]) {
   try {
-    return await fetchIn<{ report_card_id: unknown; slot: unknown; activity_name?: unknown; level?: unknown; score?: unknown; max_score?: unknown; skills?: unknown }>(
+    return await fetchIn<{ report_card_id: unknown; slot: unknown; subject_id?: unknown; activity_name?: unknown; level?: unknown; score?: unknown; max_score?: unknown; skills?: unknown; comment?: unknown }>(
       reportIds,
-      (slice) => supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level, score, max_score, skills").in("report_card_id", slice),
+      (slice) => supabase.from("report_card_activities").select("report_card_id, slot, subject_id, activity_name, level, score, max_score, skills, comment").in("report_card_id", slice),
     );
   } catch (error) {
     const message = error instanceof Error ? error.message : "";
-    if (!/score|skills|max_score|42703/i.test(message)) throw error;
-    return fetchIn<{ report_card_id: unknown; slot: unknown; activity_name?: unknown; level?: unknown }>(
+    if (!/score|skills|max_score|comment|subject_id|42703/i.test(message)) throw error;
+    return fetchIn<{ report_card_id: unknown; slot: unknown; activity_name?: unknown; level?: unknown; comment?: unknown }>(
       reportIds,
       (slice) => supabase.from("report_card_activities").select("report_card_id, slot, activity_name, level").in("report_card_id", slice),
     );

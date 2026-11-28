@@ -88,8 +88,9 @@ export function OnlineReport({
     : classLabel(card.class_code, card.stream);
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
   const legend = card.progressLegend?.length ? card.progressLegend : null;
-  const activities = ACTIVITY_SLOTS.map((slot) => (card.activities || []).find((row) => row.slot === slot))
-    .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()));
+  const activities = [...(card.activities || [])]
+    .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()))
+    .sort((a, b) => a.slot - b.slot);
   const fees = card.fees ?? [];
   const headSignatureSrc = nursery ? nurseryHeadSignatureSrc(card.campus) : null;
   const feeTotal = fees.reduce((sum, line) => sum + line.amount, 0);

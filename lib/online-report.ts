@@ -403,7 +403,8 @@ export async function loadOnlineReportBundle(supabase: SupabaseClient, id: strin
 
   if (!pupil) return null;
 
-  const activities: SheetActivity[] = [1, 2, 3, 4].map((slot) => {
+  const maxSlot = Math.max(4, ...(activityRows || []).map((item) => Number(item.slot) || 0));
+  const activities: SheetActivity[] = Array.from({ length: maxSlot }, (_, index) => index + 1).map((slot) => {
     const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
       | {
           activity_name?: string | null;

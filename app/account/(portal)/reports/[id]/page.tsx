@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
 import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet";
-import { classSection, gradeBandSection, gradeBandSectionsToLoad, num, scaleBands } from "@/lib/academics";
+import { classLabel, classSection, gradeBandSection, gradeBandSectionsToLoad, num, scaleBands } from "@/lib/academics";
 import {
   cardSets,
   loadReportParts,
@@ -106,7 +106,10 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
     student_id: card.student_id,
     photo_path: pupil.photo_path || null,
     date_of_birth: pupil.date_of_birth || null,
-    activities: [1, 2, 3, 4].map((slot) => {
+    activities: Array.from(
+      { length: Math.max(4, ...(activityRows || []).map((item) => Number(item.slot) || 0)) },
+      (_, index) => index + 1,
+    ).map((slot) => {
       const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
         | { activity_name?: string | null; level?: string | null; comment?: string | null }
         | undefined;
@@ -143,7 +146,14 @@ export default async function ParentReportPage({ params }: { params: Promise<{ i
       <p className="acd-noprint"><Link href="/account/reports">All reports</Link></p>
       <ReportSheet card={sheet} nursery={nursery} />
       <div className="acd-noprint">
-        <PrintReportCardButton href={`/account/reports/${id}/pdf`} label="Print report" className="admin-btn admin-btn-ghost" icon={false} />
+        <PrintReportCardButton
+          href={`/account/reports/${id}/pdf`}
+          label="Print report"
+          className="admin-btn admin-btn-ghost"
+          icon={false}
+          pupilName={sheet.pupil_name}
+          subtitle={[classLabel(sheet.class_code, sheet.stream), sheet.term_label].filter(Boolean).join(" · ")}
+        />
       </div>
     </div>
   );

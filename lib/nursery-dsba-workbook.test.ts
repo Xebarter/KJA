@@ -47,7 +47,8 @@ describe("nursery developmental workbook campus separation", () => {
     });
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(bytes as unknown as ExcelJS.Buffer);
-    const classSheets = workbook.worksheets.filter((sheet) => sheet.name !== "Cover" && sheet.name !== "_KJA");
+    const classSheets = workbook.worksheets.filter((sheet) => sheet.name !== "_KJA");
+    expect(workbook.getWorksheet("Cover")).toBeUndefined();
 
     expect(classSheets).toHaveLength(2);
     expect(classSheets.map((sheet) => sheet.getCell(10, 4).value)).toEqual(["Bunga pupil", "Kitante pupil"]);

@@ -17,6 +17,7 @@ import {
 } from "@/lib/academics";
 import { loadRoll } from "@/lib/academics-roll";
 import { operationalCampus } from "@/lib/campuses";
+import { loadActiveClubsByStudent, normalizeClubsList } from "@/lib/report-clubs";
 import {
   readCombinedMarksheetQuery,
   readMarksheetQuery,
@@ -293,17 +294,40 @@ export async function loadMarksheetExportPayload(input: {
     scores.map((score) => [`${score.assessment_id}|${score.student_id}`, { score: num(score.score), missed: Boolean(score.missed) }]),
   );
   let conductByStudent = new Map<string, string | null>();
+  let clubsByStudent = new Map<string, string | null>();
   try {
-    const conductRows = await fetchAll<{ student_id: string; conduct: string | null }>((from, to) =>
-      input.supabase
-        .from("report_cards")
-        .select("student_id, conduct")
-        .eq("term_id", term.id)
-        .in("student_id", roster.map((pupil) => pupil.id))
-        .order("student_id")
-        .range(from, to),
-    );
+    const rosterIds = roster.map((pupil) => pupil.id);
+    let conductRows: { student_id: string; conduct: string | null; clubs?: string | null }[] = [];
+    try {
+      conductRows = await fetchAll<{ student_id: string; conduct: string | null; clubs: string | null }>((from, to) =>
+        input.supabase
+          .from("report_cards")
+          .select("student_id, conduct, clubs")
+          .eq("term_id", term.id)
+          .in("student_id", rosterIds)
+          .order("student_id")
+          .range(from, to),
+      );
+    } catch {
+      conductRows = await fetchAll<{ student_id: string; conduct: string | null }>((from, to) =>
+        input.supabase
+          .from("report_cards")
+          .select("student_id, conduct")
+          .eq("term_id", term.id)
+          .in("student_id", rosterIds)
+          .order("student_id")
+          .range(from, to),
+      );
+    }
     conductByStudent = new Map(conductRows.map((row) => [row.student_id, row.conduct]));
+    clubsByStudent = new Map(conductRows.map((row) => [row.student_id, normalizeClubsList(row.clubs)]));
+    const missingClubs = rosterIds.filter((id) => !clubsByStudent.get(id));
+    if (missingClubs.length) {
+      const activeClubs = await loadActiveClubsByStudent(input.supabase, missingClubs);
+      for (const [sid, list] of activeClubs) {
+        if (list.length) clubsByStudent.set(sid, list.join(", "));
+      }
+    }
   } catch {
     return { error: "The term behavior ratings could not be loaded.", status: 500 };
   }
@@ -396,6 +420,7 @@ export async function loadMarksheetExportPayload(input: {
       gaps: marks.filter((mark) => mark.expected && !mark.missed && mark.score === null).length,
       percents,
       behavior: behaviorRatingForConduct(conductByStudent.get(pupil.id)),
+      clubs: clubsByStudent.get(pupil.id) || null,
     };
   });
 
@@ -468,6 +493,7 @@ export async function loadMarksheetExportPayload(input: {
       average: marksheetDisplayAverage(row, sort),
       position: positions.get(row.id) ?? null,
       behavior: row.behavior,
+      clubs: row.clubs,
     })),
     classAverage,
     logo,

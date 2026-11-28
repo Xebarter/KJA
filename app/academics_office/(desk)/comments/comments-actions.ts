@@ -347,9 +347,9 @@ export async function importPrimaryCommentsWorkbook(formData: FormData): Promise
   const currentSubjects = (subjectsResult.data || [])
     .map((row) => mapSubject(row as Record<string, unknown>))
     .filter((subject) => subjectFits(subject, parsed.classCode) && isCocurricularSubject(subject))
-    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name))
-    .slice(0, 4);
-  const slotMismatch = parsed.subjects.length !== currentSubjects.length || Array.from({ length: 4 }, (_, index) => {
+    .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+  const checkCount = Math.max(currentSubjects.length, parsed.subjects.length);
+  const slotMismatch = parsed.subjects.length !== currentSubjects.length || Array.from({ length: checkCount }, (_, index) => {
     const slot = index + 1;
     const uploaded = parsed.subjects.find((subject) => subject.slot === slot);
     const current = currentSubjects[index];
@@ -687,7 +687,7 @@ export async function savePrimaryActivityComment(formData: FormData): Promise<Re
   const classCode = String(formData.get("class_code") || "").trim();
   const stream = streamOf(String(formData.get("stream") || ""));
   const campus = String(formData.get("campus") || "").trim();
-  if (!isUuid(studentId) || !isUuid(termId) || slot < 1 || slot > 4) {
+  if (!isUuid(studentId) || !isUuid(termId) || !Number.isInteger(slot) || slot < 1) {
     return { error: "This learner or activity slot could not be matched." };
   }
   if (!classCode || classSection(classCode) !== "primary") {

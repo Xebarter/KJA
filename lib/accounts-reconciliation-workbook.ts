@@ -184,7 +184,6 @@ export async function buildReconciliationWorkbook(input: ReconciliationWorkbookI
   const used = new Set<string>();
   const subtitle = `${report.periodLabel} · As of ${report.today} · Prepared by ${preparedBy} · ${generatedAt}`;
 
-  writeCover(workbook, report, preparedBy, generatedAt, used);
   writeSummary(workbook, report, subtitle, used);
   writeReceipts(workbook, report, subtitle, used);
   writeMethods(workbook, report, subtitle, used);
@@ -201,130 +200,6 @@ export async function buildReconciliationWorkbook(input: ReconciliationWorkbookI
 
   const raw = await workbook.xlsx.writeBuffer();
   return Buffer.from(raw);
-}
-
-function writeCover(workbook: ExcelJS.Workbook, report: AccountsReport, preparedBy: string, generatedAt: string, used: Set<string>) {
-  const sheet = workbook.addWorksheet(uniqueSheetName("Cover", used), {
-    views: [{ showGridLines: false }],
-    properties: { defaultRowHeight: 18 },
-  });
-  setWidths(sheet, [28, 28, 28, 28]);
-
-  merge(sheet, 1, 1, 4, SCHOOL, {
-    font: font(12, GOLD, true),
-    fill: solid(NAVY),
-    alignment: { vertical: "middle", horizontal: "left" },
-  });
-  for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(1, col), { fill: solid(NAVY) });
-  sheet.getRow(1).height = 26;
-
-  merge(sheet, 2, 1, 4, "Fee reconciliation workbook", {
-    font: font(20, WHITE, true),
-    fill: solid(NAVY),
-    alignment: { vertical: "middle", horizontal: "left" },
-  });
-  for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(2, col), { fill: solid(NAVY) });
-  sheet.getRow(2).height = 34;
-
-  merge(sheet, 3, 1, 4, "One file for billing, collections, debtors and spending, ready for bank and cash reconciliation.", {
-    font: font(10, "FFD6CCBA"),
-    fill: solid(NAVY),
-    alignment: { vertical: "middle", wrapText: true },
-  });
-  for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(3, col), { fill: solid(NAVY) });
-  sheet.getRow(3).height = 28;
-
-  const meta: [string, string][] = [
-    ["Period", report.periodLabel],
-    ...(report.dateFrom || report.dateTo
-      ? [["Cash window", [report.dateFrom || "…", report.dateTo || "…"].join(" → ")]] as [string, string][]
-      : []),
-    ["As of", report.today],
-    ["Prepared by", preparedBy],
-    ["Generated", generatedAt],
-  ];
-  meta.forEach(([label, value], index) => {
-    const row = 5 + index;
-    paint(sheet.getCell(row, 1), { font: font(10, MUTED, true), fill: solid(CREAM), border: grid() });
-    sheet.getCell(row, 1).value = label;
-    merge(sheet, row, 2, 4, value, { font: font(11, INK, true), fill: solid(WHITE), border: grid(), alignment: { vertical: "middle" } });
-    for (let col = 3; col <= 4; col += 1) paint(sheet.getCell(row, col), { fill: solid(WHITE), border: grid() });
-  });
-
-  const kpis: [string, number, "plain" | "good" | "bad"][] = [
-    ["Fees billed (UGX)", report.billed, "plain"],
-    ["Collected (UGX)", report.collected, "good"],
-    ["Still owed (UGX)", report.owing, report.owing ? "bad" : "good"],
-    ["Spending (UGX)", report.spent, "plain"],
-    ["Net (UGX)", report.net, report.net < 0 ? "bad" : "good"],
-  ];
-  let cursor = 5 + meta.length + 1;
-  merge(sheet, cursor, 1, 4, "At a glance", {
-    font: font(12, INK, true),
-    fill: solid(CREAM),
-    alignment: { vertical: "middle" },
-  });
-  for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(cursor, col), { fill: solid(CREAM) });
-  kpis.forEach(([label, value, tone], index) => {
-    const row = cursor + 1 + index;
-    paint(sheet.getCell(row, 1), { font: font(10, MUTED), border: grid() });
-    sheet.getCell(row, 1).value = label;
-    merge(sheet, row, 2, 4, value, {
-      font: font(12, tone === "good" ? GREEN : tone === "bad" ? RED : INK, true),
-      border: grid(),
-      alignment: { horizontal: "right", vertical: "middle" },
-      numFmt: MONEY,
-    });
-    for (let col = 3; col <= 4; col += 1) paint(sheet.getCell(row, col), { border: grid() });
-  });
-
-  const sheets: [string, string][] = [
-    ["Summary", "Position figures for the period"],
-    ["Receipts", "Every valid receipt: match to bank and mobile money"],
-    ["By method", "Cash, bank, SchoolPay and the rest"],
-    ["By day", "Daily cash book"],
-    ["By class", "Billed, collected and owed by class"],
-    ...(report.campuses.length > 1 ? [["By campus", "Campus roll-up"] as [string, string]] : []),
-    ["Debtors", "Pupils who still owe"],
-    ["Aging", "How old the unpaid balances are"],
-    ...(report.fees.length || report.discountLines.length ? [["Billing", "Fee items and discounts"] as [string, string]] : []),
-    ["Expenses", "Approved and paid spending in the period"],
-    ...(report.terms.length > 1 ? [["Terms", "Compare terms"] as [string, string]] : []),
-    ["Cashiers", "Who recorded the receipts"],
-    ["Monthly", "Income against spending by month"],
-  ];
-
-  cursor += 1 + kpis.length + 1;
-  merge(sheet, cursor, 1, 4, "What's in this workbook", {
-    font: font(12, INK, true),
-    fill: solid(CREAM),
-    alignment: { vertical: "middle" },
-  });
-  for (let col = 2; col <= 4; col += 1) paint(sheet.getCell(cursor, col), { fill: solid(CREAM) });
-  sheets.forEach(([name, note], index) => {
-    const row = cursor + 1 + index;
-    paint(sheet.getCell(row, 1), { font: font(10, INK, true), border: grid(), fill: solid(index % 2 ? ZEBRA : WHITE) });
-    sheet.getCell(row, 1).value = name;
-    merge(sheet, row, 2, 4, note, {
-      font: font(10, MUTED),
-      border: grid(),
-      fill: solid(index % 2 ? ZEBRA : WHITE),
-      alignment: { vertical: "middle" },
-    });
-    for (let col = 3; col <= 4; col += 1) paint(sheet.getCell(row, col), { border: grid(), fill: solid(index % 2 ? ZEBRA : WHITE) });
-  });
-
-  const tipRow = cursor + 1 + sheets.length + 1;
-  const tip = report.truncated
-    ? "One list reached 60,000 rows, so totals stop there. Re-run with a narrower date range if you need every line."
-    : report.dateFrom || report.dateTo
-      ? "Receipts and spending use the chosen cash window. Outstanding balances and billing are the selected term as of today."
-      : "Tip: filter the Receipts sheet by method or date, then tick off each bank or mobile-money statement line.";
-  merge(sheet, tipRow, 1, 4, tip, {
-    font: font(9, report.truncated ? RED : MUTED, report.truncated),
-    alignment: { wrapText: true, vertical: "top" },
-  });
-  sheet.getRow(tipRow).height = 40;
 }
 
 function writeSummary(workbook: ExcelJS.Workbook, report: AccountsReport, subtitle: string, used: Set<string>) {

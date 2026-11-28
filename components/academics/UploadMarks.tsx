@@ -564,14 +564,14 @@ export function UploadMarks({
           ) : null}
           {!sittingNurseryOnly && otherWithSkills.length ? (
             <p className="asm-note">
-              Other subjects include Skills acquired columns (Yes for each skill set on the Subjects page).
+              Other subjects include a Comment column and Skills acquired columns (Yes for each skill set on the Subjects page). A comment can be typed instead of a mark and skills, and it is saved onto the report card.
             </p>
           ) : null}
           {!sittingNurseryOnly && otherWithoutSkills.length ? (
             <p className="asm-note is-hint">
               {otherWithoutSkills.length === 1
-                ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet. The workbook has a Major skills learnt column (up to 4 skills on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`
-                : `${nf(otherWithoutSkills.length)} Other subjects have no skills listed yet. Each gets a Major skills learnt column (up to 4 on the first pupil row; others inherit). Add skills on Subjects for Yes tick columns.`}
+                ? `${otherWithoutSkills[0].subject} has no skills listed on Subjects yet. The workbook has a Comment column and a Major skills learnt column. Type a comment instead of a mark and skills, or list up to 4 skills on the first pupil row.`
+                : `${nf(otherWithoutSkills.length)} Other subjects have no skills listed yet. Each has a Comment column and a Major skills learnt column. Type a comment instead of a mark and skills, or list up to 4 skills on the first pupil row.`}
             </p>
           ) : null}
           <button type="button" className="asm-commit" disabled={!chosen.length || busy !== ""} onClick={download}>
@@ -634,7 +634,7 @@ export function UploadMarks({
                     <em>
                       {previewNursery
                         ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
-                        : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
+                        : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.comments ? ` · ${nf(sheet.comments)} ${sheet.comments === 1 ? "comment" : "comments"}` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
                     </em>
                   </li>
                 ))}
@@ -660,7 +660,7 @@ export function UploadMarks({
               {preview.ready && !preview.issueCount ? (
                 <button type="button" className="asm-commit" disabled={busy !== ""} onClick={() => setAskSubmit(true)}>
                   <i className="fa-solid fa-paper-plane" aria-hidden="true" />
-                  {previewNursery ? "Submit skill codes" : preview.behavior ? "Submit marks & behavior" : "Submit marks"}
+                  {previewNursery ? "Submit skill codes" : preview.comments && !handed && !preview.behavior ? "Save comments" : preview.behavior ? "Submit marks & behavior" : "Submit marks"}
                 </button>
               ) : null}
             </div>
@@ -680,7 +680,7 @@ export function UploadMarks({
           <div className="asm-dialog" role="dialog" aria-modal="true" aria-labelledby="marks-submit-title">
             <header>
               <p>Workbook</p>
-              <h2 id="marks-submit-title">{previewNursery ? "Submit these skill codes" : preview.behavior ? "Submit these marks and behavior ratings" : "Submit these marks"}</h2>
+              <h2 id="marks-submit-title">{previewNursery ? "Submit these skill codes" : preview.comments && !handed && !preview.behavior ? "Save these comments" : preview.behavior ? "Submit these marks and behavior ratings" : "Submit these marks"}</h2>
               <span>{preview.name}{preview.detail ? ` · ${preview.detail}` : ""}</span>
             </header>
             <ul>
@@ -691,7 +691,7 @@ export function UploadMarks({
                   <em>
                     {previewNursery
                       ? `${nf(sheet.scores)} ${sheet.scores === 1 ? "code" : "codes"}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}`
-                      : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
+                      : `${nf(sheet.scores)} ${sheet.scores === 1 ? "mark" : "marks"}${sheet.missed ? ` · ${nf(sheet.missed)} absent` : ""}${sheet.cleared ? ` · ${nf(sheet.cleared)} cleared` : ""}${sheet.comments ? ` · ${nf(sheet.comments)} ${sheet.comments === 1 ? "comment" : "comments"}` : ""}${sheet.behavior ? ` · ${nf(sheet.behavior)} behavior ${sheet.behavior === 1 ? "rating" : "ratings"}` : ""}`}
                   </em>
                 </li>
               ))}

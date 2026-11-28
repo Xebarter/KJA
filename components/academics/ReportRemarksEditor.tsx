@@ -39,6 +39,7 @@ export function ReportRemarksEditor({
   status,
   classTeacherName,
   conduct: initialConduct,
+  clubs: initialClubs,
   classTeacherComment,
   headComment,
   cocurricularComment,
@@ -52,6 +53,7 @@ export function ReportRemarksEditor({
   status: string;
   classTeacherName: string | null;
   conduct: string | null;
+  clubs?: string | null;
   classTeacherComment: string | null;
   headComment: string | null;
   cocurricularComment: string | null;
@@ -67,6 +69,7 @@ export function ReportRemarksEditor({
     return openSubjects && lines.length ? "subjects" : "leaders";
   });
   const [conduct, setConduct] = useState(initialConduct === "Needs support" ? "Needs Help" : initialConduct || "");
+  const [clubs, setClubs] = useState(initialClubs || "");
   const [teacherNote, setTeacherNote] = useState(classTeacherComment || "");
   const [headNote, setHeadNote] = useState(headComment || "");
   const [subjectNotes, setSubjectNotes] = useState(() =>
@@ -267,6 +270,30 @@ export function ReportRemarksEditor({
                   </button>
                 ) : null}
               </div>
+            </section>
+
+            <section className="rpt-editor-block">
+              <header className="rpt-editor-block-head">
+                <div>
+                  <h3>Clubs this term</h3>
+                  <p>Comma-separated clubs the pupil participated in. Used when generating the class teacher comment.</p>
+                </div>
+                <span className={`rpt-editor-badge${filled(clubs) ? " is-ok" : ""}`}>
+                  {filled(clubs) ? "Listed" : "Optional"}
+                </span>
+              </header>
+              <label className="rpt-editor-field">
+                <span className="rpt-sr">Clubs participated in this term</span>
+                <input
+                  name="clubs"
+                  type="text"
+                  maxLength={300}
+                  value={clubs}
+                  onChange={(event) => setClubs(event.target.value)}
+                  placeholder="Chess, Swimming, Debate"
+                  autoComplete="off"
+                />
+              </label>
             </section>
 
             <section className="rpt-editor-block">

@@ -137,6 +137,17 @@ export type NurserySkillLineInput = {
   skill_sort?: number;
 };
 
+/** Next-class information for a learner on a Term 3 report (promotion is automatic unless changed by hand). */
+export type LearnerPromotion = {
+  fromClass: string;
+  fromClassName: string | null;
+  /** Next class code (e.g. P4, or P1 after C4). Null when the learner is leaving the school. */
+  toClass: string | null;
+  toClassName: string | null;
+  /** True for the top class (P7), where the learner completes primary school. */
+  graduating: boolean;
+};
+
 export type ReportInput = {
   reportId: string;
   studentId: string;
@@ -146,8 +157,16 @@ export type ReportInput = {
   classCode: string;
   stream: string;
   termId: string;
+  /** Term number from fee_terms.term (1 to 3). */
+  termNumber?: number | null;
+  /** Set only on Term 3 reports; drives the next-class sentence in the Class Teacher comment. */
+  promotion?: LearnerPromotion | null;
   subjects: SubjectResultInput[];
   activities: ActivityInput[];
+  /** Term conduct / discipline rating (e.g. Excellent, Good, Fair, Needs Help). */
+  conduct?: string | null;
+  /** Clubs the learner actively participated in this term. */
+  clubs?: string[];
   /** When true, generate only nursery class-teacher comments from skill lines. */
   nursery?: boolean;
   skillLines?: NurserySkillLineInput[];

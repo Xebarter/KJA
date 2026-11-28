@@ -605,21 +605,27 @@ export async function saveTeacherReport(formData: FormData): Promise<Result> {
   if (publishing && card.status !== "approved") return { error: "Approve the class before publishing this card." };
 
   const conduct = text(formData, "conduct", 40);
+  const { normalizeClubsList } = await import("@/lib/report-clubs");
+  const clubs = normalizeClubsList(text(formData, "clubs", 300));
   const staffName = (profile.full_name || "").trim() || null;
-  const { error } = await supabase
+  const basePatch = {
+    class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
+    head_comment: text(formData, "head_comment", 2000) || null,
+    cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
+    conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
+    ...(staffName ? { class_teacher_name: staffName } : {}),
+    updated_at: new Date().toISOString(),
+    ...(publishing
+      ? { status: "published", published_at: new Date().toISOString(), published_by: user.id }
+      : {}),
+  };
+  let { error } = await supabase
     .from("report_cards")
-    .update({
-      class_teacher_comment: text(formData, "class_teacher_comment", 2000) || null,
-      head_comment: text(formData, "head_comment", 2000) || null,
-      cocurricular_comment: text(formData, "cocurricular_comment", 2000) || null,
-      conduct: BEHAVIOR_CONDUCT.includes(conduct as (typeof BEHAVIOR_CONDUCT)[number]) ? conduct : null,
-      ...(staffName ? { class_teacher_name: staffName } : {}),
-      updated_at: new Date().toISOString(),
-      ...(publishing
-        ? { status: "published", published_at: new Date().toISOString(), published_by: user.id }
-        : {}),
-    })
+    .update({ ...basePatch, clubs })
     .eq("id", id);
+  if (error && /clubs|42703|schema cache/i.test(error.message)) {
+    ({ error } = await supabase.from("report_cards").update(basePatch).eq("id", id));
+  }
   if (error) return { error: schemaHint(error.message) };
 
   const comments: { report_card_id: string; subject_id: string; teacher_comment: string | null }[] = [];
@@ -656,7 +662,16 @@ export async function saveTeacherReport(formData: FormData): Promise<Result> {
     skills: { label: string; acquired: boolean }[];
     comment: string | null;
   }[] = [];
-  for (const slot of [1, 2, 3, 4]) {
+  const slotSet = new Set<number>([1, 2, 3, 4]);
+  for (const key of formData.keys()) {
+    const match = /^activity_(?:name|comment|level|score|skills|acquired)_(\d+)$/.exec(key);
+    if (match) {
+      const parsed = Number(match[1]);
+      if (Number.isInteger(parsed) && parsed >= 1) slotSet.add(parsed);
+    }
+  }
+  const slots = [...slotSet].sort((a, b) => a - b);
+  for (const slot of slots) {
     const name = text(formData, `activity_name_${slot}`, 80) || null;
     const levelRaw = text(formData, `activity_level_${slot}`, 40);
     let level = CONDUCT.includes(levelRaw as (typeof CONDUCT)[number]) ? levelRaw : null;

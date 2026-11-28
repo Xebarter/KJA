@@ -9,6 +9,7 @@ import {
   nurseryReportClassLabel,
   nurseryReportPageForDomainSort,
 } from "@/lib/nursery-dsba";
+import { planColumnTitles, setColumnRem } from "@/lib/report-column-titles";
 import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
@@ -102,40 +103,22 @@ function activityFor(card: SheetCard, slot: number): SheetActivity | undefined {
   return (card.activities || []).find((row) => row.slot === slot);
 }
 
-function assessmentTitle(label: string): ReactNode {
-  const words = label.trim().split(/\s+/);
-  return words.length === 2 ? <>{words[0]}<br />{words[1]}</> : label;
-}
-
-function columnHeaderLabel(label: string, content: ReactNode = label, fitLines = 1): ReactNode {
-  const longestWord = label.trim().split(/\s+/).reduce((longest, word) => Math.max(longest, word.length), 1);
-  const charsPerLine = Math.max(longestWord, Math.ceil(label.trim().length / fitLines));
-  return (
-    <span
-      className="acd-sheet-header-label"
-      style={{ "--header-title-fit-factor": 1 / (charsPerLine * 0.68) } as CSSProperties}
-    >
-      {content}
-    </span>
-  );
-}
-
-/** Size the subject and comment columns tightly, leaving the rest for assessments. */
+/** Size the subject column to its longest name and the set columns to their count. */
 function setColumnVars(sets: ReportSet[], lines: SheetLine[]): CSSProperties | undefined {
   if (!sets.length) return undefined;
-  const labels = sets.map((set) => set.label.trim()).filter(Boolean);
-  if (!labels.length) return undefined;
 
   const longestSubject = lines.reduce(
     (longest, line) => Math.max(longest, line.subject_name.trim().length),
     0,
   );
-  const subjectCol = Math.min(14, Math.max(8, longestSubject * 0.52 + 0.8));
-  const setCol = 3.35;
+  // Long names wrap to two lines, so cap the column harder as assessments multiply.
+  const subjectCap = sets.length >= 7 ? 8.5 : sets.length >= 5 ? 10 : 12.5;
+  const subjectCol = Math.min(subjectCap, Math.max(7.5, longestSubject * 0.5 + 0.8));
 
   return {
-    "--set-col": `${setCol}rem`,
+    "--set-col": `${setColumnRem(sets.length)}rem`,
     "--subject-col": `${subjectCol.toFixed(2)}rem`,
+    "--set-count": sets.length,
   } as CSSProperties;
 }
 
@@ -348,6 +331,8 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
   const columns = 1 + (sets.length || 1) + (nursery ? 0 : 1) + 2;
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
   const setVars = setColumnVars(sets, card.lines);
+  const columnTitles = planColumnTitles(sets);
+  const keyed = columnTitles.filter((title) => title.abbreviated);
   const skillGroups = groupSkillLines(card.skillLines || []);
 
   if (dsba) {
@@ -550,25 +535,57 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
         <section className="acd-sheet-record" aria-label="Academic record">
           <p className="acd-sheet-kicker">Academic record</p>
           <div className="acd-sheet-table-wrap">
-            <table className={sets.length ? "acd-sheet-table has-sets" : "acd-sheet-table"} style={setVars}>
+            <table
+              className={[
+                "acd-sheet-table",
+                sets.length ? "has-sets" : "",
+                sets.length >= 7 ? "is-dense" : sets.length >= 5 ? "is-compact" : "",
+              ].filter(Boolean).join(" ")}
+              style={setVars}
+            >
+              {sets.length ? (
+                <colgroup>
+                  <col className="c-subject" />
+                  {sets.map((set) => <col key={set.key} className="c-set" />)}
+                  <col className="c-score" />
+                  {!nursery ? <col className="c-grade" /> : null}
+                  <col className="c-note" />
+                  <col className="c-sign" />
+                </colgroup>
+              ) : null}
               <thead>
                 <tr>
-                  <th>{columnHeaderLabel("Subject")}</th>
-                  {sets.map((set) => (
-                    <th key={set.key} className="is-num is-set">
-                      {columnHeaderLabel(set.label, assessmentTitle(set.label), 2)}
-                      {set.share > 0 ? <small>{formatShare(set.share)}</small> : null}
-                    </th>
-                  ))}
-                  <th className="is-num is-score">
-                    {columnHeaderLabel(sets.length ? "Total" : nursery ? "Progress" : "Score")}
+                  <th scope="col" className="is-subject-head" rowSpan={sets.length ? 2 : 1}>Subject</th>
+                  {sets.length ? (
+                    <th scope="colgroup" colSpan={sets.length} className="is-group">Assessments</th>
+                  ) : null}
+                  <th scope="col" className="is-num is-score" rowSpan={sets.length ? 2 : 1}>
+                    {sets.length ? "Total" : nursery ? "Progress" : "Score"}
                   </th>
                   {!nursery ? (
-                    <th className="is-num is-grade">{columnHeaderLabel("Grade")}</th>
+                    <th scope="col" className="is-num is-grade" rowSpan={sets.length ? 2 : 1}>Grade</th>
                   ) : null}
-                  <th className="is-note">{columnHeaderLabel("Teacher's comment")}</th>
-                  <th className="is-sign">{columnHeaderLabel("Initials")}</th>
+                  <th scope="col" className="is-note" rowSpan={sets.length ? 2 : 1}>Teacher&apos;s comment</th>
+                  <th scope="col" className="is-sign" rowSpan={sets.length ? 2 : 1}>Initials</th>
                 </tr>
+                {sets.length ? (
+                  <tr className="is-set-row">
+                    {sets.map((set, index) => {
+                      const title = columnTitles[index];
+                      return (
+                        <th
+                          key={set.key}
+                          scope="col"
+                          className="is-num is-set"
+                          title={title.abbreviated ? title.full : undefined}
+                        >
+                          <span className="acd-sheet-col-title">{title.short}</span>
+                          {set.share > 0 ? <small className="acd-sheet-col-weight">{formatShare(set.share)}</small> : null}
+                        </th>
+                      );
+                    })}
+                  </tr>
+                ) : null}
               </thead>
               <tbody>
                 {card.lines.length ? card.lines.map((line) => {
@@ -610,8 +627,7 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               {scored && card.overall_score !== null ? (
                 <tfoot>
                   <tr>
-                    <th>{nursery ? "Overall" : "Average"}</th>
-                    {sets.map((set) => <td key={set.key} />)}
+                    <th scope="row" colSpan={1 + sets.length}>{nursery ? "Overall" : "Average"}</th>
                     <td className="is-num is-score">
                       {nursery ? formatScore(card.overall_score, true) : formatMark(card.overall_score)}
                     </td>
@@ -623,6 +639,13 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               ) : null}
             </table>
           </div>
+          {keyed.length ? (
+            <p className="acd-sheet-colkey" aria-label="Assessment column key">
+              {keyed.map((title) => (
+                <span key={title.key}><b>{title.short}</b> {title.full}</span>
+              ))}
+            </p>
+          ) : null}
         </section>
 
         <div className="acd-sheet-lower">
@@ -651,8 +674,9 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
                 </tr>
               </thead>
               <tbody>
-                {ACTIVITY_SLOTS.map((slot) => activityFor(card, slot))
+                {[...(card.activities || [])]
                   .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()))
+                  .sort((a, b) => a.slot - b.slot)
                   .map((row) => (
                     <tr key={row.slot}>
                       <td className="is-activity">{row.activity_name}</td>
@@ -671,9 +695,9 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <p className={card.class_teacher_comment ? "has-copy" : "is-blank"}>{card.class_teacher_comment || ""}</p>
           </section>
 
-          <section className="acd-sheet-closing" aria-label="Headteacher comment and next-term fees">
+          <section className="acd-sheet-closing" aria-label={nursery ? "Headteacher comment and next-term fees" : "Principal comment and next-term fees"}>
             <div className="acd-sheet-principal">
-              <h3><span>Headteacher&apos;s comment</span></h3>
+              <h3><span>{nursery ? "Headteacher\u2019s comment" : "Principal\u2019s comment"}</span></h3>
               <p className={card.head_comment ? "has-copy" : "is-blank"}>{card.head_comment || ""}</p>
             </div>
             {nursery ? qr ?? <ReportQr id={card.id} /> : null}

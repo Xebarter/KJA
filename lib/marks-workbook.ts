@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { BEHAVIOR_RATINGS } from "@/lib/academics";
+import { normalizeClubsList } from "@/lib/report-clubs";
 import { operationalCampus } from "@/lib/campuses";
 import { parseSkillLabels } from "@/lib/comment-engine/skills";
 
@@ -56,6 +57,10 @@ export type MarksBookPaper = {
    * Ignored when `skills` is non-empty.
    */
   skillsFreeText?: boolean;
+  /** Subject id when this paper can carry an Other-subjects report comment. */
+  subjectId?: string;
+  /** 1–4 when this Other subject has a comment column on the report card. */
+  commentSlot?: number | null;
 };
 
 export type MarksBookPupil = {
@@ -66,6 +71,8 @@ export type MarksBookPupil = {
   stream: string;
   campus?: string | null;
   behavior?: string | null;
+  /** Comma-separated term clubs list for this pupil. */
+  clubs?: string | null;
 };
 
 export type MarksBookScore = {
@@ -91,6 +98,8 @@ export type MarksBookInput = {
   pupils: MarksBookPupil[];
   scores: MarksBookScore[];
   bands: MarksBookBand[];
+  /** Saved Other-subject comments, keyed by pupil and report-card slot. */
+  activityComments?: { studentId: string; slot: number; comment: string }[];
 };
 
 export type MarksBookEntry = {
@@ -115,6 +124,28 @@ export type MarksBookBehaviorEntry = {
   raw: string;
 };
 
+export type MarksBookClubEntry = {
+  sheet: string;
+  label: string;
+  cell: string;
+  studentId: string;
+  pupil: string;
+  raw: string;
+};
+
+export type MarksBookCommentEntry = {
+  sheet: string;
+  label: string;
+  cell: string;
+  paperId: string;
+  subjectId: string;
+  subject: string;
+  slot: number;
+  studentId: string;
+  pupil: string;
+  raw: string;
+};
+
 export type MarksBookIssue = {
   sheet: string;
   cell: string;
@@ -131,6 +162,8 @@ export type ParsedMarksBook = {
   sheets: { name: string; label: string; subjects: string[]; expected: number }[];
   entries: MarksBookEntry[];
   behaviors: MarksBookBehaviorEntry[];
+  clubs: MarksBookClubEntry[];
+  comments: MarksBookCommentEntry[];
   issues: MarksBookIssue[];
   issueCount: number;
   missing: { label: string; count: number }[];
@@ -144,14 +177,22 @@ type BuiltSheet = {
   pupils: number;
   papers: { column: number; paper: MarksBookPaper }[];
   skillColumns: { column: number; paperId: string; subject: string; skillLabel: string }[];
+  commentColumns: { column: number; paperId: string; subjectId: string; subject: string; slot: number }[];
   behaviorColumn: number;
+  clubsColumn: number;
   pupilRows: { row: number; pupil: MarksBookPupil }[];
 };
 
 type SheetColumn =
   | { kind: "mark"; paper: MarksBookPaper; column: number }
   | { kind: "skill"; paper: MarksBookPaper; skillLabel: string; column: number }
-  | { kind: "skills_list"; paper: MarksBookPaper; column: number };
+  | { kind: "skills_list"; paper: MarksBookPaper; column: number }
+  | { kind: "comment"; paper: MarksBookPaper; column: number };
+
+function commentSlotOf(paper: MarksBookPaper) {
+  const slot = paper.commentSlot ?? 0;
+  return paper.subjectId && Number.isInteger(slot) && slot >= 1 ? slot : 0;
+}
 
 function sheetColumns(papers: MarksBookPaper[], firstMark: number): SheetColumn[] {
   const columns: SheetColumn[] = [];
@@ -167,6 +208,10 @@ function sheetColumns(papers: MarksBookPaper[], firstMark: number): SheetColumn[
       }
     } else if (paper.skillsFreeText) {
       columns.push({ kind: "skills_list", paper, column });
+      column += 1;
+    }
+    if (commentSlotOf(paper)) {
+      columns.push({ kind: "comment", paper, column });
       column += 1;
     }
   }
@@ -328,10 +373,6 @@ function bandLabel(score: number, bands: MarksBookBand[]) {
   return bands.find((band) => score >= band.min && score <= band.max)?.label ?? "";
 }
 
-function quoteSheet(name: string) {
-  return `'${name.replace(/'/g, "''")}'`;
-}
-
 function paint(cell: ExcelJS.Cell, style: { font?: Font; fill?: ExcelJS.Fill; alignment?: Partial<ExcelJS.Alignment>; border?: Partial<ExcelJS.Borders>; numFmt?: string }) {
   if (style.font) cell.font = style.font;
   if (style.fill) cell.fill = style.fill;
@@ -423,125 +464,6 @@ function groupPapers(input: MarksBookInput) {
     .sort((a, b) => a.order - b.order || a.campus.localeCompare(b.campus) || a.stream.localeCompare(b.stream) || a.label.localeCompare(b.label));
 }
 
-function totalsLine(input: MarksBookInput, groups: ReturnType<typeof groupPapers>) {
-  const maxes = new Set(input.papers.map((paper) => paper.maxScore));
-  const nursery = groups.some((group) => group.section === "nursery");
-  const primary = groups.some((group) => group.section === "primary");
-  const bits = [input.term, input.kindLabel, input.heldOn || "Date not set"];
-  if (primary && nursery) bits.push("Primary columns show their own total. Nursery sheets use progress bands");
-  else if (nursery) bits.push("Progress bands");
-  else if (maxes.size === 1) bits.push(`Out of ${[...maxes][0]}`);
-  else bits.push("Each subject shows its own total");
-  return bits.join("   ·   ");
-}
-
-function writeCover(sheet: ExcelJS.Worksheet, input: MarksBookInput, groups: ReturnType<typeof groupPapers>, built: BuiltSheet[]) {
-  sheet.properties.tabColor = { argb: GOLD };
-  sheet.properties.showGridLines = false;
-  sheet.pageSetup = {
-    paperSize: 9,
-    orientation: "landscape",
-    fitToPage: true,
-    fitToWidth: 1,
-    fitToHeight: 1,
-    horizontalCentered: true,
-    margins: { left: 0.5, right: 0.5, top: 0.55, bottom: 0.5, header: 0.25, footer: 0.25 },
-  };
-  sheet.headerFooter = {
-    oddFooter: `&L${headerEscape(SCHOOL)}&CConfidential&RPage &P of &N`,
-  };
-  sheet.views = [{ state: "normal", showGridLines: false, zoomScale: 120, activeCell: "B4" }];
-  [3, 36, 62, 14, 18, 3].forEach((width, index) => { sheet.getColumn(index + 1).width = width; });
-
-  const last = 5;
-  sheet.getRow(1).height = 8;
-  merge(sheet, 1, 1, 6, "", { fill: solid(GOLD) });
-
-  sheet.getRow(3).height = 18;
-  paint(sheet.getCell(3, 2), { font: font(11, GOLD, true), alignment: { vertical: "middle" } });
-  sheet.getCell(3, 2).value = SCHOOL.toUpperCase();
-  paint(sheet.getCell(3, 5), { font: font(10, MUTED), alignment: { vertical: "middle", horizontal: "right" } });
-  sheet.getCell(3, 5).value = "Academics office";
-
-  sheet.getRow(4).height = 36;
-  merge(sheet, 4, 2, last, "Marks return", {
-    font: font(26, NAVY, true),
-    alignment: { vertical: "middle" },
-    border: { bottom: side("medium", GOLD) },
-  });
-
-  sheet.getRow(5).height = 24;
-  merge(sheet, 5, 2, last, input.name, { font: font(16, NAVY, true), alignment: { vertical: "middle" } });
-
-  sheet.getRow(6).height = 20;
-  merge(sheet, 6, 2, last, totalsLine(input, groups), { font: font(11, MUTED), alignment: { vertical: "middle", wrapText: true } });
-
-  const nursery = groups.some((group) => group.section === "nursery");
-  const steps = [
-    "Each class has its own tab along the bottom. One tab is one stream.",
-    "Type each mark in the white cells. Half marks are allowed, and 0 is a real mark.",
-    ...(nursery ? ["On a nursery sheet, choose the progress band from the list in the cell."] : []),
-    `Behavior: choose A = Excellent, B = Good, C = Fair, or D = Needs Help. CLEAR removes a saved rating.`,
-    "Type ABS when a pupil missed the paper.",
-    "Type CLEAR to remove a mark that is already saved. Leave a cell blank to leave that mark unchanged.",
-    "Do not add or remove rows or columns. Upload this file on the Assessments page when it is complete.",
-  ];
-
-  sheet.getRow(8).height = 20;
-  merge(sheet, 8, 2, last, "How to complete it", { font: font(12, NAVY, true), alignment: { vertical: "middle" } });
-  steps.forEach((step, index) => {
-    const row = 9 + index;
-    sheet.getRow(row).height = 18;
-    paint(sheet.getCell(row, 2), { font: font(11, GOLD, true), alignment: { vertical: "middle" } });
-    sheet.getCell(row, 2).value = String(index + 1).padStart(2, "0");
-    merge(sheet, row, 3, last, step, { font: font(11, INK), alignment: { vertical: "middle", wrapText: true } });
-  });
-
-  const head = 10 + steps.length;
-  sheet.getRow(head).height = 22;
-  merge(sheet, head, 2, last, "Classes in this workbook", { font: font(12, NAVY, true), alignment: { vertical: "middle" } });
-  const columns = ["Class", "Subjects", "Pupils", "Sheet"];
-  const headerRow = head + 1;
-  sheet.getRow(headerRow).height = 22;
-  columns.forEach((label, index) => {
-    paint(sheet.getCell(headerRow, index + 2), {
-      font: font(10, WHITE, true),
-      fill: solid(NAVY),
-      alignment: { vertical: "middle", horizontal: index === 0 || index === 1 ? "left" : "center" },
-    });
-    sheet.getCell(headerRow, index + 2).value = label;
-  });
-
-  built.forEach((entry, index) => {
-    const row = headerRow + 1 + index;
-    const subjects = entry.subjects.join("  ·  ");
-    sheet.getRow(row).height = Math.min(48, Math.max(22, Math.ceil(subjects.length / 52) * 16));
-    const fill = index % 2 ? solid(ZEBRA) : solid(WHITE);
-    const cells = [entry.label, subjects, entry.pupils, ""];
-    cells.forEach((value, cellIndex) => {
-      const cell = sheet.getCell(row, cellIndex + 2);
-      cell.value = value;
-      paint(cell, {
-        font: cellIndex === 0 ? font(11, NAVY, true) : font(11, cellIndex === 2 ? INK : MUTED),
-        fill,
-        alignment: { vertical: "middle", horizontal: cellIndex >= 2 ? "center" : "left", wrapText: cellIndex === 1 },
-        border: grid(),
-      });
-    });
-    const link = sheet.getCell(row, 5);
-    link.value = { formula: `HYPERLINK("#${quoteSheet(entry.sheetName)}!B4","Open sheet")`, result: "Open sheet" };
-    paint(link, { font: { name: "Calibri", size: 11, bold: true, underline: true, color: { argb: NAVY } }, fill, alignment: { vertical: "middle", horizontal: "center" }, border: grid() });
-  });
-
-  const close = headerRow + built.length + 2;
-  sheet.getRow(close).height = 32;
-  merge(sheet, close, 2, last, `Prepared ${input.preparedOn}  ·  ${SCHOOL}  ·  Confidential`, {
-    font: font(9, MUTED),
-    alignment: { vertical: "middle", wrapText: true },
-  });
-  sheet.pageSetup.printArea = `A1:F${close}`;
-}
-
 function savedValue(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBookPupil) {
   const saved = input.scores.find((score) => score.assessmentId === paper.id && score.studentId === pupil.id);
   if (!saved || (!saved.missed && saved.score === null)) return null;
@@ -553,6 +475,15 @@ function savedValue(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBo
 function savedBehavior(pupil: MarksBookPupil) {
   const code = pupil.behavior?.trim().toUpperCase();
   return BEHAVIOR_RATINGS.find((rating) => rating.code === code)?.code ?? null;
+}
+
+function savedClubs(pupil: MarksBookPupil) {
+  return normalizeClubsList(pupil.clubs);
+}
+
+function savedActivityComment(input: MarksBookInput, pupil: MarksBookPupil, slot: number) {
+  const text = (input.activityComments || []).find((row) => row.studentId === pupil.id && row.slot === slot)?.comment.trim();
+  return text || null;
 }
 
 function savedSkill(input: MarksBookInput, paper: MarksBookPaper, pupil: MarksBookPupil, skillLabel: string) {
@@ -573,7 +504,8 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   const showAverage = !nursery && markColumns.length > 1;
   const firstMark = 5;
   const behaviorCol = firstMark + columns.length;
-  const enteredCol = behaviorCol + 1;
+  const clubsCol = behaviorCol + 1;
+  const enteredCol = clubsCol + 1;
   const averageCol = showAverage ? enteredCol + 1 : 0;
   const lastCol = averageCol || enteredCol;
   const listCol = lastCol + 2;
@@ -581,6 +513,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   const markLetters = markColumns.map((column) => columnLetter(column.column));
   const hasYesSkills = columns.some((column) => column.kind === "skill");
   const hasSkillsList = columns.some((column) => column.kind === "skills_list");
+  const hasComments = columns.some((column) => column.kind === "comment");
   const hasSkills = hasYesSkills || hasSkillsList;
 
   sheet.getColumn(ID_COL).hidden = true;
@@ -589,9 +522,10 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
   sheet.getColumn(3).width = 16;
   sheet.getColumn(4).width = 34;
   columns.forEach((column) => {
-    sheet.getColumn(column.column).width = column.kind === "skill" ? 14 : column.kind === "skills_list" ? 28 : 18;
+    sheet.getColumn(column.column).width = column.kind === "comment" ? 46 : column.kind === "skill" ? 14 : column.kind === "skills_list" ? 28 : 18;
   });
   sheet.getColumn(behaviorCol).width = 18;
+  sheet.getColumn(clubsCol).width = 28;
   sheet.getColumn(enteredCol).width = 12;
   if (averageCol) sheet.getColumn(averageCol).width = 12;
 
@@ -623,13 +557,13 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     alignment: { vertical: "middle" },
   });
 
-  const instruction = nursery
-    ? "Choose the progress band from the list. ABS means the pupil missed the paper. CLEAR removes a saved band. Behavior: A Excellent, B Good, C Fair, D Needs Help; CLEAR removes a rating."
+  const instruction = `${nursery
+    ? "Choose the progress band from the list. ABS means the pupil missed the paper. CLEAR removes a saved band. Behavior: A Excellent, B Good, C Fair, D Needs Help. Clubs: comma-separated list (e.g. Chess, Music). CLEAR removes a saved value."
     : hasYesSkills
-      ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating."
+      ? "Type the mark in the white cells. Green “Acquired” columns: choose Yes when the pupil acquired that skill. Behavior: A Excellent, B Good, C Fair, D Needs Help. Clubs: comma-separated list (e.g. Chess, Debate). CLEAR removes a saved value."
       : hasSkillsList
-        ? "Type the mark in the white cells. In Major skills learnt, list up to 4 skills on the first pupil row (comma-separated, e.g. rhythm, timing). Lower rows inherit that list. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating."
-        : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. Behavior: A Excellent, B Good, C Fair, D Needs Help. CLEAR removes a saved mark or rating.";
+        ? "Type the mark in the white cells. In Major skills learnt, list up to 4 skills on the first pupil row (comma-separated, e.g. rhythm, timing). Lower rows inherit that list. Behavior: A Excellent, B Good, C Fair, D Needs Help. Clubs: comma-separated list. CLEAR removes a saved value."
+        : "Type the mark in the white cells. 0 counts. ABS means the pupil missed the paper. Behavior: A Excellent, B Good, C Fair, D Needs Help. Clubs: comma-separated list (e.g. Chess, Debate). CLEAR removes a saved value."}${hasComments ? " Other subjects: type a comment instead of a mark and skills. Blank keeps the saved comment. CLEAR removes it." : ""}`;
   sheet.getRow(6).height = 36;
   merge(sheet, 6, 2, lastCol, instruction, {
     font: font(10, INK),
@@ -659,6 +593,13 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
         align: "center",
         fill: GREEN,
       });
+    } else if (column.kind === "comment") {
+      headers.push({
+        col: column.column,
+        text: `${column.paper.subject} · Comment`,
+        align: "left",
+        fill: "FF24556B",
+      });
     } else {
       headers.push({
         col: column.column,
@@ -669,6 +610,7 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
     }
   });
   headers.push({ col: behaviorCol, text: "Behavior (A-D)", align: "center", fill: "FF6857A6" });
+  headers.push({ col: clubsCol, text: "Clubs (comma-separated)", align: "left", fill: "FF2F6F5E" });
   headers.push({ col: enteredCol, text: "Entered", align: "center" });
   if (averageCol) headers.push({ col: averageCol, text: "Average", align: "center" });
   headers.forEach((header) => {
@@ -699,14 +641,27 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
       }
       return [];
     }),
+    commentColumns: columns.flatMap((column) => {
+      if (column.kind !== "comment") return [];
+      const slot = commentSlotOf(column.paper);
+      if (!slot || !column.paper.subjectId) return [];
+      return [{
+        column: column.column,
+        paperId: column.paper.id,
+        subjectId: column.paper.subjectId,
+        subject: column.paper.subject,
+        slot,
+      }];
+    }),
     behaviorColumn: behaviorCol,
+    clubsColumn: clubsCol,
     pupilRows: [],
   };
 
   group.pupils.forEach((pupil, index) => {
     const row = FIRST_ROW + index;
     const zebra = index % 2 === 1 ? solid(ZEBRA) : solid(WHITE);
-    sheet.getRow(row).height = 22;
+    sheet.getRow(row).height = hasComments ? 36 : 22;
     built.pupilRows.push({ row, pupil });
 
     const id = sheet.getCell(row, ID_COL);
@@ -782,6 +737,27 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
         };
         return;
       }
+      if (column.kind === "comment") {
+        const slot = commentSlotOf(column.paper);
+        cell.value = slot ? savedActivityComment(input, pupil, slot) : null;
+        paint(cell, {
+          font: font(10, INK),
+          fill: solid(WHITE),
+          alignment: { vertical: "top", horizontal: "left", wrapText: true },
+          border: grid(),
+          numFmt: "@",
+        });
+        cell.dataValidation = {
+          type: "custom",
+          allowBlank: true,
+          formulae: ["TRUE"],
+          showErrorMessage: false,
+          showInputMessage: true,
+          promptTitle: `${column.paper.subject} · Comment`,
+          prompt: "Type the report comment. Leave blank to keep the saved comment. CLEAR removes it. A mark and skills are optional when a comment is entered.",
+        };
+        return;
+      }
       const value = savedValue(input, column.paper, pupil);
       cell.value = value === null ? null : value;
       paint(cell, {
@@ -842,6 +818,30 @@ function writeClassSheet(workbook: ExcelJS.Workbook, input: MarksBookInput, grou
         showInputMessage: true,
         promptTitle: "Behavior rating",
         prompt: "A Excellent · B Good · C Fair · D Needs Help. CLEAR removes a saved rating; blank leaves it unchanged.",
+    };
+
+    const clubs = sheet.getCell(row, clubsCol);
+    clubs.value = savedClubs(pupil);
+    clubs.protection = { locked: false };
+    paint(clubs, {
+      font: font(10, INK, false),
+      fill: solid(WHITE),
+      alignment: { vertical: "middle", horizontal: "left", wrapText: true },
+      border: grid(),
+      numFmt: "@",
+    });
+    clubs.dataValidation = {
+      type: "textLength",
+      operator: "lessThanOrEqual",
+      allowBlank: true,
+      formulae: [300],
+      showErrorMessage: true,
+      errorStyle: "warning",
+      errorTitle: "Clubs list is too long",
+      error: "Keep the clubs list within 300 characters, separated by commas.",
+      showInputMessage: true,
+      promptTitle: "Clubs participated in",
+      prompt: "List clubs separated by commas (e.g. Chess, Swimming, Debate). Type CLEAR to remove; blank leaves saved clubs unchanged.",
     };
 
     const firstMarkCell = markLetters[0] || columnLetter(firstMark);
@@ -1040,16 +1040,30 @@ function writeKeys(workbook: ExcelJS.Workbook, input: MarksBookInput, built: Bui
         .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
     });
   });
+  const commentColumns = built.flatMap((entry) => entry.commentColumns.map((comment) => ({ ...comment, sheetName: entry.sheetName })));
+  if (commentColumns.length) {
+    row += 2;
+    sheet.getCell(row, 1).value = "COMMENTS";
+    row += 1;
+    ["sheet", "col", "paper_id", "subject_id", "slot", "subject"].forEach((header, index) => {
+      sheet.getCell(row, index + 1).value = header;
+    });
+    commentColumns.forEach((comment) => {
+      row += 1;
+      [comment.sheetName, comment.column, comment.paperId, comment.subjectId, comment.slot, comment.subject]
+        .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
+    });
+  }
   row += 2;
   sheet.getCell(row, 1).value = "PUPILS";
   row += 1;
-  ["sheet", "row", "student_id", "student_number", "name", "class_code", "stream", "behavior_col"].forEach((header, index) => {
+  ["sheet", "row", "student_id", "student_number", "name", "class_code", "stream", "behavior_col", "clubs_col"].forEach((header, index) => {
     sheet.getCell(row, index + 1).value = header;
   });
   built.forEach((entry) => {
     entry.pupilRows.forEach(({ row: pupilRow, pupil }) => {
       row += 1;
-      [entry.sheetName, pupilRow, pupil.id, pupil.number, pupil.name, pupil.classCode, pupil.stream, entry.behaviorColumn]
+      [entry.sheetName, pupilRow, pupil.id, pupil.number, pupil.name, pupil.classCode, pupil.stream, entry.behaviorColumn, entry.clubsColumn]
         .forEach((value, index) => { sheet.getCell(row, index + 1).value = value; });
     });
   });
@@ -1090,8 +1104,7 @@ export async function buildMarksWorkbook(input: MarksBookInput) {
   workbook.modified = new Date();
   workbook.calcProperties.fullCalcOnLoad = true;
 
-  const cover = workbook.addWorksheet("Cover", { properties: { tabColor: { argb: GOLD }, showGridLines: false } });
-  const used = new Set<string>(["cover", "_kja"]);
+  const used = new Set<string>(["_kja"]);
   const sheets: ExcelJS.Worksheet[] = [];
   const built: BuiltSheet[] = [];
   for (const group of groups) {
@@ -1099,9 +1112,7 @@ export async function buildMarksWorkbook(input: MarksBookInput) {
     sheets.push(written.sheet);
     built.push(written.built);
   }
-  writeCover(cover, input, groups, built);
   writeKeys(workbook, input, built);
-  await cover.protect("", { ...PROTECT, autoFilter: false });
   for (const sheet of sheets) await sheet.protect("", PROTECT);
 
   const raw = await workbook.xlsx.writeBuffer();
@@ -1160,7 +1171,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     row += 2;
     while (row < 8000) {
       const sheet = plain(keys.getCell(row, 1).value);
-      if (!sheet || sheet === "PUPILS") break;
+      if (!sheet || sheet === "PUPILS" || sheet === "COMMENTS") break;
       const column = Number(plain(keys.getCell(row, 2).value));
       const paperId = plain(keys.getCell(row, 3).value);
       const skillLabel = plain(keys.getCell(row, 5).value);
@@ -1178,8 +1189,34 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     }
   }
 
+  while (row < 8000 && plain(keys.getCell(row, 1).value) !== "PUPILS" && plain(keys.getCell(row, 1).value) !== "COMMENTS") row += 1;
+  const comments: { sheet: string; column: number; paperId: string; subjectId: string; subject: string; slot: number; label: string }[] = [];
+  if (plain(keys.getCell(row, 1).value) === "COMMENTS") {
+    row += 2;
+    while (row < 8000) {
+      const sheet = plain(keys.getCell(row, 1).value);
+      if (!sheet || sheet === "PUPILS") break;
+      const column = Number(plain(keys.getCell(row, 2).value));
+      const paperId = plain(keys.getCell(row, 3).value);
+      const subjectId = plain(keys.getCell(row, 4).value);
+      const slot = Number(plain(keys.getCell(row, 5).value));
+      if (Number.isInteger(column) && UUID.test(paperId) && UUID.test(subjectId) && Number.isInteger(slot) && slot >= 1) {
+        comments.push({
+          sheet,
+          column,
+          paperId,
+          subjectId,
+          slot,
+          subject: plain(keys.getCell(row, 6).value) || "Subject",
+          label: papers.find((paper) => paper.sheet === sheet)?.label || sheet,
+        });
+      }
+      row += 1;
+    }
+  }
+
   while (row < 8000 && plain(keys.getCell(row, 1).value) !== "PUPILS") row += 1;
-  const expected = new Map<string, { label: string; ids: Map<string, string>; behaviorColumn: number }>();
+  const expected = new Map<string, { label: string; ids: Map<string, string>; behaviorColumn: number; clubsColumn: number }>();
   if (plain(keys.getCell(row, 1).value) === "PUPILS") {
     row += 2;
     while (row < 20000) {
@@ -1191,6 +1228,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         label: papers.find((paper) => paper.sheet === sheet)?.label || sheet,
         ids: new Map<string, string>(),
         behaviorColumn: Number(plain(keys.getCell(row, 8).value)) || 0,
+        clubsColumn: Number(plain(keys.getCell(row, 9).value)) || 0,
       };
       if (UUID.test(id)) bucket.ids.set(id, name);
       expected.set(sheet, bucket);
@@ -1206,6 +1244,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
   };
   const entries: MarksBookEntry[] = [];
   const behaviors: MarksBookBehaviorEntry[] = [];
+  const clubs: MarksBookClubEntry[] = [];
   const seen = new Map<string, Set<string>>();
   const bySheet = new Map<string, typeof papers>();
   for (const paper of papers) {
@@ -1219,6 +1258,13 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     list.push(skill);
     skillsBySheet.set(skill.sheet, list);
   }
+  const commentsBySheet = new Map<string, typeof comments>();
+  for (const comment of comments) {
+    const list = commentsBySheet.get(comment.sheet) ?? [];
+    list.push(comment);
+    commentsBySheet.set(comment.sheet, list);
+  }
+  const commentEntries: MarksBookCommentEntry[] = [];
 
   for (const [sheetName, columns] of bySheet) {
     const label = columns[0]?.label || sheetName;
@@ -1233,6 +1279,7 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     seen.set(sheetName, found);
     const expectedCount = known.size;
     const skillCols = skillsBySheet.get(sheetName) || [];
+    const commentCols = commentsBySheet.get(sheetName) || [];
     /** First non-empty Major skills learnt text per free-text column (class-wide inherit). */
     const majorSkillsAnchor = new Map<number, string>();
     for (const skill of skillCols) {
@@ -1260,14 +1307,24 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         const cell = worksheet.getCell(cursor, skill.column);
         return { skill, cell, formula: isFormula(cell.value), read: readCell(cell.value) };
       });
+      const commentCells = commentCols.map((comment) => {
+        const cell = worksheet.getCell(cursor, comment.column);
+        return { comment, cell, formula: isFormula(cell.value), read: readCell(cell.value) };
+      });
       const behaviorColumn = roll?.behaviorColumn || 0;
       const behaviorCell = behaviorColumn ? worksheet.getCell(cursor, behaviorColumn) : null;
       const behaviorRead = behaviorCell ? readCell(behaviorCell.value) : null;
       const behaviorFormula = behaviorCell ? isFormula(behaviorCell.value) : false;
+      const clubsColumn = roll?.clubsColumn || 0;
+      const clubsCell = clubsColumn ? worksheet.getCell(cursor, clubsColumn) : null;
+      const clubsRead = clubsCell ? readCell(clubsCell.value) : null;
+      const clubsFormula = clubsCell ? isFormula(clubsCell.value) : false;
       const typed = [
         ...cells,
         ...skillCells,
+        ...commentCells,
         ...(behaviorCell && behaviorRead ? [{ formula: behaviorFormula, read: behaviorRead }] : []),
+        ...(clubsCell && clubsRead ? [{ formula: clubsFormula, read: clubsRead }] : []),
       ].some((item) => !item.formula && (item.read.text || item.read.pending));
       if (!UUID.test(id)) {
         if (typed) add({ sheet: label, cell: idCell.address, pupil: "", message: "A mark is on a row with no pupil. Download a fresh sheet rather than inserting rows." });
@@ -1299,6 +1356,18 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
         });
       } else if (behaviorCell && behaviorRead?.pending) {
         add({ sheet: label, cell: behaviorCell.address, pupil, message: "Enter a behavior rating as A, B, C, or D, or CLEAR." });
+      }
+      if (clubsCell && clubsRead && !clubsFormula && clubsRead.text) {
+        clubs.push({
+          sheet: sheetName,
+          label,
+          cell: clubsCell.address,
+          studentId: id,
+          pupil,
+          raw: clubsRead.text,
+        });
+      } else if (clubsCell && clubsRead?.pending) {
+        add({ sheet: label, cell: clubsCell.address, pupil, message: "Type club names separated by commas (e.g. Chess, Debate), or CLEAR." });
       }
       for (const item of cells) {
         if (!UUID.test(item.paper.paperId) || !Number.isInteger(item.paper.column)) continue;
@@ -1396,6 +1465,31 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
           skillLabel: item.skill.skillLabel,
         });
       }
+      for (const item of commentCells) {
+        if (!UUID.test(item.comment.paperId) || !UUID.test(item.comment.subjectId) || !Number.isInteger(item.comment.column)) continue;
+        if (item.read.pending) {
+          add({
+            sheet: label,
+            cell: item.cell.address,
+            pupil,
+            message: `Type the ${item.comment.subject} comment as text, CLEAR to remove it, or leave blank.`,
+          });
+          continue;
+        }
+        if (!item.read.text.trim()) continue;
+        commentEntries.push({
+          sheet: sheetName,
+          label,
+          cell: item.cell.address,
+          paperId: item.comment.paperId,
+          subjectId: item.comment.subjectId,
+          subject: item.comment.subject,
+          slot: item.comment.slot,
+          studentId: id,
+          pupil,
+          raw: item.read.text.trim(),
+        });
+      }
     }
   }
 
@@ -1418,6 +1512,8 @@ export async function parseMarksWorkbook(bytes: Uint8Array): Promise<ParsedMarks
     sheets,
     entries,
     behaviors,
+    clubs,
+    comments: commentEntries,
     issues,
     issueCount,
     missing,

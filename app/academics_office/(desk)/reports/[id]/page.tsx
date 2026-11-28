@@ -87,7 +87,8 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   if (!reportCard) notFound();
   const photos = await loadReportCardPhotos([reportCard]);
   const portrait = reportPortraitFromBytes(photos.get(id), reportCard.pupil_name);
-  const activities: SheetActivity[] = [1, 2, 3, 4].map((slot) => {
+  const maxSlot = Math.max(4, ...(activityRows || []).map((item) => Number(item.slot) || 0));
+  const activities: SheetActivity[] = Array.from({ length: maxSlot }, (_, index) => index + 1).map((slot) => {
     const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
       | { activity_name?: string | null; level?: string | null; score?: number | null; max_score?: number | null; skills?: unknown; comment?: string | null }
       | undefined;
@@ -145,7 +146,11 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
             <Link className="admin-hero-btn" href={back}><i className="fa-solid fa-arrow-left" aria-hidden="true" /> Back to class</Link>
             {previous ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports/${previous.id}`} aria-label={`Previous report, ${previous.name}`} title={previous.name}><i className="fa-solid fa-chevron-left" aria-hidden="true" /> Previous</Link> : null}
             {next ? <Link className="admin-hero-btn" href={`${ACADEMICS_BASE}/reports/${next.id}`} aria-label={`Next report, ${next.name}`} title={next.name}>Next <i className="fa-solid fa-chevron-right" aria-hidden="true" /></Link> : null}
-            <PrintReportCardButton href={`${ACADEMICS_BASE}/reports/${id}/pdf`} />
+            <PrintReportCardButton
+              href={`${ACADEMICS_BASE}/reports/${id}/pdf`}
+              pupilName={sheet.pupil_name}
+              subtitle={[place, sheet.term_label].filter(Boolean).join(" · ")}
+            />
           </>
         }
       />
@@ -194,6 +199,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
               status={card.status}
               classTeacherName={card.class_teacher_name || null}
               conduct={card.conduct || null}
+              clubs={(card as { clubs?: string | null }).clubs || null}
               classTeacherComment={card.class_teacher_comment || null}
               headComment={card.head_comment || null}
               cocurricularComment={sheet.cocurricular_comment || null}

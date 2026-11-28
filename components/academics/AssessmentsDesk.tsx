@@ -2,16 +2,20 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { deleteAssessmentSet, setAssessmentShare } from "@/app/academics_office/(desk)/actions";
+import { deleteAssessmentSet, setAssessmentShare, updateAssessmentSet } from "@/app/academics_office/(desk)/actions";
 import { MARKS_SHEET_EVENT, marksSittingKey } from "@/components/academics/UploadMarks";
 import { DeskForm } from "@/components/academics/Form";
+import { gradeBandSection } from "@/lib/academics";
 import { marksheetHref } from "@/lib/marksheet";
+import { shortSetTitle } from "@/lib/report-column-titles";
 
 export type PaperCard = {
   id: string;
   /** Markbook entry URL. Omitted when the teacher can view/download but not mark this paper. */
   href?: string;
   name: string;
+  /** Optional custom column header label for the primary report card Academic Record table. */
+  reportHeader?: string | null;
   subject: string;
   classLabel: string;
   campus: string;
@@ -59,6 +63,127 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "submitted", label: "Submitted" },
   { id: "approved", label: "Locked" },
 ];
+
+type SectionId = "nursery" | "lower" | "upper";
+
+const SECTION_OPTIONS: { id: SectionId; label: string; hint: string }[] = [
+  { id: "nursery", label: "Nursery", hint: "RC–Top" },
+  { id: "lower", label: "Lower Primary", hint: "P1–P3" },
+  { id: "upper", label: "Upper Primary", hint: "P4–P7" },
+];
+
+function sittingSections(papers: PaperCard[]): SectionId[] {
+  const found = new Set<SectionId>();
+  for (const paper of papers) {
+    found.add(paper.nursery ? "nursery" : gradeBandSection(paper.classCode));
+  }
+  return SECTION_OPTIONS.map((opt) => opt.id).filter((id) => found.has(id));
+}
+
+function sectionEnteredCount(papers: PaperCard[], section: SectionId): number {
+  return papers
+    .filter((paper) => (paper.nursery ? "nursery" : gradeBandSection(paper.classCode)) === section)
+    .reduce((sum, paper) => sum + paper.entered, 0);
+}
+
+function EditSittingForm({
+  termId,
+  sitting,
+  sample,
+  primarySample,
+}: {
+  termId: string;
+  sitting: Sitting;
+  sample: PaperCard;
+  primarySample: PaperCard;
+}) {
+  const initialSections = useMemo(() => sittingSections(sitting.papers), [sitting.papers]);
+  const [selected, setSelected] = useState<SectionId[]>(initialSections);
+  const [nameValue, setNameValue] = useState(sample.name);
+
+  const primaryChecked = selected.includes("lower") || selected.includes("upper");
+  const removedWithMarks = initialSections
+    .filter((id) => !selected.includes(id))
+    .reduce((sum, id) => sum + sectionEnteredCount(sitting.papers, id), 0);
+
+  function toggleSection(id: SectionId) {
+    setSelected((current) =>
+      current.includes(id) ? current.filter((item) => item !== id) : [...current, id],
+    );
+  }
+
+  return (
+    <DeskForm
+      key={`${sitting.key}-edit-${sample.name}-${primarySample?.reportHeader || ""}-${initialSections.join(",")}`}
+      action={updateAssessmentSet}
+      className="asm-edit-form"
+    >
+      <input type="hidden" name="term_id" value={termId} />
+      <input type="hidden" name="old_name" value={sample.name} />
+      <input type="hidden" name="kind" value={sample.kind} />
+      <input type="hidden" name="held_on" value={sample.heldOnIso} />
+      <input type="hidden" name="sections_edited" value="1" />
+      <label className="asm-edit-field">
+        <span>Assessment name</span>
+        <input
+          name="name"
+          type="text"
+          required
+          minLength={2}
+          maxLength={120}
+          value={nameValue}
+          onChange={(event) => setNameValue(event.target.value)}
+          aria-label={`Assessment name for ${sitting.name}`}
+        />
+      </label>
+      {primaryChecked ? (
+        <label className="asm-edit-field is-header">
+          <span>Report card header</span>
+          <input
+            name="report_header"
+            type="text"
+            maxLength={24}
+            defaultValue={primarySample?.reportHeader || ""}
+            placeholder={`Auto (${shortSetTitle(nameValue) || "SHORT"})`}
+            aria-label={`Report card header for ${sitting.name}`}
+          />
+        </label>
+      ) : null}
+      <div className="asm-edit-sections" role="group" aria-label={`Sections for ${sitting.name}`}>
+        <span className="asm-edit-sections-label">Sections</span>
+        <div className="asm-edit-section-pills">
+          {SECTION_OPTIONS.map((option) => {
+            const checked = selected.includes(option.id);
+            return (
+              <label key={option.id} className={`asm-section-pill${checked ? " is-checked" : ""}`}>
+                <input
+                  type="checkbox"
+                  name="sections"
+                  value={option.id}
+                  checked={checked}
+                  onChange={() => toggleSection(option.id)}
+                />
+                <span>{option.label}</span>
+                <small>{option.hint}</small>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+      <button type="submit" disabled={!selected.length}>Save</button>
+      {removedWithMarks > 0 ? (
+        <p className="asm-edit-warn">
+          Removing unchecked sections will permanently clear {nf(removedWithMarks)}{" "}
+          {removedWithMarks === 1 ? "entered mark/code" : "entered marks/codes"} in those sections.
+        </p>
+      ) : (
+        <p>
+          Updates the sitting’s name, sections, and primary report card column header. Leave header blank to auto-abbreviate.
+        </p>
+      )}
+    </DeskForm>
+  );
+}
 
 const nf = (value: number) => value.toLocaleString("en-GB");
 
@@ -111,12 +236,14 @@ function detail(sitting: Sitting) {
   }
   const maxes = new Set(primaryPapers.map((paper) => paper.maxScore));
   const weights = new Set(primaryPapers.map((paper) => paper.weight));
+  const customHeader = primaryPapers.find((paper) => paper.reportHeader?.trim())?.reportHeader?.trim() || "";
   const nurseryCount = sitting.papers.length - primaryPapers.length;
   return [
     sitting.kindLabel,
     sitting.heldOn,
     maxes.size === 1 ? `out of ${nf([...maxes][0] ?? 0)}` : "",
     weights.size === 1 ? `${nf([...weights][0] ?? 0)}% of the total` : primaryPapers.length ? "Mixed shares" : "",
+    customHeader ? `Report header: ${customHeader}` : "",
     nurseryCount ? `${nf(nurseryCount)} nursery ${nurseryCount === 1 ? "class" : "classes"}` : "",
   ].filter(Boolean).join(" · ");
 }
@@ -126,6 +253,7 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
   const [filter, setFilter] = useState<Filter>("all");
   const [opened, setOpened] = useState<string[]>([]);
   const [composing, setComposing] = useState(papers.length === 0 && Boolean(composer));
+  const [editing, setEditing] = useState("");
   const [confirming, setConfirming] = useState("");
 
   const counts = useMemo(() => ({
@@ -242,11 +370,38 @@ export function AssessmentsDesk({ papers, termId, office, composer }: { papers: 
                     </button>
                   ) : null}
                   {office && sample ? (
-                    <button type="button" className="asm-delete" onClick={() => setConfirming(confirming === sitting.key ? "" : sitting.key)}>
+                    <button
+                      type="button"
+                      className={`asm-edit${editing === sitting.key ? " is-on" : ""}`}
+                      onClick={() => {
+                        setConfirming("");
+                        setEditing(editing === sitting.key ? "" : sitting.key);
+                      }}
+                    >
+                      {editing === sitting.key ? "Cancel" : "Edit"}
+                    </button>
+                  ) : null}
+                  {office && sample ? (
+                    <button
+                      type="button"
+                      className="asm-delete"
+                      onClick={() => {
+                        setEditing("");
+                        setConfirming(confirming === sitting.key ? "" : sitting.key);
+                      }}
+                    >
                       {confirming === sitting.key ? "Cancel" : "Delete"}
                     </button>
                   ) : null}
                 </div>
+                {office && editing === sitting.key && sample ? (
+                  <EditSittingForm
+                    termId={termId}
+                    sitting={sitting}
+                    sample={sample}
+                    primarySample={primarySample}
+                  />
+                ) : null}
                 {office && confirming === sitting.key && sample ? (
                   <DeskForm action={deleteAssessmentSet} className="asm-delete-form">
                     <input type="hidden" name="term_id" value={termId} />

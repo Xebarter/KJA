@@ -1,12 +1,17 @@
 "use server";
 
-import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, conductForBehaviorRating, kindLabel, logAcademics, mapBand, markbookClosed, num, streamOf } from "@/lib/academics";
+import { ACADEMICS_BASE, bandMidpoint, classLabel, classSection, conductForBehaviorRating, kindLabel, logAcademics, mapBand, mapSubject, markbookClosed, num, streamOf, subjectFits } from "@/lib/academics";
 import { requireAcademics } from "@/lib/academics-access";
 import { refreshAcademics } from "@/lib/academics-refresh";
 import { loadRoll } from "@/lib/academics-roll";
 import { operationalCampus } from "@/lib/campuses";
 import { mergeActivitySkills } from "@/lib/comment-engine/skills";
 import { MarksBookError, interpretMark, parseMarksWorkbook } from "@/lib/marks-workbook";
+import {
+  mirrorPrimaryActivityCommentsOntoSlots,
+  upsertPrimaryActivityComments,
+} from "@/lib/primary-report-comments";
+import { isCocurricularSubject } from "@/lib/subject-kind";
 import {
   loadDivisionCatalogue,
   nurseryDivision,
@@ -21,16 +26,19 @@ import {
   resolveNurseryProgressCode,
 } from "@/lib/nursery-dsba-workbook";
 import { isUuid } from "@/lib/students";
+import { normalizeClubsList } from "@/lib/report-clubs";
 
 export type MarksPreview = {
   name: string;
   detail: string;
-  sheets: { label: string; subjects: string[]; scores: number; missed: number; cleared: number; behavior?: number }[];
+  sheets: { label: string; subjects: string[]; scores: number; missed: number; cleared: number; behavior?: number; clubs?: number; comments?: number }[];
   warnings: string[];
   issues: { where: string; message: string }[];
   issueCount: number;
   ready: number;
   behavior?: number;
+  clubs?: number;
+  comments?: number;
   /** When true, preview copy talks about progress codes instead of marks. */
   nursery?: boolean;
 };
@@ -461,10 +469,12 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
       : `${gap.label} is missing ${nf(gap.count)} pupils from the downloaded roll. Their saved marks stay as they are.`);
   }
 
-  const tally = new Map(parsed.sheets.map((sheet) => [sheet.name, { label: sheet.label, subjects: sheet.subjects, scores: 0, missed: 0, cleared: 0, behavior: 0 }]));
+  const tally = new Map(parsed.sheets.map((sheet) => [sheet.name, { label: sheet.label, subjects: sheet.subjects, scores: 0, missed: 0, cleared: 0, behavior: 0, clubs: 0, comments: 0 }]));
   const rows: { assessment_id: string; student_id: string; score: number | null; missed: boolean; skills?: { label: string; acquired: boolean }[] }[] = [];
   const behaviorRows: { studentId: string; conduct: string | null; sheet: string; pupil: string }[] = [];
+  const clubRows: { studentId: string; clubs: string | null; sheet: string; pupil: string }[] = [];
   const seenBehaviors = new Set<string>();
+  const seenClubs = new Set<string>();
   const seen = new Set<string>();
   const acquiredBy = new Map<string, string[]>();
   const taughtBySubject = new Map<string, string[]>();
@@ -602,8 +612,36 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     if (bucket) bucket.behavior += 1;
   }
 
-  if (behaviorRows.length) {
-    const studentIds = behaviorRows.map((entry) => entry.studentId);
+  for (const entry of parsed.clubs || []) {
+    const where = [entry.label, entry.cell, entry.pupil].filter(Boolean).join(" · ");
+    const pupil = byPupil.get(entry.studentId);
+    if (!pupil) {
+      problem(where, `${entry.pupil || "This pupil"} is not on the active roll.`);
+      continue;
+    }
+    if (seenClubs.has(entry.studentId)) {
+      problem(where, `${entry.pupil || "This pupil"} has two clubs entries in this workbook.`);
+      continue;
+    }
+    if (!auth.office) {
+      const classKey = `${pupil.class_code || ""}|${streamOf(pupil.stream)}|${operationalCampus(pupil.campus)}`;
+      if (!classTeacherKeys?.has(classKey)) {
+        problem(where, "Only the pupil’s class teacher or Academics office can save term clubs.");
+        continue;
+      }
+    }
+    const token = entry.raw.trim().toUpperCase();
+    const clearing = token === "CLEAR" || token === "REMOVE";
+    const clubs = clearing ? null : normalizeClubsList(entry.raw);
+    if (!clearing && !clubs) continue;
+    seenClubs.add(entry.studentId);
+    clubRows.push({ studentId: entry.studentId, clubs, sheet: entry.sheet, pupil: entry.pupil });
+    const bucket = tally.get(entry.sheet);
+    if (bucket) bucket.clubs += 1;
+  }
+
+  if (behaviorRows.length || clubRows.length) {
+    const studentIds = [...new Set([...behaviorRows.map((entry) => entry.studentId), ...clubRows.map((entry) => entry.studentId)])];
     const cards = await auth.supabase
       .from("report_cards")
       .select("student_id, status")
@@ -611,7 +649,10 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
       .in("student_id", studentIds);
     if (cards.error) return { error: "The term report-card behavior records could not be checked." };
     const cardsByStudent = new Map((cards.data || []).map((card) => [String(card.student_id), String(card.status || "")]));
-    for (const entry of behaviorRows) {
+    const checked = new Set<string>();
+    for (const entry of [...behaviorRows, ...clubRows]) {
+      if (checked.has(entry.studentId)) continue;
+      checked.add(entry.studentId);
       const status = cardsByStudent.get(entry.studentId);
       const where = [entry.sheet, entry.pupil].filter(Boolean).join(" · ");
       if (!status) {
@@ -622,6 +663,110 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     }
   }
 
+  const commentSaves: {
+    student_id: string;
+    term_id: string;
+    campus: string | null;
+    class_code: string | null;
+    stream: string | null;
+    slot: number;
+    subject_id: string;
+    activity_name: string;
+    comment: string | null;
+    updated_by: string;
+    sheet: string;
+  }[] = [];
+  if (parsed.comments.length) {
+    const catalogueResult = await auth.supabase
+      .from("subjects")
+      .select("id, code, name, section, kind, sort_order, applies_from, applies_to, active, default_skills")
+      .eq("active", true);
+    if (catalogueResult.error) return { error: "The Other subjects could not be checked." };
+    const catalogue = ((catalogueResult.data || []) as Record<string, unknown>[]).map(mapSubject);
+    const slotsByClass = new Map<string, Map<string, number>>();
+    const slotFor = (classCode: string, subjectId: string) => {
+      let slots = slotsByClass.get(classCode);
+      if (!slots) {
+        const ranked = catalogue
+          .filter((subject) => subject.active && subjectFits(subject, classCode) && isCocurricularSubject(subject))
+          .sort((a, b) => a.sort_order - b.sort_order || a.name.localeCompare(b.name));
+        slots = new Map(ranked.map((subject, index) => [subject.id, index + 1]));
+        slotsByClass.set(classCode, slots);
+      }
+      return slots.get(subjectId) || 0;
+    };
+    const commentStudentIds = [...new Set(parsed.comments.map((entry) => entry.studentId))];
+    const commentCards = await auth.supabase
+      .from("report_cards")
+      .select("student_id, status")
+      .eq("term_id", sample.term_id)
+      .in("student_id", commentStudentIds);
+    if (commentCards.error) return { error: "The term report cards could not be checked." };
+    const statusByStudent = new Map((commentCards.data || []).map((card) => [String(card.student_id), String(card.status || "")]));
+    const seenComments = new Set<string>();
+    for (const entry of parsed.comments) {
+      const where = [entry.label, entry.cell, entry.pupil].filter(Boolean).join(" · ");
+      const paper = byPaper.get(entry.paperId);
+      if (!paper) {
+        problem(where, "This markbook is no longer on the list.");
+        continue;
+      }
+      const label = classLabel(paper.class_code, paper.stream);
+      if (markbookClosed(paper.status)) {
+        const warning = `${entry.subject} for ${label} is locked, so that comment was left unchanged.`;
+        if (!warned.has(warning)) {
+          warned.add(warning);
+          warnings.push(warning);
+        }
+        continue;
+      }
+      const pupil = byPupil.get(entry.studentId);
+      if (!pupil) {
+        problem(where, `${entry.pupil || "This pupil"} is not on the active roll.`);
+        continue;
+      }
+      if (
+        (pupil.class_code || "") !== paper.class_code ||
+        streamOf(pupil.stream) !== streamOf(paper.stream) ||
+        operationalCampus(pupil.campus) !== operationalCampus(paper.campus)
+      ) {
+        problem(where, `${pupil.full_name} is now in ${classLabel(pupil.class_code, pupil.stream)} at ${operationalCampus(pupil.campus)}, so this comment was not taken.`);
+        continue;
+      }
+      if (statusByStudent.get(entry.studentId) === "published") {
+        problem(where, "This pupil’s published report card cannot be changed from a workbook.");
+        continue;
+      }
+      const slot = slotFor(paper.class_code, paper.subject_id);
+      if (!slot) {
+        problem(where, `${entry.subject} is no longer one of the four Other subjects on the report card. Download a fresh workbook.`);
+        continue;
+      }
+      const key = `${entry.studentId}|${slot}`;
+      if (seenComments.has(key)) {
+        problem(where, `${entry.pupil || "This pupil"} has two comments for ${entry.subject}.`);
+        continue;
+      }
+      seenComments.add(key);
+      const clearing = /^(clear|remove)$/i.test(entry.raw.trim());
+      commentSaves.push({
+        student_id: entry.studentId,
+        term_id: sample.term_id,
+        campus: pupil.campus,
+        class_code: pupil.class_code,
+        stream: pupil.stream,
+        slot,
+        subject_id: paper.subject_id,
+        activity_name: entry.subject,
+        comment: clearing ? null : entry.raw.trim().slice(0, 500),
+        updated_by: auth.user.id,
+        sheet: entry.sheet,
+      });
+      const bucket = tally.get(entry.sheet);
+      if (bucket) bucket.comments += 1;
+    }
+  }
+
   const preview: MarksPreview = {
     name: sample.name,
     detail: [kindLabel(sample.kind), shortDay(sample.held_on)].filter(Boolean).join(" · "),
@@ -629,13 +774,15 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     warnings,
     issues,
     issueCount,
-    ready: rows.length + behaviorRows.length,
+    ready: rows.length + behaviorRows.length + clubRows.length + commentSaves.length,
     behavior: behaviorRows.length,
+    clubs: clubRows.length,
+    comments: commentSaves.length,
   };
   if (formData.get("intent") !== "commit") return { preview };
   if (issueCount) return { preview };
-  if (!rows.length && !behaviorRows.length) {
-    return { preview, error: warnings[0] || "The workbook has no marks to save. Enter a mark, ABS, or CLEAR, then upload it again." };
+  if (!rows.length && !behaviorRows.length && !clubRows.length && !commentSaves.length) {
+    return { preview, error: warnings[0] || "The workbook has no marks, clubs, or comments to save. Enter a mark, behavior code, clubs, comment, ABS, or CLEAR, then upload it again." };
   }
 
   let saved = 0;
@@ -678,6 +825,58 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
     }
     savedBehavior += studentIds.length;
   }
+  const clubsByValue = new Map<string, string[]>();
+  for (const entry of clubRows) {
+    const key = entry.clubs ?? "__clear__";
+    const ids = clubsByValue.get(key) || [];
+    ids.push(entry.studentId);
+    clubsByValue.set(key, ids);
+  }
+  let savedClubs = 0;
+  for (const [clubsValue, studentIds] of clubsByValue) {
+    const { data, error } = await auth.supabase
+      .from("report_cards")
+      .update({ clubs: clubsValue === "__clear__" ? null : clubsValue })
+      .eq("term_id", sample.term_id)
+      .in("student_id", studentIds)
+      .select("student_id");
+    if (error && /clubs|42703|schema cache/i.test(error.message)) {
+      warnings.push("Run supabase/0098_report_clubs_and_ai_comments.sql to store clubs from the workbook.");
+      break;
+    }
+    if (error || (data || []).length !== studentIds.length) {
+      return {
+        error: saved || savedBehavior || savedClubs
+          ? "Some workbook values were saved, but not all term clubs lists could be updated. Check the report cards and upload the file again."
+          : error?.message || "The term clubs lists could not be saved. Check that the report cards are still editable.",
+      };
+    }
+    savedClubs += studentIds.length;
+  }
+  if (commentSaves.length) {
+    try {
+      await upsertPrimaryActivityComments(
+        auth.supabase,
+        commentSaves.map(({ sheet: _sheet, ...row }) => row),
+      );
+      await mirrorPrimaryActivityCommentsOntoSlots(auth.supabase, {
+        termId: sample.term_id,
+        studentIds: [...new Set(commentSaves.map((row) => row.student_id))],
+        commentsByKey: new Map(commentSaves.map((row) => [
+          `${row.student_id}|${row.slot}`,
+          { comment: row.comment, activity_name: row.activity_name, subject_id: row.subject_id },
+        ])),
+        clearBlank: true,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "The Other subject comments could not be saved.";
+      return {
+        error: saved || savedBehavior
+          ? `Some workbook values were saved, but the Other subject comments were not. ${message}`
+          : message,
+      };
+    }
+  }
   const submitIds = [...new Set(rows.filter((row) => row.missed || row.score !== null).map((row) => row.assessment_id))];
   for (let index = 0; index < submitIds.length; index += 80) {
     const slice = submitIds.slice(index, index + 80);
@@ -695,18 +894,28 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   const cleared = rows.filter((row) => !row.missed && row.score === null).length;
   const behaviorCleared = behaviorRows.filter((row) => row.conduct === null).length;
   const behaviorSaved = savedBehavior - behaviorCleared;
+  const clubsCleared = clubRows.filter((row) => row.clubs === null).length;
+  const clubsSaved = savedClubs - clubsCleared;
+  const commentCount = commentSaves.length;
   const lead = scores
     ? `Submitted ${nf(scores)} ${scores === 1 ? "mark" : "marks"} for ${sample.name}.`
     : missed
       ? `Submitted ${nf(missed)} ${missed === 1 ? "absence" : "absences"} for ${sample.name}.`
-      : savedBehavior
-        ? `Updated ${nf(savedBehavior)} term behavior ${savedBehavior === 1 ? "entry" : "entries"} for ${sample.name}.`
-        : `Updated ${sample.name}.`;
+      : commentCount && !savedBehavior && !savedClubs
+        ? `Saved ${nf(commentCount)} Other subject ${commentCount === 1 ? "comment" : "comments"} for ${sample.name}.`
+        : savedBehavior
+          ? `Updated ${nf(savedBehavior)} term behavior ${savedBehavior === 1 ? "entry" : "entries"} for ${sample.name}.`
+          : savedClubs
+            ? `Updated ${nf(savedClubs)} term clubs ${savedClubs === 1 ? "list" : "lists"} for ${sample.name}.`
+            : `Updated ${sample.name}.`;
   const extra = [
     missed && scores ? `${nf(missed)} ${missed === 1 ? "pupil was" : "pupils were"} marked absent.` : "",
     cleared ? `${nf(cleared)} ${cleared === 1 ? "saved mark was" : "saved marks were"} removed.` : "",
+    commentCount && (scores || missed || savedBehavior || savedClubs) ? `${nf(commentCount)} Other subject ${commentCount === 1 ? "comment was" : "comments were"} saved.` : "",
     behaviorSaved ? `${nf(behaviorSaved)} term behavior ${behaviorSaved === 1 ? "rating was" : "ratings were"} saved.` : "",
     behaviorCleared ? `${nf(behaviorCleared)} saved behavior ${behaviorCleared === 1 ? "rating was" : "ratings were"} cleared.` : "",
+    clubsSaved ? `${nf(clubsSaved)} term clubs ${clubsSaved === 1 ? "list was" : "lists were"} saved.` : "",
+    clubsCleared ? `${nf(clubsCleared)} saved clubs ${clubsCleared === 1 ? "list was" : "lists were"} cleared.` : "",
     submitIds.length
       ? auth.office
         ? "They are submitted on the class marksheet."
@@ -715,8 +924,8 @@ export async function importMarks(formData: FormData): Promise<MarksImportResult
   ].filter(Boolean).join(" ");
   await logAcademics(auth.supabase, auth.user.id, {
     kind: "marks",
-    body: `Uploaded ${sample.name} workbook values (${nf(rows.length)} ${rows.length === 1 ? "mark cell" : "mark cells"}, ${nf(savedBehavior)} behavior ${savedBehavior === 1 ? "rating" : "ratings"}).`,
+    body: `Uploaded ${sample.name} workbook values (${nf(rows.length)} ${rows.length === 1 ? "mark cell" : "mark cells"}, ${nf(commentCount)} Other subject ${commentCount === 1 ? "comment" : "comments"}, ${nf(savedBehavior)} behavior ${savedBehavior === 1 ? "rating" : "ratings"}, ${nf(savedClubs)} clubs ${savedClubs === 1 ? "list" : "lists"}).`,
   });
-  refreshAcademics(`${ACADEMICS_BASE}/assessments`, `${ACADEMICS_BASE}/reports`, `/teacher/marksheet`, `/teacher/assessments`, `/teacher/reports`);
+  refreshAcademics(`${ACADEMICS_BASE}/assessments`, `${ACADEMICS_BASE}/reports`, `${ACADEMICS_BASE}/comments`, `/teacher/marksheet`, `/teacher/assessments`, `/teacher/reports`, `/teacher/comments`);
   return { ok: extra ? `${lead} ${extra}` : lead };
 }

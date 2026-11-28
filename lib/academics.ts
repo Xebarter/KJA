@@ -317,11 +317,11 @@ function parseScale(rules: unknown): ScaleBand[] {
 
 const SET_ORDER: Record<string, number> = { bot: 1, midterm: 2, test: 3, endterm: 4 };
 
-export type PlannedSet = { key: string; label: string; share: number; weight: number; sort: number };
+export type PlannedSet = { key: string; label: string; report_header?: string | null; share: number; weight: number; sort: number };
 
-export type ReportPart = { key: string; label: string; share: number; score: number | null; sort: number };
+export type ReportPart = { key: string; label: string; report_header?: string | null; share: number; score: number | null; sort: number };
 
-export type ReportSet = { key: string; label: string; share: number; sort: number };
+export type ReportSet = { key: string; label: string; report_header?: string | null; share: number; sort: number };
 
 /** Stable identity for one named sitting, such as "Midterm examinations". */
 export function assessmentSetKey(kind: string, name: string) {
@@ -350,14 +350,18 @@ export function formatShare(share: number) {
 }
 
 /** The sets on a class, in report-card order, with each share of the subject total. */
-export function planAssessmentSets(papers: { name: string; kind: string; weight: number }[]): PlannedSet[] {
+export function planAssessmentSets(papers: { name: string; kind: string; weight: number; report_header?: string | null }[]): PlannedSet[] {
   const groups = new Map<string, PlannedSet>();
   for (const paper of papers) {
     const key = assessmentSetKey(paper.kind, paper.name);
+    const header = paper.report_header?.trim() || null;
     const existing = groups.get(key);
     if (!existing) {
-      groups.set(key, { key, label: paper.name, share: 0, weight: paper.weight, sort: SET_ORDER[paper.kind] ?? 9 });
-    } else if (paper.weight > existing.weight) existing.weight = paper.weight;
+      groups.set(key, { key, label: paper.name, report_header: header, share: 0, weight: paper.weight, sort: SET_ORDER[paper.kind] ?? 9 });
+    } else {
+      if (paper.weight > existing.weight) existing.weight = paper.weight;
+      if (!existing.report_header && header) existing.report_header = header;
+    }
   }
   const list = [...groups.values()].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
   const shares = sharesOf(list.map((set) => set.weight));
@@ -367,7 +371,13 @@ export function planAssessmentSets(papers: { name: string; kind: string; weight:
 export function setsFromParts(parts: ReportPart[]): ReportSet[] {
   const sets = new Map<string, ReportSet>();
   for (const part of parts) {
-    if (!sets.has(part.key)) sets.set(part.key, { key: part.key, label: part.label, share: part.share, sort: part.sort });
+    const header = part.report_header?.trim() || null;
+    const existing = sets.get(part.key);
+    if (!existing) {
+      sets.set(part.key, { key: part.key, label: part.label, report_header: header, share: part.share, sort: part.sort });
+    } else if (!existing.report_header && header) {
+      existing.report_header = header;
+    }
   }
   return [...sets.values()].sort((a, b) => a.sort - b.sort || a.label.localeCompare(b.label));
 }

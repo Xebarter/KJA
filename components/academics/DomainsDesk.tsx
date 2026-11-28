@@ -205,6 +205,7 @@ export function DomainsDesk({
                       className={`asb-row${on ? " is-on" : ""}${domain.active ? "" : " is-hidden"}`}
                       data-tone={String(index % 8)}
                       aria-pressed={on}
+                      aria-current={on ? "true" : undefined}
                       onClick={() => pick(domain.id)}
                     >
                       <span className="asb-row-icon" aria-hidden="true">
@@ -221,7 +222,15 @@ export function DomainsDesk({
                       </span>
                       <span className={`asb-badge${domain.active ? "" : " is-locked"}`}>{domain.active ? "Active" : "Hidden"}</span>
                       <span className="asb-go">
-                        Open <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                        {on ? (
+                          <>
+                            <i className="fa-solid fa-check" aria-hidden="true" /> Selected
+                          </>
+                        ) : (
+                          <>
+                            Open <i className="fa-solid fa-arrow-right" aria-hidden="true" />
+                          </>
+                        )}
                       </span>
                     </button>
                   </li>
@@ -240,7 +249,7 @@ export function DomainsDesk({
         </section>
 
         <aside
-          className="asb-panel asb-editor asb-domain-workspace"
+          className={`asb-panel asb-editor asb-domain-workspace${current ? " is-selected" : ""}`}
           ref={editorRef}
           aria-label={current ? `Edit ${current.name}` : "Add a domain"}
         >
@@ -427,7 +436,7 @@ function DomainWorkspace({
             {domain.code}
           </span>
           <div>
-            <p>Domain · shared</p>
+            <p>Selected domain · shared</p>
             <h2>{name.trim() || domain.name}</h2>
           </div>
         </div>
