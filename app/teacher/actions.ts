@@ -18,7 +18,7 @@ import {
 } from "@/lib/academics";
 import { prepareClassReports } from "@/lib/academics-reports";
 import { loadRoll } from "@/lib/academics-roll";
-import { operationalCampus } from "@/lib/campuses";
+import { isCampusId, operationalCampus } from "@/lib/campuses";
 import { generateAndSaveReportComments, generateClassReportComments } from "@/lib/comment-engine";
 import { parseAwardEntries, schemaMissing } from "@/lib/points";
 import { isClassCode, isUuid } from "@/lib/students";
@@ -746,15 +746,19 @@ export async function generateTeacherReportComments(formData: FormData): Promise
   }
 }
 
-function streamHref(classCode: string, stream: string) {
-  return `${TEACHER_BASE}/reports?class=${encodeURIComponent(classCode)}&stream=${encodeURIComponent(streamQuery(stream))}`;
+function streamHref(classCode: string, stream: string, campus?: string) {
+  const params = new URLSearchParams({ class: classCode, stream: streamQuery(stream) });
+  if (campus) params.set("campus", campus);
+  return `${TEACHER_BASE}/reports?${params.toString()}`;
 }
 
 function reportGroup(formData: FormData) {
+  const campusText = text(formData, "campus", 40);
   return {
     classCode: text(formData, "class_code", 10),
     stream: streamOf(text(formData, "stream", 20)),
     termId: text(formData, "term_id", 40),
+    campus: campusText ? operationalCampus(campusText) : undefined,
   };
 }
 
@@ -778,19 +782,21 @@ async function gateClassStream(formData: FormData) {
   const teacher = await requireTeacher();
   if ("error" in teacher) return { error: teacher.error } as const;
   if (teacher.mustResetPassword) return { error: "Change your password before editing report cards." } as const;
-  const { classCode, stream, termId } = reportGroup(formData);
+  const campusText = text(formData, "campus", 40);
+  if (campusText && !isCampusId(campusText)) return { error: "Choose a valid campus." } as const;
+  const { classCode, stream, termId, campus } = reportGroup(formData);
   if (!termId || !classCode) return { error: "Choose a term and a class." } as const;
-  if (!leadsClass(teacher.classes, classCode, stream)) {
+  if (!leadsClass(teacher.classes, classCode, stream, campus)) {
     return { error: "You can only manage report cards for a class you lead." } as const;
   }
   const db = serviceClient() ?? teacher.supabase;
-  return { teacher, classCode, stream, termId, db } as const;
+  return { teacher, classCode, stream, termId, campus, db } as const;
 }
 
 async function fillTeacherDraftComments(
   db: SupabaseClient,
   userId: string,
-  input: { termId: string; classCode: string; stream: string },
+  input: { termId: string; classCode: string; stream: string; campus?: string },
   options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
 ) {
   try {
@@ -810,17 +816,17 @@ async function fillTeacherDraftComments(
 export async function prepareTeacherReports(formData: FormData): Promise<Result> {
   const gated = await gateClassStream(formData);
   if ("error" in gated) return { error: gated.error };
-  const { teacher, classCode, stream, termId, db } = gated;
+  const { teacher, classCode, stream, termId, campus, db } = gated;
   const chosen = reportSetsFrom(formData);
   if ("error" in chosen) return { error: chosen.error };
   const reportTitle = text(formData, "report_title", 80);
-  const href = streamHref(classCode, stream);
+  const href = streamHref(classCode, stream, campus);
   try {
-    const result = await prepareClassReports(db, { termId, classCode, stream, sets: chosen.sets, reportTitle });
-    const comments = await fillTeacherDraftComments(db, teacher.user.id, { termId, classCode, stream }, { onlyBlank: true, skipTrail: true });
+    const result = await prepareClassReports(db, { termId, classCode, stream, campus, sets: chosen.sets, reportTitle });
+    const comments = await fillTeacherDraftComments(db, teacher.user.id, { termId, classCode, stream, campus }, { onlyBlank: true, skipTrail: true });
     await logAcademics(teacher.supabase, teacher.user.id, {
       kind: "report",
-      body: `Prepared report cards for ${classLabel(classCode, stream)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
+      body: `Prepared report cards for ${classLabel(classCode, stream, campus)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
     });
     revalidatePath(`${TEACHER_BASE}/reports`);
     revalidatePath(href);
@@ -847,10 +853,10 @@ export async function prepareTeacherReports(formData: FormData): Promise<Result>
 export async function generateTeacherClassComments(formData: FormData): Promise<Result> {
   const gated = await gateClassStream(formData);
   if ("error" in gated) return { error: gated.error };
-  const { teacher, classCode, stream, termId, db } = gated;
-  const href = streamHref(classCode, stream);
+  const { teacher, classCode, stream, termId, campus, db } = gated;
+  const href = streamHref(classCode, stream, campus);
   try {
-    const result = await generateClassReportComments(db, { termId, classCode, stream }, teacher.user.id);
+    const result = await generateClassReportComments(db, { termId, classCode, stream, campus }, teacher.user.id);
     await logAcademics(teacher.supabase, teacher.user.id, {
       kind: "report",
       body: `Regenerated comments for ${result.succeeded} of ${result.processed} draft cards in ${classLabel(classCode, stream)}.`,

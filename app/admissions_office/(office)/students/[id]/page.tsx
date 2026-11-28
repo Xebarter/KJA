@@ -76,6 +76,11 @@ export default async function StudentPage({
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const query = await searchParams;
+  const requestedReturn = pick(query, "from");
+  const studentsHref =
+    requestedReturn === `${OFFICE}/students` || requestedReturn.startsWith(`${OFFICE}/students?`)
+      ? requestedReturn
+      : `${OFFICE}/students`;
   const supabase = await createClient();
   if (!supabase) return <OfficeNotice title="Student" heading="Connect Supabase"><p>Add your Supabase keys to <code>.env.local</code>.</p></OfficeNotice>;
 
@@ -209,7 +214,7 @@ export default async function StudentPage({
       {siblings.map((sibling) => (
         <li key={sibling.id}>
           <span className="ofc-kin-avatar" aria-hidden="true">{initials(sibling.full_name)}</span>
-          <Link href={`${OFFICE}/students/${sibling.id}`}>{sibling.full_name}</Link>
+          <Link href={`${OFFICE}/students/${sibling.id}?from=${encodeURIComponent(studentsHref)}`}>{sibling.full_name}</Link>
           {sibling.status === "active" ? (
             <span className="ofc-kin-class">{sibling.class_code ?? "No class"}{sibling.stream ? ` ${sibling.stream}` : ""}</span>
           ) : (
@@ -266,7 +271,7 @@ export default async function StudentPage({
   return (
     <div className="app-page ofc-page ofc-profile">
       <ProfileTabs tabs={TABS.map((entry) => entry.value)}>
-      <Link href={`${OFFICE}/students`} className="app-back no-print"><i className="fa-solid fa-arrow-left" /> Students</Link>
+      <Link href={studentsHref} className="app-back no-print"><i className="fa-solid fa-arrow-left" /> Students</Link>
 
       {pick(query, "enrolled") ? (
         <div className="ofc-banner is-ok no-print">

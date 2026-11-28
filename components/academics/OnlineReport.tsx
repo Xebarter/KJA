@@ -14,7 +14,7 @@ import {
 } from "@/lib/nursery-dsba";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
-import { NURSERY_HEAD_SIGNATURE_SRC, PRINCIPAL_SIGNATURE_SRC } from "@/lib/teacher-signatures";
+import { nurseryHeadSignatureSrc, PRINCIPAL_SIGNATURE_SRC } from "@/lib/teacher-signatures";
 import "./online-report.css";
 
 const ACTIVITY_SLOTS = [1, 2, 3, 4];
@@ -91,6 +91,7 @@ export function OnlineReport({
   const activities = ACTIVITY_SLOTS.map((slot) => (card.activities || []).find((row) => row.slot === slot))
     .filter((row): row is SheetActivity => Boolean(row?.activity_name?.trim()));
   const fees = card.fees ?? [];
+  const headSignatureSrc = nursery ? nurseryHeadSignatureSrc(card.campus) : null;
   const feeTotal = fees.reduce((sum, line) => sum + line.amount, 0);
   const overallTone = toneClass(card.overall_grade, card.overall_score);
   const age = nurseryAgeLabel(card.date_of_birth);
@@ -314,13 +315,17 @@ export function OnlineReport({
             </div>
             <div>
               <strong>Head of section</strong>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="kor-nur-sign-img" src={NURSERY_HEAD_SIGNATURE_SRC} alt="" />
+              {headSignatureSrc ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img className="kor-nur-sign-img" src={headSignatureSrc} alt="" />
+              ) : (
+                <span className="kor-nur-sign-line" aria-hidden="true" />
+              )}
             </div>
             <div>
               <strong>Principal</strong>
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="kor-nur-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
+              <img className="kor-nur-sign-img is-principal-signature" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
             </div>
           </div>
         </section>
@@ -399,7 +404,7 @@ export function OnlineReport({
         <img src="/images/icon.png" alt="" />
         <div>
           <strong>Kampala Junior Academy</strong>
-          <p>Established 1993 · P.O. Box 6202 · +256 392 700 370</p>
+          <p>P.O. Box 6202 · +256 392 700 370 · www.kja.ug</p>
           <p>info@kja.com</p>
         </div>
       </footer>

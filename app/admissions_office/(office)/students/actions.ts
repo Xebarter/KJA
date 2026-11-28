@@ -376,6 +376,28 @@ export async function bulkUpdateStudents(list: string[], change: BulkChange): Pr
   return { ok: `Updated ${targets.length} student${targets.length === 1 ? "" : "s"}.` };
 }
 
+export async function bulkArchiveStudents(list: string[]): Promise<ActionResult> {
+  const auth = await requireOffice("students");
+  if ("error" in auth) return { error: auth.error };
+  const { supabase, user } = auth;
+  const targets = [...new Set(list.filter(isUuid))].slice(0, MAX_BULK);
+  if (!targets.length) return { error: "Select at least one student." };
+
+  const { data, error } = await supabase
+    .from("students")
+    .update({ status: "left", left_on: todayIso(), left_reason: null })
+    .in("id", targets)
+    .eq("status", "active")
+    .select("id");
+  if (error) return { error: error.message };
+  if (!data.length) return { error: "None of the selected students are currently active." };
+
+  const archivedIds = data.map((student) => student.id);
+  await logStudents(supabase, user.id, archivedIds, "status", "Archived as Left");
+  refreshOffice();
+  return { ok: `Archived ${archivedIds.length} active student${archivedIds.length === 1 ? "" : "s"} as Left.` };
+}
+
 export async function setStudentFamily(id: string, familyId: string): Promise<ActionResult> {
   const auth = await requireOffice("students");
   if ("error" in auth) return { error: auth.error };

@@ -185,6 +185,7 @@ export default async function TeacherReportPage({ params }: { params: Promise<{ 
     report_title: (card as { report_title?: string | null }).report_title ?? null,
     class_code: card.class_code,
     stream: card.stream || "",
+    campus: pupil?.campus ?? null,
     class_teacher_name: classTeacherName,
     class_teacher_signature_src: classTeacherSignatureSrc,
     class_teacher_comment: card.class_teacher_comment,

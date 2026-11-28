@@ -4,7 +4,7 @@ import { askConfirm } from "@/components/AppConfirm";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
-import { bulkUpdateStudents, type BulkChange } from "@/app/admissions_office/(office)/students/actions";
+import { bulkArchiveStudents, bulkUpdateStudents, type BulkChange } from "@/app/admissions_office/(office)/students/actions";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import { Feedback, useOfficeAction } from "@/components/office/client";
 import { StudentPhoto } from "@/components/office/StudentPhoto";
@@ -364,7 +364,7 @@ const BULK_LABELS: Record<BulkKind, string> = {
   status: "Change status",
 };
 
-export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRow[]; exportHref: string; sheetHref: string }) {
+export function StudentTable({ rows, exportHref, sheetHref, returnHref }: { rows: RegisterRow[]; exportHref: string; sheetHref: string; returnHref: string }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [kind, setKind] = useState<BulkKind>("class_code");
@@ -377,6 +377,7 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
   useEffect(() => setSelected((current) => new Set([...current].filter((id) => ids.includes(id)))), [ids]);
 
   const all = rows.length > 0 && selected.size === rows.length;
+  const archivableCount = rows.filter((row) => selected.has(row.id) && row.status === "active").length;
   const toggle = (id: string) => setSelected((current) => {
     const next = new Set(current);
     if (next.has(id)) next.delete(id);
@@ -399,7 +400,15 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
     run(() => bulkUpdateStudents([...selected], change), () => setSelected(new Set()));
   };
 
+  const archiveSelected = async () => {
+    if (!archivableCount) return;
+    const label = `${archivableCount} active student${archivableCount === 1 ? "" : "s"}`;
+    if (!(await askConfirm(`Archive ${label} as Left? They will be removed from the active register, but their records and history will be kept.`))) return;
+    run(() => bulkArchiveStudents([...selected]), () => setSelected(new Set()));
+  };
+
   const joinIds = (href: string) => `${href}${href.includes("?") ? "&" : "?"}ids=${[...selected].join(",")}`;
+  const studentHref = (id: string) => `${OFFICE}/students/${id}?from=${encodeURIComponent(returnHref)}`;
   const exportSelected = joinIds(exportHref);
   const editSelected = joinIds(sheetHref);
   const exportBusy = Boolean(exportJob);
@@ -428,32 +437,51 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
         </button>
       </div>
       {selected.size ? (
-        <div className="app-bulk ofc-bulk" role="region" aria-label="Bulk actions">
-          <strong>{selected.size} selected</strong>
-          <select aria-label="What to change" value={kind} onChange={(event) => { setKind(event.target.value as BulkKind); setValue(""); setResult(null); }}>
-            {(Object.keys(BULK_LABELS) as BulkKind[]).map((key) => <option key={key} value={key}>{BULK_LABELS[key]}</option>)}
-          </select>
-          <select aria-label="New value" value={value} onChange={(event) => setValue(event.target.value)}>
-            {options.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}
-          </select>
-          <button type="button" className="admin-btn admin-btn-gold" disabled={pending || exportBusy} onClick={apply}>
-            {pending ? "Saving…" : "Apply"}
-          </button>
-          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("csv", exportSelected)}>
-            <i className={`fa-solid ${exportJob === "csv" ? "fa-spinner fa-spin" : "fa-file-csv"}`} aria-hidden="true" /> CSV
-          </button>
-          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("xlsx", exportWithFormat(exportSelected, "xlsx"))}>
-            <i className={`fa-solid ${exportJob === "xlsx" ? "fa-spinner fa-spin" : "fa-file-excel"}`} aria-hidden="true" /> Excel
-          </button>
-          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("pdf", exportWithFormat(exportSelected, "pdf"))}>
-            <i className={`fa-solid ${exportJob === "pdf" ? "fa-spinner fa-spin" : "fa-file-pdf"}`} aria-hidden="true" /> PDF
-          </button>
-          <button type="button" className="app-link-btn" disabled={exportBusy} onClick={() => void runExport("sheet", editSelected)}>
-            <i className={`fa-solid ${exportJob === "sheet" ? "fa-spinner fa-spin" : "fa-pen-to-square"}`} aria-hidden="true" /> Edit workbook
-          </button>
-          <button type="button" className="app-link-btn app-bulk-close" onClick={() => setSelected(new Set())} aria-label="Clear selection">
-            <i className="fa-solid fa-xmark" aria-hidden="true" />
-          </button>
+        <div className="app-bulk ofc-bulk ofc-student-bulk" role="region" aria-label="Bulk actions" aria-live="polite">
+          <div className="ofc-bulk-summary">
+            <span className="ofc-bulk-count"><i className="fa-solid fa-check" aria-hidden="true" /> {selected.size}</span>
+            <span>students selected</span>
+          </div>
+          <div className="ofc-bulk-edit">
+            <select aria-label="What to change" value={kind} onChange={(event) => { setKind(event.target.value as BulkKind); setValue(""); setResult(null); }}>
+              {(Object.keys(BULK_LABELS) as BulkKind[]).map((key) => <option key={key} value={key}>{BULK_LABELS[key]}</option>)}
+            </select>
+            <select aria-label="New value" value={value} onChange={(event) => setValue(event.target.value)}>
+              {options.map((option) => <option key={option.value || "none"} value={option.value}>{option.label}</option>)}
+            </select>
+            <button type="button" className="admin-btn admin-btn-gold ofc-bulk-apply" disabled={pending || exportBusy} onClick={apply}>
+              {pending ? "Saving…" : "Apply"}
+            </button>
+          </div>
+          <div className="ofc-bulk-exports" role="group" aria-label="Export selected students">
+            <button type="button" className="app-link-btn" disabled={exportBusy || pending} onClick={() => void runExport("csv", exportSelected)}>
+              <i className={`fa-solid ${exportJob === "csv" ? "fa-spinner fa-spin" : "fa-file-csv"}`} aria-hidden="true" /> CSV
+            </button>
+            <button type="button" className="app-link-btn" disabled={exportBusy || pending} onClick={() => void runExport("xlsx", exportWithFormat(exportSelected, "xlsx"))}>
+              <i className={`fa-solid ${exportJob === "xlsx" ? "fa-spinner fa-spin" : "fa-file-excel"}`} aria-hidden="true" /> Excel
+            </button>
+            <button type="button" className="app-link-btn" disabled={exportBusy || pending} onClick={() => void runExport("pdf", exportWithFormat(exportSelected, "pdf"))}>
+              <i className={`fa-solid ${exportJob === "pdf" ? "fa-spinner fa-spin" : "fa-file-pdf"}`} aria-hidden="true" /> PDF
+            </button>
+            <button type="button" className="app-link-btn" disabled={exportBusy || pending} onClick={() => void runExport("sheet", editSelected)}>
+              <i className={`fa-solid ${exportJob === "sheet" ? "fa-spinner fa-spin" : "fa-pen-to-square"}`} aria-hidden="true" /> Edit workbook
+            </button>
+          </div>
+          <div className="ofc-bulk-utility">
+            <button
+              type="button"
+              className="app-link-btn ofc-bulk-archive"
+              disabled={!archivableCount || pending || exportBusy}
+              onClick={() => void archiveSelected()}
+              aria-label={`Archive ${archivableCount} active student${archivableCount === 1 ? "" : "s"}`}
+            >
+              <i className="fa-solid fa-box-archive" aria-hidden="true" /> Archive
+              <span className="ofc-bulk-archive-count">{archivableCount}</span>
+            </button>
+            <button type="button" className="app-link-btn app-bulk-close ofc-bulk-clear" onClick={() => setSelected(new Set())} aria-label="Clear selection">
+              <i className="fa-solid fa-xmark" aria-hidden="true" />
+            </button>
+          </div>
         </div>
       ) : null}
       <Feedback result={result} />
@@ -501,7 +529,7 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
                   className={selected.has(row.id) ? "is-selected" : ""}
                   onClick={(event) => {
                     if ((event.target as HTMLElement).closest("a, button, input, label")) return;
-                    router.push(`${OFFICE}/students/${row.id}`);
+                    router.push(studentHref(row.id));
                   }}
                 >
                   <td className="app-col-check">
@@ -511,7 +539,7 @@ export function StudentTable({ rows, exportHref, sheetHref }: { rows: RegisterRo
                     <div className="ofc-who">
                       <StudentPhoto id={row.id} name={row.full_name} url={row.photo_url ?? null} sex={row.sex} />
                       <div>
-                        <Link href={`${OFFICE}/students/${row.id}`} className="ofc-who-name">{row.full_name}</Link>
+                        <Link href={studentHref(row.id)} className="ofc-who-name">{row.full_name}</Link>
                         <span className="ofc-who-meta">
                           <span className="ofc-num">{row.student_number}</span>
                           {row.preferred_name ? <span>Known as {row.preferred_name}</span> : null}

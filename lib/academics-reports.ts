@@ -224,14 +224,14 @@ export async function loadTermReportSittings(
   return out;
 }
 
-function planFromSelection(papers: Assessment[], selected: { key: string; share: number }[]): PlannedSet[] {
+function planFromSelection(papers: Assessment[], selected: { key: string; share: number; sort?: number }[]): PlannedSet[] {
   const byKey = new Map(planAssessmentSets(papers).map((set) => [set.key, set]));
   return selected
     .map((row) => {
       const known = byKey.get(row.key);
       if (!known) return null;
       const share = row.share > 0 ? row.share : 0;
-      return { ...known, share, weight: share };
+      return { ...known, share, weight: share, sort: row.sort ?? known.sort };
     })
     .filter((set): set is PlannedSet => Boolean(set));
 }
@@ -246,7 +246,8 @@ async function prepareNurseryDsbaReports(
     termId: string;
     classCode: string;
     stream: string;
-    sets?: { key: string; share: number }[];
+    campus?: string;
+    sets?: { key: string; share: number; sort?: number }[];
     reportTitle?: string;
   },
 ) {
@@ -254,7 +255,23 @@ async function prepareNurseryDsbaReports(
   const divisionId = nurseryDivision(input.classCode);
   if (!divisionId) throw new Error("This class is not a nursery division.");
 
-  const [pupils, teacher, cards, catalogue, assessmentsQuery] = await Promise.all([
+  let teacherQuery = supabase
+    .from("class_teachers")
+    .select("staff_id, teaching_staff(full_name)")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream)
+    .eq("role", "lead");
+  if (input.campus) teacherQuery = teacherQuery.eq("campus", input.campus);
+  let nurseryAssessmentsQuery = supabase
+    .from("developmental_assessments")
+    .select("id, name, kind, status")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream);
+  if (input.campus) nurseryAssessmentsQuery = nurseryAssessmentsQuery.eq("campus", input.campus);
+
+  const [pupils, teacher, cards, catalogue, nurseryAssessments] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
       supabase
         .from("student_directory")
@@ -264,14 +281,7 @@ async function prepareNurseryDsbaReports(
         .order("id")
         .range(from, to),
     ),
-    supabase
-      .from("class_teachers")
-      .select("staff_id, teaching_staff(full_name)")
-      .eq("term_id", input.termId)
-      .eq("class_code", input.classCode)
-      .eq("stream", stream)
-      .eq("role", "lead")
-      .maybeSingle(),
+    teacherQuery.maybeSingle(),
     supabase
       .from("report_cards")
       .select("id, student_id, status, class_teacher_comment, head_comment, conduct")
@@ -279,23 +289,22 @@ async function prepareNurseryDsbaReports(
       .eq("class_code", input.classCode)
       .eq("stream", stream),
     loadDivisionCatalogue(supabase, divisionId),
-    supabase
-      .from("developmental_assessments")
-      .select("id, name, kind, status")
-      .eq("term_id", input.termId)
-      .eq("class_code", input.classCode)
-      .eq("stream", stream),
+    nurseryAssessmentsQuery,
   ]);
 
   if ("error" in catalogue) throw new Error(catalogue.error);
   if (teacher.error) throw new Error(teacher.error.message);
   if (cards.error) throw new Error(cards.error.message);
-  if (assessmentsQuery.error) throw new Error(assessmentsQuery.error.message);
+  if (nurseryAssessments.error) throw new Error(nurseryAssessments.error.message);
 
-  const roster = pupils.filter((pupil) => streamOf(pupil.stream) === stream);
+  const roster = pupils.filter(
+    (pupil) =>
+      streamOf(pupil.stream) === stream &&
+      (!input.campus || operationalCampus(pupil.campus) === input.campus),
+  );
   if (!roster.length) return { prepared: 0 };
 
-  const sittings = ((assessmentsQuery.data || []) as { id: string; name: string; kind: string; status: string }[]);
+  const sittings = ((nurseryAssessments.data || []) as { id: string; name: string; kind: string; status: string }[]);
   const chosenId = input.sets?.length
     ? input.sets.map((set) => set.key).find((key) => sittings.some((row) => row.id === key))
     : sittings.find((row) => row.status === "approved")?.id || sittings[0]?.id;
@@ -492,8 +501,9 @@ export async function prepareClassReports(
     termId: string;
     classCode: string;
     stream: string;
-    /** When set, only these sittings are used, with the given shares of each subject. */
-    sets?: { key: string; share: number }[];
+    campus?: string;
+    /** When set, only these sittings are used in the given order and with the given shares. */
+    sets?: { key: string; share: number; sort?: number }[];
     /** Printed heading on the card. Omitted when re-preparing without regenerating. */
     reportTitle?: string;
   },
@@ -504,6 +514,22 @@ export async function prepareClassReports(
     return prepareNurseryDsbaReports(supabase, input);
   }
   const markSection = gradeBandSection(input.classCode);
+
+  let assessmentsQuery = supabase
+    .from("assessments")
+    .select("id, subject_id, name, kind, max_score, weight")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream);
+  if (input.campus) assessmentsQuery = assessmentsQuery.eq("campus", input.campus);
+  let teacherQuery = supabase
+    .from("class_teachers")
+    .select("staff_id, teaching_staff(full_name)")
+    .eq("term_id", input.termId)
+    .eq("class_code", input.classCode)
+    .eq("stream", stream)
+    .eq("role", "lead");
+  if (input.campus) teacherQuery = teacherQuery.eq("campus", input.campus);
 
   const [pupils, subjects, bands, divisions, assessments, teacher, cards] = await Promise.all([
     fetchAll<Pupil>((from, to) =>
@@ -518,20 +544,8 @@ export async function prepareClassReports(
     supabase.from("subjects").select("*").eq("active", true).order("sort_order"),
     supabase.from("grade_bands").select("*").order("sort_order"),
     supabase.from("division_bands").select("*").order("sort_order"),
-    supabase
-      .from("assessments")
-      .select("id, subject_id, name, kind, max_score, weight")
-      .eq("term_id", input.termId)
-      .eq("class_code", input.classCode)
-      .eq("stream", stream),
-    supabase
-      .from("class_teachers")
-      .select("staff_id, teaching_staff(full_name)")
-      .eq("term_id", input.termId)
-      .eq("class_code", input.classCode)
-      .eq("stream", stream)
-      .eq("role", "lead")
-      .maybeSingle(),
+    assessmentsQuery,
+    teacherQuery.maybeSingle(),
     supabase
       .from("report_cards")
       .select("id, student_id, status, class_teacher_comment, head_comment, conduct")
@@ -546,7 +560,11 @@ export async function prepareClassReports(
   if (teacher.error) throw new Error(teacher.error.message);
   if (cards.error) throw new Error(cards.error.message);
 
-  const roster = pupils.filter((pupil) => streamOf(pupil.stream) === stream);
+  const roster = pupils.filter(
+    (pupil) =>
+      streamOf(pupil.stream) === stream &&
+      (!input.campus || operationalCampus(pupil.campus) === input.campus),
+  );
   if (!roster.length) return { prepared: 0 };
 
   const subjectRows = ((subjects.data || []) as Record<string, unknown>[]).map(mapSubject);

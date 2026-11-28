@@ -118,7 +118,10 @@ export function StaffDesk({
   function dismissIssued() {
     setIssuedQueue((queue) => queue.slice(1));
   }
-  const teachers = useMemo(() => members.filter((member) => member.active).map((member) => ({ id: member.id, name: member.full_name })), [members]);
+  const teachers = useMemo(
+    () => members.filter((member) => member.active).map((member) => ({ id: member.id, name: member.full_name, campus: member.campus })),
+    [members],
+  );
   const openPosts = useMemo(() => {
     if (!termId || !groups.length) return 0;
     let open = gaps.length;
@@ -921,7 +924,7 @@ function Coverage({
   leads: StaffLead[];
   termId: string | null;
   termLabel: string | null;
-  teachers: { id: string; name: string }[];
+  teachers: { id: string; name: string; campus: string | null }[];
   assign: PostAction;
   onIssued?: (issued: { email: string; password: string; temporary?: boolean }) => void;
 }) {
@@ -930,6 +933,7 @@ function Coverage({
   const campuses = campusesFor(groups, code);
   const [campus, setCampus] = useState(campuses[0] || "");
   const activeCampus = campuses.includes(campus) ? campus : (campuses[0] || "");
+  const campusTeachers = teachers.filter((teacher) => !teacher.campus?.trim() || teacher.campus.trim() === activeCampus);
   const streams = groups.filter((group) => group.code === code && group.campus === activeCampus);
   const [stream, setStream] = useState(streams[0]?.stream ?? "");
   const chosen = streams.some((group) => group.stream === stream) ? stream : (streams[0]?.stream ?? "");
@@ -947,7 +951,7 @@ function Coverage({
   const covered = rows.length - openSubjects + (lead ? 1 : 0);
   const total = rows.length + 1;
   const pct = total ? Math.round((covered / total) * 100) : 0;
-  const canEdit = Boolean(termId && teachers.length);
+  const canEdit = Boolean(termId && campusTeachers.length);
   const streamLabel = currentGroup?.label || `${className(code)} ${streamName(chosen)}`;
 
   function chooseClass(next: string) {
@@ -1078,7 +1082,7 @@ function Coverage({
                     <em className={lead ? "is-ok" : "is-warn"}>{lead ? "Filled" : "Open"}</em>
                   </div>
                   {canEdit ? (
-                    <ClaimPost assign={assign} teachers={teachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} classTeacher currentStaffId={lead?.staffId} onIssued={onIssued} />
+                    <ClaimPost assign={assign} teachers={campusTeachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} classTeacher currentStaffId={lead?.staffId} onIssued={onIssued} />
                   ) : null}
                 </article>
                 <article className={`stf-cover-tile${assistant ? " is-covered" : " is-open is-optional"}`}>
@@ -1093,7 +1097,7 @@ function Coverage({
                     <em className={assistant ? "is-ok" : "is-soft"}>{assistant ? "Filled" : "Optional"}</em>
                   </div>
                   {canEdit ? (
-                    <ClaimPost assign={assign} teachers={teachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} assistantTeacher currentStaffId={assistant?.staffId} onIssued={onIssued} />
+                    <ClaimPost assign={assign} teachers={campusTeachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} assistantTeacher currentStaffId={assistant?.staffId} onIssued={onIssued} />
                   ) : null}
                 </article>
               </div>
@@ -1124,7 +1128,7 @@ function Coverage({
                         <em className={row.teacher ? "is-ok" : "is-warn"}>{row.teacher ? "Filled" : "Open"}</em>
                       </div>
                       {canEdit ? (
-                        <ClaimPost assign={assign} teachers={teachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} subjectId={row.id} currentStaffId={row.staffId || undefined} onIssued={onIssued} />
+                        <ClaimPost assign={assign} teachers={campusTeachers} posts={posts} leads={leads} termId={termId!} classCode={code} stream={chosen} campus={activeCampus} subjectId={row.id} currentStaffId={row.staffId || undefined} onIssued={onIssued} />
                       ) : null}
                     </article>
                   ))}
@@ -1170,13 +1174,15 @@ function Assignments({
   onIssued?: (issued: { email: string; password: string; temporary?: boolean }) => void;
 }) {
   type LeadPick = "" | "lead" | "assistant";
-  const codes = classCodes(groups);
-  const initialFocus = preferredAssignFocus(member.id, groups, leads, posts);
+  const assignedCampus = member.campus?.trim() || "";
+  const assignableGroups = assignedCampus ? groups.filter((group) => group.campus === assignedCampus) : groups;
+  const codes = classCodes(assignableGroups);
+  const initialFocus = preferredAssignFocus(member.id, assignableGroups, leads, posts);
   const [code, setCode] = useState(initialFocus.classCode);
-  const campuses = campusesFor(groups, code);
+  const campuses = campusesFor(assignableGroups, code);
   const [campus, setCampus] = useState(initialFocus.campus);
   const activeCampus = campuses.includes(campus) ? campus : (campuses[0] || "");
-  const streams = groups.filter((group) => group.code === code && group.campus === activeCampus);
+  const streams = assignableGroups.filter((group) => group.code === code && group.campus === activeCampus);
   const [stream, setStream] = useState(initialFocus.stream);
   const chosen = streams.some((group) => group.stream === stream) ? stream : (streams[0]?.stream ?? "");
   const [picked, setPicked] = useState<string[]>([]);
@@ -1199,17 +1205,17 @@ function Assignments({
     const current = posts.find((row) => row.classCode === code && row.stream === chosen && row.campus === activeCampus && row.subjectId === subject.id);
     return !current;
   }).length;
-  const streamLabel = groups.find((group) => group.code === code && group.stream === chosen && group.campus === activeCampus)?.label
+  const streamLabel = assignableGroups.find((group) => group.code === code && group.stream === chosen && group.campus === activeCampus)?.label
     || `${className(code)} ${streamName(chosen)}`;
 
   useEffect(() => {
-    const focus = preferredAssignFocus(member.id, groups, leads, posts);
+    const focus = preferredAssignFocus(member.id, assignableGroups, leads, posts);
     setCode(focus.classCode);
     setCampus(focus.campus);
     setStream(focus.stream);
-    // Only re-focus when switching teachers — keep manual class picks after save/refresh.
+    // Re-focus when switching teachers or their campus; keep manual class picks otherwise.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [member.id]);
+  }, [member.id, assignedCampus]);
 
   useEffect(() => {
     setPicked(
@@ -1234,14 +1240,14 @@ function Assignments({
 
   function chooseClass(next: string) {
     setCode(next);
-    const nextCampuses = campusesFor(groups, next);
+    const nextCampuses = campusesFor(assignableGroups, next);
     setCampus(nextCampuses[0] || "");
-    setStream(groups.find((group) => group.code === next && group.campus === nextCampuses[0])?.stream ?? "");
+    setStream(assignableGroups.find((group) => group.code === next && group.campus === nextCampuses[0])?.stream ?? "");
   }
 
   function chooseCampus(next: string) {
     setCampus(next);
-    setStream(groups.find((group) => group.code === code && group.campus === next)?.stream ?? "");
+    setStream(assignableGroups.find((group) => group.code === code && group.campus === next)?.stream ?? "");
   }
 
   function holder(subjectId: string) {
@@ -1357,7 +1363,10 @@ function Assignments({
         <p className="stf-quiet stf-assign-empty">Nothing assigned this term yet.</p>
       )}
 
-      {termId && groups.length ? (
+      {termId && assignedCampus && !assignableGroups.length ? (
+        <p className="stf-quiet stf-assign-empty">There are no active pupil streams at {assignedCampus} to assign.</p>
+      ) : null}
+      {termId && assignableGroups.length ? (
         <DeskForm action={assign} className="stf-form stf-assign" onIssued={onIssued}>
           <input type="hidden" name="staff_id" value={member.id} />
           <input type="hidden" name="term_id" value={termId} />
@@ -1383,7 +1392,14 @@ function Assignments({
                 {codes.map((entry) => <option key={entry} value={entry}>{className(entry)}</option>)}
               </select>
             </label>
-            {campuses.length > 1 ? (
+            {assignedCampus ? (
+              <label className="stf-select">
+                <span>Campus</span>
+                <select value={assignedCampus} disabled aria-label="Assigned campus">
+                  <option value={assignedCampus}>{assignedCampus}</option>
+                </select>
+              </label>
+            ) : campuses.length > 1 ? (
               <label className="stf-select">
                 <span>Campus</span>
                 <select value={activeCampus} onChange={(event) => chooseCampus(event.target.value)} aria-label="Campus to assign">
@@ -1571,7 +1587,7 @@ function ClaimPost({
   onIssued,
 }: {
   assign: PostAction;
-  teachers: { id: string; name: string }[];
+  teachers: { id: string; name: string; campus: string | null }[];
   posts: StaffPost[];
   leads: StaffLead[];
   termId: string;

@@ -1,31 +1,18 @@
-import { ReportSheet } from "@/components/academics/ReportSheet";
+import { ReportSheet, reportPortraitFromBytes } from "@/components/academics/ReportSheet";
 import { AcademicsGate, Empty, OfficeOnly } from "@/components/academics/ui";
 import { classLabel, classSection, loadCurrentTerm, streamFromQuery } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
 import { loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
+import { isCampusId } from "@/lib/campuses";
 import { isClassCode } from "@/lib/students";
 
 export const metadata = { title: "Print report cards" };
-
-function portraitFromBytes(bytes: Uint8Array | undefined) {
-  if (!bytes?.length) return undefined;
-  const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
-  const png = bytes[0] === 0x89 && bytes[1] === 0x50;
-  const type = png ? "image/png" : "image/jpeg";
-  const src = `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
-  return (
-    <span className="acd-sheet-face" aria-hidden="true">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="" />
-    </span>
-  );
-}
 
 /** Bare stack of ReportSheets - same print CSS as /reports/[id]. Used for Download PDF. */
 export default async function ReportPrintPackPage({
   searchParams,
 }: {
-  searchParams: Promise<{ class?: string; stream?: string }>;
+  searchParams: Promise<{ class?: string; stream?: string; campus?: string }>;
 }) {
   const query = await searchParams;
   const opened = await openAcademics();
@@ -33,12 +20,16 @@ export default async function ReportPrintPackPage({
   if (!opened.auth.office) return <OfficeOnly title="Report cards" />;
   const classCode = query.class || "";
   const stream = streamFromQuery(query.stream);
-  if (!isClassCode(classCode) || stream === null) {
+  const campus = query.campus;
+  if (!isClassCode(classCode) || stream === null || (campus !== undefined && !isCampusId(campus))) {
     return (
       <div className="app-page ofc-page rpt-page rpt-print-pack">
         <Empty title="Choose a class" />
       </div>
     );
+  }
+  if (campus && opened.auth.campuses.length && !opened.auth.campuses.includes(campus)) {
+    return <AcademicsGate title="Report cards" state={{ notice: "auth", message: "You can only print report cards for an assigned campus." }} />;
   }
   const { supabase } = opened.auth;
   const termPack = await loadCurrentTerm(supabase);
@@ -57,6 +48,7 @@ export default async function ReportPrintPackPage({
       classCode,
       stream,
       termLabel: termPack.term.label,
+      campus,
     });
   } catch (error) {
     return (
@@ -89,7 +81,7 @@ export default async function ReportPrintPackPage({
             key={card.id}
             nursery={nursery}
             card={card}
-            portrait={portraitFromBytes(photos.get(card.id))}
+            portrait={reportPortraitFromBytes(photos.get(card.id), card.pupil_name)}
           />
         ))}
       </div>

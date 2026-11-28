@@ -346,7 +346,7 @@ export async function generateAndSaveReportComments(
 
 export async function generateClassReportComments(
   supabase: SupabaseClient,
-  input: { termId: string; classCode: string; stream: string },
+  input: { termId: string; classCode: string; stream: string; campus?: string },
   actorId: string,
   options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
 ): Promise<{ processed: number; succeeded: number; failed: number; skipped: number; errors: { reportId: string; messages: string[] }[] }> {
@@ -358,7 +358,7 @@ export async function generateClassReportComments(
     .eq("stream", input.stream)
     .eq("status", "draft");
   if (error) throw new Error(error.message);
-  const drafts = (cards || []) as {
+  const allDrafts = (cards || []) as {
     id: string;
     student_id: string;
     class_code: string | null;
@@ -369,6 +369,9 @@ export async function generateClassReportComments(
     head_comment: string | null;
     cocurricular_comment: string | null;
   }[];
+  const drafts = input.campus
+    ? allDrafts.filter((card) => operationalCampus(card.campus) === input.campus)
+    : allDrafts;
   if (!drafts.length) return { processed: 0, succeeded: 0, failed: 0, skipped: 0, errors: [] };
 
   const config = await loadActiveCommentConfig(supabase);

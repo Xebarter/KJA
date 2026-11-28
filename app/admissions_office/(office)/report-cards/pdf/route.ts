@@ -4,6 +4,7 @@ import { OFFICE_BASE, requireOffice } from "@/lib/office";
 import { loadReportCardPhotos, loadStreamReportCards } from "@/lib/report-cards-pdf";
 import { buildReportPrintHtml } from "@/lib/report-cards-print-html";
 import { buildReportCardsPdfFromHtmlChunks, reportPdfChunkSize } from "@/lib/report-cards-print-pdf";
+import { isCampusId } from "@/lib/campuses";
 import { isClassCode } from "@/lib/students";
 import { serviceClient } from "@/lib/supabase/service";
 
@@ -16,6 +17,11 @@ export async function GET(request: Request) {
   const url = new URL(request.url);
   const classCode = url.searchParams.get("class") || "";
   const stream = streamFromQuery(url.searchParams.get("stream") ?? undefined);
+  const requestedCampus = url.searchParams.get("campus");
+  if (requestedCampus !== null && !isCampusId(requestedCampus)) return new Response("Choose a valid campus.", { status: 400 });
+  if (requestedCampus && auth.campuses.length && !auth.campuses.includes(requestedCampus)) {
+    return new Response("You can only download report cards for an assigned campus.", { status: 403 });
+  }
   if (!isClassCode(classCode) || stream === null) return new Response("Choose a class.", { status: 400 });
   if (classSection(classCode) !== "nursery") {
     return new Response("Admissions can only download nursery developmental report cards here.", { status: 403 });
@@ -32,6 +38,7 @@ export async function GET(request: Request) {
       classCode,
       stream,
       termLabel: termPack.term.label,
+      campus: requestedCampus ?? undefined,
     });
     if (!cards.length) return new Response("Generate the report cards before downloading them.", { status: 404 });
     const photos = await loadReportCardPhotos(cards);
@@ -50,6 +57,7 @@ export async function GET(request: Request) {
       const print = new URL(`${OFFICE_BASE}/report-cards`, url.origin);
       print.searchParams.set("class", classCode);
       print.searchParams.set("stream", streamQuery(stream));
+      if (requestedCampus) print.searchParams.set("campus", requestedCampus);
       return Response.redirect(print, 302);
     }
     return new Response(message, { status: 500 });

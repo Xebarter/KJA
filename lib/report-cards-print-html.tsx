@@ -3,7 +3,8 @@ import path from "path";
 import type { ReactElement } from "react";
 import { renderToReadableStream } from "react-dom/server.edge";
 import { ReportQrMark, buildReportQrSvg } from "@/components/academics/ReportQr";
-import { ReportSheet, type SheetCard } from "@/components/academics/ReportSheet";
+import { ReportSheet, reportPortraitFromBytes, type SheetCard } from "@/components/academics/ReportSheet";
+import { gradeBandSection } from "@/lib/academics";
 import { reportOnlineUrl } from "@/lib/report-link";
 import type { StreamReportCard } from "@/lib/report-cards-pdf";
 
@@ -17,10 +18,12 @@ async function renderMarkup(element: ReactElement) {
 let cachedCss: string | null = null;
 let cachedCrest: string | null = null;
 let cachedNurseryArt: Map<string, string> | null = null;
+let cachedLowerPrimaryArt: Map<string, string> | null = null;
 let cachedSignatures: Map<string, string> | null = null;
 let cssReady: Promise<string> | null = null;
 let crestReady: Promise<string> | null = null;
 let nurseryArtReady: Promise<Map<string, string>> | null = null;
+let lowerPrimaryArtReady: Promise<Map<string, string>> | null = null;
 let signaturesReady: Promise<Map<string, string>> | null = null;
 
 async function inlineFontUrls(css: string) {
@@ -73,27 +76,6 @@ async function printStyles() {
   return cssReady;
 }
 
-function portraitFromBytes(bytes: Uint8Array | undefined, name: string) {
-  if (bytes?.length) {
-    const jpeg = bytes[0] === 0xff && bytes[1] === 0xd8;
-    const png = bytes[0] === 0x89 && bytes[1] === 0x50;
-    const type = png ? "image/png" : jpeg ? "image/jpeg" : "image/jpeg";
-    const src = `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
-    return (
-      <span className="acd-sheet-face" aria-hidden="true">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={src} alt="" />
-      </span>
-    );
-  }
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  const mark =
-    !parts.length ? "K" :
-    parts.length === 1 ? parts[0].slice(0, 2).toUpperCase() :
-    `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
-  return <span className="acd-sheet-seal" aria-hidden="true">{mark}</span>;
-}
-
 async function crestDataUri() {
   if (cachedCrest) return cachedCrest;
   if (crestReady) return crestReady;
@@ -111,19 +93,14 @@ async function crestDataUri() {
   return crestReady;
 }
 
-/** Inline school signatures from public/signatures for offline PDF print. */
-async function nurserySignatureDataUris() {
+/** Inline campus head signatures and the principal's signature for offline PDF print. */
+async function signatureDataUris() {
   if (cachedSignatures) return cachedSignatures;
   if (signaturesReady) return signaturesReady;
   signaturesReady = (async () => {
     const map = new Map<string, string>();
     const dir = path.join(process.cwd(), "public/signatures");
-    const names = [
-      "principal.png",
-      "head-of-nursery.png",
-      "head-of-lower-primary.png",
-      "head-of-upper-primary.png",
-    ];
+    const names = (await readdir(dir)).filter((name) => /\.png$/i.test(name));
     await Promise.all(
       names.map(async (name) => {
         try {
@@ -185,7 +162,27 @@ async function nurseryArtDataUris() {
   return nurseryArtReady;
 }
 
-function inlineNurseryArt(html: string, art: Map<string, string>) {
+async function lowerPrimaryArtDataUris() {
+  if (cachedLowerPrimaryArt) return cachedLowerPrimaryArt;
+  if (lowerPrimaryArtReady) return lowerPrimaryArtReady;
+  lowerPrimaryArtReady = (async () => {
+    const dir = path.join(process.cwd(), "public/lower_primary_report");
+    const names = ["left.png", "right.png", "bottom.png"];
+    const entries = await Promise.all(
+      names.map(async (name) => {
+        const bytes = await readFile(path.join(dir, name));
+        return [`/lower_primary_report/${name}`, `data:image/png;base64,${bytes.toString("base64")}`] as const;
+      }),
+    );
+    cachedLowerPrimaryArt = new Map(entries);
+    return cachedLowerPrimaryArt;
+  })().finally(() => {
+    lowerPrimaryArtReady = null;
+  });
+  return lowerPrimaryArtReady;
+}
+
+function inlineImageAssets(html: string, art: Map<string, string>) {
   let next = html;
   for (const [fileUrl, data] of art) {
     next = next.replaceAll(`src="${fileUrl}"`, `src="${data}"`);
@@ -205,11 +202,14 @@ export async function buildReportPrintHtml(input: {
   cards: StreamReportCard[];
   photos: Map<string, Uint8Array>;
 }): Promise<string> {
-  const [css, crest, nurseryArt, schoolSigns] = await Promise.all([
+  const [css, crest, nurseryArt, schoolSigns, lowerPrimaryArt] = await Promise.all([
     printStyles(),
     crestDataUri(),
     input.nursery ? nurseryArtDataUris() : Promise.resolve(new Map<string, string>()),
-    nurserySignatureDataUris(),
+    signatureDataUris(),
+    !input.nursery && input.cards.some((card) => gradeBandSection(card.class_code) === "lower")
+      ? lowerPrimaryArtDataUris()
+      : Promise.resolve(new Map<string, string>()),
   ]);
   const qrs = await Promise.all(
     input.cards.map(async (card) => {
@@ -230,7 +230,7 @@ export async function buildReportPrintHtml(input: {
               key={card.id}
               nursery={input.nursery}
               card={sheetCard}
-              portrait={portraitFromBytes(input.photos.get(card.id), card.pupil_name)}
+              portrait={reportPortraitFromBytes(input.photos.get(card.id), card.pupil_name)}
               qr={qr ? <ReportQrMark href={qr.href} svg={qr.svg} /> : null}
             />
           );
@@ -241,8 +241,9 @@ export async function buildReportPrintHtml(input: {
 
   // Crest / nursery art / signature paths in the sheet markup stay as public URLs - rewrite to data URIs.
   const withCrest = body.replaceAll('src="/images/icon.png"', `src="${crest}"`);
-  const withArt = inlineNurseryArt(withCrest, nurseryArt);
-  const withSigns = inlineNurseryArt(withArt, schoolSigns);
+  const withArt = inlineImageAssets(withCrest, nurseryArt);
+  const withSigns = inlineImageAssets(withArt, schoolSigns);
+  const withLowerPrimaryArt = inlineImageAssets(withSigns, lowerPrimaryArt);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -250,6 +251,6 @@ export async function buildReportPrintHtml(input: {
 <meta charset="utf-8" />
 <style>${css}</style>
 </head>
-<body>${withSigns}</body>
+<body>${withLowerPrimaryArt}</body>
 </html>`;
 }

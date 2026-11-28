@@ -19,6 +19,7 @@ export function GenerateReportsDialog({
   termId,
   classCode,
   stream,
+  campus,
   sittings,
   defaultTitle = DEFAULT_REPORT_TITLE,
   prepareAction = prepareReports,
@@ -26,18 +27,21 @@ export function GenerateReportsDialog({
   termId: string;
   classCode: string;
   stream: string;
+  campus?: string;
   sittings: ReportSitting[];
   defaultTitle?: string;
   prepareAction?: PrepareAction;
 }) {
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState(() => new Set(sittings.map((row) => row.key)));
+  const [order, setOrder] = useState(() => sittings.map((row) => row.key));
   const [shares, setShares] = useState(() => Object.fromEntries(sittings.map((row) => [row.key, String(row.share)])));
   const [title, setTitle] = useState(defaultTitle || DEFAULT_REPORT_TITLE);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     setPicked(new Set(sittings.map((row) => row.key)));
+    setOrder(sittings.map((row) => row.key));
     setShares(Object.fromEntries(sittings.map((row) => [row.key, String(row.share)])));
   }, [sittings]);
 
@@ -61,14 +65,20 @@ export function GenerateReportsDialog({
   }, [open]);
 
   const dsba = sittings.some((row) => row.dsba);
-  const chosen = useMemo(() => sittings.filter((row) => picked.has(row.key)), [sittings, picked]);
-  const total = useMemo(
-    () => roundShare(chosen.reduce((sum, row) => sum + (Number(shares[row.key]) || 0), 0)),
-    [chosen, shares],
-  );
+  const orderedSittings = useMemo(() => {
+    const positions = new Map(order.map((key, index) => [key, index]));
+    return [...sittings].sort((a, b) => (positions.get(a.key) ?? Infinity) - (positions.get(b.key) ?? Infinity));
+  }, [sittings, order]);
+  const chosen = useMemo(() => orderedSittings.filter((row) => picked.has(row.key)), [orderedSittings, picked]);
+  const chosenShares = chosen.map((row) => {
+    const raw = shares[row.key] ?? "";
+    return raw.trim() ? Number(raw) : Number.NaN;
+  });
+  const total = roundShare(chosenShares.reduce((sum, share) => sum + (Number.isFinite(share) ? share : 0), 0));
+  const validShares = chosenShares.every((share) => Number.isFinite(share) && share >= 0 && share <= 100);
   const ready = dsba
     ? chosen.length === 1
-    : chosen.length > 0 && Math.abs(total - 100) <= 0.05;
+    : chosen.length > 0 && validShares && Math.abs(total - 100) <= 0.05;
 
   function toggle(key: string, on: boolean) {
     setPicked((current) => {
@@ -77,10 +87,25 @@ export function GenerateReportsDialog({
       else next.delete(key);
       return next;
     });
+    setOrder((current) => on
+      ? [...current.filter((item) => item !== key), key]
+      : current.filter((item) => item !== key));
   }
 
   function toggleAll(on: boolean) {
     setPicked(on ? new Set(sittings.map((row) => row.key)) : new Set());
+    setOrder(on ? sittings.map((row) => row.key) : []);
+  }
+
+  function move(key: string, direction: -1 | 1) {
+    setOrder((current) => {
+      const index = current.indexOf(key);
+      const nextIndex = index + direction;
+      if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return current;
+      const next = [...current];
+      [next[index], next[nextIndex]] = [next[nextIndex], next[index]];
+      return next;
+    });
   }
 
   function spreadEven() {
@@ -133,7 +158,7 @@ export function GenerateReportsDialog({
               <span>
                 {dsba
                   ? "Set the title, then choose one developmental assessment whose progress codes go on the cards."
-                  : "Set the title printed on each card, then choose which assessments count and their shares."}
+                  : "Set the title printed on each card, then choose which assessments count and their shares. Use 0% to show an assessment without including it in calculations."}
               </span>
             </header>
             <DeskForm
@@ -144,6 +169,7 @@ export function GenerateReportsDialog({
               <input type="hidden" name="term_id" value={termId} />
               <input type="hidden" name="class_code" value={classCode} />
               <input type="hidden" name="stream" value={stream} />
+              {campus ? <input type="hidden" name="campus" value={campus} /> : null}
               <label className="rpt-generate-title">
                 <span>Title on the card</span>
                 <input
@@ -177,8 +203,9 @@ export function GenerateReportsDialog({
                 </div>
               ) : null}
               <ul className="rpt-generate-list">
-                {sittings.map((row) => {
+                {orderedSittings.map((row) => {
                   const on = picked.has(row.key);
+                  const chosenIndex = chosen.findIndex((item) => item.key === row.key);
                   return (
                     <li key={row.key} className={on ? "is-on" : ""}>
                       <label className="rpt-generate-pick">
@@ -188,8 +215,10 @@ export function GenerateReportsDialog({
                           value={row.key}
                           checked={on}
                           onChange={() => {
-                            if (dsba) setPicked(new Set([row.key]));
-                            else toggle(row.key, !on);
+                            if (dsba) {
+                              setPicked(new Set([row.key]));
+                              setOrder([row.key]);
+                            } else toggle(row.key, !on);
                           }}
                         />
                         <span>
@@ -200,25 +229,49 @@ export function GenerateReportsDialog({
                           </small>
                         </span>
                       </label>
-                      {dsba ? (
-                        on ? <input type="hidden" name={`share:${row.key}`} value="100" /> : null
-                      ) : (
-                        <label className="rpt-generate-share">
-                          <span>Share</span>
-                          <input
-                            name={on ? `share:${row.key}` : undefined}
-                            type="number"
-                            min={1}
-                            max={100}
-                            step={0.1}
-                            value={shares[row.key] ?? ""}
-                            disabled={!on}
-                            onChange={(event) => setShares((current) => ({ ...current, [row.key]: event.target.value }))}
-                            aria-label={`Share of the total for ${row.label}`}
-                          />
-                          <em>%</em>
-                        </label>
-                      )}
+                      <div className="rpt-generate-row-actions">
+                        {dsba ? (
+                          on ? <input type="hidden" name={`share:${row.key}`} value="100" /> : null
+                        ) : (
+                          <label className="rpt-generate-share">
+                            <span>Share</span>
+                            <input
+                              name={on ? `share:${row.key}` : undefined}
+                              type="number"
+                              min={0}
+                              max={100}
+                              step={0.1}
+                              value={shares[row.key] ?? ""}
+                              disabled={!on}
+                              onChange={(event) => setShares((current) => ({ ...current, [row.key]: event.target.value }))}
+                              aria-label={`Share of the total for ${row.label}`}
+                            />
+                            <em>%</em>
+                          </label>
+                        )}
+                        {!dsba && on ? (
+                          <div className="rpt-generate-order" role="group" aria-label={`Order ${row.label} on the report card`}>
+                            <button
+                              type="button"
+                              aria-label={`Move ${row.label} earlier`}
+                              title={`Move ${row.label} earlier`}
+                              disabled={chosenIndex === 0}
+                              onClick={() => move(row.key, -1)}
+                            >
+                              <i className="fa-solid fa-arrow-up" aria-hidden="true" />
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Move ${row.label} later`}
+                              title={`Move ${row.label} later`}
+                              disabled={chosenIndex === chosen.length - 1}
+                              onClick={() => move(row.key, 1)}
+                            >
+                              <i className="fa-solid fa-arrow-down" aria-hidden="true" />
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
                     </li>
                   );
                 })}

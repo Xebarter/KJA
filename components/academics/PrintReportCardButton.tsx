@@ -1,21 +1,19 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ProcessStatus } from "@/components/ProcessStatus";
 import "./print-report-card.css";
 
 type Preview = { url: string; html: string | null };
 
-/**
- * Builds the same Playwright PDF as Download, then shows it before the print dialog.
- */
+/** Shows the report's HTML print sheet before opening the browser print dialog. */
 export function PrintReportCardButton({
   href,
   label = "Print card",
   className = "admin-hero-btn is-primary",
   icon = true,
 }: {
-  /** Prefer a `/pdf` URL. HTML `/sheet` is only used if the PDF engine is unavailable. */
+  /** A `/pdf` URL is mapped to its matching `/sheet` URL for the in-app preview. */
   href: string;
   label?: string;
   className?: string;
@@ -28,17 +26,31 @@ export function PrintReportCardButton({
   const frameRef = useRef<HTMLIFrameElement | null>(null);
   const previewUrl = useRef<string | null>(null);
 
+  const closePreview = useCallback(() => {
+    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
+    previewUrl.current = null;
+    setPreview(null);
+  }, []);
+
   useEffect(() => {
     return () => {
       if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
     };
   }, []);
 
-  function closePreview() {
-    if (previewUrl.current) URL.revokeObjectURL(previewUrl.current);
-    previewUrl.current = null;
-    setPreview(null);
-  }
+  useEffect(() => {
+    if (!preview) return;
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closePreview();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [preview, closePreview]);
 
   function printPreview() {
     const win = frameRef.current?.contentWindow;
@@ -54,7 +66,8 @@ export function PrintReportCardButton({
     abortRef.current = controller;
     setBusy(true);
     try {
-      const response = await fetch(href, {
+      const sheetHref = href.replace(/\/pdf(?=([?#]|$))/, "/sheet");
+      const response = await fetch(sheetHref, {
         credentials: "same-origin",
         redirect: "follow",
         signal: controller.signal,
@@ -110,7 +123,7 @@ export function PrintReportCardButton({
           <div className="rpt-print-preview-bar">
             <p>Report card preview</p>
             <div className="rpt-print-preview-actions">
-              <button type="button" onClick={closePreview}>Close</button>
+              <button type="button" onClick={closePreview} autoFocus>Close</button>
               <button type="button" className="is-primary" onClick={printPreview}>
                 Print
               </button>

@@ -2,31 +2,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PageHeader } from "@/components/admin/PageHeader";
 import { PrintReportCardButton } from "@/components/academics/PrintReportCardButton";
-import { formatScore, ordinal, ReportSheet, type SheetActivity, type SheetCard } from "@/components/academics/ReportSheet";
+import {
+  formatScore,
+  ordinal,
+  ReportSheet,
+  reportPortraitFromBytes,
+  type SheetActivity,
+} from "@/components/academics/ReportSheet";
 import { ReportRemarksEditor } from "@/components/academics/ReportRemarksEditor";
 import { AcademicsGate } from "@/components/academics/ui";
 import {
   ACADEMICS_BASE,
   classLabel,
   classSection,
-  gradeBandSection,
-  gradeBandSectionsToLoad,
-  num,
-  scaleBands,
 } from "@/lib/academics";
 import { openAcademics } from "@/lib/academics-access";
-import {
-  cardSets,
-  loadReportParts,
-  loadReportSkillLines,
-  loadSubjectInitials,
-  parseProgressLegend,
-  resolveClassTeacherName,
-} from "@/lib/academics-reports";
+import { loadReportCardsByIds, loadReportCardPhotos } from "@/lib/report-cards-pdf";
 import { ensureDraftReportComments } from "@/lib/comment-engine";
-import { loadReportClosing } from "@/lib/report-closing";
 import { isUuid } from "@/lib/students";
-import { resolveClassTeacherSignatureSrc } from "@/lib/teacher-signatures";
 
 export const metadata = { title: "Report card" };
 
@@ -68,7 +61,6 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
     }
   }
   const nursery = classSection(card.class_code) === "nursery";
-  const markSection = gradeBandSection(card.class_code);
   const activityQuery = await supabase
     .from("report_card_activities")
     .select("slot, activity_name, level, score, max_score, skills, comment")
@@ -86,38 +78,15 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       ? (await supabase.from("report_card_activities").select("slot, activity_name, level").eq("report_card_id", id).order("slot")).data
       : activityQuery.data;
 
-  const [{ data: pupil }, { data: lines }, matesQuery, parts, skillLinesByCard, initials, bands] = await Promise.all([
-    supabase.from("students").select("full_name, student_number, photo_path, campus, date_of_birth").eq("id", card.student_id).maybeSingle(),
-    supabase.from("report_lines").select("*").eq("report_card_id", id),
+  const [reportCard, matesQuery] = await Promise.all([
+    loadReportCardsByIds(supabase, { cardIds: [id] }).then((cards) => cards[0]),
     card.class_code
       ? supabase.from("report_cards").select("id, student_id, students(full_name)").eq("term_id", card.term_id).eq("class_code", card.class_code).eq("stream", card.stream || "")
       : Promise.resolve({ data: [] as Mate[], error: null }),
-    loadReportParts(supabase, [id]),
-    loadReportSkillLines(supabase, [id]),
-    card.class_code
-      ? loadSubjectInitials(supabase, { termId: card.term_id, classCode: card.class_code, stream: card.stream || "" })
-      : Promise.resolve(new Map<string, string>()),
-    supabase.from("grade_bands").select("label, min_score, max_score, sort_order, section").in("section", gradeBandSectionsToLoad(card.class_code)).order("sort_order"),
   ]);
-  const [classTeacherSignatureSrc, classTeacherName] = await Promise.all([
-    resolveClassTeacherSignatureSrc(supabase, {
-      termId: card.term_id,
-      classCode: card.class_code,
-      stream: card.stream || "",
-      campus: pupil?.campus,
-    }),
-    resolveClassTeacherName(supabase, {
-      termId: card.term_id,
-      classCode: card.class_code,
-      stream: card.stream || "",
-      campus: pupil?.campus,
-      fallback: card.class_teacher_name,
-    }),
-  ]);
-  const term = card.fee_terms as { label?: string; year?: number } | { label?: string; year?: number }[] | null;
-  const termMeta = Array.isArray(term) ? term[0] : term;
-  const termLabel = termMeta?.label;
-  const termYear = termMeta?.year != null ? Number(termMeta.year) : null;
+  if (!reportCard) notFound();
+  const photos = await loadReportCardPhotos([reportCard]);
+  const portrait = reportPortraitFromBytes(photos.get(id), reportCard.pupil_name);
   const activities: SheetActivity[] = [1, 2, 3, 4].map((slot) => {
     const row = (activityRows || []).find((item) => Number(item.slot) === slot) as
       | { activity_name?: string | null; level?: string | null; score?: number | null; max_score?: number | null; skills?: unknown; comment?: string | null }
@@ -142,52 +111,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
       comment: row?.comment ? String(row.comment) : null,
     };
   });
-  const sheet: SheetCard = {
-    id,
-    pupil_name: pupil?.full_name || "Pupil",
-    student_number: pupil?.student_number || null,
-    term_label: termLabel || "Term",
-    term_year: Number.isFinite(termYear) ? termYear : null,
-    report_title: (card as { report_title?: string | null }).report_title ?? null,
-    class_code: card.class_code,
-    stream: card.stream || "",
-    class_teacher_name: classTeacherName,
-    class_teacher_signature_src: classTeacherSignatureSrc,
-    class_teacher_comment: card.class_teacher_comment,
-    head_comment: card.head_comment,
-    cocurricular_comment: (card as { cocurricular_comment?: string | null }).cocurricular_comment ?? null,
-    conduct: card.conduct,
-    days_present: num(card.days_present),
-    days_opened: num(card.days_opened),
-    overall_score: num(card.overall_score),
-    overall_aggregate: num((card as { overall_aggregate?: number | null }).overall_aggregate),
-    overall_grade: (card as { overall_grade?: string | null }).overall_grade ?? null,
-    overall_position: num(card.overall_position),
-    status: card.status,
-    student_id: card.student_id,
-    photo_path: pupil?.photo_path || null,
-    date_of_birth: pupil?.date_of_birth || null,
-    activities,
-    lines: (lines || []).map((line) => ({
-      subject_id: String(line.subject_id),
-      subject_name: String(line.subject_name),
-      score: num(line.score),
-      grade: (line.grade as string | null) ?? null,
-      position: num(line.position),
-      teacher_comment: (line.teacher_comment as string | null) ?? null,
-      teacher_initials: initials.get(String(line.subject_id)) || null,
-      parts: parts.get(`${id}:${line.subject_id}`) ?? [],
-    })).sort((a, b) => a.subject_name.localeCompare(b.subject_name)),
-    skillLines: skillLinesByCard.get(id) || [],
-    progressLegend: parseProgressLegend((card as { progress_legend?: unknown }).progress_legend),
-    scale: scaleBands(markSection, card.grade_rules, bands.error ? null : bands.data),
-  };
-  const closing = await loadReportClosing(supabase, { termId: card.term_id, classCode: card.class_code, campus: pupil?.campus });
-  sheet.fees = closing.fees;
-  sheet.next_starts_on = closing.nextStartsOn;
-  sheet.next_ends_on = closing.nextEndsOn;
-  if (sheet.term_year == null && closing.termYear != null) sheet.term_year = closing.termYear;
-  sheet.sets = cardSets(id, sheet.lines, parts);
+  const sheet = reportCard;
   const ordered = ((matesQuery.error ? [] : matesQuery.data) || [])
     .map((row) => ({ id: String(row.id), name: mateName(row as Mate) }))
     .sort((a, b) => a.name.localeCompare(b.name, "en"));
@@ -202,7 +126,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
   const canEdit = Boolean(office && card.status !== "published");
 
   return (
-    <div className="app-page ofc-page rpt-page rpt-detail">
+    <div className="app-page ofc-page rpt-page rpt-detail rpt-preview-page">
       <PageHeader
         kicker="Assessment"
         icon="fa-file-lines"
@@ -262,7 +186,7 @@ export default async function ReportPage({ params }: { params: Promise<{ id: str
         </div>
       </section>
       <div className={office ? "rpt-detail-layout" : undefined}>
-        <ReportSheet card={sheet} nursery={nursery} />
+        <ReportSheet card={sheet} nursery={nursery} portrait={portrait} />
         {office ? (
           canEdit ? (
             <ReportRemarksEditor

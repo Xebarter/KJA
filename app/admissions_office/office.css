@@ -302,6 +302,71 @@
 .ofc-flags .is-med { color: var(--ofc-med); }
 .ofc-bulk { margin: 0 1.15rem .75rem; }
 .ofc-bulk select { width: auto; min-width: 140px; }
+.ofc-student-bulk {
+  gap: .65rem .8rem;
+  padding: .7rem .8rem;
+  border: 1px solid #e1e5eb;
+  border-left: 4px solid var(--admin-gold);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff, #f8f9fb);
+  color: var(--admin-navy);
+  box-shadow: 0 5px 16px rgba(25, 35, 43, .07);
+}
+.ofc-bulk-summary { display: flex; flex: 0 0 auto; align-items: center; gap: .45rem; color: var(--admin-muted); font-size: .82rem; font-weight: 650; }
+.ofc-bulk-count { display: inline-flex; align-items: center; gap: .35rem; padding: .4rem .6rem; border-radius: 9px; background: var(--admin-navy); color: #fff; font-variant-numeric: tabular-nums; }
+.ofc-bulk-count i { color: var(--admin-gold); font-size: .72rem; }
+.ofc-bulk-edit, .ofc-bulk-exports, .ofc-bulk-utility { display: flex; flex-wrap: wrap; align-items: center; gap: .4rem; }
+.ofc-bulk-edit { flex: 1 1 360px; }
+.ofc-student-bulk select {
+  width: auto;
+  min-width: 140px;
+  max-width: 230px;
+  height: 40px;
+  padding: 0 .7rem;
+  border: 1px solid #d8dde5;
+  border-radius: 9px;
+  background: #fff;
+  color: var(--admin-navy);
+  font: inherit;
+  font-size: .84rem;
+}
+.ofc-student-bulk select:focus-visible { outline: 2px solid rgba(253, 163, 27, .5); outline-offset: 1px; border-color: var(--admin-gold); }
+.ofc-student-bulk .ofc-bulk-apply { min-height: 40px; padding: .55rem .9rem; border-radius: 9px; }
+.ofc-bulk-exports { padding-left: .75rem; border-left: 1px solid #e1e5eb; }
+.ofc-student-bulk .ofc-bulk-exports .app-link-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .55rem .6rem;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  color: #43505f;
+  font-size: .82rem;
+  font-weight: 650;
+  text-decoration: none;
+  text-decoration-color: transparent;
+  transition: background-color .15s ease, border-color .15s ease, color .15s ease;
+}
+.ofc-student-bulk .ofc-bulk-exports .app-link-btn:hover:not(:disabled) { border-color: #e1e5eb; background: #fff; color: var(--admin-navy); }
+.ofc-bulk-utility { gap: .35rem; margin-left: auto; padding-left: .75rem; border-left: 1px solid #e1e5eb; }
+.ofc-student-bulk .ofc-bulk-archive {
+  display: inline-flex;
+  align-items: center;
+  gap: .45rem;
+  padding: .55rem .7rem;
+  border: 1px solid #ebc9ce;
+  border-radius: 9px;
+  background: #fff7f7;
+  color: #8e2f3c;
+  font-size: .82rem;
+  font-weight: 700;
+  text-decoration: none;
+  text-decoration-color: transparent;
+}
+.ofc-student-bulk .ofc-bulk-archive:hover:not(:disabled) { border-color: #dbaab2; background: #fdecee; }
+.ofc-bulk-archive-count { display: grid; min-width: 1.25rem; height: 1.25rem; place-items: center; padding: 0 .2rem; border-radius: 999px; background: #f3dfe2; font-size: .72rem; font-variant-numeric: tabular-nums; }
+.ofc-student-bulk .ofc-bulk-clear { display: grid; width: 36px; height: 36px; place-items: center; border: 1px solid #e1e5eb; border-radius: 9px; color: var(--admin-muted); text-decoration: none; }
+.ofc-student-bulk .app-link-btn:focus-visible { outline: 2px solid rgba(253, 163, 27, .6); outline-offset: 2px; }
 
 /* Student register: summary tiles */
 
@@ -2698,6 +2763,13 @@ a.ofc-fam-class:hover { background: var(--admin-red); color: #fff; }
   .ofc-cls-switch ul { flex: 1; }
 }
 @media (max-width: 640px) {
+  .ofc-student-bulk { margin: 0 1rem .75rem; padding: .7rem; }
+  .ofc-bulk-summary { flex: 1 1 100%; padding-bottom: .55rem; border-bottom: 1px solid #e1e5eb; }
+  .ofc-bulk-edit { flex: 1 1 100%; }
+  .ofc-student-bulk select { flex: 1 1 140px; max-width: none; }
+  .ofc-bulk-exports { flex: 1 1 100%; gap: .2rem; padding: .55rem 0 0; border-top: 1px solid #e1e5eb; border-left: 0; }
+  .ofc-student-bulk .ofc-bulk-exports .app-link-btn { padding: .5rem; }
+  .ofc-bulk-utility { margin-left: auto; padding: 0; border: 0; }
   .ofc-glance { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ofc-glance > div { padding: .85rem; column-gap: .55rem; }
   .ofc-glance-icon { width: 28px; height: 28px; font-size: .75rem; }

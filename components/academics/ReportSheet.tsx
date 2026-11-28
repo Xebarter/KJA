@@ -2,7 +2,7 @@ import { type CSSProperties, type ReactNode } from "react";
 import Link from "next/link";
 import { StudentFace } from "@/components/StudentFace";
 import { ReportQr } from "@/components/academics/ReportQr";
-import { classLabel, DEFAULT_GRADE_SCALE, formatShare, num, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
+import { classLabel, DEFAULT_GRADE_SCALE, formatShare, gradeBandSection, num, type ReportPart, type ReportSet, type ScaleBand } from "@/lib/academics";
 import {
   nurseryAgeLabel,
   nurseryDomainImagePath,
@@ -13,7 +13,7 @@ import { normaliseReportTitle, nurseryReportTitle } from "@/lib/report-title";
 import type { ReportFeeLine } from "@/lib/report-closing";
 import { formatReportDate, formatReportMoney } from "@/lib/report-format";
 import {
-  NURSERY_HEAD_SIGNATURE_SRC,
+  nurseryHeadSignatureSrc,
   PRINCIPAL_SIGNATURE_SRC,
   primaryHeadSignatureSrc,
 } from "@/lib/teacher-signatures";
@@ -65,6 +65,7 @@ export type SheetCard = {
   report_title?: string | null;
   class_code: string | null;
   stream: string;
+  campus?: string | null;
   class_teacher_name: string | null;
   /** Resolved URL or data URI for the lead class teacher's uploaded signature. */
   class_teacher_signature_src?: string | null;
@@ -101,61 +102,40 @@ function activityFor(card: SheetCard, slot: number): SheetActivity | undefined {
   return (card.activities || []).find((row) => row.slot === slot);
 }
 
-/** Widen assessment columns (and shrink Subject) so titles fit in at most two lines. */
-function setColumnVars(sets: ReportSet[]): CSSProperties | undefined {
+function assessmentTitle(label: string): ReactNode {
+  const words = label.trim().split(/\s+/);
+  return words.length === 2 ? <>{words[0]}<br />{words[1]}</> : label;
+}
+
+function columnHeaderLabel(label: string, content: ReactNode = label, fitLines = 1): ReactNode {
+  const longestWord = label.trim().split(/\s+/).reduce((longest, word) => Math.max(longest, word.length), 1);
+  const charsPerLine = Math.max(longestWord, Math.ceil(label.trim().length / fitLines));
+  return (
+    <span
+      className="acd-sheet-header-label"
+      style={{ "--header-title-fit-factor": 1 / (charsPerLine * 0.68) } as CSSProperties}
+    >
+      {content}
+    </span>
+  );
+}
+
+/** Size the subject and comment columns tightly, leaving the rest for assessments. */
+function setColumnVars(sets: ReportSet[], lines: SheetLine[]): CSSProperties | undefined {
   if (!sets.length) return undefined;
   const labels = sets.map((set) => set.label.trim()).filter(Boolean);
   if (!labels.length) return undefined;
 
-  let titleSize = 0.68;
-  let setCol = 3.6;
-  let subjectCol = 18;
-  const minTitle = 0.48;
-  const maxSet = 7.5;
-  const minSubject = 9;
-
-  const linesFor = (label: string, widthRem: number, fontRem: number) => {
-    const charsPerLine = Math.max(1, Math.floor(widthRem / (fontRem * 0.72)));
-    const words = label.split(/\s+/).filter(Boolean);
-    let lines = 1;
-    let used = 0;
-    for (const word of words) {
-      const chunks = Math.max(1, Math.ceil(word.length / charsPerLine));
-      for (let chunk = 0; chunk < chunks; chunk += 1) {
-        const piece = Math.min(charsPerLine, word.length - chunk * charsPerLine);
-        if (used === 0) {
-          used = piece;
-          continue;
-        }
-        if (used + 1 + piece <= charsPerLine) {
-          used += 1 + piece;
-        } else {
-          lines += 1;
-          used = piece;
-        }
-      }
-    }
-    return lines;
-  };
-
-  const needsRoom = (widthRem: number, fontRem: number) =>
-    labels.some((label) => linesFor(label, widthRem, fontRem) > 2);
-
-  while (needsRoom(setCol, titleSize) && titleSize > minTitle + 0.01) {
-    titleSize = Math.round((titleSize - 0.02) * 100) / 100;
-  }
-  while (needsRoom(setCol, titleSize) && setCol < maxSet) {
-    setCol = Math.round((setCol + 0.35) * 100) / 100;
-    subjectCol = Math.max(minSubject, Math.round((subjectCol - 0.7) * 10) / 10);
-  }
-  while (needsRoom(setCol, titleSize) && titleSize > minTitle) {
-    titleSize = Math.round((titleSize - 0.02) * 100) / 100;
-  }
+  const longestSubject = lines.reduce(
+    (longest, line) => Math.max(longest, line.subject_name.trim().length),
+    0,
+  );
+  const subjectCol = Math.min(14, Math.max(8, longestSubject * 0.52 + 0.8));
+  const setCol = 3.35;
 
   return {
     "--set-col": `${setCol}rem`,
-    "--set-title-size": `calc(${titleSize}rem + 1pt)`,
-    "--subject-col": `${subjectCol}%`,
+    "--subject-col": `${subjectCol.toFixed(2)}rem`,
   } as CSSProperties;
 }
 
@@ -325,7 +305,6 @@ function SheetMasthead({
       <div className="acd-sheet-banner">
         <img className="acd-sheet-crest" src="/images/icon.png" alt="" />
         <div className="acd-sheet-brand">
-          {nursery ? null : <p className="acd-sheet-established">Established 1993</p>}
           <p className="acd-sheet-school">
             <span className="acd-sheet-kampala">Kampala</span>
             <span className="acd-sheet-academy">Junior Academy</span>
@@ -334,7 +313,7 @@ function SheetMasthead({
             <span>P.O. Box 6202</span>
             <span>info@kja.com</span>
             <span>+256 392 700 370</span>
-            {nursery ? <span>www.kja.ug</span> : null}
+            <span>www.kja.ug</span>
           </p>
         </div>
         <div className="acd-sheet-portrait">
@@ -358,13 +337,17 @@ function SheetMasthead({
 
 export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; nursery: boolean; portrait?: ReactNode; qr?: ReactNode }) {
   const place = classLabel(card.class_code, card.stream);
+  const lowerPrimary = !nursery && gradeBandSection(card.class_code) === "lower";
+  const headSignatureSrc = nursery
+    ? nurseryHeadSignatureSrc(card.campus)
+    : primaryHeadSignatureSrc(card.class_code, card.campus);
   const sheetTitle = nursery ? nurseryReportTitle() : normaliseReportTitle(card.report_title);
   const sets = (card.sets ?? []).length > 1 ? card.sets ?? [] : [];
   const dsba = nursery && (card.skillLines?.length || 0) > 0;
   const scored = !dsba && card.lines.some((line) => line.score !== null);
   const columns = 1 + (sets.length || 1) + (nursery ? 0 : 1) + 2;
   const scale = card.scale?.length ? card.scale : DEFAULT_GRADE_SCALE[nursery ? "nursery" : "primary"];
-  const setVars = setColumnVars(sets);
+  const setVars = setColumnVars(sets, card.lines);
   const skillGroups = groupSkillLines(card.skillLines || []);
 
   if (dsba) {
@@ -464,14 +447,18 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               </div>
               <div>
                 <p className="acd-nur-sign-label">Head of section</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="acd-nur-sign-img" src={NURSERY_HEAD_SIGNATURE_SRC} alt="" />
+                {headSignatureSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="acd-nur-sign-img" src={headSignatureSrc} alt="" />
+                ) : (
+                  <div className="acd-nur-sign-line" aria-hidden="true" />
+                )}
                 <p className="acd-nur-sign-hint">Signature</p>
               </div>
               <div>
                 <p className="acd-nur-sign-label">Principal</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="acd-nur-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
+                <img className="acd-nur-sign-img is-principal-signature" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
                 <p className="acd-nur-sign-hint">Signature</p>
               </div>
             </section>
@@ -501,8 +488,15 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
   }
 
   return (
-    <article className={`acd-sheet${nursery ? "" : " is-primary"}`} aria-label={`${card.pupil_name}, ${sheetTitle}`}>
+    <article className={`acd-sheet${nursery ? "" : " is-primary"}${lowerPrimary ? " is-lower-primary" : ""}`} aria-label={`${card.pupil_name}, ${sheetTitle}`}>
       <div className="acd-sheet-edge">
+        {lowerPrimary ? (
+          <div className="acd-sheet-lower-primary-watermarks" aria-hidden="true">
+            <img className="is-left" src="/lower_primary_report/left.png" alt="" />
+            <img className="is-right" src="/lower_primary_report/right.png" alt="" />
+            <img className="is-bottom" src="/lower_primary_report/bottom.png" alt="" />
+          </div>
+        ) : null}
         <div className="acd-sheet-watermark" aria-hidden="true">
           <img src="/images/icon.png" alt="" />
         </div>
@@ -559,17 +553,21 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
             <table className={sets.length ? "acd-sheet-table has-sets" : "acd-sheet-table"} style={setVars}>
               <thead>
                 <tr>
-                  <th>Subject</th>
+                  <th>{columnHeaderLabel("Subject")}</th>
                   {sets.map((set) => (
                     <th key={set.key} className="is-num is-set">
-                      <span>{set.label}</span>
-                      <small>{formatShare(set.share)}</small>
+                      {columnHeaderLabel(set.label, assessmentTitle(set.label), 2)}
+                      {set.share > 0 ? <small>{formatShare(set.share)}</small> : null}
                     </th>
                   ))}
-                  <th className="is-num is-score">{sets.length ? "Total" : nursery ? "Progress" : "Score"}</th>
-                  {!nursery ? <th className="is-num is-grade">Grade</th> : null}
-                  <th className="is-note">Teacher&apos;s comment</th>
-                  <th className="is-sign">Initials</th>
+                  <th className="is-num is-score">
+                    {columnHeaderLabel(sets.length ? "Total" : nursery ? "Progress" : "Score")}
+                  </th>
+                  {!nursery ? (
+                    <th className="is-num is-grade">{columnHeaderLabel("Grade")}</th>
+                  ) : null}
+                  <th className="is-note">{columnHeaderLabel("Teacher's comment")}</th>
+                  <th className="is-sign">{columnHeaderLabel("Initials")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -695,14 +693,18 @@ export function ReportSheet({ card, nursery, portrait, qr }: { card: SheetCard; 
               </div>
               <div>
                 <p className="acd-sheet-sign-label">Head of Section</p>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="acd-sheet-sign-img" src={primaryHeadSignatureSrc(card.class_code)} alt="" />
+                {headSignatureSrc ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img className="acd-sheet-sign-img" src={headSignatureSrc} alt="" />
+                ) : (
+                  <div className="acd-sheet-sign-line" aria-hidden="true" />
+                )}
                 <p className="acd-sheet-sign-hint">Signature</p>
               </div>
               <div>
                 <p className="acd-sheet-sign-label">Principal</p>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img className="acd-sheet-sign-img" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
+                <img className="acd-sheet-sign-img is-principal-signature" src={PRINCIPAL_SIGNATURE_SRC} alt="" />
                 <p className="acd-sheet-sign-hint">Signature</p>
               </div>
             </section>
@@ -755,6 +757,21 @@ function monogram(name: string) {
   if (!parts.length) return "K";
   if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
   return `${parts[0][0]}${parts[parts.length - 1][0]}`.toUpperCase();
+}
+
+export function reportPortraitFromBytes(bytes: Uint8Array | undefined, name: string): ReactNode {
+  if (bytes?.length) {
+    const png = bytes[0] === 0x89 && bytes[1] === 0x50;
+    const type = png ? "image/png" : "image/jpeg";
+    const src = `data:${type};base64,${Buffer.from(bytes).toString("base64")}`;
+    return (
+      <span className="acd-sheet-face" aria-hidden="true">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={src} alt="" />
+      </span>
+    );
+  }
+  return <span className="acd-sheet-seal" aria-hidden="true">{monogram(name)}</span>;
 }
 
 export function formatScore(score: number | null, nursery: boolean) {

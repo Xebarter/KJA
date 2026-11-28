@@ -366,6 +366,7 @@ export function ReportsDesk({
                 termId={termId}
                 classCode={selected.code}
                 stream={selected.stream}
+                campus={selected.campus}
                 drafts={drafts}
                 cards={selectedCards.length}
                 sittings={sittings}
@@ -375,7 +376,7 @@ export function ReportsDesk({
                       showPost: false,
                       showRemarkTools: false,
                       prepareAction: prepareAdmissionsNurseryReports,
-                      pdfHref: `${OFFICE_BASE}/report-cards/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}`,
+                      pdfHref: `${OFFICE_BASE}/report-cards/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}&campus=${encodeURIComponent(selected.campus)}`,
                     }
                   : classMode
                     ? {
@@ -384,9 +385,11 @@ export function ReportsDesk({
                         regenerateAction: generateTeacherClassComments,
                         cancelAction: cancelTeacherReportPreparation,
                         reopenAction: reopenTeacherReports,
-                        pdfHref: `${TEACHER_BASE}/reports/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}`,
+                        pdfHref: `${TEACHER_BASE}/reports/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}&campus=${encodeURIComponent(selected.campus)}`,
                       }
-                    : {})}
+                    : {
+                        pdfHref: `${ACADEMICS_BASE}/reports/pdf?class=${encodeURIComponent(selected.code)}&stream=${encodeURIComponent(streamQuery(selected.stream))}&campus=${encodeURIComponent(selected.campus)}`,
+                      })}
               />
               {selected.pupils.length ? (
                 <ul className="rpt-roll">

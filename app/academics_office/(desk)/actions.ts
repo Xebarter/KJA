@@ -58,6 +58,7 @@ import {
   unlinkTeacherPortalLogin,
 } from "@/lib/teacher-portal-login";
 import { formatReportDate, nextTermSlot } from "@/lib/report-closing";
+import { reportSetsFromForm } from "@/lib/report-card-shares";
 import { serviceClient } from "@/lib/supabase/service";
 import type { SidebarHit } from "@/lib/sidebar-search";
 import { className, everyWord, fetchAll, isClassCode, isUuid, searchNeedle, searchWords, studentSearchFilter } from "@/lib/students";
@@ -301,8 +302,45 @@ export async function saveStaff(formData: FormData): Promise<Result> {
       displayName: fullName,
       password: password || undefined,
     });
+    if (login.error) {
+      const { data: removed, error: removalError } = await opened.auth.supabase
+        .from("teaching_staff")
+        .delete()
+        .eq("id", data.id)
+        .select("id")
+        .maybeSingle();
+      let cleanupError = removalError?.message || (!removed ? "The teacher record could not be confirmed as removed." : "");
+
+      if (cleanupError) {
+        const service = serviceClient();
+        if (service) {
+          const adminRemoval = await service
+            .from("teaching_staff")
+            .delete()
+            .eq("id", data.id)
+            .select("id")
+            .maybeSingle();
+          if (adminRemoval.error) {
+            cleanupError = `${cleanupError} ${adminRemoval.error.message}`;
+          } else if (!adminRemoval.data) {
+            const remaining = await service.from("teaching_staff").select("id").eq("id", data.id).maybeSingle();
+            cleanupError = remaining.error?.message || (remaining.data ? "The teacher record still exists." : "");
+          } else {
+            cleanupError = "";
+          }
+        }
+      }
+
+      refreshAcademics(`${ACADEMICS_BASE}/staff`);
+      if (cleanupError) {
+        return {
+          error: `Sign-in creation failed for ${fullName}. ${login.error} The teacher record could not be removed: ${cleanupError}`,
+          href,
+        };
+      }
+      return { error: `The teacher was not added because sign-in creation failed. ${login.error}` };
+    }
     refreshAcademics(`${ACADEMICS_BASE}/staff`);
-    if (login.error) return { error: `${fullName} was added, but the sign-in was not created. ${login.error}`, href };
     return { ok: login.ok, href, email: login.email, password: login.password, temporary: login.temporary };
   }
   refreshAcademics(`${ACADEMICS_BASE}/staff`);
@@ -516,7 +554,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
 
   const { supabase } = opened.auth;
   const [staffQuery, termQuery, subjectQuery, pupilQuery, heldQuery, leadRowsQuery, ownLeadQuery] = await Promise.all([
-    supabase.from("teaching_staff").select("id, full_name, email, profile_id, active").eq("id", staffId).maybeSingle(),
+    supabase.from("teaching_staff").select("id, full_name, email, profile_id, active, campus").eq("id", staffId).maybeSingle(),
     supabase.from("fee_terms").select("id").eq("id", termId).eq("is_current", true).maybeSingle(),
     supabase.from("subjects").select("*").eq("active", true),
     supabase.from("students").select("stream, campus").eq("class_code", classCode).eq("status", "active").limit(2000),
@@ -530,8 +568,13 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   const staff = staffQuery.data;
   if (!staff?.active) return { error: "That teacher is not on the roll." };
   const staffName = String(staff.full_name || "Teacher");
+  const staffCampus = typeof staff.campus === "string" && staff.campus.trim() ? operationalCampus(staff.campus) : null;
+  if (staffCampus && campus !== staffCampus) {
+    return { error: `${staffName} is assigned to ${staffCampus}. Choose a stream at that campus.` };
+  }
+  const assignmentCampus = staffCampus || campus;
   if (!termQuery.data) return { error: "Set the current term before assigning teachers." };
-  if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream && operationalCampus(row.campus as string | null) === campus)) {
+  if (!(pupilQuery.data || []).some((row) => streamOf(row.stream) === stream && operationalCampus(row.campus as string | null) === assignmentCampus)) {
     return { error: "That stream has no pupils at this campus." };
   }
 
@@ -583,7 +626,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     role: ((row.role || "lead") === "assistant" ? "assistant" : "lead") as LeadRole,
   }));
   const ownElsewhere = ownLeads.find(
-    (row) => !(row.campus === campus && row.classCode === classCode && row.stream === stream),
+    (row) => !(row.campus === assignmentCampus && row.classCode === classCode && row.stream === stream),
   );
 
   const clashes: string[] = [];
@@ -593,10 +636,10 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     clashes.push(`${subject.name} is already taught by ${current.name}.`);
   }
   if (wantLead && classHolder && classHolder.staffId !== staffId && !replace) {
-    clashes.push(`${classLabel(classCode, stream, campus)} already has ${classHolder.name} as class teacher.`);
+    clashes.push(`${classLabel(classCode, stream, assignmentCampus)} already has ${classHolder.name} as class teacher.`);
   }
   if (wantAssistant && assistantHolder && assistantHolder.staffId !== staffId && !replace) {
-    clashes.push(`${classLabel(classCode, stream, campus)} already has ${assistantHolder.name} as assistant class teacher.`);
+    clashes.push(`${classLabel(classCode, stream, assignmentCampus)} already has ${assistantHolder.name} as assistant class teacher.`);
   }
   if ((wantLead || wantAssistant) && ownElsewhere && !replace) {
     clashes.push(
@@ -618,12 +661,12 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
     if (picked.has(subject.id)) {
       if (current?.staffId === staffId) continue;
       const { error } = await supabase.from("subject_teachers").upsert(
-        { term_id: termId, campus, class_code: classCode, stream, subject_id: subject.id, staff_id: staffId },
+        { term_id: termId, campus: assignmentCampus, class_code: classCode, stream, subject_id: subject.id, staff_id: staffId },
         { onConflict: "term_id,campus,class_code,stream,subject_id" },
       );
       if (error) return { error: "The subjects could not be saved." };
     } else if (current?.staffId === staffId) {
-      const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("campus", campus).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subject.id).eq("staff_id", staffId);
+      const { error } = await supabase.from("subject_teachers").delete().eq("term_id", termId).eq("campus", assignmentCampus).eq("class_code", classCode).eq("stream", stream).eq("subject_id", subject.id).eq("staff_id", staffId);
       if (error) return { error: "A subject could not be removed." };
     }
   }
@@ -631,7 +674,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   async function saveLeadership(role: LeadRole, wantedRole: boolean, holder: Holder | null) {
     if (wantedRole) {
       if (ownElsewhere && replace) {
-        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus, classCode, stream, role });
+        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus: assignmentCampus, classCode, stream, role });
         if (cleared) return cleared;
       }
       if (holder?.staffId === staffId) {
@@ -641,7 +684,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
           .from("class_teachers")
           .delete()
           .eq("term_id", termId)
-          .eq("campus", campus)
+          .eq("campus", assignmentCampus)
           .eq("class_code", classCode)
           .eq("stream", stream)
           .eq("staff_id", staffId)
@@ -650,7 +693,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
         return null;
       }
       if (ownElsewhere) {
-        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus, classCode, stream, role });
+        const cleared = await clearOtherLeadership(supabase, termId, staffId, { campus: assignmentCampus, classCode, stream, role });
         if (cleared) return cleared;
       }
       // Drop this teacher's other role on the same stream before upsert.
@@ -658,13 +701,13 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
         .from("class_teachers")
         .delete()
         .eq("term_id", termId)
-        .eq("campus", campus)
+        .eq("campus", assignmentCampus)
         .eq("class_code", classCode)
         .eq("stream", stream)
         .eq("staff_id", staffId);
       if (dropSelf) return `The ${leadershipLabel(role)} could not be saved.`;
       const { error } = await supabase.from("class_teachers").upsert(
-        { term_id: termId, campus, class_code: classCode, stream, staff_id: staffId, role },
+        { term_id: termId, campus: assignmentCampus, class_code: classCode, stream, staff_id: staffId, role },
         { onConflict: "term_id,campus,class_code,stream,role" },
       );
       if (error) {
@@ -680,7 +723,7 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
         .from("class_teachers")
         .delete()
         .eq("term_id", termId)
-        .eq("campus", campus)
+        .eq("campus", assignmentCampus)
         .eq("class_code", classCode)
         .eq("stream", stream)
         .eq("staff_id", staffId)
@@ -769,13 +812,13 @@ export async function assignTeacherPosts(formData: FormData): Promise<Result> {
   refreshAcademics(`${ACADEMICS_BASE}/staff`, `${ACADEMICS_BASE}/classes/${classCode}`, `${ACADEMICS_BASE}/reports`);
   if (portal.created && portal.password && portal.email) {
     return {
-      ok: `${staffName} assigned to ${classLabel(classCode, stream, campus)}. Teacher desk sign-in was created. Share the password now.`,
+      ok: `${staffName} assigned to ${classLabel(classCode, stream, assignmentCampus)}. Teacher desk sign-in was created. Share the password now.`,
       email: portal.email,
       password: portal.password,
       temporary: portal.temporary,
     };
   }
-  return { ok: `${staffName} assigned to ${classLabel(classCode, stream, campus)}.` };
+  return { ok: `${staffName} assigned to ${classLabel(classCode, stream, assignmentCampus)}.` };
 }
 
 export async function releaseTeacherPost(formData: FormData): Promise<Result> {
@@ -1696,13 +1739,15 @@ export async function setMarksheetLocks(formData: FormData): Promise<Result> {
   return { ok: waiting.length ? `${lead} ${joinNames(waiting.map((paper) => paperLabel(paper)))} still ${waiting.length === 1 ? "has" : "have"} blank marks.` : lead };
 }
 
-function previewHref(classCode: string, stream: string) {
-  return `${ACADEMICS_BASE}/reports/preview?class=${classCode}&stream=${streamQuery(stream)}`;
+function previewHref(classCode: string, stream: string, campus?: string) {
+  const params = new URLSearchParams({ class: classCode, stream: streamQuery(stream) });
+  if (campus) params.set("campus", campus);
+  return `${ACADEMICS_BASE}/reports/preview?${params.toString()}`;
 }
 
 async function fillDraftComments(
   auth: NonNullable<Awaited<ReturnType<typeof gate>>["auth"]>,
-  input: { classCode: string; stream: string; termId: string },
+  input: { classCode: string; stream: string; termId: string; campus?: string },
   options: { onlyBlank?: boolean; skipTrail?: boolean } = {},
 ) {
   try {
@@ -1758,42 +1803,31 @@ async function approveDraftCards(
   return null;
 }
 
-function reportSetsFrom(formData: FormData) {
-  const keys = formData.getAll("set").map((value) => String(value || "").trim()).filter(Boolean);
-  if (!keys.length) return { error: "Choose at least one assessment to include." } as const;
-  const sets: { key: string; share: number }[] = [];
-  for (const key of keys) {
-    const share = num(String(formData.get(`share:${key}`) || ""));
-    if (share === null || share <= 0) return { error: `Enter a percentage above 0 for each chosen assessment.` } as const;
-    sets.push({ key, share });
-  }
-  const total = Math.round(sets.reduce((sum, set) => sum + set.share, 0) * 10) / 10;
-  if (Math.abs(total - 100) > 0.05) {
-    return { error: `The shares must add up to 100%. They currently add up to ${total}%.` } as const;
-  }
-  return { sets } as const;
-}
-
 export async function prepareReports(formData: FormData): Promise<Result> {
   const opened = await gate("reports");
   if (!opened.auth) return { error: opened.error };
   const blocked = officeOnly(opened.auth);
   if (blocked) return blocked;
-  const { classCode, stream, termId } = group(formData);
+  const campusErr = campusFormError(formData);
+  if (campusErr) return campusErr;
+  const { classCode, stream, termId, campus } = group(formData);
   if (!termId || !classCode) return { error: "Choose a term and a class." };
-  const chosen = reportSetsFrom(formData);
+  if (opened.auth.campuses.length && !opened.auth.campuses.includes(campus)) {
+    return { error: "That campus is outside your desk scope." };
+  }
+  const chosen = reportSetsFromForm(formData);
   if ("error" in chosen) return { error: chosen.error };
   const reportTitle = text(formData, "report_title", 80);
   try {
-    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, sets: chosen.sets, reportTitle });
+    const result = await prepareClassReports(opened.auth.supabase, { termId, classCode, stream, campus, sets: chosen.sets, reportTitle });
     // Only fill blank remarks, and skip provenance/audit writes on prepare - that trail is the slow path.
     // Re-prepare after marks change stays fast; use "Regenerate comments" when a full rewrite is needed.
-    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream }, { onlyBlank: true, skipTrail: true });
+    const comments = await fillDraftComments(opened.auth, { termId, classCode, stream, campus }, { onlyBlank: true, skipTrail: true });
     await logAcademics(opened.auth.supabase, opened.auth.user.id, {
       kind: "report",
-      body: `Prepared report cards for ${classLabel(classCode, stream)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
+      body: `Prepared report cards for ${classLabel(classCode, stream, campus)}${comments.succeeded ? ` and filled comments on ${comments.succeeded}` : ""}.`,
     });
-    const href = previewHref(classCode, stream);
+    const href = previewHref(classCode, stream, campus);
     refreshAcademics(`${ACADEMICS_BASE}/reports`, href);
     if (!result.prepared && !comments.succeeded) {
       return { ok: "No draft cards were updated. Approved and published cards stay as they are.", href };

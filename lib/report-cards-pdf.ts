@@ -17,6 +17,7 @@ import {
   type ReportSet,
   type ScaleBand,
 } from "@/lib/academics";
+import { operationalCampus } from "@/lib/campuses";
 import { nurseryCommentMapForTerm, resolveNurseryClassTeacherComment } from "@/lib/nursery-class-comments";
 import { formatReportDate, formatReportMoney, loadClassClosing } from "@/lib/report-closing";
 import { reportOnlineUrl } from "@/lib/report-link";
@@ -62,6 +63,7 @@ export type StreamReportCard = {
   report_title?: string | null;
   class_code: string | null;
   stream: string;
+  campus: string | null;
   class_teacher_name: string | null;
   class_teacher_signature_src?: string | null;
   class_teacher_comment: string | null;
@@ -229,7 +231,7 @@ async function rowsIn<T>(ids: string[], load: (slice: string[], from: number, to
 
 export async function loadStreamReportCards(
   supabase: SupabaseClient,
-  input: { termId: string; classCode: string; stream: string; termLabel: string },
+  input: { termId: string; classCode: string; stream: string; termLabel: string; campus?: string },
 ): Promise<StreamReportCard[]> {
   const cardSelect =
     "id, student_id, class_code, stream, class_teacher_name, class_teacher_comment, head_comment, cocurricular_comment, conduct, days_present, days_opened, overall_score, overall_aggregate, overall_grade, overall_position, status, grade_rules, progress_legend, report_title";
@@ -283,6 +285,11 @@ export async function loadStreamReportCards(
     ),
   ]);
   const names = new Map(pupils.map((pupil) => [pupil.id, pupil]));
+  const selectedCards = input.campus
+    ? cards.filter((card) => operationalCampus(names.get(card.student_id)?.campus) === input.campus)
+    : cards;
+  if (!selectedCards.length) return [];
+  const selectedPupilIds = [...new Set(selectedCards.map((card) => card.student_id))];
   const byCard = new Map<string, StreamReportLine[]>();
   for (const line of lines) {
     const list = byCard.get(line.report_card_id) || [];
@@ -313,12 +320,14 @@ export async function loadStreamReportCards(
   let storeComments = new Map<string, string>();
   if (nurseryStream) {
     try {
-      storeComments = await nurseryCommentMapForTerm(supabase, input.termId, pupilIds);
+      storeComments = await nurseryCommentMapForTerm(supabase, input.termId, selectedPupilIds);
     } catch {
       storeComments = new Map();
     }
   }
-  const sampleCampus = [...names.values()].find((row) => row.campus)?.campus ?? null;
+  const sampleCampus = selectedPupilIds
+    .map((id) => names.get(id)?.campus)
+    .find((campus): campus is string => Boolean(campus)) ?? null;
   const [classTeacherSignatureSrc, liveTeacherName] = await Promise.all([
     nurseryStream
       ? resolveClassTeacherSignatureSrc(supabase, {
@@ -337,7 +346,7 @@ export async function loadStreamReportCards(
     }),
   ]);
 
-  return cards
+  return selectedCards
     .map((card) => {
       const pupil = names.get(card.student_id);
       const classComment = resolveNurseryClassTeacherComment(
@@ -354,6 +363,7 @@ export async function loadStreamReportCards(
         report_title: card.report_title ?? null,
         class_code: card.class_code,
         stream: card.stream || "",
+        campus: pupil?.campus ?? null,
         class_teacher_name: liveTeacherName || card.class_teacher_name,
         class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
@@ -527,6 +537,7 @@ export async function loadReportCardsByIds(
         report_title: card.report_title ?? null,
         class_code: card.class_code,
         stream: card.stream || "",
+        campus: pupil?.campus ?? null,
         class_teacher_name: classTeacherName,
         class_teacher_signature_src: classTeacherSignatureSrc,
         class_teacher_comment: classComment,
@@ -650,6 +661,19 @@ export async function buildReportCardsPdf(
         mesh: ORIGIN_PLAID,
         band: WHITE,
       };
+  const headerTheme = input.nursery
+    ? theme
+    : {
+        ink: INK,
+        muted: MUTED,
+        accent: GOLD,
+        accentInk: GOLD_INK,
+        paper: PAPER,
+        head: CREAM,
+        line: LINE,
+        mesh: GOLD,
+        band: PAPER,
+      };
 
   const contentW = W - M * 2;
   let page: PDFPage | null = null;
@@ -682,7 +706,7 @@ export async function buildReportCardsPdf(
   };
 
   type SheetColumn = { key: string; label: string; sub?: string; width: number };
-  const columnsFor = (sets: ReportSet[] | undefined): SheetColumn[] => {
+  const columnsFor = (sets: ReportSet[] | undefined, lines: StreamReportLine[] = []): SheetColumn[] => {
     const shown = (sets ?? []).length > 1 ? sets ?? [] : [];
     const initials = 40;
     const fitColumns = (columns: SheetColumn[]) => {
@@ -709,12 +733,17 @@ export async function buildReportCardsPdf(
             { key: "initials", label: "Initials", width: initials },
           ]);
     }
-    const setWidth = Math.max(40, Math.min(58, Math.floor(180 / shown.length)));
-    const subject = 92;
+    const longestSubject = lines.reduce(
+      (longest, line) => Math.max(longest, line.subject_name.trim().length),
+      0,
+    );
+    const subject = Math.max(100, Math.min(150, Math.round(longestSubject * 3.8 + 24)));
+    const setWidth = Math.max(46, Math.min(68, Math.floor(220 / shown.length)));
     const total = 38;
     const grade = input.nursery ? 0 : 34;
-    let comment = contentW - subject - shown.length * setWidth - total - grade - initials;
-    if (comment < 64) comment = 64;
+    let comment = 112;
+    const minimumUsed = subject + shown.length * setWidth + total + grade + initials + comment;
+    if (minimumUsed > contentW) comment = Math.max(88, comment - (minimumUsed - contentW));
     return fitColumns([
       { key: "subject", label: "Subject", width: subject },
       ...shown.map((set) => ({ key: `set:${set.key}`, label: set.label, sub: formatShare(set.share), width: setWidth })),
@@ -747,13 +776,13 @@ export async function buildReportCardsPdf(
     const BAND = 112;
     const bandTop = H - TOP;
     const bandBottom = bandTop - BAND;
-    page!.drawRectangle({ x: 0, y: bandBottom, width: W, height: BAND, color: theme.band });
+    page!.drawRectangle({ x: 0, y: bandBottom, width: W, height: BAND, color: headerTheme.band });
     page!.pushOperators(pushGraphicsState(), rectangle(0, bandBottom, W, BAND), clip(), endPath());
     const meshStep = input.nursery ? 11 : 9;
     let meshIndex = 0;
     for (let x = -BAND; x <= W + BAND; x += meshStep, meshIndex += 1) {
       const fine = meshIndex % 2 !== 0;
-      const meshColor = input.nursery ? theme.mesh : meshIndex % 3 === 0 ? theme.accent : theme.mesh;
+      const meshColor = input.nursery ? headerTheme.mesh : meshIndex % 3 === 0 ? headerTheme.accent : headerTheme.mesh;
       page!.drawLine({
         start: { x, y: bandBottom },
         end: { x: x + BAND, y: bandBottom + BAND },
@@ -770,8 +799,8 @@ export async function buildReportCardsPdf(
       });
     }
     page!.pushOperators(popGraphicsState());
-    page!.drawRectangle({ x: 0, y: bandTop - 2.6, width: W, height: 2.6, color: theme.accent });
-    page!.drawRectangle({ x: 0, y: bandBottom - 2.4, width: W, height: 2.4, color: theme.accent });
+    page!.drawRectangle({ x: 0, y: bandTop - 2.6, width: W, height: 2.6, color: headerTheme.accent });
+    page!.drawRectangle({ x: 0, y: bandBottom - 2.4, width: W, height: 2.4, color: headerTheme.accent });
     page!.drawRectangle({ x: 0, y: bandBottom - 4.4, width: W, height: 0.7, color: input.nursery ? theme.accent : ORIGIN_CHARCOAL });
 
     const badge = 74;
@@ -787,7 +816,7 @@ export async function buildReportCardsPdf(
       borderWidth: 1.35,
     });
     if (!input.nursery) {
-      page!.drawCircle({ x: cx, y: cy, size: badge / 2 + 3.1, borderColor: theme.accent, borderWidth: 1.1 });
+      page!.drawCircle({ x: cx, y: cy, size: badge / 2 + 3.1, borderColor: headerTheme.accent, borderWidth: 1.1 });
     }
     if (crest) {
       const inset = 5;
@@ -810,7 +839,7 @@ export async function buildReportCardsPdf(
       height: frameH,
       borderColor: input.nursery ? theme.accent : ORIGIN_CHARCOAL,
       borderWidth: 1.15,
-      color: theme.head,
+      color: headerTheme.head,
     });
     if (!input.nursery) {
       page!.drawRectangle({
@@ -818,7 +847,7 @@ export async function buildReportCardsPdf(
         y: frameY - 1.6,
         width: frameW + 3.2,
         height: frameH + 3.2,
-        borderColor: theme.accent,
+        borderColor: headerTheme.accent,
         borderWidth: 1,
       });
     }
@@ -839,7 +868,7 @@ export async function buildReportCardsPdf(
       const mark = monogram(card.pupil_name);
       const markSize = 12;
       const markW = bold.widthOfTextAtSize(mark, markSize);
-      page!.drawText(mark, { x: frameX + (frameW - markW) / 2, y: frameY + 26, size: markSize, font: bold, color: theme.ink });
+      page!.drawText(mark, { x: frameX + (frameW - markW) / 2, y: frameY + 26, size: markSize, font: bold, color: headerTheme.ink });
     }
 
     const textLeft = badgeX + badge + 16;
@@ -849,11 +878,6 @@ export async function buildReportCardsPdf(
       const drawn = font.widthOfTextAtSize(value, size);
       page!.drawText(value, { x: left + (width - drawn) / 2, y: yPos, size, font, color });
     };
-    const established = "ESTABLISHED 1993";
-    const establishedSize = 6.5;
-    const establishedTracking = 0.85;
-    const establishedW = trackedWidth(established, bold, establishedSize, establishedTracking);
-    drawTracked(page!, established, bold, establishedSize, textLeft + (textWidth - establishedW) / 2, cy + 30, establishedTracking, theme.accentInk);
     const kampala = "KAMPALA";
     let nameSize = 16;
     let nameTracking = 1.35;
@@ -870,35 +894,37 @@ export async function buildReportCardsPdf(
     }
     const nameW = trackedWidth(kampala, bold, nameSize, nameTracking);
     const academyW = trackedWidth(academy, bold, academySize, academyTracking);
-    drawTracked(page!, kampala, bold, nameSize, textLeft + (textWidth - nameW) / 2, cy + 10, nameTracking, theme.ink);
-    drawTracked(page!, academy, bold, academySize, textLeft + (textWidth - academyW) / 2, cy - 4, academyTracking, theme.accentInk);
+    drawTracked(page!, kampala, bold, nameSize, textLeft + (textWidth - nameW) / 2, cy + 10, nameTracking, headerTheme.ink);
+    drawTracked(page!, academy, bold, academySize, textLeft + (textWidth - academyW) / 2, cy - 4, academyTracking, headerTheme.accentInk);
     const hair = 36;
     page!.drawLine({
       start: { x: textLeft + (textWidth - hair) / 2, y: cy - 12 },
       end: { x: textLeft + (textWidth + hair) / 2, y: cy - 12 },
       thickness: 0.7,
-      color: theme.accent,
+      color: headerTheme.accent,
     });
-    const contact = "P.O. Box 6202    ·    info@kja.com    ·    +256 392 700 370";
+    const contact = "P.O. Box 6202    ·    info@kja.com    ·    +256 392 700 370    ·    www.kja.ug";
     let contactSize = 8;
-    while (contactSize > 6.5 && regular.widthOfTextAtSize(contact, contactSize) > textWidth) contactSize -= 0.25;
-    centerIn(contact, regular, contactSize, cy - 26, theme.ink, textLeft, textWidth);
+    const contactFont = input.nursery ? regular : bold;
+    while (contactSize > 6.5 && contactFont.widthOfTextAtSize(contact, contactSize) > textWidth) contactSize -= 0.25;
+    centerIn(contact, contactFont, contactSize, cy - 26, headerTheme.ink, textLeft, textWidth);
 
     const titleBandH = 36;
     const titleTop = bandBottom - 5.8;
-    page!.drawRectangle({ x: 0, y: titleTop - titleBandH, width: W, height: titleBandH, color: theme.head });
+    page!.drawRectangle({ x: 0, y: titleTop - titleBandH, width: W, height: titleBandH, color: headerTheme.head });
     const title = latin(normaliseReportTitle(card.report_title)).toUpperCase();
     const titleSize = 9;
     const titleW = bold.widthOfTextAtSize(title, titleSize);
     const titleX = (W - titleW) / 2;
     const titleRule = titleTop - 13;
-    page!.drawLine({ start: { x: M, y: titleRule }, end: { x: titleX - 10, y: titleRule }, thickness: 0.6, color: theme.accent });
-    page!.drawLine({ start: { x: titleX + titleW + 10, y: titleRule }, end: { x: W - M, y: titleRule }, thickness: 0.6, color: theme.accent });
-    page!.drawText(title, { x: titleX, y: titleTop - 16, size: titleSize, font: bold, color: theme.ink });
+    page!.drawLine({ start: { x: M, y: titleRule }, end: { x: titleX - 10, y: titleRule }, thickness: 0.6, color: headerTheme.accent });
+    page!.drawLine({ start: { x: titleX + titleW + 10, y: titleRule }, end: { x: W - M, y: titleRule }, thickness: 0.6, color: headerTheme.accent });
+    page!.drawText(title, { x: titleX, y: titleTop - 16, size: titleSize, font: bold, color: headerTheme.ink });
     const term = card.term_label.toUpperCase();
     const termSize = 8;
-    const termW = regular.widthOfTextAtSize(term, termSize);
-    page!.drawText(term, { x: (W - termW) / 2, y: titleTop - 29, size: termSize, font: regular, color: theme.muted });
+    const termFont = input.nursery ? regular : bold;
+    const termW = termFont.widthOfTextAtSize(term, termSize);
+    page!.drawText(term, { x: (W - termW) / 2, y: titleTop - 29, size: termSize, font: termFont, color: headerTheme.muted });
     y = titleTop - titleBandH - 12;
     const pupilWidth = contentW * 0.4;
     page!.drawText("PUPIL", { x: M, y: y - 8, size: 6.5, font: bold, color: theme.accentInk });
@@ -950,7 +976,7 @@ export async function buildReportCardsPdf(
     // Headteacher heading + comment, then fees raised beside the lower QR (not a full-width footer).
     const closingH = Math.max(12 + 22 + 4 + feesH, 12 + qrSize + 10);
     const reserved = gap + scaleH + gap + actLabel + actH + gap + teacherH + gap + closingH;
-    columns = columnsFor(card.sets);
+    columns = columnsFor(card.sets, card.lines);
     const headH = columns.some((column) => column.sub) ? 26 : 16;
     const rowCount = card.lines.length;
     const tableBottom = floor + reserved;
@@ -1030,9 +1056,9 @@ export async function buildReportCardsPdf(
       }
       const name = fit(activity.activity_name || "", bold, 7.5, actNameW - 8);
       if (name) page!.drawText(name, { x: M + 4, y: rowTop - 11, size: 7.5, font: bold, color: theme.ink });
-      const noteLines = wrap(activity.comment || "", regular, 7, actNoteW - 8, 2);
+      const noteLines = wrap(activity.comment || "", input.nursery ? regular : bold, 7, actNoteW - 8, 2);
       noteLines.forEach((noteLine, lineIndex) => {
-        page!.drawText(noteLine, { x: M + actNameW + 4, y: rowTop - 10 - lineIndex * 9, size: 7, font: regular, color: theme.ink });
+        page!.drawText(noteLine, { x: M + actNameW + 4, y: rowTop - 10 - lineIndex * 9, size: 7, font: input.nursery ? regular : bold, color: theme.ink });
       });
     });
     y = actTop - actH;
@@ -1044,8 +1070,8 @@ export async function buildReportCardsPdf(
       page!.drawText(teacher, { x: W - M - bold.widthOfTextAtSize(teacher, 8), y: y - 8, size: 8, font: bold, color: theme.ink });
     }
     page!.drawLine({ start: { x: M, y: y - 11 }, end: { x: W - M, y: y - 11 }, thickness: 0.5, color: theme.accent });
-    wrap(card.class_teacher_comment || "", regular, 8, contentW, 3).forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: y - 22 - index * 10, size: 8, font: regular, color: theme.ink });
+    wrap(card.class_teacher_comment || "", input.nursery ? regular : bold, 8, contentW, 3).forEach((noteLine, index) => {
+      page!.drawText(noteLine, { x: M, y: y - 22 - index * 10, size: 8, font: input.nursery ? regular : bold, color: theme.ink });
     });
     y -= teacherH;
 
@@ -1069,9 +1095,9 @@ export async function buildReportCardsPdf(
     const onlineSize = 5.5;
     const onlineW = bold.widthOfTextAtSize(online, onlineSize);
     page!.drawText(online, { x: qrX + (qrSize - onlineW) / 2, y: qrY - 8, size: onlineSize, font: bold, color: theme.muted });
-    const headLines = wrap(card.head_comment || "", regular, 8, feesW - 4, 2);
+    const headLines = wrap(card.head_comment || "", input.nursery ? regular : bold, 8, feesW - 4, 2);
     headLines.forEach((noteLine, index) => {
-      page!.drawText(noteLine, { x: M, y: closingTop - 22 - index * 10, size: 8, font: regular, color: theme.ink });
+      page!.drawText(noteLine, { x: M, y: closingTop - 22 - index * 10, size: 8, font: input.nursery ? regular : bold, color: theme.ink });
     });
     // Raise fees so its top sits beside the lower third of the QR, not as a full-width page footer.
     const afterComment = closingTop - 22 - Math.max(1, headLines.length) * 10 - 4;
@@ -1097,7 +1123,8 @@ export async function buildReportCardsPdf(
     } else {
       feeLines.forEach((line, index) => {
         const rowY = feesTop - 28 - index * 12;
-        page!.drawText(fit(line.name, regular, 8, feesW * 0.62 - 78), { x: M + 8, y: rowY, size: 8, font: regular, color: theme.ink });
+        const feeFont = input.nursery ? regular : bold;
+        page!.drawText(fit(line.name, feeFont, 8, feesW * 0.62 - 78), { x: M + 8, y: rowY, size: 8, font: feeFont, color: theme.ink });
         const money = formatReportMoney(line.amount);
         page!.drawText(money, { x: feesSplit - 8 - bold.widthOfTextAtSize(money, 8), y: rowY, size: 8, font: bold, color: theme.ink });
       });

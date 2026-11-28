@@ -344,6 +344,28 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
 }
 .rpt-generate-list li:first-child { border-top: 0; padding-top: .15rem; }
 .rpt-generate-list li.is-on { background: linear-gradient(90deg, rgba(201, 162, 39, .06), transparent 70%); }
+.rpt-generate-row-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: .55rem;
+}
+.rpt-generate-order { display: inline-flex; gap: .2rem; }
+.rpt-generate-order button {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid #e6e1d6;
+  border-radius: 7px;
+  background: #fff;
+  color: #19232b;
+  cursor: pointer;
+}
+.rpt-generate-order button:hover:not(:disabled) { border-color: #19232b; }
+.rpt-generate-order button:focus-visible { outline: 2px solid rgba(201, 162, 39, .65); outline-offset: 2px; }
+.rpt-generate-order button:disabled { opacity: .4; cursor: default; }
 .rpt-generate-pick {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
@@ -403,6 +425,204 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
 .rpt-dialog .acd-feedback { margin: 0; }
 
 .rpt-preview { display: grid; gap: 1.25rem; padding: 1.15rem; }
+.rpt-preview-page .rpt-preview { padding: 0; }
+.rpt-preview-page article.acd-sheet {
+  box-sizing: border-box;
+  width: 210mm;
+  max-width: 100%;
+  height: 297mm;
+  margin: 0 auto;
+  border: 0;
+  border-radius: 0;
+  padding: 3.5mm 0 0;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: none;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.rpt-preview-page article.acd-sheet .acd-sheet-edge {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  padding-top: 0;
+}
+.rpt-preview-page article.acd-sheet.is-primary {
+  height: auto;
+  min-height: 297mm;
+  overflow: visible;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-edge {
+  height: auto;
+  min-height: calc(297mm - 3.5mm);
+  overflow: visible;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-edge::after { margin-top: auto; }
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-identity {
+  flex-direction: row;
+  align-items: center;
+  margin: 0 10mm;
+  padding: .4rem 0 .35rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record {
+  padding: .4rem 10mm .15rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-table-wrap {
+  overflow: visible;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record table {
+  width: 100%;
+  table-layout: fixed;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td {
+  padding: .2rem .22rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record .acd-sheet-subject {
+  width: 20%;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record table.has-sets .acd-sheet-subject {
+  width: var(--subject-col, 10rem);
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-score,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-score {
+  width: 3.8rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-grade,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-grade {
+  width: 3.4rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-set,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-set {
+  width: var(--set-col, 3.35rem);
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-note,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-note {
+  width: 8.5rem;
+  max-width: 8.5rem;
+  white-space: normal;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record th.is-sign,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-record td.is-sign {
+  width: 3rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-lower {
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  gap: 2mm;
+  margin: 2mm 10mm 9mm;
+  min-height: 0;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-report,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-principal {
+  flex: 0 0 auto;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-report p,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-principal p {
+  flex: none;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-report p.has-copy,
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-report p.is-blank {
+  min-height: 2.2rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-principal p.has-copy {
+  min-height: 0;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-principal p.is-blank {
+  min-height: 1.4rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-closing {
+  column-gap: .55rem;
+  row-gap: .55rem;
+  margin-top: .22rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-signs {
+  margin-top: .28rem;
+  gap: .35rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-signs > div {
+  padding: .28rem .38rem .32rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-sign-img {
+  height: 1.35rem;
+  margin: .08rem 0 .04rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-sign-img.is-principal-signature {
+  height: 1.95rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-sign-line {
+  margin: .35rem 0 .08rem;
+  min-height: .7rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-fees {
+  margin-top: .28rem;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-figures {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 1.5mm;
+}
+.rpt-preview-page article.acd-sheet.is-primary .acd-sheet-figures > div {
+  padding: .28rem .35rem .3rem;
+  border-radius: 6px;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba {
+  height: auto;
+  overflow: visible;
+  padding: 0;
+  background: #fffef9;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-page {
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 3mm 0 0;
+  overflow: visible;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-edge {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: calc(297mm - 3mm);
+  overflow: visible;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-sheet-edge {
+  justify-content: flex-start;
+  gap: 0;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-page-1 {
+  break-after: page;
+  page-break-after: always;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-page + .acd-sheet-page {
+  margin-top: 0;
+  padding-top: 3mm;
+  border-top: 0;
+}
+.rpt-preview-page article.acd-sheet .acd-sheet-banner {
+  padding-left: 1.2rem;
+  padding-right: 1.2rem;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-banner {
+  grid-template-columns: 4.85rem minmax(0, 1fr) 4.85rem;
+  padding: .95rem 1.2rem .88rem;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-crest {
+  width: 4.85rem;
+  height: 4.85rem;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-portrait {
+  width: 4.15rem;
+  height: 5.2rem;
+}
+.rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-rules {
+  height: 6px;
+  background:
+    linear-gradient(90deg, var(--sheet-green), var(--sheet-gold) 42%, var(--sheet-red)) 0 0 / 100% 3px no-repeat,
+    linear-gradient(90deg, var(--sheet-green-deep), var(--sheet-gold-deep) 42%, var(--sheet-red-deep)) 0 4px / 100% 1.5px no-repeat,
+    var(--sheet-cream);
+}
 .rpt-preview .acd-sheet + .acd-sheet,
 .rpt-print-sheets .acd-sheet + .acd-sheet { break-before: page; page-break-before: always; }
 .rpt-print-pack { gap: 1rem; }
@@ -425,6 +645,15 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
   .rpt-print-pack .acd-sheet { max-width: 100%; margin: 0 auto; }
   .rpt-print-pack { gap: 0; margin: 0; padding: 0; width: 100%; }
   .rpt-print-sheets { gap: 0; margin: 0; padding: 0; width: 100%; }
+}
+@media (max-width: 640px) {
+  .rpt-preview-page article.acd-sheet .acd-sheet-banner {
+    grid-template-columns: 5.2rem minmax(0, 1fr) 5.2rem;
+    grid-template-areas: "crest brand portrait";
+  }
+  .rpt-preview-page article.acd-sheet.is-nursery-dsba .acd-sheet-banner {
+    grid-template-columns: 4.85rem minmax(0, 1fr) 4.85rem;
+  }
 }
 .rpt-cancel { margin: 0; }
 .rpt-cancel fieldset { display: flex; margin: 0; padding: 0; border: 0; min-inline-size: 0; }
@@ -645,7 +874,7 @@ a.rpt-btn { display: inline-flex; align-items: center; text-decoration: none; }
   box-sizing: border-box;
   width: min(100%, 210mm);
   max-width: 210mm;
-  margin: 0;
+  margin: 0 auto;
 }
 .rpt-detail button.admin-hero-btn {
   font: inherit;

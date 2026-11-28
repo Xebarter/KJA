@@ -623,18 +623,27 @@ article.acd-sheet .acd-sheet-record th.is-sign {
 }
 article.acd-sheet th.is-set,
 article.acd-sheet td.is-set {
-  width: var(--set-col, 3.8rem);
+  width: var(--set-col, 3.35rem);
   letter-spacing: .02em;
   line-height: 1.15;
   white-space: normal;
 }
 article.acd-sheet .acd-sheet-record.has-sets .acd-sheet-subject,
 article.acd-sheet .acd-sheet-record table.has-sets .acd-sheet-subject {
-  width: var(--subject-col, 18%);
+  width: var(--subject-col, 10rem);
 }
 article.acd-sheet .acd-sheet-record table.has-sets th.is-set,
 article.acd-sheet .acd-sheet-record table.has-sets td.is-set {
-  width: var(--set-col, 3.6rem);
+  width: var(--set-col, 3.35rem);
+}
+article.acd-sheet .acd-sheet-record th.is-note,
+article.acd-sheet .acd-sheet-record td.is-note {
+  width: 8.5rem;
+  max-width: 8.5rem;
+  white-space: normal;
+}
+article.acd-sheet th.is-set {
+  container-type: inline-size;
 }
 article.acd-sheet th.is-set span {
   display: -webkit-box;
@@ -643,7 +652,8 @@ article.acd-sheet th.is-set span {
   line-clamp: 2;
   overflow: hidden;
   max-height: calc(1.15em * 2);
-  font-size: var(--set-title-size, inherit);
+  font-size: .76rem;
+  font-size: clamp(.42rem, 27cqi, .76rem);
   letter-spacing: .03em;
   line-height: 1.15;
   overflow-wrap: anywhere;
@@ -659,20 +669,35 @@ article.acd-sheet th.is-set small {
   letter-spacing: 0;
 }
 article.acd-sheet tbody tr:last-child td { border-bottom: 0; }
-article.acd-sheet .acd-sheet-subject { width: auto; min-width: 0; }
+article.acd-sheet .acd-sheet-subject {
+  width: auto;
+  min-width: 0;
+  container-type: inline-size;
+}
 article.acd-sheet .acd-sheet-subject strong {
+  --subject-word-max-size: .94rem;
   display: block;
-  overflow: hidden;
+  overflow: visible;
   font-size: .94rem;
   font-weight: 700;
   letter-spacing: -.005em;
   line-height: 1.2;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: normal;
 }
 article.acd-sheet .acd-sheet-record .acd-sheet-subject strong {
+  --subject-word-max-size: calc(.94rem + 1pt);
   font-size: calc(.94rem + 1pt);
   font-weight: 800;
+}
+article.acd-sheet .acd-sheet-subject strong > span {
+  display: block;
+  width: max-content;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: var(--subject-word-max-size, .94rem);
+  font-size: clamp(.36rem, calc(100cqi * var(--subject-word-fit-factor, 1)), var(--subject-word-max-size, .94rem));
+  text-overflow: clip;
+  white-space: nowrap;
 }
 article.acd-sheet .acd-sheet-figure {
   color: var(--sheet-ink);
@@ -755,6 +780,14 @@ article.acd-sheet .acd-sheet-lower {
   flex-direction: column;
   gap: .55rem;
   margin: .65rem .7rem .55rem;
+}
+article.acd-sheet.is-primary .acd-sheet-activities *,
+article.acd-sheet.is-primary .acd-sheet-report *,
+article.acd-sheet.is-primary .acd-sheet-closing *,
+article.acd-sheet.is-primary .acd-sheet-signs *,
+article.acd-sheet.is-primary .acd-sheet-fees *,
+article.acd-sheet.is-primary .acd-sheet-foot * {
+  font-weight: 700 !important;
 }
 article.acd-sheet .acd-sheet-scale,
 article.acd-sheet .acd-sheet-activities,
@@ -1153,6 +1186,15 @@ article.acd-sheet .acd-sheet-draft.is-approved {
 
 /* ——— Primary card: bright blue, fresh green and sunshine accents ——— */
 article.acd-sheet.is-primary {
+  --primary-header-green: #12a54b;
+  --primary-header-green-deep: #0b7d38;
+  --primary-header-gold: #d4a017;
+  --primary-header-gold-deep: #a67c0a;
+  --primary-header-red: #e11d48;
+  --primary-header-red-deep: #be123c;
+  --primary-header-cream: #fff9ee;
+  --primary-header-ink: #152028;
+  --primary-header-muted: #5c4a2e;
   --origin-primary: #2463a6;
   --origin-primary-deep: #194878;
   --origin-gold: #f2be35;
@@ -1178,22 +1220,67 @@ article.acd-sheet.is-primary {
   background: #fff;
   box-shadow: 0 16px 40px rgba(36, 99, 166, .08);
 }
+
 article.acd-sheet.is-primary .acd-sheet-watermark img {
   opacity: .055;
   mix-blend-mode: multiply;
   filter: none;
 }
+article.acd-sheet.is-lower-primary .acd-sheet-lower-primary-watermarks {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+article.acd-sheet.is-lower-primary .acd-sheet-lower-primary-watermarks img {
+  position: absolute;
+  display: block;
+  height: auto;
+  object-fit: contain;
+  opacity: .22;
+  mix-blend-mode: multiply;
+  user-select: none;
+}
+article.acd-sheet.is-lower-primary .acd-sheet-lower-primary-watermarks .is-left {
+  top: 50%;
+  left: -3mm;
+  width: 65mm;
+  max-height: 78%;
+  opacity: .36;
+  object-position: left center;
+  transform: translateY(-50%);
+}
+article.acd-sheet.is-lower-primary .acd-sheet-lower-primary-watermarks .is-right {
+  top: 50%;
+  right: -3mm;
+  width: 65mm;
+  max-height: 78%;
+  opacity: .36;
+  object-position: right center;
+  transform: translateY(-50%);
+}
+article.acd-sheet.is-lower-primary .acd-sheet-lower-primary-watermarks .is-bottom {
+  right: 0;
+  bottom: -5mm;
+  left: 0;
+  width: 94%;
+  max-height: 34%;
+  margin: 0 auto;
+  object-position: center bottom;
+}
 article.acd-sheet.is-primary .acd-sheet-banner {
-  border-top: 3px solid var(--origin-primary);
-  background: #f8fbff;
+  border-top: 3px solid var(--primary-header-gold);
+  background:
+    linear-gradient(180deg, #e8f8ee 0%, var(--primary-header-cream) 48%, #fff5f7 100%);
 }
 article.acd-sheet.is-primary .acd-sheet-banner::before {
   background-image:
-    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
-    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .2) 31px 32px),
-    linear-gradient(90deg, transparent 0 7px, rgba(242, 190, 53, .34) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
-    linear-gradient(0deg, transparent 0 7px, rgba(242, 190, 53, .34) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px);
-  background-color: rgba(255, 254, 250, .65);
+    linear-gradient(90deg, transparent 0 15px, rgba(18, 165, 75, .2) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .22) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(18, 165, 75, .2) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .22) 31px 32px),
+    linear-gradient(90deg, transparent 0 7px, rgba(225, 29, 72, .22) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .18) 23px 24px),
+    linear-gradient(0deg, transparent 0 7px, rgba(225, 29, 72, .22) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .18) 23px 24px);
+  background-color: rgba(255, 249, 238, .65);
   background-repeat: repeat;
   background-position: center;
   background-size: 32px 32px, 32px 32px, 32px 32px, 32px 32px;
@@ -1202,53 +1289,69 @@ article.acd-sheet.is-primary .acd-sheet-banner::before {
 article.acd-sheet.is-primary .acd-sheet-crest {
   box-shadow:
     0 0 0 3px #fff,
-    0 0 0 4.5px var(--origin-primary),
-    0 0 0 6.5px var(--origin-gold);
+    0 0 0 4.5px var(--primary-header-green),
+    0 0 0 6.5px var(--primary-header-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-face,
 article.acd-sheet.is-primary .acd-sheet-seal {
-  background: var(--origin-cream);
+  background: var(--primary-header-cream);
   box-shadow:
     0 0 0 2px #fff,
-    0 0 0 3.5px var(--origin-primary),
-    0 0 0 5px var(--origin-gold);
+    0 0 0 3.5px var(--primary-header-green),
+    0 0 0 5px var(--primary-header-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-rules {
   height: 8px;
   background:
-    linear-gradient(90deg, var(--origin-primary) 0 36%, var(--sheet-green) 36% 67%, var(--origin-gold) 67% 84%, var(--sheet-red) 84%) 0 0 / 100% 3px no-repeat,
-    linear-gradient(90deg, rgba(36, 99, 166, .48), rgba(46, 155, 104, .48) 36% 67%, rgba(242, 190, 53, .58) 84%, rgba(237, 112, 91, .38)) 0 4px / 100% 1px no-repeat,
-    var(--origin-cream);
+    linear-gradient(90deg, var(--primary-header-green), var(--primary-header-gold) 42%, var(--primary-header-red)) 0 0 / 100% 3px no-repeat,
+    linear-gradient(90deg, var(--primary-header-green-deep), var(--primary-header-gold-deep) 42%, var(--primary-header-red-deep)) 0 4px / 100% 1.75px no-repeat,
+    var(--primary-header-cream);
 }
 article.acd-sheet.is-primary .acd-sheet-established {
-  color: var(--origin-primary);
+  color: var(--primary-header-green-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-school::after {
-  background: linear-gradient(90deg, var(--origin-primary), var(--sheet-green) 48%, var(--origin-gold), var(--sheet-red));
+  background: linear-gradient(90deg, var(--primary-header-green), var(--primary-header-gold), var(--primary-header-red));
 }
 article.acd-sheet.is-primary .acd-sheet-academy {
-  color: var(--origin-primary-deep);
+  color: var(--primary-header-red-deep);
+}
+article.acd-sheet.is-primary .acd-sheet-contact {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .18rem 0;
+  font-size: clamp(.7rem, 2.5cqi, .82rem);
+  letter-spacing: .01em;
+}
+article.acd-sheet.is-primary .acd-sheet-contact span {
+  white-space: nowrap;
+}
+article.acd-sheet.is-primary .acd-sheet-contact,
+article.acd-sheet.is-primary .acd-sheet-title h2,
+article.acd-sheet.is-primary .acd-sheet-term {
+  font-weight: 700;
 }
 article.acd-sheet.is-primary .acd-sheet-contact span + span::before {
-  background: var(--origin-gold);
+  display: inline-block;
+  background: var(--primary-header-gold);
 }
 article.acd-sheet.is-primary .acd-sheet-title {
   padding: 0.7rem 1.4rem 0.75rem;
-  background-color: #f8fbff;
+  background-color: #fff;
   background-image:
-    linear-gradient(90deg, rgba(36, 99, 166, .1) 1px, transparent 1px),
-    linear-gradient(rgba(46, 155, 104, .08) 1px, transparent 1px),
-    linear-gradient(90deg, #f3f8ff, #fff 50%, #f1fbf4);
+    linear-gradient(90deg, rgba(18, 165, 75, .1) 1px, transparent 1px),
+    linear-gradient(rgba(212, 160, 23, .12) 1px, transparent 1px),
+    linear-gradient(90deg, #e6f8ee, #fff6d6 48%, #ffe4ea);
   background-size: 12px 12px, 12px 12px, 100% 100%;
-  border-bottom: 1px solid rgba(36, 99, 166, .28);
+  border-bottom: 1px solid rgba(212, 160, 23, .55);
 }
 article.acd-sheet.is-primary .acd-sheet-title h2::before,
 article.acd-sheet.is-primary .acd-sheet-title h2::after {
   height: 1px;
-  background: linear-gradient(90deg, var(--origin-primary), var(--sheet-green) 48%, var(--origin-gold), var(--sheet-red));
+  background: linear-gradient(90deg, var(--primary-header-green), var(--primary-header-gold), var(--primary-header-red));
 }
 article.acd-sheet.is-primary .acd-sheet-term {
-  color: var(--origin-primary-deep);
+  color: var(--primary-header-green-deep);
 }
 article.acd-sheet.is-primary .acd-sheet-identity {
   border-bottom: 1px solid rgba(36, 99, 166, .2);
@@ -1256,24 +1359,49 @@ article.acd-sheet.is-primary .acd-sheet-identity {
 article.acd-sheet.is-primary .acd-sheet-kicker {
   color: var(--origin-primary);
 }
+article.acd-sheet.is-primary .acd-sheet-activities > .acd-sheet-kicker {
+  font-weight: 800;
+}
 article.acd-sheet.is-primary .acd-sheet-table-wrap {
   border: 1px solid rgba(41, 38, 42, .18);
   box-shadow: 0 6px 18px rgba(41, 38, 42, .04);
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th {
-  background-color: #f6faff;
+  padding: .58rem .42rem .5rem;
+  background-color: var(--primary-header-green-deep);
   background-image:
-    linear-gradient(90deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .22) 31px 32px),
-    linear-gradient(0deg, transparent 0 15px, rgba(36, 99, 166, .2) 15px 16px, transparent 16px 31px, rgba(46, 155, 104, .22) 31px 32px),
-    linear-gradient(90deg, transparent 0 7px, rgba(242, 190, 53, .36) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
-    linear-gradient(0deg, transparent 0 7px, rgba(242, 190, 53, .36) 7px 8px, transparent 8px 23px, rgba(237, 112, 91, .18) 23px 24px),
-    linear-gradient(180deg, #fffefa, #f0f7ff);
+    linear-gradient(90deg, transparent 0 15px, rgba(255, 255, 255, .13) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .2) 31px 32px),
+    linear-gradient(0deg, transparent 0 15px, rgba(255, 255, 255, .13) 15px 16px, transparent 16px 31px, rgba(212, 160, 23, .2) 31px 32px),
+    linear-gradient(90deg, transparent 0 7px, rgba(225, 255, 239, .08) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .14) 23px 24px),
+    linear-gradient(0deg, transparent 0 7px, rgba(225, 255, 239, .08) 7px 8px, transparent 8px 23px, rgba(212, 160, 23, .14) 23px 24px),
+    linear-gradient(115deg, var(--primary-header-green-deep), var(--primary-header-green) 58%, var(--primary-header-green-deep));
   background-size: 32px 32px, 32px 32px, 32px 32px, 32px 32px, 100% 100%;
-  color: var(--origin-primary-deep);
-  border-bottom: 2px solid var(--origin-primary);
+  color: #fff;
+  font-size: .72rem;
+  letter-spacing: .035em;
+  border-bottom: 3px solid var(--primary-header-gold);
+  text-shadow: 0 1px 1px rgba(0, 0, 0, .18);
+  container-type: inline-size;
+  text-align: left;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th > .acd-sheet-header-label {
+  font-size: min(clamp(.58rem, 22cqi, .78rem), calc(100cqi * var(--header-title-fit-factor, 1)));
+  letter-spacing: .025em;
+  line-height: 1.15;
+  white-space: normal;
 }
 article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
-  color: var(--sheet-muted);
+  font-size: clamp(.48rem, 17cqi, .62rem);
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th + th {
+  border-left: 1px solid rgba(255, 255, 255, .18);
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-set {
+  text-align: left;
+}
+article.acd-sheet.is-primary .acd-sheet-record thead th.is-set small {
+  color: rgba(255, 255, 255, .78);
+  font-weight: 600;
 }
 article.acd-sheet.is-primary .acd-sheet-record tbody tr + tr td {
   border-top: 1px solid rgba(41, 38, 42, .08);
@@ -1397,6 +1525,9 @@ article.acd-sheet.is-primary .acd-sheet-sign-img {
   object-fit: contain;
   object-position: left bottom;
 }
+article.acd-sheet.is-primary .acd-sheet-sign-img.is-principal-signature {
+  height: 2.35rem;
+}
 article.acd-sheet.is-primary .acd-sheet-sign-line {
   margin: 0.45rem 0 0.1rem;
   min-height: 0.85rem;
@@ -1409,6 +1540,47 @@ article.acd-sheet.is-primary .acd-sheet-sign-hint {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-table-wrap {
+  background: transparent;
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr td {
+  background: rgba(255, 255, 255, .42);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even) td {
+  background: rgba(250, 249, 248, .46);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-high td {
+  background: rgba(240, 248, 245, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-high td {
+  background: rgba(234, 244, 240, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-mid td {
+  background: rgba(252, 248, 237, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-mid td {
+  background: rgba(248, 241, 223, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr.is-tone-low td {
+  background: rgba(255, 245, 242, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-record tbody tr:nth-child(even).is-tone-low td {
+  background: rgba(255, 237, 232, .5);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-coco-table thead th {
+  background: linear-gradient(
+    90deg,
+    rgba(230, 248, 238, .64),
+    rgba(255, 244, 204, .64) 55%,
+    rgba(255, 232, 238, .64)
+  );
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-coco-table td {
+  background: rgba(255, 255, 255, .42);
+}
+article.acd-sheet.is-primary.is-lower-primary .acd-sheet-signs > div {
+  background: linear-gradient(180deg, rgba(251, 250, 249, .38), rgba(255, 255, 255, .46));
 }
 article.acd-sheet.is-primary .acd-sheet-edge::after {
   content: "";
@@ -1793,6 +1965,9 @@ article.acd-sheet.is-nursery-dsba .acd-nur-sign-img {
   object-fit: contain;
   object-position: left bottom;
 }
+article.acd-sheet.is-nursery-dsba .acd-nur-sign-img.is-principal-signature {
+  height: 2.35rem;
+}
 article.acd-sheet.is-nursery-dsba .acd-nur-sign-line {
   margin: .45rem 0 .1rem;
   border-bottom: 1.5px solid rgba(21, 32, 40, .45);
@@ -2017,6 +2192,9 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     height: 1.35rem;
     margin: .1rem 0 .05rem;
   }
+  article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-sign-img.is-principal-signature {
+    height: 1.95rem;
+  }
   article.acd-sheet.is-nursery-dsba .acd-sheet-page-2 .acd-nur-sign-line {
     margin: .35rem 0 .1rem;
     min-height: .7rem;
@@ -2131,7 +2309,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     width: 20%;
   }
   article.acd-sheet .acd-sheet-record table.has-sets .acd-sheet-subject {
-    width: var(--subject-col, 16%);
+    width: var(--subject-col, 10rem);
   }
   article.acd-sheet .acd-sheet-record th.is-score,
   article.acd-sheet .acd-sheet-record td.is-score {
@@ -2143,7 +2321,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   }
   article.acd-sheet .acd-sheet-record th.is-set,
   article.acd-sheet .acd-sheet-record td.is-set {
-    width: var(--set-col, 3.3rem);
+    width: var(--set-col, 3.35rem);
   }
   article.acd-sheet .acd-sheet-record th.is-sign,
   article.acd-sheet .acd-sheet-record td.is-sign {
@@ -2180,6 +2358,9 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
     height: 1.35rem;
     margin: .08rem 0 .04rem;
   }
+  article.acd-sheet.is-primary .acd-sheet-sign-img.is-principal-signature {
+    height: 1.95rem;
+  }
   article.acd-sheet.is-primary .acd-sheet-sign-line {
     margin: .35rem 0 .08rem;
     min-height: .7rem;
@@ -2209,6 +2390,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   article.acd-sheet .acd-sheet-rules,
   article.acd-sheet .acd-sheet-title,
   article.acd-sheet .acd-sheet-watermark img,
+  article.acd-sheet .acd-sheet-lower-primary-watermarks img,
   article.acd-sheet .acd-sheet-meter,
   article.acd-sheet .acd-grade,
   article.acd-sheet .acd-sheet-crest,
@@ -2218,6 +2400,7 @@ article.acd-sheet.is-nursery-dsba .acd-nur-fees {
   article.acd-sheet .acd-sheet-seal,
   article.acd-sheet .acd-sheet-scale li,
   article.acd-sheet .acd-sheet-activities th,
+  article.acd-sheet .acd-sheet-activities td,
   article.acd-sheet .acd-sheet-fees,
   article.acd-sheet .acd-sheet-table-wrap,
   article.acd-sheet .acd-sheet-record thead th,

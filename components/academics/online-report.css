@@ -645,6 +645,10 @@ body:has(.kor) {
   object-position: left bottom;
 }
 
+.kor-nur-sign-img.is-principal-signature {
+  height: 2.7rem;
+}
+
 .kor-nur-sign-line {
   display: block;
   min-height: 1.4rem;

@@ -1,5 +1,7 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { operationalCampus } from "@/lib/campuses";
+import { isCampusId, operationalCampus } from "@/lib/campuses";
 import { streamOf } from "@/lib/academics";
 import { bandForClassCode } from "@/lib/subject-bands";
 import { TEACHER_PHOTO_BUCKET } from "@/lib/teacher-photos";
@@ -7,16 +9,23 @@ import { TEACHER_PHOTO_BUCKET } from "@/lib/teacher-photos";
 /** Reuses teacher-photos; paths are `{staffId}/sig-{timestamp}.{ext}`. */
 export const TEACHER_SIGNATURE_BUCKET = TEACHER_PHOTO_BUCKET;
 
-export const NURSERY_HEAD_SIGNATURE_SRC = "/signatures/head-of-nursery.png";
-export const LOWER_PRIMARY_HEAD_SIGNATURE_SRC = "/signatures/head-of-lower-primary.png";
-export const UPPER_PRIMARY_HEAD_SIGNATURE_SRC = "/signatures/head-of-upper-primary.png";
 export const PRINCIPAL_SIGNATURE_SRC = "/signatures/principal.png";
 
+function campusHeadSignatureSrc(section: string, campus?: string | null) {
+  const campusId = campus?.trim();
+  if (!campusId || !isCampusId(campusId)) return null;
+  const file = `${section}-${campusId.toLowerCase()}.png`;
+  return existsSync(path.join(process.cwd(), "public", "signatures", file)) ? `/signatures/${file}` : null;
+}
+
+export function nurseryHeadSignatureSrc(campus?: string | null) {
+  return campusHeadSignatureSrc("head-of-nursery", campus);
+}
+
 /** Head of section image for a primary class (P1–P3 lower, P4–P7 upper). */
-export function primaryHeadSignatureSrc(classCode: string | null | undefined) {
-  return bandForClassCode(classCode) === "lower"
-    ? LOWER_PRIMARY_HEAD_SIGNATURE_SRC
-    : UPPER_PRIMARY_HEAD_SIGNATURE_SRC;
+export function primaryHeadSignatureSrc(classCode: string | null | undefined, campus?: string | null) {
+  const section = bandForClassCode(classCode) === "lower" ? "head-of-lower-primary" : "head-of-upper-primary";
+  return campusHeadSignatureSrc(section, campus);
 }
 
 const SIGNATURE_TYPES: Record<string, string> = {

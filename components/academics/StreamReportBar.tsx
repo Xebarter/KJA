@@ -18,6 +18,7 @@ export function StreamReportBar({
   termId,
   classCode,
   stream,
+  campus,
   drafts,
   cards,
   sittings,
@@ -35,6 +36,7 @@ export function StreamReportBar({
   termId: string;
   classCode: string;
   stream: string;
+  campus?: string;
   drafts: number;
   cards: number;
   sittings: ReportSitting[];
@@ -60,6 +62,7 @@ export function StreamReportBar({
         termId={termId}
         classCode={classCode}
         stream={stream}
+        campus={campus}
         sittings={sittings}
         defaultTitle={reportTitle || undefined}
         prepareAction={prepareAction}

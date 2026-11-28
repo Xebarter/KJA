@@ -122,6 +122,7 @@ function renderRegister({
   ])];
   const exportHref = studentFilterHref(filters, { page: 1 }, `${OFFICE}/students/export`);
   const sheetHref = studentFilterHref(filters, { page: 1 }, `${OFFICE}/students/sheet`);
+  const returnHref = studentFilterHref(filters, { page: filters.page });
 
   const statusLabel = filters.status === "all" ? "" : studentStatusInfo(filters.status).label.toLowerCase();
   const noun = (n: number) => `${statusLabel ? `${statusLabel} ` : ""}student${n === 1 ? "" : "s"}`;
@@ -223,7 +224,7 @@ function renderRegister({
         </header>
 
         {rows.length ? (
-          <StudentTable rows={rows} exportHref={exportHref} sheetHref={sheetHref} />
+          <StudentTable rows={rows} exportHref={exportHref} sheetHref={sheetHref} returnHref={returnHref} />
         ) : (
           <Empty icon="fa-face-meh" title="No students found">
             {filters.q
